@@ -269,8 +269,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gpt-4o-mini
-          provider: openai
+          name: gemini-2.0-flash
+          provider: google
         query_variable_selector:
         - node-start
         - user_input
@@ -299,8 +299,8 @@ workflow:
           completion_params:
             temperature: 0.5
           mode: chat
-          name: gpt-4o-mini
-          provider: openai
+          name: gemini-2.0-flash
+          provider: google
         prompt_template:
         - role: system
           text: |
@@ -338,8 +338,8 @@ workflow:
           completion_params:
             temperature: 0.7
           mode: chat
-          name: gpt-4o-mini
-          provider: openai
+          name: gemini-2.0-flash
+          provider: google
         prompt_template:
         - role: system
           text: |
@@ -377,8 +377,8 @@ workflow:
           completion_params:
             temperature: 0.6
           mode: chat
-          name: gpt-4o-mini
-          provider: openai
+          name: gemini-2.0-flash
+          provider: google
         prompt_template:
         - role: system
           text: |
@@ -415,8 +415,8 @@ workflow:
           completion_params:
             temperature: 0.4
           mode: chat
-          name: gpt-4o-mini
-          provider: openai
+          name: gemini-2.0-flash
+          provider: google
         prompt_template:
         - role: system
           text: |
@@ -463,8 +463,8 @@ workflow:
           completion_params:
             temperature: 0.5
           mode: chat
-          name: gpt-4o-mini
-          provider: openai
+          name: gemini-2.0-flash
+          provider: google
         prompt_template:
         - role: system
           text: |
