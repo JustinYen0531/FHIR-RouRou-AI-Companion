@@ -77,31 +77,43 @@
 - classifier 與 retrieval 已重新拆開
 - 成本控制回到較符合 PRD 的低干擾設計
 
-### 4. P1 的結構化資料能力目前全部未落地
-目前新版骨架版沒有：
-- 情緒 / 行為 / 認知 / 警示標籤輸出
+### 4. P1 的結構化資料能力已補回第一版
+目前新版骨架版已新增：
 - `latest_tag_payload`
 - `Tag Structurer`
+- `Save Tag Payload`
 - `hamd_progress_state`
 - `HAM-D Progress Tracker`
+- `Save HAM-D Progress`
 
-這代表目前新版骨架版仍然是「會分流回話」，但不是「會留下結構化診前資料」的版本。
+目前已恢復的能力：
+- 一般正常回合會產生四大標籤的簡化 JSON
+- `mission` 路徑會保存一份簡化的 HAM-D 進度狀態
+- `Mission Guide` 已能讀取 `hamd_progress_state`
 
-### 5. Mission 的 HAM-D 導向能力倒退成 prompt level
-目前 `mission` 仍有任務導向 prompt，也保留 retrieval。
-但沒有：
-- 維度覆蓋記錄
-- 進度條狀態
-- 下一個建議維度
-- 一次只推進一個 HAM-D 面向的狀態約束
+目前仍未完成：
+- 標籤欄位仍是簡化版 JSON 字串
+- 尚未把 follow-up / safety 的資料整合進同一份摘要 state
+- 尚未把 HAM-D 狀態做成真正的完整維度進度控制
 
-這代表 `mission` 目前只是「偏結構化的回答」，還不是 PRD 想要的「一步步整理診前資訊」。
+### 5. Mission 的 HAM-D 導向能力已補回第一版
+目前 `mission` 已不只是 prompt level。
+已新增：
+- `hamd_progress_state`
+- `HAM-D Progress Tracker`
+- `Mission Guide` 讀取既有 HAM-D 狀態
+
+目前仍未完成：
+- 維度覆蓋仍是簡化狀態
+- 沒有完整 17 項進度管理
+- 沒有 UI 進度條
+- 沒有醫師摘要級別的維度時間線
 
 ## 目前所在階段判定
 以新版可匯入版本 [AI_Chatflow_Fresh_Export.yml](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/AI_Chatflow_Fresh_Export.yml) 來看，目前整體狀態應判定為：
 
 - `P0`: 已完成
-- `P1`: 尚未開始落地
+- `P1`: 已開始落地
 - `P2`: 尚未開始
 
 更細的判定如下：
@@ -127,15 +139,21 @@
 以目前這輪重建的範圍來說，可視為 `P0` 已完成；後續剩下的是 `P0+` 的精緻化，而不是流程正確性缺口。
 
 ### P1：資料蒐集能力
-目前狀態：`未開始`
+目前狀態：`已開始`
 
-尚未落地：
-- 四大標籤輸出
-- HAM-D 維度狀態
-- 任務式逐步蒐集
+已達成：
+- `latest_tag_payload` 已回到 conversation state
+- 已有 `Tag Structurer`
+- `hamd_progress_state` 已回到 conversation state
+- `mission` 路徑已有 `HAM-D Progress Tracker`
+
+尚未達成：
+- 四大標籤尚未標準化
+- follow-up / safety 資料尚未納入統一資料模型
+- `mission` 仍未做到完整逐維度推進
 
 結論：
-目前還沒有進入真正的 `P1` 落地階段。
+目前已進入 `P1`，但仍屬第一版落地，不可視為 `P1 done`。
 
 ### P2：體驗與成本優化
 目前狀態：`未開始`
@@ -241,7 +259,7 @@ AI Companion 的定位不是一般聊天機器人，而是：
 目前尚未達成：
 - 沒有病患主動手動切模式
 - 沒有自動模式降級邏輯
-- `mission` 還沒有真正的維度進度控制
+- `mission` 還沒有完整的維度進度控制
 
 ### 4. RAG 成本控制
 目前不是每條路都做 retrieval。
@@ -263,6 +281,24 @@ AI Companion 的定位不是一般聊天機器人，而是：
 - 沒有知識庫用途分層
 - 沒有 retrieval 命中品質監控
 
+### 5. 結構化資料輸出
+目前已新增：
+- `latest_tag_payload`
+- `hamd_progress_state`
+
+目前設計：
+- 正常回合會先經過 `Tag Structurer`，把本輪輸入整理成四大標籤 JSON
+- `mission` 路徑會經過 `HAM-D Progress Tracker`，保存簡化的維度進度狀態
+
+目前已達成：
+- 已開始保留可供後續摘要使用的結構化資料
+- `mission` 不再只是 prompt 上的概念，而有最基本的狀態保存
+
+目前尚未達成：
+- tag payload 還沒有標準化欄位治理
+- safety / follow-up 尚未統一進同一份資料模型
+- 尚未形成醫師摘要草稿
+
 ## 目前版本對 PRD 的對齊程度
 
 ### 已部分對齊的項目
@@ -271,10 +307,11 @@ AI Companion 的定位不是一般聊天機器人，而是：
 - 有自然聊天與低負擔輸入的分流概念
 - 有診前整理導向的 `mission` 路徑
 - 有補問與收斂回答機制
+- 已開始產生四大標籤與 HAM-D 狀態的基礎結構化資料
 
 ### 尚未完成的關鍵 PRD 能力
-- 沒有真正的情緒 / 行為 / 認知 / 警示標籤輸出
-- 沒有 HAM-D 維度覆蓋進度管理
+- 四大標籤仍未標準化與穩定化
+- HAM-D 維度覆蓋進度仍是第一版
 - 沒有自動模式降級
 - 沒有醫師端摘要草稿產出
 - 沒有病患審閱與授權流程

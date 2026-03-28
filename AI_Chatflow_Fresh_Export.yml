@@ -59,6 +59,22 @@ workflow:
     - active_mode
     value: ''
     value_type: string
+  - id: latest-tag-payload-var
+    name: latest_tag_payload
+    description: Structured tag output for the latest normal user turn
+    selector:
+    - conversation
+    - latest_tag_payload
+    value: ''
+    value_type: string
+  - id: hamd-progress-state-var
+    name: hamd_progress_state
+    description: Structured HAM-D progress snapshot for mission mode
+    selector:
+    - conversation
+    - hamd_progress_state
+    value: ''
+    value_type: string
   environment_variables: []
   features:
     file_upload:
@@ -138,9 +154,27 @@ workflow:
       type: custom
     - data:
         sourceType: assigner
-        targetType: if-else
-      id: clear-risk-followup-gate
+        targetType: llm
+      id: clear-risk-tag-structurer
       source: clear-risk-state
+      sourceHandle: source
+      target: tag-structurer
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: assigner
+      id: tag-structurer-save
+      source: tag-structurer
+      sourceHandle: source
+      target: save-tag-payload
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: assigner
+        targetType: if-else
+      id: save-tag-followup-gate
+      source: save-tag-payload
       sourceHandle: source
       target: followup-gate
       targetHandle: target
@@ -319,8 +353,26 @@ workflow:
     - data:
         sourceType: knowledge-retrieval
         targetType: llm
-      id: retrieval-mission-llm
+      id: retrieval-mission-hamd
       source: retrieval-mission
+      sourceHandle: source
+      target: hamd-progress-tracker
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: assigner
+      id: hamd-progress-save-edge
+      source: hamd-progress-tracker
+      sourceHandle: source
+      target: save-hamd-progress
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: assigner
+        targetType: llm
+      id: retrieval-mission-llm
+      source: save-hamd-progress
       sourceHandle: source
       target: llm-mission
       targetHandle: target
@@ -633,6 +685,75 @@ workflow:
       positionAbsolute:
         x: 1180
         y: 40
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: ''
+          provider: ''
+        prompt_template:
+        - role: system
+          text: |
+            你要根據本輪使用者輸入，輸出簡短 JSON 字串。
+            固定欄位：
+            {
+              "sentiment_tags":["..."],
+              "behavioral_tags":["..."],
+              "cognitive_tags":["..."],
+              "warning_tags":["..."],
+              "summary":"..."
+            }
+            如果某類沒有內容就輸出空陣列。
+            只輸出 JSON，不要加解釋。
+        title: Tag Structurer
+        type: llm
+        vision:
+          enabled: false
+      id: tag-structurer
+      position:
+        x: 900
+        y: 180
+      positionAbsolute:
+        x: 900
+        y: 180
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - tag-structurer
+          - text
+          variable_selector:
+          - conversation
+          - latest_tag_payload
+        title: Save Tag Payload
+        type: assigner
+        version: '2'
+      id: save-tag-payload
+      position:
+        x: 1180
+        y: 180
+      positionAbsolute:
+        x: 1180
+        y: 180
       sourcePosition: right
       targetPosition: left
       type: custom
@@ -964,6 +1085,77 @@ workflow:
             size: 10
         model:
           completion_params:
+            temperature: 0
+          mode: chat
+          name: ''
+          provider: ''
+        prompt_template:
+        - role: system
+          text: |
+            你要根據本輪使用者輸入、既有狀態與 mission 知識上下文，輸出簡短 JSON 字串。
+            固定欄位：
+            {
+              "current_focus":"...",
+              "covered_dimensions":["..."],
+              "next_recommended_dimension":"...",
+              "status_summary":"..."
+            }
+            若沒有既有狀態，可從空白開始。
+            舊狀態：{{#conversation.hamd_progress_state#}}
+            只輸出 JSON，不要加解釋。
+        title: HAM-D Progress Tracker
+        type: llm
+        vision:
+          enabled: false
+      id: hamd-progress-tracker
+      position:
+        x: 1240
+        y: 220
+      positionAbsolute:
+        x: 1240
+        y: 220
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - hamd-progress-tracker
+          - text
+          variable_selector:
+          - conversation
+          - hamd_progress_state
+        title: Save HAM-D Progress
+        type: assigner
+        version: '2'
+      id: save-hamd-progress
+      position:
+        x: 1540
+        y: 220
+      positionAbsolute:
+        x: 1540
+        y: 220
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - retrieval-mission
+          - result
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
             temperature: 0.6
           mode: chat
           name: ''
@@ -977,6 +1169,8 @@ workflow:
             1. 先回應使用者的核心目標。
             2. 若知識庫有內容，優先使用知識庫內容。
             3. 輸出要清楚、分段、可行。
+            4. 每次只推進一個最重要的 HAM-D 面向。
+            目前 HAM-D 狀態：{{#conversation.hamd_progress_state#}}
         title: Mission Guide
         type: llm
         vision:
