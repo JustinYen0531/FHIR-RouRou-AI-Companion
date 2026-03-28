@@ -91,6 +91,7 @@
 - 高風險 safety 路徑也會把結果寫進 `latest_tag_payload`
 - `mission` 路徑會保存一份簡化的 HAM-D 進度狀態
 - `Mission Guide` 已能讀取 `hamd_progress_state`
+- tag payload 已開始區分 `route_type / source_mode / followup_status`
 
 目前仍未完成：
 - 標籤欄位仍是簡化版 JSON 字串
@@ -105,7 +106,7 @@
 - `Mission Guide` 讀取既有 HAM-D 狀態
 
 目前仍未完成：
-- 維度覆蓋仍是簡化狀態
+- 維度覆蓋雖已限制到固定集合，但仍是簡化狀態
 - 沒有完整 17 項進度管理
 - 沒有 UI 進度條
 - 沒有醫師摘要級別的維度時間線
@@ -148,6 +149,8 @@
 - `hamd_progress_state` 已回到 conversation state
 - `mission` 路徑已有 `HAM-D Progress Tracker`
 - safety 路徑也已進入結構化資料狀態
+- tag payload 已開始帶 `route_type / source_mode / followup_status`
+- HAM-D 進度已限制在固定維度集合上
 
 尚未達成：
 - 四大標籤尚未標準化
@@ -296,6 +299,7 @@ AI Companion 的定位不是一般聊天機器人，而是：
 - 已開始保留可供後續摘要使用的結構化資料
 - `mission` 不再只是 prompt 上的概念，而有最基本的狀態保存
 - safety 路徑也已回寫到 `latest_tag_payload`
+- tag payload 已開始具備路由來源資訊
 
 目前尚未達成：
 - tag payload 還沒有標準化欄位治理
@@ -314,7 +318,7 @@ AI Companion 的定位不是一般聊天機器人，而是：
 
 ### 尚未完成的關鍵 PRD 能力
 - 四大標籤仍未標準化與穩定化
-- HAM-D 維度覆蓋進度仍是第一版，尚未完整 17 項化
+- HAM-D 維度覆蓋進度仍是第一版，雖已固定集合化，但尚未完整 17 項化
 - 沒有自動模式降級
 - 沒有醫師端摘要草稿產出
 - 沒有病患審閱與授權流程

@@ -566,6 +566,8 @@ workflow:
             欄位固定為:
             {
               "route_type":"safety",
+              "source_mode":"safety",
+              "followup_status":"resolved",
               "risk_level":"high",
               "sentiment_tags":["..."],
               "behavioral_tags":["..."],
@@ -730,6 +732,8 @@ workflow:
             固定欄位：
             {
               "route_type":"normal",
+              "source_mode":"{{#conversation.active_mode#}}",
+              "followup_status":"{{#conversation.followup_status#}}",
               "sentiment_tags":["..."],
               "behavioral_tags":["..."],
               "cognitive_tags":["..."],
@@ -737,6 +741,9 @@ workflow:
               "summary":"..."
             }
             如果某類沒有內容就輸出空陣列。
+            你要根據目前狀態判斷 route_type:
+            - 若 `followup_status` 是 pending 或目前在 follow-up 鏈上，route_type 應偏向 followup
+            - 否則 route_type 為 normal
             只輸出 JSON，不要加解釋。
         title: Tag Structurer
         type: llm
@@ -1111,10 +1118,13 @@ workflow:
         - role: system
           text: |
             你要根據本輪使用者輸入、既有狀態與 mission 知識上下文，輸出簡短 JSON 字串。
+            可用維度集合固定為：
+            ["depressed_mood","guilt","work_interest","retardation","agitation","somatic_anxiety","insomnia"]
             固定欄位：
             {
               "progress_stage":"...",
               "current_focus":"...",
+              "supported_dimensions":["..."],
               "covered_dimensions":["..."],
               "missing_dimensions":["..."],
               "next_recommended_dimension":"...",
@@ -1124,6 +1134,7 @@ workflow:
             }
             若沒有既有狀態，可從空白開始。
             舊狀態：{{#conversation.hamd_progress_state#}}
+            你必須讓 `covered_dimensions` 和 `missing_dimensions` 都只使用上述固定代號。
             只輸出 JSON，不要加解釋。
         title: HAM-D Progress Tracker
         type: llm
@@ -1194,6 +1205,7 @@ workflow:
             4. 每次只推進一個最重要的 HAM-D 面向。
             目前 HAM-D 狀態：{{#conversation.hamd_progress_state#}}
             目前標籤狀態：{{#conversation.latest_tag_payload#}}
+            如果 `next_recommended_dimension` 有值，優先圍繞那個維度前進。
         title: Mission Guide
         type: llm
         vision:
