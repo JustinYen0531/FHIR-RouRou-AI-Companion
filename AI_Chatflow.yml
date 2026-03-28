@@ -58,22 +58,6 @@ workflow:
     - followup_status
     value: none
     value_type: string
-  - id: conv-latest-tag-payload
-    name: latest_tag_payload
-    description: Machine-readable JSON payload for the latest sentiment, behavioral, cognitive, and warning tags
-    selector:
-    - conversation
-    - latest_tag_payload
-    value: ''
-    value_type: string
-  - id: conv-hamd-progress-state
-    name: hamd_progress_state
-    description: Machine-readable JSON state describing the current HAM-D progress and next recommended dimension
-    selector:
-    - conversation
-    - hamd_progress_state
-    value: ''
-    value_type: string
   environment_variables: []
   features:
     opening_statement: ''
@@ -270,20 +254,6 @@ workflow:
     - id: edge-retrieval-mission
       source: node-retrieval-mission
       sourceHandle: source
-      target: node-llm-hamd-progress
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-hamd-progress-assign
-      source: node-llm-hamd-progress
-      sourceHandle: source
-      target: node-assign-hamd-progress
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-hamd-assign-mission
-      source: node-assign-hamd-progress
-      sourceHandle: source
       target: node-llm-mission
       targetHandle: target
       type: custom
@@ -337,86 +307,37 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-    - id: edge-void-tag
+    - id: edge-void-answer
       source: node-assign-mode-void
       sourceHandle: source
-      target: node-llm-tag-structurer
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-soulmate-tag
-      source: node-assign-mode-soulmate
-      sourceHandle: source
-      target: node-llm-tag-structurer
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-mission-tag
-      source: node-assign-mode-mission
-      sourceHandle: source
-      target: node-llm-tag-structurer
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-option-tag
-      source: node-assign-mode-option
-      sourceHandle: source
-      target: node-llm-tag-structurer
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-natural-tag
-      source: node-assign-mode-natural
-      sourceHandle: source
-      target: node-llm-tag-structurer
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-tag-assign
-      source: node-llm-tag-structurer
-      sourceHandle: source
-      target: node-assign-tag-payload
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-tag-router
-      source: node-assign-tag-payload
-      sourceHandle: source
-      target: node-answer-router
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-answer-router-void
-      source: node-answer-router
-      sourceHandle: mode_1_void
       target: node-answer-void
       targetHandle: target
       type: custom
       zIndex: 0
-    - id: edge-answer-router-soulmate
-      source: node-answer-router
-      sourceHandle: mode_2_soulmate
+    - id: edge-soulmate-answer
+      source: node-assign-mode-soulmate
+      sourceHandle: source
       target: node-answer-soulmate
       targetHandle: target
       type: custom
       zIndex: 0
-    - id: edge-answer-router-mission
-      source: node-answer-router
-      sourceHandle: mode_3_mission
+    - id: edge-mission-answer
+      source: node-assign-mode-mission
+      sourceHandle: source
       target: node-answer-mission
       targetHandle: target
       type: custom
       zIndex: 0
-    - id: edge-answer-router-option
-      source: node-answer-router
-      sourceHandle: mode_4_option
+    - id: edge-option-answer
+      source: node-assign-mode-option
+      sourceHandle: source
       target: node-answer-option
       targetHandle: target
       type: custom
       zIndex: 0
-    - id: edge-answer-router-natural
-      source: node-answer-router
-      sourceHandle: mode_5_natural
+    - id: edge-natural-answer
+      source: node-assign-mode-natural
+      sourceHandle: source
       target: node-answer-natural
       targetHandle: target
       type: custom
@@ -891,87 +812,6 @@ workflow:
           - result
         model:
           completion_params:
-            temperature: 0
-          mode: chat
-          name: gpt-4o-mini
-          provider: openai
-        prompt_template:
-        - role: system
-          text: |
-            你要更新 HAM-D 診前整理進度，並且只輸出合法 JSON。
-
-            你的輸入會包含：
-            - 使用者本輪內容
-            - 先前的 hamd_progress_state
-
-            JSON schema:
-            {
-              "current_dimension": "mood|guilt|work_interest|retardation|agitation|somatic_anxiety|sleep|unknown",
-              "covered_dimensions": ["..."],
-              "next_dimension": "mood|guilt|work_interest|retardation|agitation|somatic_anxiety|sleep|unknown",
-              "progress_note": "不超過40字的中文說明"
-            }
-
-            規則：
-            1. 只能輸出 JSON。
-            2. covered_dimensions 要反映本輪後已經觸及的面向。
-            3. next_dimension 要是最合理的下一個面向。
-            4. 如果本輪無法判定，current_dimension 可用 unknown。
-            5. 先前進度：{{#conversation.hamd_progress_state#}}
-        - role: user
-          text: "{{#node-start.user_input#}}"
-        selected: false
-        structured_output_enabled: false
-        title: HAM-D Progress Tracker
-        type: llm
-      height: 160
-      id: node-llm-hamd-progress
-      position:
-        x: 1820
-        y: 360
-      positionAbsolute:
-        x: 1820
-        y: 360
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        items:
-        - input_type: variable
-          operation: overwrite
-          value:
-          - node-llm-hamd-progress
-          - text
-          variable_selector:
-          - conversation
-          - hamd_progress_state
-        selected: false
-        title: Save HAM-D Progress
-        type: assigner
-        version: '2'
-      height: 100
-      id: node-assign-hamd-progress
-      position:
-        x: 2110
-        y: 360
-      positionAbsolute:
-        x: 2110
-        y: 360
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        context:
-          enabled: true
-          variable_selector:
-          - node-retrieval-mission
-          - result
-        model:
-          completion_params:
             temperature: 0.45
           mode: chat
           name: gpt-4o-mini
@@ -981,9 +821,6 @@ workflow:
           text: |
             你是任務導向的診前引導助手。
             目標是幫使用者為回診整理近況，同時依據 HAM-D 相關知識做最小必要的結構化引導。
-
-            目前 HAM-D 進度：
-            {{#conversation.hamd_progress_state#}}
 
             規則：
             1. 每次只推進一個面向，例如情緒、睡眠、食慾、社交、身體不適中的其中一項。
@@ -1004,120 +841,6 @@ workflow:
       positionAbsolute:
         x: 1820
         y: 500
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        context:
-          enabled: false
-          variable_selector: []
-        model:
-          completion_params:
-            temperature: 0
-          mode: chat
-          name: gpt-4o-mini
-          provider: openai
-        prompt_template:
-        - role: system
-          text: |
-            你要把這一輪對話內容整理成四大標籤 JSON，不能輸出其他文字。
-
-            JSON schema:
-            {
-              "mode": "mode_1_void|mode_2_soulmate|mode_3_mission|mode_4_option|mode_5_natural",
-              "sentiment_tags": ["..."],
-              "behavioral_tags": ["..."],
-              "cognitive_tags": ["..."],
-              "warning_tags": ["..."],
-              "summary": "不超過40字的中文摘要"
-            }
-
-            規則：
-            1. 只輸出合法 JSON。
-            2. 依據使用者輸入判斷，不要幻想不存在的症狀。
-            3. warning_tags 只放非立即危機但值得關注的警示，例如 social_withdrawal、sleep_disruption、hopeless_tone。
-            4. mode 直接反映當前 active_mode：{{#conversation.active_mode#}}
-        - role: user
-          text: "{{#node-start.user_input#}}"
-        selected: false
-        structured_output_enabled: false
-        title: Tag Structurer
-        type: llm
-      height: 170
-      id: node-llm-tag-structurer
-      position:
-        x: 2400
-        y: 900
-      positionAbsolute:
-        x: 2400
-        y: 900
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        items:
-        - input_type: variable
-          operation: overwrite
-          value:
-          - node-llm-tag-structurer
-          - text
-          variable_selector:
-          - conversation
-          - latest_tag_payload
-        selected: false
-        title: Save Tag Payload
-        type: assigner
-        version: '2'
-      height: 100
-      id: node-assign-tag-payload
-      position:
-        x: 2690
-        y: 900
-      positionAbsolute:
-        x: 2690
-        y: 900
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        context:
-          enabled: false
-          variable_selector: []
-        model:
-          completion_params:
-            temperature: 0
-          mode: chat
-          name: gpt-4o-mini
-          provider: openai
-        prompt_template:
-        - role: system
-          text: |
-            你要根據 active_mode 把流程導向正確的答案節點。
-            請只輸出一個代號，不要解釋：
-            1. mode_1_void
-            2. mode_2_soulmate
-            3. mode_3_mission
-            4. mode_4_option
-            5. mode_5_natural
-        - role: user
-          text: "{{#conversation.active_mode#}}"
-        selected: false
-        title: Answer Router
-        type: question-classifier
-      height: 220
-      id: node-answer-router
-      position:
-        x: 2980
-        y: 900
-      positionAbsolute:
-        x: 2980
-        y: 900
       selected: false
       sourcePosition: right
       targetPosition: left

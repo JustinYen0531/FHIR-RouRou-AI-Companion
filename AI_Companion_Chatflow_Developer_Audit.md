@@ -130,12 +130,10 @@ AI Companion 的定位不是一般聊天機器人，而是：
 - 有自然聊天與低負擔輸入的分流概念
 - 有診前整理導向的 `mission` 路徑
 - 有補問與收斂回答機制
-- 已可輸出 `latest_tag_payload`
-- 已可輸出 `hamd_progress_state`
 
 ### 尚未完成的關鍵 PRD 能力
-- 尚未將四大標籤接入摘要與醫療端格式
-- 尚未將 HAM-D 進度轉成多輪覆蓋率與缺漏提醒
+- 沒有真正的情緒 / 行為 / 認知 / 警示標籤輸出
+- 沒有 HAM-D 維度覆蓋進度管理
 - 沒有自動模式降級
 - 沒有醫師端摘要草稿產出
 - 沒有病患審閱與授權流程
@@ -155,9 +153,8 @@ AI Companion 的定位不是一般聊天機器人，而是：
 - `mission` 路徑的一步一步收集邏輯
 
 目前狀態：
-- 已新增 `Tag Structurer`
-- 已新增 `HAM-D Progress Tracker`
-- 尚未完成多輪 mission 進度驗證與摘要彙整
+- 上一版嘗試加入 `Tag Structurer` 與 `HAM-D Progress Tracker`，但因 Dify 匯入相容性問題已先回退
+- 目前需改用更保守、貼近 Dify 原生 schema 的方式重新設計
 
 ### P2：體驗與成本優化
 - 自動模式降級
