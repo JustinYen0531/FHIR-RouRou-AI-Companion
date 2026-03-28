@@ -564,7 +564,16 @@ workflow:
           text: |
             你要把高風險訊號整理成簡短 JSON 字串。
             欄位固定為:
-            {"risk_level":"high","signals":["..."],"summary":"..."}
+            {
+              "route_type":"safety",
+              "risk_level":"high",
+              "sentiment_tags":["..."],
+              "behavioral_tags":["..."],
+              "cognitive_tags":["..."],
+              "warning_tags":["..."],
+              "signals":["..."],
+              "summary":"..."
+            }
             只輸出 JSON，不要多餘文字。
         title: Risk Structurer
         type: llm
@@ -596,6 +605,14 @@ workflow:
           variable_selector:
           - conversation
           - red_flag_payload
+        - input_type: variable
+          operation: overwrite
+          value:
+          - risk-structurer
+          - text
+          variable_selector:
+          - conversation
+          - latest_tag_payload
         - input_type: constant
           operation: overwrite
           value: ''
@@ -712,6 +729,7 @@ workflow:
             你要根據本輪使用者輸入，輸出簡短 JSON 字串。
             固定欄位：
             {
+              "route_type":"normal",
               "sentiment_tags":["..."],
               "behavioral_tags":["..."],
               "cognitive_tags":["..."],
@@ -1095,9 +1113,13 @@ workflow:
             你要根據本輪使用者輸入、既有狀態與 mission 知識上下文，輸出簡短 JSON 字串。
             固定欄位：
             {
+              "progress_stage":"...",
               "current_focus":"...",
               "covered_dimensions":["..."],
+              "missing_dimensions":["..."],
               "next_recommended_dimension":"...",
+              "recent_evidence":["..."],
+              "needs_clarification":"yes_or_no",
               "status_summary":"..."
             }
             若沒有既有狀態，可從空白開始。
@@ -1171,6 +1193,7 @@ workflow:
             3. 輸出要清楚、分段、可行。
             4. 每次只推進一個最重要的 HAM-D 面向。
             目前 HAM-D 狀態：{{#conversation.hamd_progress_state#}}
+            目前標籤狀態：{{#conversation.latest_tag_payload#}}
         title: Mission Guide
         type: llm
         vision:
