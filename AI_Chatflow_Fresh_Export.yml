@@ -1,0 +1,850 @@
+app:
+  description: AI companion chatflow rebuilt on the latest exported advanced-chat skeleton
+  icon: 🤖
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: advanced-chat
+  name: AI_Chat_Companion_New_Skeleton
+  use_icon_as_answer_icon: false
+dependencies: []
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables:
+  - id: pending-question-var
+    name: pending_question
+    description: Store the latest clarification question so the next turn can answer it
+    selector:
+    - conversation
+    - pending_question
+    value: ''
+    value_type: string
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 50
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: if-else
+      id: start-gate
+      source: start
+      sourceHandle: source
+      target: followup-gate
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: if-else
+        targetType: llm
+      id: gate-followup
+      source: followup-gate
+      sourceHandle: 'true'
+      target: llm-followup
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: if-else
+        targetType: question-classifier
+      id: gate-classifier
+      source: followup-gate
+      sourceHandle: 'false'
+      target: classifier
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: question-classifier
+        targetType: llm
+      id: classifier-void
+      source: classifier
+      sourceHandle: mode_1_void
+      target: llm-void
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: question-classifier
+        targetType: llm
+      id: classifier-soulmate
+      source: classifier
+      sourceHandle: mode_2_soulmate
+      target: llm-soulmate
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: question-classifier
+        targetType: knowledge-retrieval
+      id: classifier-mission
+      source: classifier
+      sourceHandle: mode_3_mission
+      target: retrieval-mission
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: question-classifier
+        targetType: knowledge-retrieval
+      id: classifier-option
+      source: classifier
+      sourceHandle: mode_4_option
+      target: retrieval-option
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: question-classifier
+        targetType: knowledge-retrieval
+      id: classifier-natural
+      source: classifier
+      sourceHandle: mode_5_natural
+      target: retrieval-natural
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: question-classifier
+        targetType: llm
+      id: classifier-clarify
+      source: classifier
+      sourceHandle: mode_6_clarify
+      target: llm-clarify
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: knowledge-retrieval
+        targetType: llm
+      id: retrieval-mission-llm
+      source: retrieval-mission
+      sourceHandle: source
+      target: llm-mission
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: knowledge-retrieval
+        targetType: llm
+      id: retrieval-option-llm
+      source: retrieval-option
+      sourceHandle: source
+      target: llm-option
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: knowledge-retrieval
+        targetType: llm
+      id: retrieval-natural-llm
+      source: retrieval-natural
+      sourceHandle: source
+      target: llm-natural
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: assigner
+      id: followup-clear
+      source: llm-followup
+      sourceHandle: source
+      target: clear-pending
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: assigner
+      id: clarify-save
+      source: llm-clarify
+      sourceHandle: source
+      target: save-pending
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: answer
+      id: void-answer-edge
+      source: llm-void
+      sourceHandle: source
+      target: answer-void
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: answer
+      id: soulmate-answer-edge
+      source: llm-soulmate
+      sourceHandle: source
+      target: answer-soulmate
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: answer
+      id: mission-answer-edge
+      source: llm-mission
+      sourceHandle: source
+      target: answer-mission
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: answer
+      id: option-answer-edge
+      source: llm-option
+      sourceHandle: source
+      target: answer-option
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: answer
+      id: natural-answer-edge
+      source: llm-natural
+      sourceHandle: source
+      target: answer-natural
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: assigner
+        targetType: answer
+      id: followup-answer-edge
+      source: clear-pending
+      sourceHandle: source
+      target: answer-followup
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: assigner
+        targetType: answer
+      id: clarify-answer-edge
+      source: save-pending
+      sourceHandle: source
+      target: answer-clarify
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        title: Start
+        type: start
+        variables: []
+      id: start
+      position:
+        x: 80
+        y: 420
+      positionAbsolute:
+        x: 80
+        y: 420
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        cases:
+        - case_id: pending_not_empty
+          conditions:
+          - comparison_operator: is not empty
+            variable_selector:
+            - conversation
+            - pending_question
+        title: Follow-up Gate
+        type: if-else
+      id: followup-gate
+      position:
+        x: 340
+        y: 420
+      positionAbsolute:
+        x: 340
+        y: 420
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        classes:
+        - id: mode_1_void
+          name: Void Box
+        - id: mode_2_soulmate
+          name: Soul Mate
+        - id: mode_3_mission
+          name: Mission Guide
+        - id: mode_4_option
+          name: Option Selector
+        - id: mode_5_natural
+          name: Smart Hunter
+        - id: mode_6_clarify
+          name: Clarify
+        instruction: |
+          你是意圖分類器。
+          請只輸出最符合的一個類別代號，不要解釋。
+          1. mode_1_void: 空白、測試、無意義輸入
+          2. mode_2_soulmate: 需要陪伴、共感、情緒支持
+          3. mode_3_mission: 任務、步驟、流程、要完成一件事
+          4. mode_4_option: 需要比較、選擇、方案判斷
+          5. mode_5_natural: 一般自然對話、日常聊天、延續話題
+          6. mode_6_clarify: 資訊不足，需要先補一個關鍵問題
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: ''
+          provider: ''
+        query_variable_selector:
+        - sys
+        - query
+        title: Intent Classifier
+        type: question-classifier
+      id: classifier
+      position:
+        x: 620
+        y: 280
+      positionAbsolute:
+        x: 620
+        y: 280
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: ''
+          provider: ''
+        prompt_template:
+        - role: system
+          text: |
+            你要處理沒有內容或無法辨識的輸入。
+            請用一句簡短提醒，請使用者輸入更完整的問題。
+        title: Void Box
+        type: llm
+        vision:
+          enabled: false
+      id: llm-void
+      position:
+        x: 940
+        y: 20
+      positionAbsolute:
+        x: 940
+        y: 20
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0.5
+          mode: chat
+          name: ''
+          provider: ''
+        prompt_template:
+        - role: system
+          text: |
+            你是一個溫暖、像真人的朋友。
+            規則：
+            1. 先接住情緒，再回應。
+            2. 不要像客服，不要像問卷。
+            3. 回覆要自然、短一點。
+        title: Soul Mate
+        type: llm
+        vision:
+          enabled: false
+      id: llm-soulmate
+      position:
+        x: 940
+        y: 180
+      positionAbsolute:
+        x: 940
+        y: 180
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        dataset_ids:
+        - JB1PuOSPlWXMsgVAkT5B4u/hSkfNYLAS+G+Zmysp3Fhot7pSACV7KyX378KBhRU7
+        multiple_retrieval_config:
+          reranking_enable: false
+          reranking_mode: reranking_model
+          top_k: 4
+        query_attachment_selector: []
+        query_variable_selector:
+        - sys
+        - query
+        retrieval_mode: multiple
+        title: Mission Retrieval
+        type: knowledge-retrieval
+      id: retrieval-mission
+      position:
+        x: 940
+        y: 300
+      positionAbsolute:
+        x: 940
+        y: 300
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - retrieval-mission
+          - result
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0.6
+          mode: chat
+          name: ''
+          provider: ''
+        prompt_template:
+        - role: system
+          text: |
+            你是任務導向的引導助手。
+            目標是把問題整理成可執行的步驟。
+            規則：
+            1. 先回應使用者的核心目標。
+            2. 若知識庫有內容，優先使用知識庫內容。
+            3. 輸出要清楚、分段、可行。
+        title: Mission Guide
+        type: llm
+        vision:
+          enabled: false
+      id: llm-mission
+      position:
+        x: 1240
+        y: 300
+      positionAbsolute:
+        x: 1240
+        y: 300
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        dataset_ids:
+        - JB1PuOSPlWXMsgVAkT5B4u/hSkfNYLAS+G+Zmysp3Fhot7pSACV7KyX378KBhRU7
+        multiple_retrieval_config:
+          reranking_enable: false
+          reranking_mode: reranking_model
+          top_k: 4
+        query_attachment_selector: []
+        query_variable_selector:
+        - sys
+        - query
+        retrieval_mode: multiple
+        title: Option Retrieval
+        type: knowledge-retrieval
+      id: retrieval-option
+      position:
+        x: 940
+        y: 480
+      positionAbsolute:
+        x: 940
+        y: 480
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - retrieval-option
+          - result
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0.4
+          mode: chat
+          name: ''
+          provider: ''
+        prompt_template:
+        - role: system
+          text: |
+            你是選項比較助手。
+            目標是把候選方案整理成可比較、可決策的輸出。
+            規則：
+            1. 先列出每個選項的優缺點。
+            2. 若知識庫有內容，優先使用知識庫內容。
+            3. 不要冗長，輸出要能直接幫人做選擇。
+        title: Option Selector
+        type: llm
+        vision:
+          enabled: false
+      id: llm-option
+      position:
+        x: 1240
+        y: 480
+      positionAbsolute:
+        x: 1240
+        y: 480
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        dataset_ids:
+        - JB1PuOSPlWXMsgVAkT5B4u/hSkfNYLAS+G+Zmysp3Fhot7pSACV7KyX378KBhRU7
+        multiple_retrieval_config:
+          reranking_enable: false
+          reranking_mode: reranking_model
+          top_k: 4
+        query_attachment_selector: []
+        query_variable_selector:
+        - sys
+        - query
+        retrieval_mode: multiple
+        title: Natural Retrieval
+        type: knowledge-retrieval
+      id: retrieval-natural
+      position:
+        x: 940
+        y: 660
+      positionAbsolute:
+        x: 940
+        y: 660
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - retrieval-natural
+          - result
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0.5
+          mode: chat
+          name: ''
+          provider: ''
+        prompt_template:
+        - role: system
+          text: |
+            你是一個自然、溫暖、像真人的朋友。
+            你的任務是一般陪伴與自然對話。
+            規則：
+            1. 語氣自然，不要像客服。
+            2. 如果使用者有負面情緒，先共感，不要直接轉成閒聊。
+            3. 如果知識庫有內容，再用知識庫補充。
+        title: Smart Hunter
+        type: llm
+        vision:
+          enabled: false
+      id: llm-natural
+      position:
+        x: 1240
+        y: 660
+      positionAbsolute:
+        x: 1240
+        y: 660
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0.5
+          mode: chat
+          name: ''
+          provider: ''
+        prompt_template:
+        - role: system
+          text: |
+            你正在處理上一輪留下的補問。
+            已知補問內容：{{#conversation.pending_question#}}
+            請根據使用者本輪回答，直接完成上一輪對話。
+            如果資訊仍不足，只再提出一個最小補問，不要連續追問。
+        title: Follow-up Resolver
+        type: llm
+        vision:
+          enabled: false
+      id: llm-followup
+      position:
+        x: 620
+        y: 80
+      positionAbsolute:
+        x: 620
+        y: 80
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: ''
+          provider: ''
+        prompt_template:
+        - role: system
+          text: |
+            你要先補一個最關鍵的問題。
+            規則：
+            1. 只問一個問題。
+            2. 問題要短。
+            3. 問題要能直接幫助下一輪回答。
+        title: Clarify Question
+        type: llm
+        vision:
+          enabled: false
+      id: llm-clarify
+      position:
+        x: 1240
+        y: 840
+      positionAbsolute:
+        x: 1240
+        y: 840
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        items:
+        - input_type: constant
+          operation: overwrite
+          value: ''
+          variable_selector:
+          - conversation
+          - pending_question
+        title: Clear Pending Question
+        type: assigner
+        version: '2'
+      id: clear-pending
+      position:
+        x: 940
+        y: 80
+      positionAbsolute:
+        x: 940
+        y: 80
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - llm-clarify
+          - text
+          variable_selector:
+          - conversation
+          - pending_question
+        title: Save Pending Question
+        type: assigner
+        version: '2'
+      id: save-pending
+      position:
+        x: 1540
+        y: 840
+      positionAbsolute:
+        x: 1540
+        y: 840
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        answer: '{{#llm-void.text#}}'
+        title: Void Answer
+        type: answer
+        variables: []
+      id: answer-void
+      position:
+        x: 1540
+        y: 20
+      positionAbsolute:
+        x: 1540
+        y: 20
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        answer: '{{#llm-soulmate.text#}}'
+        title: Soulmate Answer
+        type: answer
+        variables: []
+      id: answer-soulmate
+      position:
+        x: 1540
+        y: 180
+      positionAbsolute:
+        x: 1540
+        y: 180
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        answer: '{{#llm-mission.text#}}'
+        title: Mission Answer
+        type: answer
+        variables: []
+      id: answer-mission
+      position:
+        x: 1540
+        y: 300
+      positionAbsolute:
+        x: 1540
+        y: 300
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        answer: '{{#llm-option.text#}}'
+        title: Option Answer
+        type: answer
+        variables: []
+      id: answer-option
+      position:
+        x: 1540
+        y: 480
+      positionAbsolute:
+        x: 1540
+        y: 480
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        answer: '{{#llm-natural.text#}}'
+        title: Natural Answer
+        type: answer
+        variables: []
+      id: answer-natural
+      position:
+        x: 1540
+        y: 660
+      positionAbsolute:
+        x: 1540
+        y: 660
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        answer: '{{#llm-followup.text#}}'
+        title: Follow-up Answer
+        type: answer
+        variables: []
+      id: answer-followup
+      position:
+        x: 1240
+        y: 80
+      positionAbsolute:
+        x: 1240
+        y: 80
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        answer: '{{#llm-clarify.text#}}'
+        title: Clarify Answer
+        type: answer
+        variables: []
+      id: answer-clarify
+      position:
+        x: 1820
+        y: 840
+      positionAbsolute:
+        x: 1820
+        y: 840
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    viewport:
+      x: 0
+      y: 0
+      zoom: 0.6
+  rag_pipeline_variables: []
