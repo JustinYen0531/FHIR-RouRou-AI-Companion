@@ -1,4 +1,4 @@
-﻿kind: app
+kind: app
 version: 0.6.0
 app:
   name: AI_Chat_Companion
