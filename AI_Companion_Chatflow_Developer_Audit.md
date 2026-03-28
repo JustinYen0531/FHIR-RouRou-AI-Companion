@@ -85,6 +85,8 @@
 - `hamd_progress_state`
 - `HAM-D Progress Tracker`
 - `Save HAM-D Progress`
+- `summary_draft_state`
+- `Summary Draft Builder`
 
 目前已恢復的能力：
 - 一般正常回合會產生四大標籤的簡化 JSON
@@ -92,6 +94,7 @@
 - `mission` 路徑會保存一份簡化的 HAM-D 進度狀態
 - `Mission Guide` 已能讀取 `hamd_progress_state`
 - tag payload 已開始區分 `route_type / source_mode / followup_status`
+- 已開始把 tag / risk / HAM-D 狀態收斂到 `summary_draft_state`
 
 目前仍未完成：
 - 標籤欄位仍是簡化版 JSON 字串
@@ -151,6 +154,7 @@
 - safety 路徑也已進入結構化資料狀態
 - tag payload 已開始帶 `route_type / source_mode / followup_status`
 - HAM-D 進度已限制在固定維度集合上
+- `summary_draft_state` 已作為 pre-summary 統一狀態存在
 
 尚未達成：
 - 四大標籤尚未標準化
@@ -290,21 +294,24 @@ AI Companion 的定位不是一般聊天機器人，而是：
 目前已新增：
 - `latest_tag_payload`
 - `hamd_progress_state`
+- `summary_draft_state`
 
 目前設計：
 - 正常回合會先經過 `Tag Structurer`，把本輪輸入整理成四大標籤 JSON
 - `mission` 路徑會經過 `HAM-D Progress Tracker`，保存簡化的維度進度狀態
+- `Summary Draft Builder` 會把目前 tag / risk / HAM-D 狀態收成單一 pre-summary JSON
 
 目前已達成：
 - 已開始保留可供後續摘要使用的結構化資料
 - `mission` 不再只是 prompt 上的概念，而有最基本的狀態保存
 - safety 路徑也已回寫到 `latest_tag_payload`
 - tag payload 已開始具備路由來源資訊
+- 已有 `summary_draft_state` 作為後續醫師摘要草稿的前置資料
 
 目前尚未達成：
 - tag payload 還沒有標準化欄位治理
 - safety / follow-up 的統一資料模型仍未完全定型
-- 尚未形成醫師摘要草稿
+- `summary_draft_state` 還不是完整醫師摘要草稿
 
 ## 目前版本對 PRD 的對齊程度
 
@@ -320,7 +327,7 @@ AI Companion 的定位不是一般聊天機器人，而是：
 - 四大標籤仍未標準化與穩定化
 - HAM-D 維度覆蓋進度仍是第一版，雖已固定集合化，但尚未完整 17 項化
 - 沒有自動模式降級
-- 沒有醫師端摘要草稿產出
+- 尚未產出真正可交付的醫師端摘要草稿
 - 沒有病患審閱與授權流程
 - 沒有 FHIR 映射落地
 - 沒有行為遙測，例如打字延遲、語句長度、深夜活躍等

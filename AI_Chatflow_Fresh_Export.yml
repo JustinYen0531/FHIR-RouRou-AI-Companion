@@ -75,6 +75,14 @@ workflow:
     - hamd_progress_state
     value: ''
     value_type: string
+  - id: summary-draft-state-var
+    name: summary_draft_state
+    description: Unified pre-summary state for future clinician draft generation
+    selector:
+    - conversation
+    - summary_draft_state
+    value: ''
+    value_type: string
   environment_variables: []
   features:
     file_upload:
@@ -172,9 +180,27 @@ workflow:
       type: custom
     - data:
         sourceType: assigner
+        targetType: llm
+      id: tag-summary-build
+      source: save-tag-payload
+      sourceHandle: source
+      target: summary-draft-builder
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: assigner
+      id: tag-summary-save
+      source: summary-draft-builder
+      sourceHandle: source
+      target: save-summary-draft
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: assigner
         targetType: if-else
       id: save-tag-followup-gate
-      source: save-tag-payload
+      source: save-summary-draft
       sourceHandle: source
       target: followup-gate
       targetHandle: target
@@ -200,8 +226,26 @@ workflow:
     - data:
         sourceType: assigner
         targetType: llm
-      id: set-risk-safety
+      id: set-risk-summary-build
       source: set-risk-state
+      sourceHandle: source
+      target: summary-draft-builder
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: assigner
+      id: risk-summary-save
+      source: summary-draft-builder
+      sourceHandle: source
+      target: save-summary-draft
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: assigner
+        targetType: llm
+      id: set-risk-safety
+      source: save-summary-draft
       sourceHandle: source
       target: safety-response
       targetHandle: target
@@ -371,8 +415,26 @@ workflow:
     - data:
         sourceType: assigner
         targetType: llm
-      id: retrieval-mission-llm
+      id: hamd-summary-build
       source: save-hamd-progress
+      sourceHandle: source
+      target: summary-draft-builder
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: assigner
+      id: hamd-summary-save
+      source: summary-draft-builder
+      sourceHandle: source
+      target: save-summary-draft
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: assigner
+        targetType: llm
+      id: retrieval-mission-llm
+      source: save-summary-draft
       sourceHandle: source
       target: llm-mission
       targetHandle: target
@@ -704,6 +766,80 @@ workflow:
       positionAbsolute:
         x: 1180
         y: 40
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: ''
+          provider: ''
+        prompt_template:
+        - role: system
+          text: |
+            你要把目前對話狀態整理成一份統一的摘要草稿 JSON。
+            固定欄位：
+            {
+              "active_mode":"...",
+              "risk_flag":"true_or_false",
+              "followup_status":"...",
+              "latest_tags":"...",
+              "red_flags":"...",
+              "hamd_progress":"...",
+              "draft_summary":"..."
+            }
+            latest_tags 直接摘要目前的 latest_tag_payload。
+            red_flags 直接摘要目前的 red_flag_payload。
+            hamd_progress 直接摘要目前的 hamd_progress_state。
+            draft_summary 請用一到兩句話總結目前最值得進摘要的重點。
+            只輸出 JSON。
+        title: Summary Draft Builder
+        type: llm
+        vision:
+          enabled: false
+      id: summary-draft-builder
+      position:
+        x: 1460
+        y: 120
+      positionAbsolute:
+        x: 1460
+        y: 120
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - summary-draft-builder
+          - text
+          variable_selector:
+          - conversation
+          - summary_draft_state
+        title: Save Summary Draft
+        type: assigner
+        version: '2'
+      id: save-summary-draft
+      position:
+        x: 1740
+        y: 120
+      positionAbsolute:
+        x: 1740
+        y: 120
       sourcePosition: right
       targetPosition: left
       type: custom
