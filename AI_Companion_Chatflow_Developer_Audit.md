@@ -11,12 +11,137 @@
 這份文件不是給最終使用者看的產品文案，而是內部技術審核文檔。
 
 ## 目前基線狀態
-目前 [AI_Chatflow.yml](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/AI_Chatflow.yml) 已回退到 `6783760` 對應的 baseline 版本，原因是後續增強版 flow 在 Dify 匯入時出現前端 schema 相容性問題。
+目前可在新版 Dify 匯入成功的主力檔案，已改為 [AI_Chatflow_Fresh_Export.yml](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/AI_Chatflow_Fresh_Export.yml)。
+
+原因是舊的 [AI_Chatflow.yml](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/AI_Chatflow.yml) 雖然邏輯完整，但屬於舊 `advanced-chat` DSL 形狀，會在目前 Dify 版本的匯入器產生前端 schema 相容性問題。
 
 這代表：
-- 目前 repo 中的 chatflow 版本以「可匯入、可開啟」為最高優先
-- `P0` / `P1` 的增強設計暫時保留在本文件與後續規劃中
-- 接下來的重建策略應改為「每次只做一個最小變更，逐步驗證 Dify 相容性」
+- 目前 repo 中真正可持續增強的 chatflow 基線，已從舊 [AI_Chatflow.yml](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/AI_Chatflow.yml) 轉移到新版骨架的 [AI_Chatflow_Fresh_Export.yml](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/AI_Chatflow_Fresh_Export.yml)
+- 目前的首要目標不是功能最多，而是「新版 DSL 可匯入、可開啟、可逐步疊代」
+- `P0` / `P1` / `P2` 的判定，必須以新版骨架版是否真正落地為準，而不是以前規劃版的理想狀態
+
+## 新版重建後的功能倒退清單
+以下是把 flow 換到新版 Dify 匯出骨架後，和原本目標設計相比出現的功能倒退。這一段是目前最重要的自我審核基準。
+
+### 1. 高風險安全分流已倒退
+目前 [AI_Chatflow_Fresh_Export.yml](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/AI_Chatflow_Fresh_Export.yml) 沒有：
+- `Risk Detector`
+- `Safety Response`
+- `risk_flag`
+- `red_flag_payload`
+
+這代表目前新版骨架雖然可匯入，但已失去原本規劃中的高風險優先處理能力。
+
+風險：
+- 危機訊號會直接進一般模式分類
+- 無法輸出結構化警示標籤
+- 與 PRD 的 `Red Flags` 要求明顯不符
+
+### 2. 補問狀態機已簡化回單一欄位
+目前新版骨架版只保留：
+- `pending_question`
+- `Follow-up Gate`
+- `Follow-up Resolver`
+- `Save Pending Question`
+- `Clear Pending Question`
+
+目前沒有：
+- `followup_turn_count`
+- `followup_status`
+- `active_mode`
+- 補問輪數上限控制
+- `Follow-up Finalizer`
+- `followup_ask_more / followup_answer_now` 的二次分類
+
+這代表新版骨架版目前只有「基礎跨回合補問」，但還沒有穩定的兩輪收斂機制。
+
+風險：
+- 可能再次出現追問狀態過早清空
+- 可能缺乏明確收斂邏輯
+- 還不能宣稱 `P0` 的補問狀態穩定化已完成
+
+### 3. classifier 與 retrieval 的解耦有部分倒退
+目前新版骨架版的好消息是：
+- `Intent Classifier` 沒有再吃 retrieval context
+
+但目前新版骨架版又重新變成：
+- `natural` 也走 retrieval
+
+這和先前的低成本設計不同。
+
+風險：
+- 一般自然聊天會再次打知識庫
+- 陪伴感可能被檢索式輸出污染
+- 成本控制從原本的 `mission / option only` 倒退為 `mission / option / natural`
+
+### 4. P1 的結構化資料能力目前全部未落地
+目前新版骨架版沒有：
+- 情緒 / 行為 / 認知 / 警示標籤輸出
+- `latest_tag_payload`
+- `Tag Structurer`
+- `hamd_progress_state`
+- `HAM-D Progress Tracker`
+
+這代表目前新版骨架版仍然是「會分流回話」，但不是「會留下結構化診前資料」的版本。
+
+### 5. Mission 的 HAM-D 導向能力倒退成 prompt level
+目前 `mission` 仍有任務導向 prompt，也保留 retrieval。
+但沒有：
+- 維度覆蓋記錄
+- 進度條狀態
+- 下一個建議維度
+- 一次只推進一個 HAM-D 面向的狀態約束
+
+這代表 `mission` 目前只是「偏結構化的回答」，還不是 PRD 想要的「一步步整理診前資訊」。
+
+## 目前所在階段判定
+以新版可匯入版本 [AI_Chatflow_Fresh_Export.yml](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/AI_Chatflow_Fresh_Export.yml) 來看，目前整體狀態應判定為：
+
+- `P0`: 部分完成，但尚未完成
+- `P1`: 尚未開始落地
+- `P2`: 尚未開始
+
+更細的判定如下：
+
+### P0：流程正確性與安全
+目前狀態：`進行中`
+
+已達成：
+- 新版骨架可匯入
+- 六模式分流可運作
+- `pending_question` 基礎補問機制可運作
+- classifier 沒有直接依賴 retrieval context
+
+尚未達成：
+- 高風險安全分流
+- 結構化 red flag 輸出
+- 補問兩輪上限與收斂控制
+- `natural` 從 retrieval 解耦
+
+結論：
+目前只能說已到 `P0` 中段，還不能視為 `P0 done`。
+
+### P1：資料蒐集能力
+目前狀態：`未開始`
+
+尚未落地：
+- 四大標籤輸出
+- HAM-D 維度狀態
+- 任務式逐步蒐集
+
+結論：
+目前還沒有進入真正的 `P1` 落地階段。
+
+### P2：體驗與成本優化
+目前狀態：`未開始`
+
+尚未落地：
+- 自動模式降級
+- 知識庫分用途
+- `natural` / `option` / `mission` 的精細成本治理
+
+結論：
+目前仍未進到 `P2`。
 
 ## 核心產品定位
 AI Companion 的定位不是一般聊天機器人，而是：
