@@ -42,6 +42,22 @@ workflow:
     - risk_flag
     value: 'false'
     value_type: string
+  - id: conv-red-flag-payload
+    name: red_flag_payload
+    description: Machine-readable JSON payload describing detected high-risk red flags
+    selector:
+    - conversation
+    - red_flag_payload
+    value: ''
+    value_type: string
+  - id: conv-followup-status
+    name: followup_status
+    description: Lifecycle of the clarification flow, one of none, pending, or resolved
+    selector:
+    - conversation
+    - followup_status
+    value: none
+    value_type: string
   environment_variables: []
   features:
     opening_statement: ''
@@ -83,6 +99,20 @@ workflow:
       zIndex: 0
     - id: edge-risk-true-llm
       source: node-assign-risk-true
+      sourceHandle: source
+      target: node-llm-risk-structurer
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: edge-risk-structurer-assign
+      source: node-llm-risk-structurer
+      sourceHandle: source
+      target: node-assign-risk-payload
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: edge-risk-assign-llm
+      source: node-assign-risk-payload
       sourceHandle: source
       target: node-llm-risk
       targetHandle: target
@@ -408,6 +438,12 @@ workflow:
           variable_selector:
           - conversation
           - followup_turn_count
+        - input_type: constant
+          operation: overwrite
+          value: none
+          variable_selector:
+          - conversation
+          - followup_status
         selected: false
         title: Set Risk State
         type: assigner
@@ -433,6 +469,12 @@ workflow:
           variable_selector:
           - conversation
           - risk_flag
+        - input_type: constant
+          operation: overwrite
+          value: ''
+          variable_selector:
+          - conversation
+          - red_flag_payload
         selected: false
         title: Clear Risk State
         type: assigner
@@ -445,6 +487,80 @@ workflow:
       positionAbsolute:
         x: 650
         y: 360
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: gpt-4o-mini
+          provider: openai
+        prompt_template:
+        - role: system
+          text: |
+            你要把高風險輸入整理成可機器讀取的 JSON，不能輸出其他文字。
+
+            JSON schema:
+            {
+              "risk_detected": true,
+              "risk_level": "high",
+              "tags": ["self_harm", "hopelessness", "suicidal_ideation", "help_seeking", "danger_behavior"],
+              "summary": "不超過30字的中文摘要"
+            }
+
+            規則：
+            1. 只輸出合法 JSON。
+            2. tags 只保留實際命中的項目。
+            3. 若沒有明確命中某標籤，不要硬加。
+            4. risk_level 先固定輸出 high。
+        - role: user
+          text: "{{#node-start.user_input#}}"
+        selected: false
+        structured_output_enabled: false
+        title: Risk Structurer
+        type: llm
+      height: 150
+      id: node-llm-risk-structurer
+      position:
+        x: 950
+        y: 40
+      positionAbsolute:
+        x: 950
+        y: 40
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - node-llm-risk-structurer
+          - text
+          variable_selector:
+          - conversation
+          - red_flag_payload
+        selected: false
+        title: Save Risk Payload
+        type: assigner
+        version: '2'
+      height: 100
+      id: node-assign-risk-payload
+      position:
+        x: 1240
+        y: 40
+      positionAbsolute:
+        x: 1240
+        y: 40
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1138,6 +1254,12 @@ workflow:
           - followup_turn_count
         - input_type: constant
           operation: overwrite
+          value: pending
+          variable_selector:
+          - conversation
+          - followup_status
+        - input_type: constant
+          operation: overwrite
           value: mode_6_clarify
           variable_selector:
           - conversation
@@ -1177,6 +1299,12 @@ workflow:
           - followup_turn_count
         - input_type: constant
           operation: overwrite
+          value: pending
+          variable_selector:
+          - conversation
+          - followup_status
+        - input_type: constant
+          operation: overwrite
           value: mode_6_clarify
           variable_selector:
           - conversation
@@ -1214,6 +1342,12 @@ workflow:
           - followup_turn_count
         - input_type: constant
           operation: overwrite
+          value: resolved
+          variable_selector:
+          - conversation
+          - followup_status
+        - input_type: constant
+          operation: overwrite
           value: mode_followup_resolved
           variable_selector:
           - conversation
@@ -1249,6 +1383,12 @@ workflow:
           variable_selector:
           - conversation
           - followup_turn_count
+        - input_type: constant
+          operation: overwrite
+          value: resolved
+          variable_selector:
+          - conversation
+          - followup_status
         - input_type: constant
           operation: overwrite
           value: mode_followup_resolved

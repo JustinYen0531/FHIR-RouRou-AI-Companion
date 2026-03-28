@@ -40,10 +40,10 @@ AI Companion 的定位不是一般聊天機器人，而是：
 - 有獨立高風險路由
 - 有專用安全回覆
 - 有風險狀態紀錄
+- 已新增 `red_flag_payload`，可保存高風險 JSON 結構輸出
 
 目前尚未達成：
-- 沒有 red flag 的結構化標籤輸出
-- 沒有危機嚴重度分級
+- 尚未區分中風險 / 高風險 / 立即危險的嚴重度分級
 - 沒有醫療端通知或外部通報
 
 ### 2. 補問狀態機
@@ -54,6 +54,7 @@ AI Companion 的定位不是一般聊天機器人，而是：
 - `followup_turn_count`
 - `active_mode`
 - `risk_flag`
+- `followup_status`
 
 目前補問邏輯：
 - 若已有 `pending_question`，優先走 follow-up gate
@@ -69,6 +70,7 @@ AI Companion 的定位不是一般聊天機器人，而是：
 - 追問不會無限循環
 - 第二輪補問不會被立刻清空
 - 有最終收斂回答機制
+- 已新增 `followup_status` 追蹤 pending / resolved 狀態
 
 目前尚未達成：
 - 沒有更細緻的補問原因分類
@@ -141,9 +143,9 @@ AI Companion 的定位不是一般聊天機器人，而是：
 ## 未來增強建議順序
 
 ### P0：流程正確性與安全
-- 高風險 red flag 結構化輸出
+- 高風險 red flag 結構輸出精緻化
 - 補問狀態與收斂行為穩定化
-- classifier 與 retrieval 的完全解耦
+- classifier 與 retrieval 的完全解耦已完成，後續維持不回退
 
 ### P1：資料蒐集能力
 - 情緒 / 行為 / 認知 / 警示標籤抽取節點
