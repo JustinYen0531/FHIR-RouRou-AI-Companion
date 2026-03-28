@@ -1,15 +1,23 @@
-﻿kind: app
+kind: app
 version: 0.6.0
 app:
   name: AI_Chat_Companion
-  mode: workflow
+  mode: advanced-chat
   description: AI companion chatflow for triage and support
   icon: robot
   icon_background: '#FFEAD5'
   icon_type: emoji
   use_icon_as_answer_icon: false
 workflow:
-  conversation_variables: []
+  conversation_variables:
+  - id: 9ee62824-d46d-41f7-816f-a18142dbabec
+    name: pending_question
+    description: Store the latest clarification question so the next turn can answer it
+    selector:
+    - conversation
+    - pending_question
+    value: ''
+    value_type: string
   environment_variables: []
   features:
     opening_statement: ''
@@ -28,135 +36,150 @@ workflow:
       voice: ''
   graph:
     edges:
-    - data:
-        isInLoop: false
-        sourceType: start
-        targetType: knowledge-retrieval
-      id: edge-1
+    - id: edge-start-gate
       source: node-start
       sourceHandle: source
-      target: node-retrieval
+      target: node-gate
       targetHandle: target
       type: custom
       zIndex: 0
-    - data:
-        isInLoop: false
-        sourceType: knowledge-retrieval
-        targetType: question-classifier
-      id: edge-2
-      source: node-retrieval
-      sourceHandle: source
+    - id: edge-gate-true-followup
+      source: node-gate
+      sourceHandle: true
+      target: node-llm-followup
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: edge-gate-false-classifier
+      source: node-gate
+      sourceHandle: false
       target: node-classifier
       targetHandle: target
       type: custom
       zIndex: 0
-    - data:
-        isInLoop: false
-        sourceType: question-classifier
-        targetType: llm
-      id: edge-mode-1
+    - id: edge-mode-1
       source: node-classifier
       sourceHandle: mode_1_void
       target: node-llm-void
       targetHandle: target
       type: custom
       zIndex: 0
-    - data:
-        isInLoop: false
-        sourceType: question-classifier
-        targetType: llm
-      id: edge-mode-2
+    - id: edge-mode-2
       source: node-classifier
       sourceHandle: mode_2_soulmate
       target: node-llm-soulmate
       targetHandle: target
       type: custom
       zIndex: 0
-    - data:
-        isInLoop: false
-        sourceType: question-classifier
-        targetType: llm
-      id: edge-mode-3
+    - id: edge-mode-3
       source: node-classifier
       sourceHandle: mode_3_mission
+      target: node-retrieval-mission
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: edge-mode-4
+      source: node-classifier
+      sourceHandle: mode_4_option
+      target: node-retrieval-option
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: edge-mode-5
+      source: node-classifier
+      sourceHandle: mode_5_natural
+      target: node-retrieval-natural
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: edge-mode-6
+      source: node-classifier
+      sourceHandle: mode_6_clarify
+      target: node-llm-clarify
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: edge-retrieval-mission
+      source: node-retrieval-mission
+      sourceHandle: source
       target: node-llm-mission
       targetHandle: target
       type: custom
       zIndex: 0
-    - data:
-        isInLoop: false
-        sourceType: question-classifier
-        targetType: llm
-      id: edge-mode-4
-      source: node-classifier
-      sourceHandle: mode_4_option
+    - id: edge-retrieval-option
+      source: node-retrieval-option
+      sourceHandle: source
       target: node-llm-option
       targetHandle: target
       type: custom
       zIndex: 0
-    - data:
-        isInLoop: false
-        sourceType: question-classifier
-        targetType: llm
-      id: edge-mode-5
-      source: node-classifier
-      sourceHandle: mode_5_natural
+    - id: edge-retrieval-natural
+      source: node-retrieval-natural
+      sourceHandle: source
       target: node-llm-natural
       targetHandle: target
       type: custom
       zIndex: 0
-    - data:
-        isInLoop: false
-        sourceType: llm
-        targetType: end
-      id: edge-end-1
+    - id: edge-followup-assign
+      source: node-llm-followup
+      sourceHandle: source
+      target: node-assign-clear-pending
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: edge-clarify-assign
+      source: node-llm-clarify
+      sourceHandle: source
+      target: node-assign-set-pending
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: edge-void-answer
       source: node-llm-void
       sourceHandle: source
-      target: node-end
+      target: node-answer-void
       targetHandle: target
       type: custom
       zIndex: 0
-    - data:
-        isInLoop: false
-        sourceType: llm
-        targetType: end
-      id: edge-end-2
+    - id: edge-soulmate-answer
       source: node-llm-soulmate
       sourceHandle: source
-      target: node-end
+      target: node-answer-soulmate
       targetHandle: target
       type: custom
       zIndex: 0
-    - data:
-        isInLoop: false
-        sourceType: llm
-        targetType: end
-      id: edge-end-3
+    - id: edge-mission-answer
       source: node-llm-mission
       sourceHandle: source
-      target: node-end
+      target: node-answer-mission
       targetHandle: target
       type: custom
       zIndex: 0
-    - data:
-        isInLoop: false
-        sourceType: llm
-        targetType: end
-      id: edge-end-4
+    - id: edge-option-answer
       source: node-llm-option
       sourceHandle: source
-      target: node-end
+      target: node-answer-option
       targetHandle: target
       type: custom
       zIndex: 0
-    - data:
-        isInLoop: false
-        sourceType: llm
-        targetType: end
-      id: edge-end-5
+    - id: edge-natural-answer
       source: node-llm-natural
       sourceHandle: source
-      target: node-end
+      target: node-answer-natural
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: edge-followup-answer
+      source: node-assign-clear-pending
+      sourceHandle: source
+      target: node-answer-followup
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: edge-clarify-answer
+      source: node-assign-set-pending
+      sourceHandle: source
+      target: node-answer-clarify
       targetHandle: target
       type: custom
       zIndex: 0
@@ -189,6 +212,336 @@ workflow:
       type: custom
       width: 242
     - data:
+        cases:
+        - case_id: pending_not_empty
+          conditions:
+          - comparison_operator: is not empty
+            variable_selector:
+            - conversation
+            - pending_question
+        selected: false
+        title: Follow-up Gate
+        type: if-else
+      height: 140
+      id: node-gate
+      position:
+        x: 366
+        y: 282
+      positionAbsolute:
+        x: 366
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - node-retrieval-mission
+          - result
+        model:
+          completion_params:
+            temperature: 0.6
+          mode: chat
+          name: gpt-4o-mini
+          provider: openai
+        prompt_template:
+        - role: system
+          text: |
+            你是任務導向的引導助手。
+            目標是把問題整理成可執行的步驟。
+            規則：
+            1. 先回應使用者的核心目標。
+            2. 若知識庫有內容，優先使用知識庫內容。
+            3. 輸出要清楚、分段、可行。
+        - role: user
+          text: "{{#node-start.user_input#}}"
+        selected: false
+        structured_output_enabled: false
+        title: Mission Guide
+        type: llm
+      height: 100
+      id: node-llm-mission
+      position:
+        x: 1230
+        y: 220
+      positionAbsolute:
+        x: 1230
+        y: 220
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - node-retrieval-option
+          - result
+        model:
+          completion_params:
+            temperature: 0.4
+          mode: chat
+          name: gpt-4o-mini
+          provider: openai
+        prompt_template:
+        - role: system
+          text: |
+            你是選項比較助手。
+            目標是把候選方案整理成可比較、可決策的輸出。
+            規則：
+            1. 先列出每個選項的優缺點。
+            2. 若知識庫有內容，優先使用知識庫內容。
+            3. 不要冗長，輸出要能直接幫人做選擇。
+        - role: user
+          text: "{{#node-start.user_input#}}"
+        selected: false
+        structured_output_enabled: false
+        title: Option Selector
+        type: llm
+      height: 100
+      id: node-llm-option
+      position:
+        x: 1230
+        y: 420
+      positionAbsolute:
+        x: 1230
+        y: 420
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - node-retrieval-natural
+          - result
+        model:
+          completion_params:
+            temperature: 0.5
+          mode: chat
+          name: gpt-4o-mini
+          provider: openai
+        prompt_template:
+        - role: system
+          text: |
+            你是一個自然、溫暖、像真人的朋友。
+            你的任務是一般陪伴與自然對話。
+            規則：
+            1. 語氣自然，不要像客服。
+            2. 如果使用者有負面情緒，先共感，不要直接轉成閒聊。
+            3. 如果知識庫有內容，再用知識庫補充。
+        - role: user
+          text: "{{#node-start.user_input#}}"
+        selected: false
+        structured_output_enabled: false
+        title: Smart Hunter
+        type: llm
+      height: 100
+      id: node-llm-natural
+      position:
+        x: 1230
+        y: 620
+      positionAbsolute:
+        x: 1230
+        y: 620
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.5
+          mode: chat
+          name: gpt-4o-mini
+          provider: openai
+        prompt_template:
+        - role: system
+          text: |
+            你正在處理上一輪留下的補問。
+            已知補問內容：{{#conversation.pending_question#}}
+            請根據使用者本輪回答，直接完成上一輪對話。
+            如果資訊仍不足，只再提出一個最小補問，不要連續追問。
+        - role: user
+          text: "{{#node-start.user_input#}}"
+        selected: false
+        structured_output_enabled: false
+        title: Follow-up Resolver
+        type: llm
+      height: 100
+      id: node-llm-followup
+      position:
+        x: 650
+        y: 100
+      positionAbsolute:
+        x: 650
+        y: 100
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-4o-mini
+          provider: openai
+        prompt_template:
+        - role: system
+          text: |
+            你要先補一個最關鍵的問題。
+            規則：
+            1. 只問一個問題。
+            2. 問題要短。
+            3. 問題要能直接幫助下一輪回答。
+        - role: user
+          text: "{{#node-start.user_input#}}"
+        selected: false
+        structured_output_enabled: false
+        title: Clarify Question
+        type: llm
+      height: 100
+      id: node-llm-clarify
+      position:
+        x: 1230
+        y: 820
+      positionAbsolute:
+        x: 1230
+        y: 820
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: gpt-4o-mini
+          provider: openai
+        prompt_template:
+        - role: system
+          text: |
+            你要處理沒有內容或無法辨識的輸入。
+            請用一句簡短提醒，請使用者輸入更完整的問題。
+        - role: user
+          text: "{{#node-start.user_input#}}"
+        selected: false
+        structured_output_enabled: false
+        title: Void Box
+        type: llm
+      height: 100
+      id: node-llm-void
+      position:
+        x: 950
+        y: 20
+      positionAbsolute:
+        x: 950
+        y: 20
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.5
+          mode: chat
+          name: gpt-4o-mini
+          provider: openai
+        prompt_template:
+        - role: system
+          text: |
+            你是一個溫暖、像真人的朋友。
+            規則：
+            1. 先接住情緒，再回應。
+            2. 不要像客服，不要像問卷。
+            3. 回覆要自然、短一點。
+        - role: user
+          text: "{{#node-start.user_input#}}"
+        selected: false
+        structured_output_enabled: false
+        title: Soul Mate
+        type: llm
+      height: 100
+      id: node-llm-soulmate
+      position:
+        x: 950
+        y: 180
+      positionAbsolute:
+        x: 950
+        y: 180
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - node-retrieval-mission
+          - result
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: gpt-4o-mini
+          provider: openai
+        prompt_template:
+        - role: system
+          text: |
+            你是意圖分類器。
+            請只輸出最符合的一個類別代號，不要解釋。
+            類別：
+            1. mode_1_void: 空白、測試、無意義輸入
+            2. mode_2_soulmate: 需要陪伴、共感、情緒支持
+            3. mode_3_mission: 任務、步驟、流程、要完成一件事
+            4. mode_4_option: 需要比較、選擇、方案判斷
+            5. mode_5_natural: 一般自然對話、日常聊天、延續話題
+            6. mode_6_clarify: 資訊不足，需要先補一個關鍵問題
+        - role: user
+          text: "{{#node-start.user_input#}}"
+        selected: false
+        title: Intent Classifier
+        type: question-classifier
+      height: 450
+      id: node-classifier
+      position:
+        x: 650
+        y: 320
+      positionAbsolute:
+        x: 650
+        y: 320
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
         dataset_ids:
         - JB1PuOSPlWXMsgVAkT5B4u/hSkfNYLAS+G+Zmysp3Fhot7pSACV7KyX378KBhRU7
         multiple_retrieval_config:
@@ -204,133 +557,254 @@ workflow:
         title: Knowledge Retrieval
         type: knowledge-retrieval
       height: 90
-      id: node-retrieval
+      id: node-retrieval-mission
       position:
-        x: 366
-        y: 303
+        x: 950
+        y: 250
       positionAbsolute:
-        x: 366
-        y: 303
+        x: 950
+        y: 250
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
     - data:
-        classes:
-        - id: mode_1_void
-          name: Void Box
-        - id: mode_2_soulmate
-          name: Soul Mate
-        - id: mode_3_mission
-          name: Mission Guide
-        - id: mode_4_option
-          name: Option Selector
-        - id: mode_5_natural
-          name: Smart Hunter
-        instruction: |
-          ?芣??具?蝣箇泵?誑銝?隞嗆?嚗??舫 1-4 璅∪???          隞颱?銝?祆?餈啜???憭押??撣詨?鈭怒???蝣箸????批捆嚗?敺 mode_5_natural??          1. mode_1_void: 璆萄漲鞎??扼援瞏啜?潭援??          2. mode_2_soulmate: ?Ⅱ銵函內銝憛怠??瑯??唾◤??嚗?唾?憭拚隡氬?          3. mode_3_mission: ?Ⅱ?蝮賜???閮箝?憪?隡啜??渡?餈???          4. mode_4_option: 摮璆萄?嚗???敞???喳????仿???          5. mode_5_natural: ?園??券??嚗陘?嗆銝?祆????身韏圈???        model:
-          completion_params:
-            temperature: 0
-          mode: chat
-          name: gpt-4o-mini
-          provider: openai
+        dataset_ids:
+        - JB1PuOSPlWXMsgVAkT5B4u/hSkfNYLAS+G+Zmysp3Fhot7pSACV7KyX378KBhRU7
+        multiple_retrieval_config:
+          reranking_enable: false
+          reranking_mode: reranking_model
+          top_k: 4
+        query_attachment_selector: []
         query_variable_selector:
         - node-start
         - user_input
-        title: Intent Classifier
-        type: question-classifier
-      height: 450
-      id: node-classifier
-      position:
-        x: 650
-        y: 125
-      positionAbsolute:
-        x: 650
-        y: 125
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        context:
-          enabled: true
-          variable_selector:
-          - node-retrieval
-          - result
-        model:
-          completion_params:
-            temperature: 0.5
-          mode: chat
-          name: gpt-4o-mini
-          provider: openai
-        prompt_template:
-        - role: system
-          text: |
-            <role>
-            你是一個自然、溫暖、像真人的朋友。
-            你的任務是一般陪伴與自然對話，但在使用者表達負面情緒時，先接住情緒，不要直接轉成閒聊開場。
-            </role>
-
-            <rules>
-            1. 一般對話時可以自然聊天，但不要固定用「嘿！最近過得怎麼樣？」這種開場。
-            2. 如果使用者說出負面情緒，例如「我好難過」「我很累」「我有點想哭」，先回應共感。
-            3. 共感後只能接一個很輕的延伸問題，不能連續追問，也不能切到問卷模式。
-            4. 句子要自然，不要像客服，不要像問卷，不要像系統提示。
-            5. 如果語境明顯偏向悲傷、壓力或挫折，優先使用「我聽見了」「這真的不容易」「我在這裡陪你」這類回應。
-            6. 參考知識庫 {{#context#}} 的「探索 (Probes)」與「澄清 (Clarification)」，但只在語境適合時使用。
-            </rules>
-        - role: user
-          text: "{{#node-start.user_input#}}"
-        title: Smart Hunter
-        type: llm
-      height: 100
-      id: node-llm-natural
-      position:
-        x: 950
-        y: 700
-      positionAbsolute:
-        x: 950
-        y: 700
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        outputs:
-        - value_selector:
-          - node-llm-void
-          - text
-          variable: void_result
-        - value_selector:
-          - node-llm-soulmate
-          - text
-          variable: soulmate_result
-        - value_selector:
-          - node-llm-mission
-          - text
-          variable: mission_result
-        - value_selector:
-          - node-llm-option
-          - text
-          variable: option_result
-        - value_selector:
-          - node-llm-natural
-          - text
-          variable: natural_result
+        retrieval_mode: multiple
         selected: false
-        title: Output
-        type: end
-      height: 88
-      id: node-end
+        title: Knowledge Retrieval
+        type: knowledge-retrieval
+      height: 90
+      id: node-retrieval-option
       position:
-        x: 1300
-        y: 300
+        x: 950
+        y: 450
       positionAbsolute:
-        x: 1300
-        y: 300
+        x: 950
+        y: 450
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - JB1PuOSPlWXMsgVAkT5B4u/hSkfNYLAS+G+Zmysp3Fhot7pSACV7KyX378KBhRU7
+        multiple_retrieval_config:
+          reranking_enable: false
+          reranking_mode: reranking_model
+          top_k: 4
+        query_attachment_selector: []
+        query_variable_selector:
+        - node-start
+        - user_input
+        retrieval_mode: multiple
+        selected: false
+        title: Knowledge Retrieval
+        type: knowledge-retrieval
+      height: 90
+      id: node-retrieval-natural
+      position:
+        x: 950
+        y: 650
+      positionAbsolute:
+        x: 950
+        y: 650
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: overwrite
+          value: ''
+          variable_selector:
+          - conversation
+          - pending_question
+        selected: false
+        title: Clear Pending Question
+        type: assigner
+        version: '2'
+      height: 100
+      id: node-assign-clear-pending
+      position:
+        x: 950
+        y: 100
+      positionAbsolute:
+        x: 950
+        y: 100
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - node-llm-clarify
+          - text
+          variable_selector:
+          - conversation
+          - pending_question
+        selected: false
+        title: Save Pending Question
+        type: assigner
+        version: '2'
+      height: 100
+      id: node-assign-set-pending
+      position:
+        x: 1500
+        y: 820
+      positionAbsolute:
+        x: 1500
+        y: 820
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#node-llm-void.text#}}'
+        selected: false
+        title: Void Answer
+        type: answer
+        variables: []
+      height: 88
+      id: node-answer-void
+      position:
+        x: 1500
+        y: 20
+      positionAbsolute:
+        x: 1500
+        y: 20
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#node-llm-soulmate.text#}}'
+        selected: false
+        title: Soulmate Answer
+        type: answer
+        variables: []
+      height: 88
+      id: node-answer-soulmate
+      position:
+        x: 1500
+        y: 180
+      positionAbsolute:
+        x: 1500
+        y: 180
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#node-llm-mission.text#}}'
+        selected: false
+        title: Mission Answer
+        type: answer
+        variables: []
+      height: 88
+      id: node-answer-mission
+      position:
+        x: 1500
+        y: 250
+      positionAbsolute:
+        x: 1500
+        y: 250
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#node-llm-option.text#}}'
+        selected: false
+        title: Option Answer
+        type: answer
+        variables: []
+      height: 88
+      id: node-answer-option
+      position:
+        x: 1500
+        y: 450
+      positionAbsolute:
+        x: 1500
+        y: 450
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#node-llm-natural.text#}}'
+        selected: false
+        title: Natural Answer
+        type: answer
+        variables: []
+      height: 88
+      id: node-answer-natural
+      position:
+        x: 1500
+        y: 650
+      positionAbsolute:
+        x: 1500
+        y: 650
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#node-llm-followup.text#}}'
+        selected: false
+        title: Follow-up Answer
+        type: answer
+        variables: []
+      height: 88
+      id: node-answer-followup
+      position:
+        x: 1230
+        y: 100
+      positionAbsolute:
+        x: 1230
+        y: 100
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#node-llm-clarify.text#}}'
+        selected: false
+        title: Clarify Answer
+        type: answer
+        variables: []
+      height: 88
+      id: node-answer-clarify
+      position:
+        x: 1770
+        y: 820
+      positionAbsolute:
+        x: 1770
+        y: 820
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -341,5 +815,3 @@ workflow:
       y: 76.12328544427778
       zoom: 0.5000000000000002
   rag_pipeline_variables: []
-
-
