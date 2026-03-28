@@ -1,4 +1,4 @@
-kind: app
+﻿kind: app
 version: 0.6.0
 app:
   name: AI_Chat_Companion
@@ -10,53 +10,13 @@ app:
   use_icon_as_answer_icon: false
 workflow:
   conversation_variables:
-  - id: conv-pending-question
+  - id: 9ee62824-d46d-41f7-816f-a18142dbabec
     name: pending_question
     description: Store the latest clarification question so the next turn can answer it
     selector:
     - conversation
     - pending_question
     value: ''
-    value_type: string
-  - id: conv-followup-turn-count
-    name: followup_turn_count
-    description: Track the current clarification turn count, limited to 0, 1, or 2
-    selector:
-    - conversation
-    - followup_turn_count
-    value: '0'
-    value_type: string
-  - id: conv-active-mode
-    name: active_mode
-    description: Track the latest active dialogue mode for downstream reporting
-    selector:
-    - conversation
-    - active_mode
-    value: ''
-    value_type: string
-  - id: conv-risk-flag
-    name: risk_flag
-    description: Whether the latest turn triggered a safety response
-    selector:
-    - conversation
-    - risk_flag
-    value: 'false'
-    value_type: string
-  - id: conv-red-flag-payload
-    name: red_flag_payload
-    description: Machine-readable JSON payload describing detected high-risk red flags
-    selector:
-    - conversation
-    - red_flag_payload
-    value: ''
-    value_type: string
-  - id: conv-followup-status
-    name: followup_status
-    description: Lifecycle of the clarification flow, one of none, pending, or resolved
-    selector:
-    - conversation
-    - followup_status
-    value: none
     value_type: string
   environment_variables: []
   features:
@@ -76,136 +36,24 @@ workflow:
       voice: ''
   graph:
     edges:
-    - id: edge-start-risk
+    - id: edge-start-gate
       source: node-start
-      sourceHandle: source
-      target: node-risk-detector
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-risk-yes
-      source: node-risk-detector
-      sourceHandle: risk_yes
-      target: node-assign-risk-true
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-risk-no
-      source: node-risk-detector
-      sourceHandle: risk_no
-      target: node-assign-risk-false
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-risk-true-llm
-      source: node-assign-risk-true
-      sourceHandle: source
-      target: node-llm-risk-structurer
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-risk-structurer-assign
-      source: node-llm-risk-structurer
-      sourceHandle: source
-      target: node-assign-risk-payload
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-risk-assign-llm
-      source: node-assign-risk-payload
-      sourceHandle: source
-      target: node-llm-risk
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-risk-llm-answer
-      source: node-llm-risk
-      sourceHandle: source
-      target: node-answer-risk
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-risk-false-followup-gate
-      source: node-assign-risk-false
       sourceHandle: source
       target: node-gate
       targetHandle: target
       type: custom
       zIndex: 0
-    - id: edge-followup-pending-true
+    - id: edge-gate-true-followup
       source: node-gate
       sourceHandle: true
-      target: node-followup-limit-gate
+      target: node-llm-followup
       targetHandle: target
       type: custom
       zIndex: 0
-    - id: edge-followup-pending-false
+    - id: edge-gate-false-classifier
       source: node-gate
       sourceHandle: false
       target: node-classifier
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-followup-limit-hit
-      source: node-followup-limit-gate
-      sourceHandle: true
-      target: node-llm-followup-finalize
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-followup-limit-open
-      source: node-followup-limit-gate
-      sourceHandle: false
-      target: node-llm-followup-resolver
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-followup-resolver-classify
-      source: node-llm-followup-resolver
-      sourceHandle: source
-      target: node-followup-output-classifier
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-followup-ask-more
-      source: node-followup-output-classifier
-      sourceHandle: followup_ask_more
-      target: node-assign-followup-second-question
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-followup-answer-now
-      source: node-followup-output-classifier
-      sourceHandle: followup_answer_now
-      target: node-assign-followup-resolved
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-followup-second-answer
-      source: node-assign-followup-second-question
-      sourceHandle: source
-      target: node-answer-followup
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-followup-resolved-answer
-      source: node-assign-followup-resolved
-      sourceHandle: source
-      target: node-answer-followup
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-followup-finalize-assign
-      source: node-llm-followup-finalize
-      sourceHandle: source
-      target: node-assign-followup-finalized
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-followup-finalize-answer
-      source: node-assign-followup-finalized
-      sourceHandle: source
-      target: node-answer-followup-finalize
       targetHandle: target
       type: custom
       zIndex: 0
@@ -240,7 +88,7 @@ workflow:
     - id: edge-mode-5
       source: node-classifier
       sourceHandle: mode_5_natural
-      target: node-llm-natural
+      target: node-retrieval-natural
       targetHandle: target
       type: custom
       zIndex: 0
@@ -265,85 +113,71 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-    - id: edge-void-assign
-      source: node-llm-void
+    - id: edge-retrieval-natural
+      source: node-retrieval-natural
       sourceHandle: source
-      target: node-assign-mode-void
+      target: node-llm-natural
       targetHandle: target
       type: custom
       zIndex: 0
-    - id: edge-soulmate-assign
-      source: node-llm-soulmate
+    - id: edge-followup-assign
+      source: node-llm-followup
       sourceHandle: source
-      target: node-assign-mode-soulmate
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-mission-assign
-      source: node-llm-mission
-      sourceHandle: source
-      target: node-assign-mode-mission
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-option-assign
-      source: node-llm-option
-      sourceHandle: source
-      target: node-assign-mode-option
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - id: edge-natural-assign
-      source: node-llm-natural
-      sourceHandle: source
-      target: node-assign-mode-natural
+      target: node-assign-clear-pending
       targetHandle: target
       type: custom
       zIndex: 0
     - id: edge-clarify-assign
       source: node-llm-clarify
       sourceHandle: source
-      target: node-assign-clarify
+      target: node-assign-set-pending
       targetHandle: target
       type: custom
       zIndex: 0
     - id: edge-void-answer
-      source: node-assign-mode-void
+      source: node-llm-void
       sourceHandle: source
       target: node-answer-void
       targetHandle: target
       type: custom
       zIndex: 0
     - id: edge-soulmate-answer
-      source: node-assign-mode-soulmate
+      source: node-llm-soulmate
       sourceHandle: source
       target: node-answer-soulmate
       targetHandle: target
       type: custom
       zIndex: 0
     - id: edge-mission-answer
-      source: node-assign-mode-mission
+      source: node-llm-mission
       sourceHandle: source
       target: node-answer-mission
       targetHandle: target
       type: custom
       zIndex: 0
     - id: edge-option-answer
-      source: node-assign-mode-option
+      source: node-llm-option
       sourceHandle: source
       target: node-answer-option
       targetHandle: target
       type: custom
       zIndex: 0
     - id: edge-natural-answer
-      source: node-assign-mode-natural
+      source: node-llm-natural
       sourceHandle: source
       target: node-answer-natural
       targetHandle: target
       type: custom
       zIndex: 0
+    - id: edge-followup-answer
+      source: node-assign-clear-pending
+      sourceHandle: source
+      target: node-answer-followup
+      targetHandle: target
+      type: custom
+      zIndex: 0
     - id: edge-clarify-answer
-      source: node-assign-clarify
+      source: node-assign-set-pending
       sourceHandle: source
       target: node-answer-clarify
       targetHandle: target
@@ -368,199 +202,10 @@ workflow:
       id: node-start
       position:
         x: 80
-        y: 360
+        y: 282
       positionAbsolute:
         x: 80
-        y: 360
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        context:
-          enabled: false
-          variable_selector: []
-        model:
-          completion_params:
-            temperature: 0
-          mode: chat
-          name: gpt-4o-mini
-          provider: openai
-        prompt_template:
-        - role: system
-          text: |
-            你是 AI Companion 的高風險檢測器。
-            請只輸出一個代號，不要解釋：
-            1. risk_yes: 使用者出現自傷、自殺、想消失、活不下去、強烈絕望、放棄求生、危險行為或明確求助危機訊號。
-            2. risk_no: 其餘一般輸入。
-        - role: user
-          text: "{{#node-start.user_input#}}"
-        selected: false
-        title: Risk Detector
-        type: question-classifier
-      height: 220
-      id: node-risk-detector
-      position:
-        x: 360
-        y: 360
-      positionAbsolute:
-        x: 360
-        y: 360
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        items:
-        - input_type: constant
-          operation: overwrite
-          value: 'true'
-          variable_selector:
-          - conversation
-          - risk_flag
-        - input_type: constant
-          operation: overwrite
-          value: mode_risk
-          variable_selector:
-          - conversation
-          - active_mode
-        - input_type: constant
-          operation: overwrite
-          value: ''
-          variable_selector:
-          - conversation
-          - pending_question
-        - input_type: constant
-          operation: overwrite
-          value: '0'
-          variable_selector:
-          - conversation
-          - followup_turn_count
-        - input_type: constant
-          operation: overwrite
-          value: none
-          variable_selector:
-          - conversation
-          - followup_status
-        selected: false
-        title: Set Risk State
-        type: assigner
-        version: '2'
-      height: 120
-      id: node-assign-risk-true
-      position:
-        x: 650
-        y: 200
-      positionAbsolute:
-        x: 650
-        y: 200
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        items:
-        - input_type: constant
-          operation: overwrite
-          value: 'false'
-          variable_selector:
-          - conversation
-          - risk_flag
-        - input_type: constant
-          operation: overwrite
-          value: ''
-          variable_selector:
-          - conversation
-          - red_flag_payload
-        selected: false
-        title: Clear Risk State
-        type: assigner
-        version: '2'
-      height: 100
-      id: node-assign-risk-false
-      position:
-        x: 650
-        y: 360
-      positionAbsolute:
-        x: 650
-        y: 360
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        context:
-          enabled: false
-          variable_selector: []
-        model:
-          completion_params:
-            temperature: 0
-          mode: chat
-          name: gpt-4o-mini
-          provider: openai
-        prompt_template:
-        - role: system
-          text: |
-            你要把高風險輸入整理成可機器讀取的 JSON，不能輸出其他文字。
-
-            JSON schema:
-            {
-              "risk_detected": true,
-              "risk_level": "high",
-              "tags": ["self_harm", "hopelessness", "suicidal_ideation", "help_seeking", "danger_behavior"],
-              "summary": "不超過30字的中文摘要"
-            }
-
-            規則：
-            1. 只輸出合法 JSON。
-            2. tags 只保留實際命中的項目。
-            3. 若沒有明確命中某標籤，不要硬加。
-            4. risk_level 先固定輸出 high。
-        - role: user
-          text: "{{#node-start.user_input#}}"
-        selected: false
-        structured_output_enabled: false
-        title: Risk Structurer
-        type: llm
-      height: 150
-      id: node-llm-risk-structurer
-      position:
-        x: 950
-        y: 40
-      positionAbsolute:
-        x: 950
-        y: 40
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        items:
-        - input_type: variable
-          operation: overwrite
-          value:
-          - node-llm-risk-structurer
-          - text
-          variable_selector:
-          - conversation
-          - red_flag_payload
-        selected: false
-        title: Save Risk Payload
-        type: assigner
-        version: '2'
-      height: 100
-      id: node-assign-risk-payload
-      position:
-        x: 1240
-        y: 40
-      positionAbsolute:
-        x: 1240
-        y: 40
+        y: 282
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -580,225 +225,11 @@ workflow:
       height: 140
       id: node-gate
       position:
-        x: 950
-        y: 360
+        x: 366
+        y: 282
       positionAbsolute:
-        x: 950
-        y: 360
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        cases:
-        - case_id: followup_limit_reached
-          conditions:
-          - comparison_operator: is
-            value: '2'
-            variable_selector:
-            - conversation
-            - followup_turn_count
-        selected: false
-        title: Follow-up Limit Gate
-        type: if-else
-      height: 140
-      id: node-followup-limit-gate
-      position:
-        x: 1240
-        y: 180
-      positionAbsolute:
-        x: 1240
-        y: 180
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        context:
-          enabled: false
-          variable_selector: []
-        model:
-          completion_params:
-            temperature: 0.4
-          mode: chat
-          name: gpt-4o-mini
-          provider: openai
-        prompt_template:
-        - role: system
-          text: |
-            你正在處理上一輪留下的補問。
-            已知上一題：{{#conversation.pending_question#}}
-            目前補問輪數：{{#conversation.followup_turn_count#}}
-
-            任務：
-            1. 先根據使用者本輪回答判斷資訊是否足夠。
-            2. 如果足夠，直接完成回覆，不要再提問。
-            3. 如果仍不足，只能再補一個最小問題，而且整段輸出只能是那一個問題。
-
-            規則：
-            - 只允許一個問題。
-            - 問題要短，且只補最關鍵缺口。
-            - 如果你輸出的是問題，不要加任何前言、同理或說明。
-            - 如果你輸出的是回答，要自然、溫暖、具體，不要像問卷。
-        - role: user
-          text: "{{#node-start.user_input#}}"
-        selected: false
-        structured_output_enabled: false
-        title: Follow-up Resolver
-        type: llm
-      height: 120
-      id: node-llm-followup-resolver
-      position:
-        x: 1530
-        y: 280
-      positionAbsolute:
-        x: 1530
-        y: 280
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        context:
-          enabled: false
-          variable_selector: []
-        model:
-          completion_params:
-            temperature: 0.3
-          mode: chat
-          name: gpt-4o-mini
-          provider: openai
-        prompt_template:
-        - role: system
-          text: |
-            你正在處理最後一輪補問後的收斂回答。
-            已知上一題：{{#conversation.pending_question#}}
-            目前補問輪數：{{#conversation.followup_turn_count#}}
-
-            規則：
-            1. 不可以再提問。
-            2. 必須根據使用者本輪回答，提供一個基於目前資訊的最佳回答。
-            3. 語氣要溫暖、清楚、收斂，不要像在做量表。
-        - role: user
-          text: "{{#node-start.user_input#}}"
-        selected: false
-        structured_output_enabled: false
-        title: Follow-up Finalizer
-        type: llm
-      height: 120
-      id: node-llm-followup-finalize
-      position:
-        x: 1530
-        y: 80
-      positionAbsolute:
-        x: 1530
-        y: 80
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        context:
-          enabled: false
-          variable_selector: []
-        model:
-          completion_params:
-            temperature: 0
-          mode: chat
-          name: gpt-4o-mini
-          provider: openai
-        prompt_template:
-        - role: system
-          text: |
-            你要判斷輸入內容是「補問」還是「最終回答」。
-            請只輸出一個代號，不要解釋：
-            1. followup_ask_more: 這是一句問題，目的是再補一個最小資訊缺口。
-            2. followup_answer_now: 這是直接回答或收斂回覆，不是追問。
-        - role: user
-          text: "{{#node-llm-followup-resolver.text#}}"
-        selected: false
-        title: Follow-up Output Classifier
-        type: question-classifier
-      height: 180
-      id: node-followup-output-classifier
-      position:
-        x: 1820
-        y: 280
-      positionAbsolute:
-        x: 1820
-        y: 280
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        context:
-          enabled: false
-          variable_selector: []
-        model:
-          completion_params:
-            temperature: 0
-          mode: chat
-          name: gpt-4o-mini
-          provider: openai
-        prompt_template:
-        - role: system
-          text: |
-            你是意圖分類器。
-            請只輸出最符合的一個類別代號，不要解釋。
-            類別：
-            1. mode_1_void: 情緒崩潰、只想宣洩、不想互動，只需要被接住。
-            2. mode_2_soulmate: 想被陪伴、想聊聊、不想被分析或問卷式引導。
-            3. mode_3_mission: 想整理近況、準備看醫生、需要結構化梳理。
-            4. mode_4_option: 回覆極短、很累、腦袋轉不動、適合給三個選項。
-            5. mode_5_natural: 一般自然聊天、分享生活、延續話題。
-            6. mode_6_clarify: 資訊不足，若直接回答容易失準，必須先補一個關鍵問題。
-        - role: user
-          text: "{{#node-start.user_input#}}"
-        selected: false
-        title: Intent Classifier
-        type: question-classifier
-      height: 320
-      id: node-classifier
-      position:
-        x: 1240
-        y: 430
-      positionAbsolute:
-        x: 1240
-        y: 430
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        dataset_ids:
-        - JB1PuOSPlWXMsgVAkT5B4u/hSkfNYLAS+G+Zmysp3Fhot7pSACV7KyX378KBhRU7
-        multiple_retrieval_config:
-          reranking_enable: false
-          reranking_mode: reranking_model
-          top_k: 4
-        query_attachment_selector: []
-        query_variable_selector:
-        - node-start
-        - user_input
-        retrieval_mode: multiple
-        selected: false
-        title: Mission Retrieval
-        type: knowledge-retrieval
-      height: 90
-      id: node-retrieval-mission
-      position:
-        x: 1530
-        y: 500
-      positionAbsolute:
-        x: 1530
-        y: 500
+        x: 366
+        y: 282
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -812,63 +243,33 @@ workflow:
           - result
         model:
           completion_params:
-            temperature: 0.45
+            temperature: 0.6
           mode: chat
           name: gpt-4o-mini
           provider: openai
         prompt_template:
         - role: system
           text: |
-            你是任務導向的診前引導助手。
-            目標是幫使用者為回診整理近況，同時依據 HAM-D 相關知識做最小必要的結構化引導。
-
+            你是任務導向的引導助手。
+            目標是把問題整理成可執行的步驟。
             規則：
-            1. 每次只推進一個面向，例如情緒、睡眠、食慾、社交、身體不適中的其中一項。
-            2. 先短暫同理，再提供一個清楚的下一步或一個關鍵問題。
-            3. 若知識庫有內容，優先用知識庫中的臨床觀察角度，但語氣不能像問卷。
-            4. 回覆要讓病患感覺被陪伴，不要像醫生在考試。
+            1. 先回應使用者的核心目標。
+            2. 若知識庫有內容，優先使用知識庫內容。
+            3. 輸出要清楚、分段、可行。
         - role: user
           text: "{{#node-start.user_input#}}"
         selected: false
         structured_output_enabled: false
         title: Mission Guide
         type: llm
-      height: 120
+      height: 100
       id: node-llm-mission
       position:
-        x: 1820
-        y: 500
+        x: 1230
+        y: 220
       positionAbsolute:
-        x: 1820
-        y: 500
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        dataset_ids:
-        - JB1PuOSPlWXMsgVAkT5B4u/hSkfNYLAS+G+Zmysp3Fhot7pSACV7KyX378KBhRU7
-        multiple_retrieval_config:
-          reranking_enable: false
-          reranking_mode: reranking_model
-          top_k: 2
-        query_attachment_selector: []
-        query_variable_selector:
-        - node-start
-        - user_input
-        retrieval_mode: multiple
-        selected: false
-        title: Option Retrieval
-        type: knowledge-retrieval
-      height: 90
-      id: node-retrieval-option
-      position:
-        x: 1530
-        y: 700
-      positionAbsolute:
-        x: 1530
-        y: 700
+        x: 1230
+        y: 220
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -882,35 +283,33 @@ workflow:
           - result
         model:
           completion_params:
-            temperature: 0.3
+            temperature: 0.4
           mode: chat
           name: gpt-4o-mini
           provider: openai
         prompt_template:
         - role: system
           text: |
-            你是選項比較與低負擔引導助手。
-
+            你是選項比較助手。
+            目標是把候選方案整理成可比較、可決策的輸出。
             規則：
-            1. 先用一句短短的同理接住使用者。
-            2. 接著只輸出三個選項，格式必須是 A. / B. / C.
-            3. 三個選項都要緊扣使用者當下語境，避免空泛。
-            4. 如果知識庫有相關提示，可用來讓選項更貼近情緒、睡眠、疲勞或社交狀態。
-            5. 不要加第四個選項，不要變成長文分析。
+            1. 先列出每個選項的優缺點。
+            2. 若知識庫有內容，優先使用知識庫內容。
+            3. 不要冗長，輸出要能直接幫人做選擇。
         - role: user
           text: "{{#node-start.user_input#}}"
         selected: false
         structured_output_enabled: false
         title: Option Selector
         type: llm
-      height: 120
+      height: 100
       id: node-llm-option
       position:
-        x: 1820
-        y: 700
+        x: 1230
+        y: 420
       positionAbsolute:
-        x: 1820
-        y: 700
+        x: 1230
+        y: 420
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -918,87 +317,13 @@ workflow:
       width: 242
     - data:
         context:
-          enabled: false
-          variable_selector: []
+          enabled: true
+          variable_selector:
+          - node-retrieval-natural
+          - result
         model:
           completion_params:
-            temperature: 0.45
-          mode: chat
-          name: gpt-4o-mini
-          provider: openai
-        prompt_template:
-        - role: system
-          text: |
-            你是一個安全、安靜、穩定的樹洞陪伴者。
-
-            規則：
-            1. 只接住情緒，不延伸、不分析、不提問。
-            2. 回覆極短，通常一句話內，盡量不超過 12 個字。
-            3. 不給建議，不做診斷，不轉成任務模式。
-        - role: user
-          text: "{{#node-start.user_input#}}"
-        selected: false
-        structured_output_enabled: false
-        title: Void Box
-        type: llm
-      height: 110
-      id: node-llm-void
-      position:
-        x: 1530
-        y: 900
-      positionAbsolute:
-        x: 1530
-        y: 900
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        context:
-          enabled: false
-          variable_selector: []
-        model:
-          completion_params:
-            temperature: 0.55
-          mode: chat
-          name: gpt-4o-mini
-          provider: openai
-        prompt_template:
-        - role: system
-          text: |
-            你是一個溫暖、像真人的朋友。
-
-            規則：
-            1. 先接住情緒，再自然回應。
-            2. 不做醫療分析，不問量表，不偷塞結構化盤問。
-            3. 維持 2 到 4 句自然陪伴式回應，不說教。
-        - role: user
-          text: "{{#node-start.user_input#}}"
-        selected: false
-        structured_output_enabled: false
-        title: Soul Mate
-        type: llm
-      height: 110
-      id: node-llm-soulmate
-      position:
-        x: 1530
-        y: 1060
-      positionAbsolute:
-        x: 1530
-        y: 1060
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        context:
-          enabled: false
-          variable_selector: []
-        model:
-          completion_params:
-            temperature: 0.55
+            temperature: 0.5
           mode: chat
           name: gpt-4o-mini
           provider: openai
@@ -1006,27 +331,25 @@ workflow:
         - role: system
           text: |
             你是一個自然、溫暖、像真人的朋友。
-            你的秘密任務是默默蒐集可用於診前整理的線索，但不要讓對話變成問卷。
-
+            你的任務是一般陪伴與自然對話。
             規則：
-            1. 先像一般聊天一樣回應，不要有客服感。
-            2. 只有在使用者明顯提到情緒、睡眠、食慾、社交退縮或身體不適時，才追一個自然的細節。
-            3. 一次最多只問一個問題，而且不必每輪都問。
-            4. 不使用知識庫檢索，優先維持陪伴感與低成本。
+            1. 語氣自然，不要像客服。
+            2. 如果使用者有負面情緒，先共感，不要直接轉成閒聊。
+            3. 如果知識庫有內容，再用知識庫補充。
         - role: user
           text: "{{#node-start.user_input#}}"
         selected: false
         structured_output_enabled: false
         title: Smart Hunter
         type: llm
-      height: 120
+      height: 100
       id: node-llm-natural
       position:
-        x: 1530
-        y: 1220
+        x: 1230
+        y: 620
       positionAbsolute:
-        x: 1530
-        y: 1220
+        x: 1230
+        y: 620
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1045,27 +368,24 @@ workflow:
         prompt_template:
         - role: system
           text: |
-            你要先補一個最關鍵的問題。
-
-            規則：
-            1. 只問一個問題。
-            2. 問題要短。
-            3. 問題要能直接幫助下一輪回答，不要一次問兩件事。
-            4. 不要加多餘前言。
+            你正在處理上一輪留下的補問。
+            已知補問內容：{{#conversation.pending_question#}}
+            請根據使用者本輪回答，直接完成上一輪對話。
+            如果資訊仍不足，只再提出一個最小補問，不要連續追問。
         - role: user
           text: "{{#node-start.user_input#}}"
         selected: false
         structured_output_enabled: false
-        title: Clarify Question
+        title: Follow-up Resolver
         type: llm
-      height: 110
-      id: node-llm-clarify
+      height: 100
+      id: node-llm-followup
       position:
-        x: 1530
-        y: 1380
+        x: 650
+        y: 100
       positionAbsolute:
-        x: 1530
-        y: 1380
+        x: 650
+        y: 100
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1077,35 +397,229 @@ workflow:
           variable_selector: []
         model:
           completion_params:
-            temperature: 0.25
+            temperature: 0.7
           mode: chat
           name: gpt-4o-mini
           provider: openai
         prompt_template:
         - role: system
           text: |
-            你正在處理高風險訊號。
-
+            你要先補一個最關鍵的問題。
             規則：
-            1. 先明確表達你很在意對方現在的安全。
-            2. 鼓勵對方立刻聯絡可信任的人，或尋求當地緊急醫療或危機支援。
-            3. 若對方有立即危險，明確建議現在就去急診或撥打當地緊急求助電話。
-            4. 不要長篇說教，不做一般聊天延伸。
-            5. 內容要溫和但直接。
+            1. 只問一個問題。
+            2. 問題要短。
+            3. 問題要能直接幫助下一輪回答。
         - role: user
           text: "{{#node-start.user_input#}}"
         selected: false
         structured_output_enabled: false
-        title: Safety Response
+        title: Clarify Question
         type: llm
-      height: 120
-      id: node-llm-risk
+      height: 100
+      id: node-llm-clarify
+      position:
+        x: 1230
+        y: 820
+      positionAbsolute:
+        x: 1230
+        y: 820
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: gpt-4o-mini
+          provider: openai
+        prompt_template:
+        - role: system
+          text: |
+            你要處理沒有內容或無法辨識的輸入。
+            請用一句簡短提醒，請使用者輸入更完整的問題。
+        - role: user
+          text: "{{#node-start.user_input#}}"
+        selected: false
+        structured_output_enabled: false
+        title: Void Box
+        type: llm
+      height: 100
+      id: node-llm-void
       position:
         x: 950
-        y: 200
+        y: 20
       positionAbsolute:
         x: 950
-        y: 200
+        y: 20
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.5
+          mode: chat
+          name: gpt-4o-mini
+          provider: openai
+        prompt_template:
+        - role: system
+          text: |
+            你是一個溫暖、像真人的朋友。
+            規則：
+            1. 先接住情緒，再回應。
+            2. 不要像客服，不要像問卷。
+            3. 回覆要自然、短一點。
+        - role: user
+          text: "{{#node-start.user_input#}}"
+        selected: false
+        structured_output_enabled: false
+        title: Soul Mate
+        type: llm
+      height: 100
+      id: node-llm-soulmate
+      position:
+        x: 950
+        y: 180
+      positionAbsolute:
+        x: 950
+        y: 180
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - node-retrieval-mission
+          - result
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: gpt-4o-mini
+          provider: openai
+        prompt_template:
+        - role: system
+          text: |
+            你是意圖分類器。
+            請只輸出最符合的一個類別代號，不要解釋。
+            類別：
+            1. mode_1_void: 空白、測試、無意義輸入
+            2. mode_2_soulmate: 需要陪伴、共感、情緒支持
+            3. mode_3_mission: 任務、步驟、流程、要完成一件事
+            4. mode_4_option: 需要比較、選擇、方案判斷
+            5. mode_5_natural: 一般自然對話、日常聊天、延續話題
+            6. mode_6_clarify: 資訊不足，需要先補一個關鍵問題
+        - role: user
+          text: "{{#node-start.user_input#}}"
+        selected: false
+        title: Intent Classifier
+        type: question-classifier
+      height: 450
+      id: node-classifier
+      position:
+        x: 650
+        y: 320
+      positionAbsolute:
+        x: 650
+        y: 320
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - JB1PuOSPlWXMsgVAkT5B4u/hSkfNYLAS+G+Zmysp3Fhot7pSACV7KyX378KBhRU7
+        multiple_retrieval_config:
+          reranking_enable: false
+          reranking_mode: reranking_model
+          top_k: 4
+        query_attachment_selector: []
+        query_variable_selector:
+        - node-start
+        - user_input
+        retrieval_mode: multiple
+        selected: false
+        title: Knowledge Retrieval
+        type: knowledge-retrieval
+      height: 90
+      id: node-retrieval-mission
+      position:
+        x: 950
+        y: 250
+      positionAbsolute:
+        x: 950
+        y: 250
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - JB1PuOSPlWXMsgVAkT5B4u/hSkfNYLAS+G+Zmysp3Fhot7pSACV7KyX378KBhRU7
+        multiple_retrieval_config:
+          reranking_enable: false
+          reranking_mode: reranking_model
+          top_k: 4
+        query_attachment_selector: []
+        query_variable_selector:
+        - node-start
+        - user_input
+        retrieval_mode: multiple
+        selected: false
+        title: Knowledge Retrieval
+        type: knowledge-retrieval
+      height: 90
+      id: node-retrieval-option
+      position:
+        x: 950
+        y: 450
+      positionAbsolute:
+        x: 950
+        y: 450
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - JB1PuOSPlWXMsgVAkT5B4u/hSkfNYLAS+G+Zmysp3Fhot7pSACV7KyX378KBhRU7
+        multiple_retrieval_config:
+          reranking_enable: false
+          reranking_mode: reranking_model
+          top_k: 4
+        query_attachment_selector: []
+        query_variable_selector:
+        - node-start
+        - user_input
+        retrieval_mode: multiple
+        selected: false
+        title: Knowledge Retrieval
+        type: knowledge-retrieval
+      height: 90
+      id: node-retrieval-natural
+      position:
+        x: 950
+        y: 650
+      positionAbsolute:
+        x: 950
+        y: 650
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1115,122 +629,22 @@ workflow:
         items:
         - input_type: constant
           operation: overwrite
-          value: mode_1_void
+          value: ''
           variable_selector:
           - conversation
-          - active_mode
+          - pending_question
         selected: false
-        title: Set Mode Void
+        title: Clear Pending Question
         type: assigner
         version: '2'
       height: 100
-      id: node-assign-mode-void
+      id: node-assign-clear-pending
       position:
-        x: 1820
-        y: 900
+        x: 950
+        y: 100
       positionAbsolute:
-        x: 1820
-        y: 900
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        items:
-        - input_type: constant
-          operation: overwrite
-          value: mode_2_soulmate
-          variable_selector:
-          - conversation
-          - active_mode
-        selected: false
-        title: Set Mode Soulmate
-        type: assigner
-        version: '2'
-      height: 100
-      id: node-assign-mode-soulmate
-      position:
-        x: 1820
-        y: 1060
-      positionAbsolute:
-        x: 1820
-        y: 1060
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        items:
-        - input_type: constant
-          operation: overwrite
-          value: mode_3_mission
-          variable_selector:
-          - conversation
-          - active_mode
-        selected: false
-        title: Set Mode Mission
-        type: assigner
-        version: '2'
-      height: 100
-      id: node-assign-mode-mission
-      position:
-        x: 2110
-        y: 500
-      positionAbsolute:
-        x: 2110
-        y: 500
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        items:
-        - input_type: constant
-          operation: overwrite
-          value: mode_4_option
-          variable_selector:
-          - conversation
-          - active_mode
-        selected: false
-        title: Set Mode Option
-        type: assigner
-        version: '2'
-      height: 100
-      id: node-assign-mode-option
-      position:
-        x: 2110
-        y: 700
-      positionAbsolute:
-        x: 2110
-        y: 700
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        items:
-        - input_type: constant
-          operation: overwrite
-          value: mode_5_natural
-          variable_selector:
-          - conversation
-          - active_mode
-        selected: false
-        title: Set Mode Natural
-        type: assigner
-        version: '2'
-      height: 100
-      id: node-assign-mode-natural
-      position:
-        x: 1820
-        y: 1220
-      positionAbsolute:
-        x: 1820
-        y: 1220
+        x: 950
+        y: 100
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1246,186 +660,18 @@ workflow:
           variable_selector:
           - conversation
           - pending_question
-        - input_type: constant
-          operation: overwrite
-          value: '1'
-          variable_selector:
-          - conversation
-          - followup_turn_count
-        - input_type: constant
-          operation: overwrite
-          value: pending
-          variable_selector:
-          - conversation
-          - followup_status
-        - input_type: constant
-          operation: overwrite
-          value: mode_6_clarify
-          variable_selector:
-          - conversation
-          - active_mode
         selected: false
-        title: Save Clarify State
+        title: Save Pending Question
         type: assigner
         version: '2'
-      height: 120
-      id: node-assign-clarify
+      height: 100
+      id: node-assign-set-pending
       position:
-        x: 1820
-        y: 1380
+        x: 1500
+        y: 820
       positionAbsolute:
-        x: 1820
-        y: 1380
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        items:
-        - input_type: variable
-          operation: overwrite
-          value:
-          - node-llm-followup-resolver
-          - text
-          variable_selector:
-          - conversation
-          - pending_question
-        - input_type: constant
-          operation: overwrite
-          value: '2'
-          variable_selector:
-          - conversation
-          - followup_turn_count
-        - input_type: constant
-          operation: overwrite
-          value: pending
-          variable_selector:
-          - conversation
-          - followup_status
-        - input_type: constant
-          operation: overwrite
-          value: mode_6_clarify
-          variable_selector:
-          - conversation
-          - active_mode
-        selected: false
-        title: Save Second Clarify
-        type: assigner
-        version: '2'
-      height: 120
-      id: node-assign-followup-second-question
-      position:
-        x: 2110
-        y: 220
-      positionAbsolute:
-        x: 2110
-        y: 220
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        items:
-        - input_type: constant
-          operation: overwrite
-          value: ''
-          variable_selector:
-          - conversation
-          - pending_question
-        - input_type: constant
-          operation: overwrite
-          value: '0'
-          variable_selector:
-          - conversation
-          - followup_turn_count
-        - input_type: constant
-          operation: overwrite
-          value: resolved
-          variable_selector:
-          - conversation
-          - followup_status
-        - input_type: constant
-          operation: overwrite
-          value: mode_followup_resolved
-          variable_selector:
-          - conversation
-          - active_mode
-        selected: false
-        title: Clear Follow-up State
-        type: assigner
-        version: '2'
-      height: 120
-      id: node-assign-followup-resolved
-      position:
-        x: 2110
-        y: 340
-      positionAbsolute:
-        x: 2110
-        y: 340
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        items:
-        - input_type: constant
-          operation: overwrite
-          value: ''
-          variable_selector:
-          - conversation
-          - pending_question
-        - input_type: constant
-          operation: overwrite
-          value: '0'
-          variable_selector:
-          - conversation
-          - followup_turn_count
-        - input_type: constant
-          operation: overwrite
-          value: resolved
-          variable_selector:
-          - conversation
-          - followup_status
-        - input_type: constant
-          operation: overwrite
-          value: mode_followup_resolved
-          variable_selector:
-          - conversation
-          - active_mode
-        selected: false
-        title: Finalize Follow-up State
-        type: assigner
-        version: '2'
-      height: 120
-      id: node-assign-followup-finalized
-      position:
-        x: 1820
-        y: 80
-      positionAbsolute:
-        x: 1820
-        y: 80
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        answer: '{{#node-llm-risk.text#}}'
-        selected: false
-        title: Safety Answer
-        type: answer
-        variables: []
-      height: 88
-      id: node-answer-risk
-      position:
-        x: 1240
-        y: 200
-      positionAbsolute:
-        x: 1240
-        y: 200
+        x: 1500
+        y: 820
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1440,11 +686,11 @@ workflow:
       height: 88
       id: node-answer-void
       position:
-        x: 2110
-        y: 900
+        x: 1500
+        y: 20
       positionAbsolute:
-        x: 2110
-        y: 900
+        x: 1500
+        y: 20
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1459,11 +705,11 @@ workflow:
       height: 88
       id: node-answer-soulmate
       position:
-        x: 2110
-        y: 1060
+        x: 1500
+        y: 180
       positionAbsolute:
-        x: 2110
-        y: 1060
+        x: 1500
+        y: 180
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1478,11 +724,11 @@ workflow:
       height: 88
       id: node-answer-mission
       position:
-        x: 2400
-        y: 500
+        x: 1500
+        y: 250
       positionAbsolute:
-        x: 2400
-        y: 500
+        x: 1500
+        y: 250
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1497,11 +743,11 @@ workflow:
       height: 88
       id: node-answer-option
       position:
-        x: 2400
-        y: 700
+        x: 1500
+        y: 450
       positionAbsolute:
-        x: 2400
-        y: 700
+        x: 1500
+        y: 450
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1516,11 +762,30 @@ workflow:
       height: 88
       id: node-answer-natural
       position:
-        x: 2110
-        y: 1220
+        x: 1500
+        y: 650
       positionAbsolute:
-        x: 2110
-        y: 1220
+        x: 1500
+        y: 650
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#node-llm-followup.text#}}'
+        selected: false
+        title: Follow-up Answer
+        type: answer
+        variables: []
+      height: 88
+      id: node-answer-followup
+      position:
+        x: 1230
+        y: 100
+      positionAbsolute:
+        x: 1230
+        y: 100
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1535,56 +800,18 @@ workflow:
       height: 88
       id: node-answer-clarify
       position:
-        x: 2110
-        y: 1380
+        x: 1770
+        y: 820
       positionAbsolute:
-        x: 2110
-        y: 1380
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        answer: '{{#node-llm-followup-resolver.text#}}'
-        selected: false
-        title: Follow-up Answer
-        type: answer
-        variables: []
-      height: 88
-      id: node-answer-followup
-      position:
-        x: 2400
-        y: 280
-      positionAbsolute:
-        x: 2400
-        y: 280
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        answer: '{{#node-llm-followup-finalize.text#}}'
-        selected: false
-        title: Follow-up Final Answer
-        type: answer
-        variables: []
-      height: 88
-      id: node-answer-followup-finalize
-      position:
-        x: 2110
-        y: 80
-      positionAbsolute:
-        x: 2110
-        y: 80
+        x: 1770
+        y: 820
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
     viewport:
-      x: 12
-      y: 24
-      zoom: 0.38
+      x: 75.57539205041189
+      y: 76.12328544427778
+      zoom: 0.5000000000000002
   rag_pipeline_variables: []
