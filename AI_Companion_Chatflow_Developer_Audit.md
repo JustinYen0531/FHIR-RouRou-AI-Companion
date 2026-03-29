@@ -193,14 +193,18 @@
 - `mission` 與 `option` 現在都會先判斷 retrieval 命中品質，再決定是否採用知識庫內容
 - 若命中為 weak / empty，主回答會明確避免硬套知識庫，改以病人原話、既有狀態與結構化資料為主
 - `option` 的 retrieval `top_k` 已進一步收斂到 `3`
+- 已新增 `burden_level_state`
+- 已新增 `Burden Level Builder`
+- `mission`、`option`、`natural`、`follow-up` 現在會共用同一份負擔等級與回應風格狀態
+- 補問是否繼續、任務是否縮小、選項是否再簡化，現在都可根據 `burden_level_state` 一致調整
 
 尚未落地：
 - 多知識庫分層
-- 更細緻的多級負擔分級
 - 更完整的 retrieval 命中觀測指標與離線評估
+- 真正的多資料集檢索分層與命中追蹤 dashboard
 
 結論：
-目前 `P2` 已進入第三輪，已把 retrieval 治理從單純 prompt 提醒，提升到實際的 audit 狀態節點。
+目前 `P2` 已完成目前規劃範圍：已具備自動降級、獨立低能量偵測、retrieval 治理，以及跨模式共用的負擔等級狀態。
 
 ### P3：醫療交付能力
 目前狀態：`已開始`

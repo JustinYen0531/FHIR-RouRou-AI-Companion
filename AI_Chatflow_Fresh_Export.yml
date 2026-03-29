@@ -139,6 +139,14 @@ workflow:
     - option_retrieval_audit
     value: ''
     value_type: string
+  - id: burden-level-state-var
+    name: burden_level_state
+    description: Structured burden and response-style state for cognitive load aware routing and replies
+    selector:
+    - conversation
+    - burden_level_state
+    value: ''
+    value_type: string
   environment_variables: []
   features:
     file_upload:
@@ -311,6 +319,24 @@ workflow:
         targetType: llm
       id: tag-summary-build
       source: save-tag-payload
+      sourceHandle: source
+      target: burden-level-builder
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: assigner
+      id: burden-level-save-edge
+      source: burden-level-builder
+      sourceHandle: source
+      target: save-burden-level
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: assigner
+        targetType: llm
+      id: burden-level-hamd-edge
+      source: save-burden-level
       sourceHandle: source
       target: hamd-progress-tracker
       targetHandle: target
@@ -1673,6 +1699,85 @@ workflow:
       targetPosition: left
       type: custom
     - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: ''
+          provider: ''
+        prompt_template:
+        - role: system
+          text: |
+            你要根據這一輪使用者輸入、目前標籤與對話狀態，判斷病人的互動負擔。
+            只輸出 JSON，不要解釋。
+            固定格式：
+            {
+              "burden_level":"low_or_medium_or_high",
+              "response_style":"natural_or_supportive_or_structured_or_option_first",
+              "followup_budget":"0_or_1",
+              "burden_note":"..."
+            }
+            規則：
+            1. `high` 代表低能量、講不清楚、負擔高、容易被過度追問壓垮。
+            2. `medium` 代表可對話，但仍需控制問題數量與訊息密度。
+            3. `low` 代表目前可承受較正常的自然互動或結構化整理。
+            4. `response_style` 只能是 natural、supportive、structured、option_first 其中之一。
+            5. 若使用者很短句、模糊、說不知道、都可以、嗯、隨便，傾向 `high` 且 `option_first`。
+            6. 若使用者情緒承載高、需要先被接住，傾向 `supportive`。
+            7. 若使用者明確要整理任務且可承受，才可偏向 `structured`。
+            8. `followup_budget` 只可填 0 或 1；高負擔通常是 0。
+            目前標籤：{{#conversation.latest_tag_payload#}}
+            目前模式：{{#conversation.active_mode#}}
+            目前 follow-up 狀態：{{#conversation.followup_status#}}
+        title: Burden Level Builder
+        type: llm
+        vision:
+          enabled: false
+      id: burden-level-builder
+      position:
+        x: 1240
+        y: 140
+      positionAbsolute:
+        x: 1240
+        y: 140
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - burden-level-builder
+          - text
+          variable_selector:
+          - conversation
+          - burden_level_state
+        title: Save Burden Level
+        type: assigner
+        version: '2'
+      id: save-burden-level
+      position:
+        x: 1540
+        y: 140
+      positionAbsolute:
+        x: 1540
+        y: 140
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
         items:
         - input_type: constant
           operation: overwrite
@@ -2493,6 +2598,7 @@ workflow:
             5. `next_recommended_dimension` 應根據目前缺口與病人負擔，選一個最值得後續自然追蹤的維度。
             你必須讓 `covered_dimensions` 和 `missing_dimensions` 都只使用上述固定代號。
             目前 mission retrieval 治理：{{#conversation.mission_retrieval_audit#}}
+            目前負擔狀態：{{#conversation.burden_level_state#}}
             只輸出 JSON，不要加解釋。
         title: HAM-D Progress Tracker
         type: llm
@@ -2564,9 +2670,11 @@ workflow:
             5. 如果看出病人負擔很高，就把步驟縮小，不要一次推太多。
             6. 知識庫在這條路徑上的用途，是幫你做結構化整理與症狀映射，不是做泛泛的衛教長文。
             7. 如果 `mission_retrieval_audit` 顯示 weak 或 empty，就不要硬套知識內容，改用已有狀態與病人原話做整理。
+            8. 如果 `burden_level_state` 顯示 high 或 `response_style` 偏 option_first / supportive，就先縮小任務、降低資訊密度。
             目前 HAM-D 狀態：{{#conversation.hamd_progress_state#}}
             目前標籤狀態：{{#conversation.latest_tag_payload#}}
             目前 retrieval 治理：{{#conversation.mission_retrieval_audit#}}
+            目前負擔狀態：{{#conversation.burden_level_state#}}
             如果 `next_recommended_dimension` 有值，優先圍繞那個維度前進。
         title: Mission Guide
         type: llm
@@ -2645,6 +2753,7 @@ workflow:
             3. 如果沒有明顯可用內容，標成 empty，且 use_knowledge 必須是 no。
             4. option 路徑不能因為有知識庫就變成分析報告；弱命中時寧可不用。
             5. `safe_usage_note` 要清楚說明知識最多只能如何輕量使用。
+            6. 若 `burden_level_state` 顯示 high，`safe_usage_note` 應偏向「盡量不用知識、直接給短選項」。
         title: Option Retrieval Audit
         type: llm
         vision:
@@ -2715,7 +2824,9 @@ workflow:
             5. 不要列長篇優缺點分析，避免增加認知負擔。
             6. 知識庫在這條路徑上的用途，是幫你設計更貼近病人狀態的短選項，不是做完整教育或深度分析。
             7. 如果 `option_retrieval_audit` 顯示 weak 或 empty，就不要引用知識內容，直接根據病人原話設計短選項。
+            8. 如果 `burden_level_state` 顯示 high，選項要更短、更可直接作答。
             目前 retrieval 治理：{{#conversation.option_retrieval_audit#}}
+            目前負擔狀態：{{#conversation.burden_level_state#}}
         title: Option Selector
         type: llm
         vision:
@@ -2759,6 +2870,8 @@ workflow:
             3. 如果需要追問，最多只追一個小問題。
             4. 不要使用知識庫式的說教或任務語氣。
             5. 這條路徑不是純聊天；若自然互動中出現情緒、行為、認知、睡眠等線索，要保留自然感，不要突然切成量表。
+            6. 如果 `burden_level_state` 顯示 high，就減少訊息密度，優先短句與陪伴，不硬追問。
+            目前負擔狀態：{{#conversation.burden_level_state#}}
         title: Smart Hunter
         type: llm
         vision:
@@ -2832,6 +2945,8 @@ workflow:
             如果資訊仍不足，且目前還沒到第二輪上限，只再提出一個最小補問。
             不要一次問超過一個問題。
             如果對方顯示低能量、講不清楚、負擔高，優先收斂或把問題縮得更小。
+            若 `burden_level_state` 顯示 high 或 `followup_budget` 是 0，優先直接回答，不再補問。
+            目前負擔狀態：{{#conversation.burden_level_state#}}
         title: Follow-up Resolver
         type: llm
         vision:
@@ -2872,6 +2987,7 @@ workflow:
             現在不允許再追問。
             請根據目前已有資訊，給出最好的收斂回答。
             語氣要降低負擔，不要讓病人覺得自己還被要求補更多。
+            目前負擔狀態：{{#conversation.burden_level_state#}}
         title: Follow-up Finalizer
         type: llm
         vision:
