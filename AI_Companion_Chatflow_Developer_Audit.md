@@ -125,6 +125,7 @@
 - `P0`: 已完成
 - `P1`: 已完成
 - `P2`: 尚未開始
+- `P3`: 已開始
 
 更細的判定如下：
 
@@ -186,6 +187,30 @@
 
 結論：
 目前仍未進到 `P2`。
+
+### P3：醫療交付能力
+目前狀態：`已開始`
+
+已達成：
+- 已新增 `patient_review_packet`
+- 已新增 `Patient Review Builder`
+- 已新增 `fhir_delivery_draft`
+- 已新增 `FHIR Delivery Builder`
+- `clinician_summary_draft` 之後已可再生成病人審閱包
+- 病人審閱包之後已可再生成 FHIR / TW Core 映射草稿
+
+尚未達成：
+- 還沒有真正的病患按鈕式審閱 / 編輯 / 授權 UI
+- 還沒有正式的 FHIR R4 resource payload 驗證
+- 還沒有實際送往 FHIR server / HIS / EHR
+- 還沒有 `preliminary -> final` 的授權後狀態轉換
+
+結論：
+目前 `P3` 已進入第一輪落地，但仍屬交付前草稿階段，重點是先把：
+- 病人審閱資料包
+- FHIR 映射草稿
+
+這兩個「交付底座」先建立起來。
 
 ## 核心產品定位
 AI Companion 的定位不是一般聊天機器人，而是：
@@ -467,6 +492,9 @@ AI Companion 的定位不是一般聊天機器人，而是：
 - `latest_tag_payload`
 - `hamd_progress_state`
 - `summary_draft_state`
+- `clinician_summary_draft`
+- `patient_review_packet`
+- `fhir_delivery_draft`
 
 目前設計：
 - 正常回合會先經過 `Tag Structurer`，把本輪輸入整理成四大標籤 JSON
@@ -479,11 +507,14 @@ AI Companion 的定位不是一般聊天機器人，而是：
 - safety 路徑也已回寫到 `latest_tag_payload`
 - tag payload 已開始具備路由來源資訊
 - 已有 `summary_draft_state` 作為後續醫師摘要草稿的前置資料
+- 已有 `patient_review_packet` 作為病人審閱前資料包
+- 已有 `fhir_delivery_draft` 作為交付前 FHIR 映射草稿
 
 目前尚未達成：
 - tag payload 還沒有標準化欄位治理
 - safety / follow-up 的統一資料模型仍未完全定型
 - `summary_draft_state` 還不是完整醫師摘要草稿
+- `fhir_delivery_draft` 還不是正式可送出的 server payload
 
 ## 目前版本對 PRD 的對齊程度
 
@@ -501,8 +532,8 @@ AI Companion 的定位不是一般聊天機器人，而是：
 - HAM-D 維度覆蓋進度仍是第一版，雖已固定集合化，但尚未完整 17 項化
 - 沒有自動模式降級
 - `clinician_summary_draft` 仍是第一版草稿，尚未做到正式醫師報告格式
-- 沒有病患審閱與授權流程
-- 沒有 FHIR 映射落地
+- `patient_review_packet` 尚未接病患可編輯 / 可授權操作
+- `fhir_delivery_draft` 尚未落成正式 FHIR server payload
 - 沒有行為遙測，例如打字延遲、語句長度、深夜活躍等
 
 ## 未來增強建議順序
@@ -531,6 +562,11 @@ AI Companion 的定位不是一般聊天機器人，而是：
 - AI 診前摘要草稿
 - 病患審閱編輯
 - FHIR / TW Core 對接
+
+目前狀態：
+- 已開始第一輪落地
+- 目前已把病人審閱包與 FHIR 映射草稿接進 chatflow
+- 下一步應進入授權狀態與正式 payload 細化
 
 ## 開發者每次修改前必問的問題
 

@@ -107,6 +107,22 @@ workflow:
     - command_feedback
     value: ''
     value_type: string
+  - id: patient-review-packet-var
+    name: patient_review_packet
+    description: Patient-facing review packet generated from clinician summary draft
+    selector:
+    - conversation
+    - patient_review_packet
+    value: ''
+    value_type: string
+  - id: fhir-delivery-draft-var
+    name: fhir_delivery_draft
+    description: Draft FHIR/TW Core delivery payload generated from reviewed summary state
+    selector:
+    - conversation
+    - fhir_delivery_draft
+    value: ''
+    value_type: string
   environment_variables: []
   features:
     file_upload:
@@ -623,6 +639,42 @@ workflow:
       source: clinician-summary-builder
       sourceHandle: source
       target: save-clinician-summary
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: assigner
+        targetType: llm
+      id: clinician-patient-review-edge
+      source: save-clinician-summary
+      sourceHandle: source
+      target: patient-review-builder
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: assigner
+      id: patient-review-save-edge
+      source: patient-review-builder
+      sourceHandle: source
+      target: save-patient-review
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: assigner
+        targetType: llm
+      id: patient-review-fhir-edge
+      source: save-patient-review
+      sourceHandle: source
+      target: fhir-delivery-builder
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: assigner
+      id: fhir-delivery-save-edge
+      source: fhir-delivery-builder
+      sourceHandle: source
+      target: save-fhir-delivery
       targetHandle: target
       type: custom
     - data:
@@ -1218,6 +1270,174 @@ workflow:
         y: 120
       positionAbsolute:
         x: 2300
+        y: 120
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0.2
+          mode: chat
+          name: ''
+          provider: ''
+        prompt_template:
+        - role: system
+          text: |
+            你要把目前的 clinician_summary_draft 整理成「給病人自己審閱」的摘要包。
+            目標是讓病人知道 AI 整理了什麼、哪些內容可確認、哪些內容仍是推定，並提醒需要授權後才能交付。
+            請輸出固定 JSON：
+            {
+              "packet_version":"p3_patient_review_v1",
+              "status":"draft_review",
+              "patient_facing_summary":"...",
+              "confirm_items":["..."],
+              "editable_items":["..."],
+              "remove_if_wrong":["..."],
+              "authorization_needed":"yes",
+              "authorization_prompt":"..."
+            }
+            規則：
+            1. patient_facing_summary 用 2 到 4 句中文，語氣溫和、易懂，不要用太重的臨床術語。
+            2. confirm_items 是建議病人確認的重點。
+            3. editable_items 是可請病人補充或修正的內容。
+            4. remove_if_wrong 是若 AI 可能推定錯誤，病人可刪除的內容。
+            5. authorization_prompt 要明確說明：審閱後才能授權提供給醫師。
+            目前 clinician_summary_draft：{{#conversation.clinician_summary_draft#}}
+            只輸出 JSON，不要加解釋。
+        title: Patient Review Builder
+        type: llm
+        vision:
+          enabled: false
+      id: patient-review-builder
+      position:
+        x: 2580
+        y: 120
+      positionAbsolute:
+        x: 2580
+        y: 120
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - patient-review-builder
+          - text
+          variable_selector:
+          - conversation
+          - patient_review_packet
+        title: Save Patient Review
+        type: assigner
+        version: '2'
+      id: save-patient-review
+      position:
+        x: 2860
+        y: 120
+      positionAbsolute:
+        x: 2860
+        y: 120
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: ''
+          provider: ''
+        prompt_template:
+        - role: system
+          text: |
+            你要把目前的 clinician_summary_draft、patient_review_packet、red_flag_payload、hamd_progress_state 整理成「FHIR / TW Core 映射草稿」。
+            這不是最終 server payload，而是交付前的結構化 draft。
+            請輸出固定 JSON：
+            {
+              "draft_version":"p3_fhir_delivery_v1",
+              "delivery_status":"pre_review",
+              "resources":[
+                {"resource_type":"Composition","status":"preliminary","purpose":"clinical_summary"},
+                {"resource_type":"Observation","status":"preliminary","purpose":"hamd_signal_tracking"},
+                {"resource_type":"ClinicalImpression","status":"preliminary","purpose":"risk_and_context"},
+                {"resource_type":"QuestionnaireResponse","status":"preliminary","purpose":"dialogue_to_scale_mapping"}
+              ],
+              "composition_sections":["..."],
+              "observation_focus":["..."],
+              "clinical_alerts":["..."],
+              "questionnaire_targets":["..."],
+              "patient_review_required":"yes",
+              "notes":"..."
+            }
+            規則：
+            1. resources 先固定用 preliminary，因為尚未病人最終授權。
+            2. composition_sections 整理會放進摘要文件的段落。
+            3. observation_focus 整理情緒、行為、認知、睡眠、焦慮等可映射 Observation 的重點。
+            4. clinical_alerts 整理風險與需要醫師注意的事項。
+            5. questionnaire_targets 整理目前可映射到量表或 HAM-D 線索的面向。
+            6. notes 說明這仍是交付前 draft，不是最終正式醫療文件。
+            clinician_summary_draft：{{#conversation.clinician_summary_draft#}}
+            patient_review_packet：{{#conversation.patient_review_packet#}}
+            red_flag_payload：{{#conversation.red_flag_payload#}}
+            hamd_progress_state：{{#conversation.hamd_progress_state#}}
+            只輸出 JSON，不要加解釋。
+        title: FHIR Delivery Builder
+        type: llm
+        vision:
+          enabled: false
+      id: fhir-delivery-builder
+      position:
+        x: 3140
+        y: 120
+      positionAbsolute:
+        x: 3140
+        y: 120
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - fhir-delivery-builder
+          - text
+          variable_selector:
+          - conversation
+          - fhir_delivery_draft
+        title: Save FHIR Delivery
+        type: assigner
+        version: '2'
+      id: save-fhir-delivery
+      position:
+        x: 3420
+        y: 120
+      positionAbsolute:
+        x: 3420
         y: 120
       sourcePosition: right
       targetPosition: left
