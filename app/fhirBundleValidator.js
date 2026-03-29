@@ -10,7 +10,9 @@
     Encounter: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Encounter-twcore',
     QuestionnaireResponse: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/QuestionnaireResponse-twcore',
     Observation: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Observation-screening-assessment-twcore',
-    Composition: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Composition-twcore'
+    Composition: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Composition-twcore',
+    DocumentReference: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/DocumentReference-twcore',
+    Provenance: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Provenance-twcore'
   };
 
   function getEntries(bundle) {
@@ -94,6 +96,24 @@
     }
   }
 
+  function validateDocumentReference(report, resource, index) {
+    if (!resource.subject || !resource.subject.reference) {
+      pushIssue(report, 'error', 'document_reference_subject_missing', 'DocumentReference.subject.reference is required.', 'entry[' + index + '].resource.subject.reference');
+    }
+    if (!Array.isArray(resource.content) || !resource.content.length) {
+      pushIssue(report, 'error', 'document_reference_content_missing', 'DocumentReference.content is required.', 'entry[' + index + '].resource.content');
+    }
+  }
+
+  function validateProvenance(report, resource, index) {
+    if (!Array.isArray(resource.target) || !resource.target.length) {
+      pushIssue(report, 'error', 'provenance_target_missing', 'Provenance.target is required.', 'entry[' + index + '].resource.target');
+    }
+    if (!Array.isArray(resource.agent) || !resource.agent.length) {
+      pushIssue(report, 'warning', 'provenance_agent_missing', 'Provenance.agent is recommended.', 'entry[' + index + '].resource.agent');
+    }
+  }
+
   function validateBundle(bundle) {
     const report = {
       valid: true,
@@ -126,6 +146,8 @@
       if (resource.resourceType === 'QuestionnaireResponse') validateQuestionnaireResponse(report, resource, index);
       if (resource.resourceType === 'Observation') validateObservation(report, resource, index);
       if (resource.resourceType === 'Composition') validateComposition(report, resource, index);
+      if (resource.resourceType === 'DocumentReference') validateDocumentReference(report, resource, index);
+      if (resource.resourceType === 'Provenance') validateProvenance(report, resource, index);
     });
 
     report.errors = report.issues.filter(function (issue) { return issue.severity === 'error'; }).length;

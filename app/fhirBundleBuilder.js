@@ -10,7 +10,9 @@
     encounter: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Encounter-twcore',
     questionnaireResponse: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/QuestionnaireResponse-twcore',
     observationScreeningAssessment: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Observation-screening-assessment-twcore',
-    composition: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Composition-twcore'
+    composition: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Composition-twcore',
+    documentReference: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/DocumentReference-twcore',
+    provenance: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Provenance-twcore'
   };
 
   const AI_COMPANION_EXTENSIONS = {
@@ -427,6 +429,88 @@
     };
   }
 
+  function buildDocumentReferenceResource(input, patientFullUrl, encounterFullUrl, compositionFullUrl, clinicianSummary) {
+    return {
+      resourceType: 'DocumentReference',
+      meta: { profile: [TW_CORE_PROFILES.documentReference] },
+      status: 'current',
+      docStatus: 'preliminary',
+      subject: { reference: patientFullUrl },
+      context: {
+        encounter: [{ reference: encounterFullUrl }]
+      },
+      type: {
+        text: 'AI Companion clinician summary document'
+      },
+      date: input.session.endedAt || input.session.startedAt || new Date().toISOString(),
+      author: input.author ? [{ display: input.author }] : undefined,
+      description: 'Clinician-facing AI Companion pre-visit summary draft',
+      content: [
+        {
+          attachment: {
+            contentType: 'application/json',
+            title: 'AI Companion clinician summary draft',
+            data: Buffer.from(JSON.stringify(clinicianSummary, null, 2), 'utf8').toString('base64')
+          }
+        }
+      ],
+      relatesTo: [
+        {
+          code: 'appends',
+          target: { reference: compositionFullUrl }
+        }
+      ]
+    };
+  }
+
+  function buildProvenanceResource(input, patientFullUrl, encounterFullUrl, targetRefs) {
+    return {
+      resourceType: 'Provenance',
+      meta: { profile: [TW_CORE_PROFILES.provenance] },
+      recorded: input.session.endedAt || input.session.startedAt || new Date().toISOString(),
+      target: targetRefs.map(function (reference) {
+        return { reference: reference };
+      }),
+      agent: [
+        {
+          type: {
+            text: 'author'
+          },
+          who: {
+            display: input.author || 'AI Companion'
+          }
+        }
+      ],
+      entity: [
+        {
+          role: 'source',
+          what: {
+            display: input.patient_authorization_state.share_with_clinician === 'yes'
+              ? 'AI draft with patient share allowed'
+              : 'AI draft pending patient sharing permission'
+          }
+        },
+        {
+          role: 'derivation',
+          what: {
+            display: input.patient_authorization_state.authorization_status || 'review_required'
+          }
+        }
+      ],
+      reason: [
+        {
+          text: 'AI companion pre-visit summary generation and patient review tracking'
+        }
+      ],
+      location: {
+        display: encounterFullUrl
+      },
+      patient: {
+        reference: patientFullUrl
+      }
+    };
+  }
+
   function buildResourceIndex(entries) {
     return entries.reduce(function (acc, entry) {
       if (!acc[entry.resource.resourceType]) {
@@ -521,6 +605,8 @@
     const encounterFullUrl = createUrn('encounter', input.session.encounterKey);
     const questionnaireFullUrl = createUrn('questionnaire-response', input.session.encounterKey);
     const compositionFullUrl = createUrn('composition', input.session.encounterKey);
+    const documentReferenceFullUrl = createUrn('document-reference', input.session.encounterKey);
+    const provenanceFullUrl = createUrn('provenance', input.session.encounterKey);
 
     const observationEntries = buildObservationResources(
       input,
@@ -566,9 +652,36 @@
       )
     };
 
+    const documentReferenceEntry = {
+      fullUrl: documentReferenceFullUrl,
+      resource: buildDocumentReferenceResource(
+        input,
+        patientFullUrl,
+        encounterFullUrl,
+        compositionFullUrl,
+        input.clinician_summary_draft
+      )
+    };
+
+    const provenanceEntry = {
+      fullUrl: provenanceFullUrl,
+      resource: buildProvenanceResource(
+        input,
+        patientFullUrl,
+        encounterFullUrl,
+        [
+          questionnaireFullUrl,
+          compositionFullUrl,
+          documentReferenceFullUrl
+        ].concat(observationEntries.map(function (entry) {
+          return entry.fullUrl;
+        }))
+      )
+    };
+
     const entries = [patientEntry, encounterEntry, questionnaireEntry]
       .concat(observationEntries)
-      .concat([compositionEntry]);
+      .concat([compositionEntry, documentReferenceEntry, provenanceEntry]);
 
     const bundle = buildBundle(entries);
     basicValidation(bundle, input, validationErrors);

@@ -230,15 +230,19 @@
 - `Composition.section`、`QuestionnaireResponse`、`Observation.derivedFrom` 已比 MVP 更接近正式臨床交付內容
 - 已新增 `validation_report`
 - Bundle builder 現在會同步輸出 FHIR / TW Core 規則檢查結果
+- Bundle builder 已新增 `DocumentReference`
+- Bundle builder 已新增 `Provenance`
+- 現在可把臨床摘要檔案化，並同時保留 AI 生成 / 病人審閱狀態的治理軌跡
 
 尚未達成：
 - 還沒有真正的病患按鈕式審閱 / 編輯 / 授權 UI
 - 還沒有實際送往 FHIR server / HIS / EHR
 - 還沒有 `preliminary -> final` 的授權後狀態轉換
 - 還沒有真正串接外部 TW Core validator / IG package 驗證器
+- 還沒有真正可成立的 `Consent` resource，因目前缺少 UI / 事件層授權證據
 
 結論：
-目前 `P3` 已進入「交付層第 1 步」，已從映射草稿進到可產生正式 transaction Bundle 的階段，但仍未完成 validator、Provenance 與真實 server 寫入。
+目前 `P3` 已進入「交付層第 3 步」的第一版，已從單純 Bundle 進一步補上治理資源，但 `Consent` 仍需等病人端真實授權流程落地。
 
 ### P3 交付層四步路線
 1. Bundle 內容品質升級
@@ -254,7 +258,7 @@
 - export 前 validation summary
 
 3. 治理資源層
-目標：
+目前狀態：`已開始並完成第一版`
 - `Provenance`
 - 後續 `Consent`
 - 視需要補 `DocumentReference`

@@ -82,6 +82,8 @@ function testBuildsBundleForValidInput() {
   assert.ok(result.resource_index.QuestionnaireResponse.length === 1, 'bundle should include one QuestionnaireResponse');
   assert.ok(result.resource_index.Observation.length >= 1, 'bundle should include observations');
   assert.ok(result.resource_index.Composition.length === 1, 'bundle should include one Composition');
+  assert.ok(result.resource_index.DocumentReference.length === 1, 'bundle should include one DocumentReference');
+  assert.ok(result.resource_index.Provenance.length === 1, 'bundle should include one Provenance');
   assert.deepStrictEqual(result.blocking_reasons, []);
   assert.ok(result.validation_report, 'validation_report should exist');
   assert.strictEqual(result.validation_report.valid, true);
@@ -120,6 +122,8 @@ function testReferencesAreConnected() {
   const questionnaire = entries.find((entry) => entry.resource.resourceType === 'QuestionnaireResponse');
   const composition = entries.find((entry) => entry.resource.resourceType === 'Composition');
   const observation = entries.find((entry) => entry.resource.resourceType === 'Observation');
+  const documentReference = entries.find((entry) => entry.resource.resourceType === 'DocumentReference');
+  const provenance = entries.find((entry) => entry.resource.resourceType === 'Provenance');
 
   assert.strictEqual(encounter.resource.subject.reference, patient.fullUrl);
   assert.strictEqual(questionnaire.resource.subject.reference, patient.fullUrl);
@@ -129,6 +133,8 @@ function testReferencesAreConnected() {
   assert.strictEqual(composition.resource.subject.reference, patient.fullUrl);
   assert.strictEqual(composition.resource.encounter.reference, encounter.fullUrl);
   assert.strictEqual(observation.resource.derivedFrom[0].reference, questionnaire.fullUrl);
+  assert.strictEqual(documentReference.resource.subject.reference, patient.fullUrl);
+  assert.ok(provenance.resource.target.some((target) => target.reference === composition.fullUrl));
 }
 
 function testClinicalContentIsEnriched() {
@@ -137,12 +143,15 @@ function testClinicalContentIsEnriched() {
   const questionnaire = entries.find((entry) => entry.resource.resourceType === 'QuestionnaireResponse');
   const composition = entries.find((entry) => entry.resource.resourceType === 'Composition');
   const observation = entries.find((entry) => entry.resource.resourceType === 'Observation');
+  const documentReference = entries.find((entry) => entry.resource.resourceType === 'DocumentReference');
 
   assert.strictEqual(questionnaire.resource.questionnaire, 'https://example.org/fhir/Questionnaire/ai-companion-previsit-hamd-lite-v1');
   assert.ok(Array.isArray(questionnaire.resource.extension) && questionnaire.resource.extension.length >= 2);
   assert.strictEqual(composition.resource.confidentiality, 'R');
   assert.ok(composition.resource.section.some((section) => section.code && section.code.text === 'chief-concerns'));
   assert.ok(observation.resource.extension.some((extension) => extension.url.indexOf('patient-review-status') !== -1));
+  assert.strictEqual(documentReference.resource.docStatus, 'preliminary');
+  assert.ok(documentReference.resource.content[0].attachment.data);
 }
 
 function testValidationReportHasExpectedShape() {
