@@ -1,0 +1,73 @@
+{
+  "patient": {
+    "key": "patient-001",
+    "name": "Test Patient",
+    "gender": "female",
+    "birthDate": "1995-07-14"
+  },
+  "session": {
+    "encounterKey": "session-001",
+    "startedAt": "2026-03-29T09:00:00+08:00",
+    "endedAt": "2026-03-29T09:30:00+08:00"
+  },
+  "author": "AI Companion MVP",
+  "clinician_summary_draft": {
+    "chief_concerns": [
+      "近兩三週情緒低落",
+      "睡著後容易醒",
+      "工作效率下降"
+    ],
+    "symptom_observations": [
+      "情緒低落",
+      "興趣下降",
+      "睡眠中斷"
+    ],
+    "followup_needs": [
+      "追蹤身體焦慮",
+      "確認被動消失念頭頻率"
+    ],
+    "safety_flags": [
+      "被動消失想法",
+      "目前否認立即自傷計畫"
+    ],
+    "hamd_signals": [
+      "depressed_mood",
+      "work_interest",
+      "insomnia"
+    ]
+  },
+  "hamd_progress_state": {
+    "covered_dimensions": [
+      "depressed_mood",
+      "work_interest",
+      "insomnia"
+    ],
+    "supported_dimensions": [
+      "depressed_mood",
+      "work_interest",
+      "insomnia"
+    ],
+    "recent_evidence": [
+      "近兩三週情緒低落",
+      "睡著後容易醒",
+      "工作效率下降"
+    ],
+    "next_recommended_dimension": "somatic_anxiety"
+  },
+  "red_flag_payload": {
+    "warning_tags": [
+      "passive_disappearance_ideation"
+    ],
+    "signals": [
+      "曾表達如果消失就好了",
+      "否認立即自傷計畫"
+    ]
+  },
+  "patient_authorization_state": {
+    "authorization_status": "ready_for_consent",
+    "share_with_clinician": "yes"
+  },
+  "delivery_readiness_state": {
+    "readiness_status": "ready_for_backend_mapping"
+  }
+}

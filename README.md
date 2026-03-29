@@ -9,3 +9,13 @@
 ```powershell
 node app\fhirBundleBuilder.test.js
 ```
+
+如果要直接用 sample input 產生 Bundle：
+
+```powershell
+node app\buildBundleDemo.js
+```
+
+輸入範例在 [sampleSessionExport.json](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/sampleSessionExport.json)，輸出會寫到：
+
+`app\sampleBundleOutput.json`
