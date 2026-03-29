@@ -64,3 +64,39 @@ node app\fhirDeliveryServer.js
 ```powershell
 node app\fhirDeliveryServer.test.js
 ```
+
+## Dify Chatflow 前端整合
+
+現在 [app/index.html](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/index.html) 可以透過本地 server 串接 Dify Chatflow。
+
+建議先用環境變數設定聊天流 API key：
+
+```powershell
+$env:DIFY_APP_API_KEY="app-xxxxxxxxxxxxxxxx"
+node app\fhirDeliveryServer.js
+```
+
+如果 Dify 不是用預設雲端 API，也可以一起設定 base URL：
+
+```powershell
+$env:DIFY_API_BASE_URL="https://api.dify.ai/v1"
+$env:DIFY_APP_API_KEY="app-xxxxxxxxxxxxxxxx"
+node app\fhirDeliveryServer.js
+```
+
+啟動後可直接打開：
+
+`http://localhost:8787/`
+
+聊天介面會呼叫：
+
+- `POST /api/chat/message`
+- `POST /api/fhir/bundle`
+
+如果你不想把 key 放在環境變數，也可以在 Settings 頁面內填入：
+
+- Dify Base URL
+- Dify API Key
+- User ID
+
+這個設定會存在瀏覽器 localStorage，適合本機 demo；若要正式部署，仍建議把 API key 放在 server 端。
