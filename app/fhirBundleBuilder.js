@@ -13,6 +13,12 @@
     composition: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Composition-twcore'
   };
 
+  const AI_COMPANION_EXTENSIONS = {
+    aiGenerated: 'https://example.org/fhir/StructureDefinition/ai-companion-generated',
+    patientReviewStatus: 'https://example.org/fhir/StructureDefinition/patient-review-status',
+    reviewSource: 'https://example.org/fhir/StructureDefinition/review-source'
+  };
+
   const DIMENSION_LABELS = {
     depressed_mood: 'Depressed mood',
     guilt: 'Guilt or self-blame',
@@ -77,6 +83,32 @@
     if (!value) {
       validationErrors.push(label + ' is required.');
     }
+  }
+
+  function createReviewExtensions(input) {
+    const reviewStatus = input.patient_authorization_state.authorization_status || 'review_required';
+    return [
+      {
+        url: AI_COMPANION_EXTENSIONS.aiGenerated,
+        valueBoolean: true
+      },
+      {
+        url: AI_COMPANION_EXTENSIONS.patientReviewStatus,
+        valueCode: reviewStatus
+      },
+      {
+        url: AI_COMPANION_EXTENSIONS.reviewSource,
+        valueString: input.patient_authorization_state.share_with_clinician === 'yes'
+          ? 'ai_draft_with_patient_share_allowed'
+          : 'ai_draft_pending_patient_share'
+      }
+    ];
+  }
+
+  function normalizeSummaryArray(value) {
+    return asArray(value).map(function (item) {
+      return String(item).trim();
+    }).filter(Boolean);
   }
 
   function gatherObservationCandidates(clinicianSummary, hamdProgress, redFlag) {
@@ -172,7 +204,7 @@
 
   function buildQuestionnaireResponseResource(input, patientFullUrl, encounterFullUrl, hamdProgress) {
     const items = [];
-    asArray(hamdProgress.covered_dimensions).forEach(function (dimension) {
+    normalizeSummaryArray(hamdProgress.covered_dimensions).forEach(function (dimension) {
       items.push({
         linkId: dimension,
         text: DIMENSION_LABELS[dimension] || dimension,
@@ -205,21 +237,39 @@
     return {
       resourceType: 'QuestionnaireResponse',
       meta: { profile: [TW_CORE_PROFILES.questionnaireResponse] },
+      extension: createReviewExtensions(input),
+      questionnaire: 'https://example.org/fhir/Questionnaire/ai-companion-previsit-hamd-lite-v1',
+      identifier: [
+        {
+          system: 'https://example.org/fhir/NamingSystem/ai-companion-questionnaire-response',
+          value: input.session.encounterKey
+        }
+      ],
       status: 'completed',
       subject: { reference: patientFullUrl },
       encounter: { reference: encounterFullUrl },
       authored: input.session.endedAt || input.session.startedAt || new Date().toISOString(),
+      author: {
+        display: input.author
+      },
       item: items
     };
   }
 
-  function buildObservationResources(input, patientFullUrl, encounterFullUrl, candidates) {
+  function buildObservationResources(input, patientFullUrl, encounterFullUrl, questionnaireFullUrl, candidates) {
     return candidates.map(function (candidate, index) {
       return {
         fullUrl: createUrn('observation', input.session.encounterKey + ':' + candidate.focus + ':' + index),
         resource: {
           resourceType: 'Observation',
           meta: { profile: [TW_CORE_PROFILES.observationScreeningAssessment] },
+          extension: createReviewExtensions(input),
+          identifier: [
+            {
+              system: 'https://example.org/fhir/NamingSystem/ai-companion-observation',
+              value: input.session.encounterKey + ':' + candidate.focus + ':' + index
+            }
+          ],
           status: 'preliminary',
           category: [
             {
@@ -245,6 +295,7 @@
           subject: { reference: patientFullUrl },
           encounter: { reference: encounterFullUrl },
           effectiveDateTime: input.session.endedAt || input.session.startedAt || new Date().toISOString(),
+          derivedFrom: questionnaireFullUrl ? [{ reference: questionnaireFullUrl }] : undefined,
           method: {
             text: 'AI companion conversation extraction'
           },
@@ -260,15 +311,18 @@
   }
 
   function buildCompositionResource(input, patientFullUrl, encounterFullUrl, questionnaireFullUrl, observationEntries, clinicianSummary) {
-    const chiefConcerns = asArray(clinicianSummary.chief_concerns);
-    const symptomObservations = asArray(clinicianSummary.symptom_observations);
-    const safetyFlags = asArray(clinicianSummary.safety_flags);
-    const followupNeeds = asArray(clinicianSummary.followup_needs);
+    const chiefConcerns = normalizeSummaryArray(clinicianSummary.chief_concerns);
+    const symptomObservations = normalizeSummaryArray(clinicianSummary.symptom_observations);
+    const safetyFlags = normalizeSummaryArray(clinicianSummary.safety_flags);
+    const followupNeeds = normalizeSummaryArray(clinicianSummary.followup_needs);
 
     const sections = [];
 
     if (chiefConcerns.length) {
       sections.push({
+        code: {
+          text: 'chief-concerns'
+        },
         title: 'Chief Concerns',
         text: {
           status: 'generated',
@@ -281,6 +335,9 @@
 
     if (symptomObservations.length) {
       sections.push({
+        code: {
+          text: 'symptom-observations'
+        },
         title: 'Symptom Observations',
         text: {
           status: 'generated',
@@ -296,6 +353,9 @@
 
     if (safetyFlags.length) {
       sections.push({
+        code: {
+          text: 'safety-flags'
+        },
         title: 'Safety',
         text: {
           status: 'generated',
@@ -308,6 +368,9 @@
 
     if (followupNeeds.length) {
       sections.push({
+        code: {
+          text: 'followup-needs'
+        },
         title: 'Follow-up Needs',
         text: {
           status: 'generated',
@@ -321,6 +384,13 @@
     return {
       resourceType: 'Composition',
       meta: { profile: [TW_CORE_PROFILES.composition] },
+      extension: createReviewExtensions(input),
+      identifier: [
+        {
+          system: 'https://example.org/fhir/NamingSystem/ai-companion-composition',
+          value: input.session.encounterKey
+        }
+      ],
       status: 'preliminary',
       type: {
         text: 'AI Companion pre-visit summary'
@@ -329,6 +399,7 @@
       encounter: { reference: encounterFullUrl },
       date: input.session.endedAt || input.session.startedAt || new Date().toISOString(),
       title: 'AI Companion Pre-Visit Summary',
+      confidentiality: 'R',
       section: sections,
       author: input.author
         ? [{ display: input.author }]
@@ -388,6 +459,18 @@
     if (!input.session.encounterKey) {
       validationErrors.push('session.encounterKey is required for internal bundle references.');
     }
+
+    if (!normalizeSummaryArray(input.clinician_summary_draft.chief_concerns).length) {
+      validationErrors.push('clinician_summary_draft.chief_concerns should contain at least one item.');
+    }
+
+    if (!normalizeSummaryArray(input.clinician_summary_draft.symptom_observations).length) {
+      validationErrors.push('clinician_summary_draft.symptom_observations should contain at least one item.');
+    }
+
+    if (!normalizeSummaryArray(input.hamd_progress_state.covered_dimensions).length) {
+      validationErrors.push('hamd_progress_state.covered_dimensions should contain at least one item.');
+    }
   }
 
   function buildSessionExportBundle(rawInput) {
@@ -442,6 +525,7 @@
       input,
       patientFullUrl,
       encounterFullUrl,
+      questionnaireFullUrl,
       gatherObservationCandidates(
         input.clinician_summary_draft,
         input.hamd_progress_state,

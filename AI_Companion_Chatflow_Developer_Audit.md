@@ -222,6 +222,11 @@
 - 已新增 `Delivery Readiness Builder`
 - 現在已能把「病人審閱中 / 可進同意 / 仍需修正 / 暫不分享」整理成結構化狀態
 - 現在已能把 FHIR draft 再整理成 backend handoff 前的 readiness 狀態
+- 已新增 `app/fhirBundleBuilder.js`
+- 已可把 internal state 轉成正式 transaction `Bundle`
+- 第一版 `Bundle` 已包含 `Patient / Encounter / QuestionnaireResponse / Observation / Composition`
+- Resource 內容已開始區分 AI generated 與 patient review status
+- `Composition.section`、`QuestionnaireResponse`、`Observation.derivedFrom` 已比 MVP 更接近正式臨床交付內容
 
 尚未達成：
 - 還沒有真正的病患按鈕式審閱 / 編輯 / 授權 UI
@@ -230,7 +235,33 @@
 - 還沒有 `preliminary -> final` 的授權後狀態轉換
 
 結論：
-目前 `P3` 已進入第二輪，已從單純的審閱包 / FHIR draft，往授權狀態與交付 readiness 再推進一步，但仍屬交付前草稿階段。
+目前 `P3` 已進入「交付層第 1 步」，已從映射草稿進到可產生正式 transaction Bundle 的階段，但仍未完成 validator、Provenance 與真實 server 寫入。
+
+### P3 交付層四步路線
+1. Bundle 內容品質升級
+目前狀態：`已開始且已落第一版`
+- 強化 `Composition.section`
+- 強化 `QuestionnaireResponse`
+- 強化 `Observation` 串接與 AI / patient review 狀態標記
+
+2. 正式驗證層
+目標：
+- FHIR R4 / TW Core profile validation
+- mapping error report
+- export 前 validation summary
+
+3. 治理資源層
+目標：
+- `Provenance`
+- 後續 `Consent`
+- 視需要補 `DocumentReference`
+
+4. 真正交付層
+目標：
+- backend API
+- transaction Bundle endpoint
+- FHIR server / HIS / EHR 寫入
+- failure / retry / audit log
 
 ## 核心產品定位
 AI Companion 的定位不是一般聊天機器人，而是：

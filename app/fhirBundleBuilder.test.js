@@ -125,6 +125,21 @@ function testReferencesAreConnected() {
   assert.strictEqual(observation.resource.encounter.reference, encounter.fullUrl);
   assert.strictEqual(composition.resource.subject.reference, patient.fullUrl);
   assert.strictEqual(composition.resource.encounter.reference, encounter.fullUrl);
+  assert.strictEqual(observation.resource.derivedFrom[0].reference, questionnaire.fullUrl);
+}
+
+function testClinicalContentIsEnriched() {
+  const result = buildSessionExportBundle(createValidInput());
+  const entries = result.bundle_json.entry;
+  const questionnaire = entries.find((entry) => entry.resource.resourceType === 'QuestionnaireResponse');
+  const composition = entries.find((entry) => entry.resource.resourceType === 'Composition');
+  const observation = entries.find((entry) => entry.resource.resourceType === 'Observation');
+
+  assert.strictEqual(questionnaire.resource.questionnaire, 'https://example.org/fhir/Questionnaire/ai-companion-previsit-hamd-lite-v1');
+  assert.ok(Array.isArray(questionnaire.resource.extension) && questionnaire.resource.extension.length >= 2);
+  assert.strictEqual(composition.resource.confidentiality, 'R');
+  assert.ok(composition.resource.section.some((section) => section.code && section.code.text === 'chief-concerns'));
+  assert.ok(observation.resource.extension.some((extension) => extension.url.indexOf('patient-review-status') !== -1));
 }
 
 function run() {
@@ -133,6 +148,7 @@ function run() {
   testBlocksWhenSharingNotAllowed();
   testBlocksWhenReadinessIsBlocked();
   testReferencesAreConnected();
+  testClinicalContentIsEnriched();
   console.log('FHIR bundle builder tests passed.');
 }
 
