@@ -220,13 +220,19 @@ workflow:
       voice: ''
   graph:
     edges:
+    - id: start-command-detector
+      source: start
+      sourceHandle: source
+      target: command-detector
+      targetHandle: target
+      type: custom
+      zIndex: 0
     - id: command-auto-set
       source: command-detector
       sourceHandle: cmd_auto
       target: set-command-auto
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: command-void-set
       source: command-detector
@@ -235,14 +241,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: command-soulmate-set
       source: command-detector
       sourceHandle: cmd_soulmate
       target: set-command-soulmate
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: command-mission-set
       source: command-detector
@@ -251,14 +255,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: command-option-set
       source: command-detector
       sourceHandle: cmd_option
       target: set-command-option
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: command-natural-set
       source: command-detector
@@ -267,14 +269,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: command-clarify-set
       source: command-detector
       sourceHandle: cmd_clarify
       target: set-command-clarify
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: gate-followup-limit
       source: followup-gate
@@ -283,14 +283,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: set-risk-safety
       source: save-summary-draft
       sourceHandle: source
       target: safety-response
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: safety-answer-edge
       source: safety-response
@@ -299,14 +297,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: gate-followup-resolver
       source: followup-limit-gate
       sourceHandle: 'false'
       target: llm-followup
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: gate-followup-finalize
       source: followup-limit-gate
@@ -315,14 +311,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: low-energy-option-route
       source: low-energy-detector
       sourceHandle: degrade_option
       target: set-mode-option
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: low-energy-soulmate-route
       source: low-energy-detector
@@ -331,14 +325,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: override-void
       source: override-router
       sourceHandle: mode_1_void
       target: set-mode-void
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: override-soulmate
       source: override-router
@@ -347,14 +339,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: override-option
       source: override-router
       sourceHandle: mode_4_option
       target: set-mode-option
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: override-natural
       source: override-router
@@ -363,14 +353,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: override-clarify
       source: override-router
       sourceHandle: mode_6_clarify
       target: set-mode-clarify
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: classifier-void
       source: classifier
@@ -379,14 +367,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: set-mode-void-llm
       source: set-mode-void
       sourceHandle: source
       target: llm-void
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: classifier-soulmate
       source: classifier
@@ -395,14 +381,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: set-mode-soulmate-llm
       source: set-mode-soulmate
       sourceHandle: source
       target: llm-soulmate
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: classifier-option
       source: classifier
@@ -411,14 +395,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: set-mode-option-retrieval
       source: set-mode-option
       sourceHandle: source
       target: retrieval-option
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: classifier-natural
       source: classifier
@@ -427,14 +409,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: set-mode-natural-llm
       source: set-mode-natural
       sourceHandle: source
       target: llm-natural
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: classifier-clarify
       source: classifier
@@ -443,14 +423,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: set-mode-clarify-llm
       source: set-mode-clarify
       sourceHandle: source
       target: llm-clarify
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: retrieval-mission-llm
       source: save-summary-draft
@@ -459,14 +437,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: summary-clinician-draft-edge
       source: save-summary-draft
       sourceHandle: source
       target: clinician-summary-builder
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: clinician-draft-save-edge
       source: clinician-summary-builder
@@ -475,14 +451,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: clinician-patient-review-edge
       source: save-clinician-summary
       sourceHandle: source
       target: patient-review-builder
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: patient-review-save-edge
       source: patient-review-builder
@@ -491,14 +465,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: patient-review-authorization-edge
       source: save-patient-review
       sourceHandle: source
       target: patient-authorization-builder
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: patient-authorization-save-edge
       source: patient-authorization-builder
@@ -507,14 +479,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: patient-authorization-fhir-edge
       source: save-patient-authorization
       sourceHandle: source
       target: fhir-delivery-builder
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: fhir-delivery-save-edge
       source: fhir-delivery-builder
@@ -523,14 +493,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: fhir-readiness-build-edge
       source: save-fhir-delivery
       sourceHandle: source
       target: delivery-readiness-builder
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: delivery-readiness-save-edge
       source: delivery-readiness-builder
@@ -539,14 +507,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: command-answer-auto
       source: set-command-auto
       sourceHandle: source
       target: answer-command
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: command-answer-void
       source: set-command-void
@@ -555,14 +521,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: command-answer-soulmate
       source: set-command-soulmate
       sourceHandle: source
       target: answer-command
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: command-answer-mission
       source: set-command-mission
@@ -571,14 +535,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: command-answer-option
       source: set-command-option
       sourceHandle: source
       target: answer-command
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: command-answer-natural
       source: set-command-natural
@@ -587,14 +549,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: command-answer-clarify
       source: set-command-clarify
       sourceHandle: source
       target: answer-command
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: retrieval-option-audit-edge
       source: retrieval-option
@@ -603,14 +563,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: option-audit-save-edge
       source: option-retrieval-audit
       sourceHandle: source
       target: save-option-retrieval-audit
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: option-audit-llm-edge
       source: save-option-retrieval-audit
@@ -619,14 +577,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: followup-output-classify-edge
       source: llm-followup
       sourceHandle: source
       target: followup-output-classifier
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: followup-output-askmore
       source: followup-output-classifier
@@ -635,14 +591,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: followup-output-answernow
       source: followup-output-classifier
       sourceHandle: followup_answer_now
       target: clear-pending
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: followup-final-clear
       source: llm-followup-final
@@ -651,14 +605,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: clarify-save
       source: llm-clarify
       sourceHandle: source
       target: save-pending
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: void-answer-edge
       source: llm-void
@@ -667,14 +619,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: soulmate-answer-edge
       source: llm-soulmate
       sourceHandle: source
       target: answer-soulmate
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: mission-answer-edge
       source: llm-mission
@@ -683,14 +633,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: option-answer-edge
       source: llm-option
       sourceHandle: source
       target: answer-option
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     - id: natural-answer-edge
       source: llm-natural
@@ -699,7 +647,6 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: followup-answer-edge
       source: clear-pending
       sourceHandle: source
@@ -707,14 +654,12 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
-      zIndex: 0
     - id: clarify-answer-edge
       source: save-pending
       sourceHandle: source
       target: answer-clarify
       targetHandle: target
       type: custom
-      zIndex: 0
       zIndex: 0
     nodes:
     - data:
