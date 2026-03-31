@@ -17,7 +17,7 @@ workflow:
     selector:
     - conversation
     - pending_question
-    value: ''
+    value: none
     value_type: string
   - id: risk-flag-var
     name: risk_flag
@@ -33,7 +33,7 @@ workflow:
     selector:
     - conversation
     - red_flag_payload
-    value: ''
+    value: none
     value_type: string
   - id: followup-turn-count-var
     name: followup_turn_count
@@ -57,7 +57,7 @@ workflow:
     selector:
     - conversation
     - active_mode
-    value: ''
+    value: auto
     value_type: string
   - id: latest-tag-payload-var
     name: latest_tag_payload
@@ -65,7 +65,7 @@ workflow:
     selector:
     - conversation
     - latest_tag_payload
-    value: ''
+    value: none
     value_type: string
   - id: hamd-progress-state-var
     name: hamd_progress_state
@@ -73,7 +73,7 @@ workflow:
     selector:
     - conversation
     - hamd_progress_state
-    value: ''
+    value: none
     value_type: string
   - id: summary-draft-state-var
     name: summary_draft_state
@@ -81,7 +81,7 @@ workflow:
     selector:
     - conversation
     - summary_draft_state
-    value: ''
+    value: none
     value_type: string
   - id: clinician-summary-draft-var
     name: clinician_summary_draft
@@ -89,15 +89,15 @@ workflow:
     selector:
     - conversation
     - clinician_summary_draft
-    value: ''
+    value: none
     value_type: string
   - id: routing-mode-override-var
     name: routing_mode_override
-    description: Persisted manual routing mode override; empty means auto routing
+    description: Persisted manual routing mode override; auto means automatic routing
     selector:
     - conversation
     - routing_mode_override
-    value: ''
+    value: auto
     value_type: string
   - id: command-feedback-var
     name: command_feedback
@@ -105,7 +105,7 @@ workflow:
     selector:
     - conversation
     - command_feedback
-    value: ''
+    value: none
     value_type: string
   - id: patient-review-packet-var
     name: patient_review_packet
@@ -113,7 +113,7 @@ workflow:
     selector:
     - conversation
     - patient_review_packet
-    value: ''
+    value: none
     value_type: string
   - id: fhir-delivery-draft-var
     name: fhir_delivery_draft
@@ -121,7 +121,7 @@ workflow:
     selector:
     - conversation
     - fhir_delivery_draft
-    value: ''
+    value: none
     value_type: string
   - id: mission-retrieval-audit-var
     name: mission_retrieval_audit
@@ -129,7 +129,7 @@ workflow:
     selector:
     - conversation
     - mission_retrieval_audit
-    value: ''
+    value: none
     value_type: string
   - id: option-retrieval-audit-var
     name: option_retrieval_audit
@@ -137,7 +137,7 @@ workflow:
     selector:
     - conversation
     - option_retrieval_audit
-    value: ''
+    value: none
     value_type: string
   - id: burden-level-state-var
     name: burden_level_state
@@ -145,7 +145,7 @@ workflow:
     selector:
     - conversation
     - burden_level_state
-    value: ''
+    value: none
     value_type: string
   - id: patient-authorization-state-var
     name: patient_authorization_state
@@ -153,7 +153,7 @@ workflow:
     selector:
     - conversation
     - patient_authorization_state
-    value: ''
+    value: none
     value_type: string
   - id: delivery-readiness-state-var
     name: delivery_readiness_state
@@ -161,7 +161,7 @@ workflow:
     selector:
     - conversation
     - delivery_readiness_state
-    value: ''
+    value: none
     value_type: string
   environment_variables: []
   features:
@@ -1259,7 +1259,7 @@ workflow:
           - latest_tag_payload
         - input_type: constant
           operation: overwrite
-          value: ''
+          value: none
           variable_selector:
           - conversation
           - pending_question
@@ -1292,7 +1292,7 @@ workflow:
           - risk_flag
         - input_type: constant
           operation: overwrite
-          value: ''
+          value: none
           variable_selector:
           - conversation
           - red_flag_payload
@@ -1994,19 +1994,19 @@ workflow:
         items:
         - input_type: constant
           operation: overwrite
-          value: ''
+          value: auto
           variable_selector:
           - conversation
           - routing_mode_override
         - input_type: constant
           operation: overwrite
-          value: ''
+          value: auto
           variable_selector:
           - conversation
           - active_mode
         - input_type: constant
           operation: overwrite
-          value: ''
+          value: none
           variable_selector:
           - conversation
           - pending_question
@@ -2057,7 +2057,7 @@ workflow:
           - active_mode
         - input_type: constant
           operation: overwrite
-          value: ''
+          value: none
           variable_selector:
           - conversation
           - pending_question
@@ -2108,7 +2108,7 @@ workflow:
           - active_mode
         - input_type: constant
           operation: overwrite
-          value: ''
+          value: none
           variable_selector:
           - conversation
           - pending_question
@@ -2159,7 +2159,7 @@ workflow:
           - active_mode
         - input_type: constant
           operation: overwrite
-          value: ''
+          value: none
           variable_selector:
           - conversation
           - pending_question
@@ -2210,7 +2210,7 @@ workflow:
           - active_mode
         - input_type: constant
           operation: overwrite
-          value: ''
+          value: none
           variable_selector:
           - conversation
           - pending_question
@@ -2261,7 +2261,7 @@ workflow:
           - active_mode
         - input_type: constant
           operation: overwrite
-          value: ''
+          value: none
           variable_selector:
           - conversation
           - pending_question
@@ -2312,7 +2312,7 @@ workflow:
           - active_mode
         - input_type: constant
           operation: overwrite
-          value: ''
+          value: none
           variable_selector:
           - conversation
           - pending_question
@@ -2477,7 +2477,8 @@ workflow:
         cases:
         - case_id: override_active
           conditions:
-          - comparison_operator: is not empty
+          - comparison_operator: is not
+            value: auto
             variable_selector:
             - conversation
             - routing_mode_override
@@ -2497,7 +2498,8 @@ workflow:
         cases:
         - case_id: pending_not_empty
           conditions:
-          - comparison_operator: is not empty
+          - comparison_operator: is not
+            value: none
             variable_selector:
             - conversation
             - pending_question
@@ -3259,7 +3261,7 @@ workflow:
         items:
         - input_type: constant
           operation: overwrite
-          value: ''
+          value: none
           variable_selector:
           - conversation
           - pending_question
