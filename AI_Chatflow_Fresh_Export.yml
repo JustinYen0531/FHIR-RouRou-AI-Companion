@@ -1058,8 +1058,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         query_variable_selector:
         - sys
         - query
@@ -1090,8 +1090,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         query_variable_selector:
         - sys
         - query
@@ -1125,8 +1125,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -1199,8 +1199,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -1325,8 +1325,8 @@ workflow:
           completion_params:
             temperature: 0.2
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -1365,8 +1365,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -1439,8 +1439,8 @@ workflow:
           completion_params:
             temperature: 0.2
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -1523,8 +1523,8 @@ workflow:
           completion_params:
             temperature: 0.2
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -1602,8 +1602,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -1681,8 +1681,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -1752,8 +1752,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -1852,8 +1852,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -1927,8 +1927,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -2566,8 +2566,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         query_variable_selector:
         - sys
         - query
@@ -2604,8 +2604,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         query_variable_selector:
         - sys
         - query
@@ -2642,8 +2642,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         query_variable_selector:
         - conversation
         - routing_mode_override
@@ -2675,8 +2675,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -2712,8 +2712,8 @@ workflow:
           completion_params:
             temperature: 0.5
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -2776,8 +2776,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -2868,8 +2868,8 @@ workflow:
           completion_params:
             temperature: 0.6
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -2945,8 +2945,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -3022,8 +3022,8 @@ workflow:
           completion_params:
             temperature: 0.4
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -3070,8 +3070,8 @@ workflow:
           completion_params:
             temperature: 0.5
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -3114,8 +3114,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         query_variable_selector:
         - llm-followup
         - text
@@ -3147,8 +3147,8 @@ workflow:
           completion_params:
             temperature: 0.5
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -3190,8 +3190,8 @@ workflow:
           completion_params:
             temperature: 0.3
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
@@ -3231,8 +3231,8 @@ workflow:
           completion_params:
             temperature: 0.7
           mode: chat
-          name: ''
-          provider: ''
+          name: gpt-4o
+          provider: openai
         prompt_template:
         - role: system
           text: |
