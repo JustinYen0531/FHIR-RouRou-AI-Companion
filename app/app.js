@@ -145,6 +145,24 @@ function appendSystemNotice(text) {
   }
 }
 
+function formatChatError(payload = {}) {
+  const message = payload.error || '聊天訊息送出失敗';
+
+  if (payload.code === 'internal_server_error' || payload.status === 500) {
+    return `Dify app 本身回了 500 錯誤，流程目前沒有成功執行。請到 Dify 檢查這個 app 的已發佈版本和節點執行紀錄。\n\n原始訊息：${message}`;
+  }
+
+  if (payload.code === 'dify_timeout' || payload.status === 504) {
+    return `Dify 超時了，這次等待太久沒有回來。通常代表 workflow 卡在某個節點、模型沒有回應，或 app 本身執行過慢。`;
+  }
+
+  if (message.includes('Missing Dify API key')) {
+    return '目前沒有可用的 Dify app key，請到 Settings 確認聊天流設定。';
+  }
+
+  return `目前無法連接聊天流：${message}`;
+}
+
 function getRuntimeConfig() {
   return {
     apiBaseUrl: localStorage.getItem('rourou.difyBaseUrl') || DEFAULT_DIFY_BASE_URL,
@@ -222,13 +240,13 @@ async function sendMessage() {
 
     const payload = await response.json();
     if (!response.ok) {
-      throw new Error(payload.error || '聊天訊息送出失敗');
+      throw new Error(formatChatError(payload));
     }
 
     APP_STATE.conversationId = payload.conversation_id || APP_STATE.conversationId;
     appendMessage('ai', payload.answer || '我有收到你的訊息，但這次沒有拿到完整回覆。');
   } catch (error) {
-    appendMessage('ai', `目前無法連接聊天流：${error.message}`);
+    appendMessage('ai', error.message || '目前無法連接聊天流。');
   } finally {
     setTyping(false);
     APP_STATE.isSending = false;

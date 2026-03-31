@@ -172,9 +172,11 @@ async function processChatPayload(payload, options = {}) {
     };
   } catch (error) {
     return {
-      statusCode: 502,
+      statusCode: error.status || 502,
       body: {
         error: error.message,
+        code: error.code || 'dify_proxy_error',
+        status: error.status || 502,
         conversation_id: payload.conversation_id || ''
       }
     };
