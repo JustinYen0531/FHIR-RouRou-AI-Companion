@@ -1267,7 +1267,7 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-3-flash-preview
+          name: gemini-2.0-flash
           provider: langgenius/gemini/google
         query_variable_selector:
         - sys
@@ -1300,7 +1300,7 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-3-flash-preview
+          name: gemini-2.0-flash
           provider: langgenius/gemini/google
         query_variable_selector:
         - sys
@@ -1342,7 +1342,7 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-3-flash-preview
+          name: gemini-2.0-flash
           provider: langgenius/gemini/google
         prompt_template:
         - id: 2c0bed68-e53a-41eb-91cc-508b2aa2ce3c
@@ -1418,7 +1418,7 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-3-flash-preview
+          name: gemini-2.0-flash
           provider: langgenius/gemini/google
         prompt_template:
         - id: 70d5a239-d51f-4480-aa69-9759380cb124
@@ -1549,7 +1549,7 @@ workflow:
           completion_params:
             temperature: 0.2
           mode: chat
-          name: gemini-3-flash-preview
+          name: gemini-2.0-flash
           provider: langgenius/gemini/google
         prompt_template:
         - id: 79a086dc-0cf1-4227-a7c6-f1f9f6343abc
