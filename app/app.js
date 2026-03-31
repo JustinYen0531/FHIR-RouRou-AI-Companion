@@ -1,3 +1,6 @@
+const DEFAULT_DIFY_BASE_URL = 'https://api.dify.ai/v1';
+const DEFAULT_DIFY_APP_KEY = 'app-rsEik4bkKMqvHtBUt5qtb3H6';
+
 const APP_STATE = {
   currentScreen: 'screen-chat',
   conversationId: '',
@@ -144,10 +147,20 @@ function appendSystemNotice(text) {
 
 function getRuntimeConfig() {
   return {
-    apiBaseUrl: localStorage.getItem('rourou.difyBaseUrl') || 'https://api.dify.ai/v1',
-    apiKey: localStorage.getItem('rourou.difyApiKey') || '',
+    apiBaseUrl: localStorage.getItem('rourou.difyBaseUrl') || DEFAULT_DIFY_BASE_URL,
+    apiKey: localStorage.getItem('rourou.difyApiKey') || DEFAULT_DIFY_APP_KEY,
     userId: APP_STATE.userId
   };
+}
+
+function initializeRuntimeConfig() {
+  if (!localStorage.getItem('rourou.difyBaseUrl')) {
+    localStorage.setItem('rourou.difyBaseUrl', DEFAULT_DIFY_BASE_URL);
+  }
+
+  if (!localStorage.getItem('rourou.difyApiKey')) {
+    localStorage.setItem('rourou.difyApiKey', DEFAULT_DIFY_APP_KEY);
+  }
 }
 
 async function ensureModeSynced() {
@@ -247,7 +260,7 @@ function injectRuntimeSettings() {
           <button id="save-dify-config" class="cta-primary with-icon" type="button">儲存聊天流設定</button>
         </div>
         <p style="font-size:12px;color:#64727a;line-height:1.6;margin-top:12px">
-          建議把 API key 放在本地 server 的環境變數。這裡的欄位是為了本機 demo 整合使用。
+          目前已預設連到你的 Dify app。這裡仍可改成其他 app key 或自架 Dify base URL。
         </p>
       </div>
     </div>
@@ -261,8 +274,8 @@ function injectRuntimeSettings() {
   document.getElementById('dify-user-id').value = config.userId;
 
   document.getElementById('save-dify-config').addEventListener('click', () => {
-    localStorage.setItem('rourou.difyBaseUrl', document.getElementById('dify-base-url').value.trim());
-    localStorage.setItem('rourou.difyApiKey', document.getElementById('dify-api-key').value.trim());
+    localStorage.setItem('rourou.difyBaseUrl', document.getElementById('dify-base-url').value.trim() || DEFAULT_DIFY_BASE_URL);
+    localStorage.setItem('rourou.difyApiKey', document.getElementById('dify-api-key').value.trim() || DEFAULT_DIFY_APP_KEY);
     localStorage.setItem('rourou.userId', document.getElementById('dify-user-id').value.trim() || APP_STATE.userId);
     APP_STATE.userId = localStorage.getItem('rourou.userId') || APP_STATE.userId;
     APP_STATE.syncedMode = '';
@@ -271,9 +284,11 @@ function injectRuntimeSettings() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  initializeRuntimeConfig();
   showScreen('screen-chat');
   updateModeLabels();
   injectRuntimeSettings();
+  appendSystemNotice('前端已預設連到指定的 Dify app，可直接從聊天畫面開始測試。');
 });
 
 window.showScreen = showScreen;
