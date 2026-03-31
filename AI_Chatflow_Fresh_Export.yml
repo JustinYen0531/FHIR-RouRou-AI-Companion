@@ -431,7 +431,7 @@ workflow:
       type: custom
     - data:
         sourceType: if-else
-        targetType: question-classifier
+        targetType: llm
       id: gate-followup-resolver
       source: followup-limit-gate
       sourceHandle: 'false'
