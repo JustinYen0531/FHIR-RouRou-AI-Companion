@@ -723,8 +723,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         query_variable_selector:
         - sys
         - query
@@ -759,8 +759,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         query_variable_selector:
         - sys
         - query
@@ -794,8 +794,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: "你是 mission 路徑的 retrieval 治理節點。\n你的任務不是回答病人，而是評估這次知識檢索值不值得被主回答使用。\n\
@@ -858,8 +858,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: "你要把高風險訊號整理成簡短 JSON 字串。\n欄位固定為:\n{\n  \"route_type\":\"safety\",\n\
@@ -973,8 +973,8 @@ workflow:
           completion_params:
             temperature: 0.2
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: '你是 AI Companion 的安全回應節點。
@@ -1018,8 +1018,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: "你要把目前對話狀態整理成一份統一的摘要草稿 JSON。\n固定欄位：\n{\n  \"active_mode\":\"...\"\
@@ -1081,8 +1081,8 @@ workflow:
           completion_params:
             temperature: 0.2
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: "你要把目前的 summary_draft_state 整理成「可交付給醫師或臨床團隊閱讀的診前摘要草稿」。\n目標不是做診斷，而是整理觀察到的重點、風險、HAM-D\
@@ -1150,8 +1150,8 @@ workflow:
           completion_params:
             temperature: 0.2
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: "你要把目前的 clinician_summary_draft 整理成「給病人自己審閱」的摘要包。\n目標是讓病人知道 AI 整理了什麼、哪些內容可確認、哪些內容仍是推定，並提醒需要授權後才能交付。\n\
@@ -1217,8 +1217,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: "你要把目前的 patient_review_packet 與 clinician_summary_draft 整理成「病人審閱 /\
@@ -1285,8 +1285,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: "你要把目前的 clinician_summary_draft、patient_review_packet、patient_authorization_state、red_flag_payload、hamd_progress_state\
@@ -1344,8 +1344,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: "你要根據目前的 fhir_delivery_draft、patient_authorization_state、clinician_summary_draft，整理成「交付\
@@ -1435,8 +1435,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: "你要根據本輪使用者輸入，輸出簡短 JSON 字串。\n固定欄位：\n{\n  \"route_type\":\"normal\"\
@@ -1499,8 +1499,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: "你要根據這一輪使用者輸入、目前標籤與對話狀態，判斷病人的互動負擔。\n只輸出 JSON，不要解釋。\n固定格式：\n{\n  \"\
@@ -2140,8 +2140,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         query_variable_selector:
         - sys
         - query
@@ -2186,8 +2186,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         query_variable_selector:
         - sys
         - query
@@ -2226,8 +2226,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         query_variable_selector:
         - conversation
         - routing_mode_override
@@ -2259,8 +2259,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: '你要處理沒有內容或無法辨識的輸入。
@@ -2298,8 +2298,8 @@ workflow:
           completion_params:
             temperature: 0.5
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: '你是一個溫暖、像真人的朋友。
@@ -2367,8 +2367,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: "你要根據本輪使用者輸入、既有狀態與目前已累積的標籤摘要，更新 HAM-D 線索狀態。\n這個節點不只服務 mission，也服務\
@@ -2442,8 +2442,8 @@ workflow:
           completion_params:
             temperature: 0.6
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: '你是任務導向的引導助手。
@@ -2536,8 +2536,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: "你是 option 路徑的 retrieval 治理節點。\n你的任務不是回答病人，而是判斷這次檢索是否真的能幫忙產生更貼近狀態的短選項。\n\
@@ -2603,8 +2603,8 @@ workflow:
           completion_params:
             temperature: 0.4
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: '你是低負擔選項助手。
@@ -2664,8 +2664,8 @@ workflow:
           completion_params:
             temperature: 0.5
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: '你是一個自然、溫暖、像真人的朋友。
@@ -2722,8 +2722,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         query_variable_selector:
         - llm-followup
         - text
@@ -2755,8 +2755,8 @@ workflow:
           completion_params:
             temperature: 0.5
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: '你正在處理上一輪留下的補問。
@@ -2806,8 +2806,8 @@ workflow:
           completion_params:
             temperature: 0.3
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: '你正在處理最後一次補問收斂。
@@ -2853,8 +2853,8 @@ workflow:
           completion_params:
             temperature: 0.7
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: '你要先補一個最關鍵的問題。

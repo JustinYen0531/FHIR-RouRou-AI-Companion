@@ -11,7 +11,7 @@ dependencies:
 - current_identifier: null
   type: marketplace
   value:
-    marketplace_plugin_unique_identifier: langgenius/gemini:0.7.20@de0063a630a6d1b2c025fb84f3462ba5151fb60618309cd595c3f4711b1df847
+    marketplace_plugin_unique_identifier: langgenius/groq:0.0.13
     version: null
 kind: app
 version: 0.6.0
@@ -1267,8 +1267,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-2.0-flash
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         query_variable_selector:
         - sys
         - query
@@ -1300,8 +1300,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-2.0-flash
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         query_variable_selector:
         - sys
         - query
@@ -1342,8 +1342,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-2.0-flash
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: 2c0bed68-e53a-41eb-91cc-508b2aa2ce3c
           role: system
@@ -1418,8 +1418,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-2.0-flash
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: 70d5a239-d51f-4480-aa69-9759380cb124
           role: system
@@ -1549,8 +1549,8 @@ workflow:
           completion_params:
             temperature: 0.2
           mode: chat
-          name: gemini-2.0-flash
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: 79a086dc-0cf1-4227-a7c6-f1f9f6343abc
           role: system
@@ -1602,8 +1602,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: 5e1908e3-6ec5-43ee-87b2-8d1014a655a0
           role: system
@@ -1677,8 +1677,8 @@ workflow:
           completion_params:
             temperature: 0.2
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: aec259c5-2ad9-4c81-a1a9-4d87a48eebf0
           role: system
@@ -1758,8 +1758,8 @@ workflow:
           completion_params:
             temperature: 0.2
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: 998f72c5-9ea5-464f-8673-7fedb0e23e7b
           role: system
@@ -1837,8 +1837,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: 6643c38d-41b6-4f53-880c-8d8f5583dca5
           role: system
@@ -1917,8 +1917,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: 71892d08-edb2-42bd-8e03-b9e3f5b4a68e
           role: system
@@ -1984,8 +1984,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: b47648ed-0b1f-4601-b2dd-2809ad1b9429
           role: system
@@ -2091,8 +2091,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: 736eb58f-fffe-4353-8391-d760351edfbb
           role: system
@@ -2167,8 +2167,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: 43fa0c6b-5e00-4891-9e7a-47a4c13de6b5
           role: system
@@ -2882,8 +2882,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         query_variable_selector:
         - sys
         - query
@@ -2933,8 +2933,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         query_variable_selector:
         - sys
         - query
@@ -2978,8 +2978,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         query_variable_selector:
         - conversation
         - routing_mode_override
@@ -3018,8 +3018,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: f73ab029-6122-48fa-b923-3003d09d1585
           role: system
@@ -3065,8 +3065,8 @@ workflow:
           completion_params:
             temperature: 0.5
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: bc245025-bbd7-471d-85cc-b6c133bfdd0c
           role: system
@@ -3146,8 +3146,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: 7eea588e-c4f1-44c0-9c9d-c8aa5d17530a
           role: system
@@ -3233,8 +3233,8 @@ workflow:
           completion_params:
             temperature: 0.6
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: 796dffbb-ab25-40f9-9651-9ada377948bf
           role: system
@@ -3339,8 +3339,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: 85c21d0e-05d6-4dff-bda5-7d655190dc7b
           role: system
@@ -3417,8 +3417,8 @@ workflow:
         model:
           completion_params: {}
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: 1738f948-9bd0-4233-abf2-e4a6c4925c6e
           role: system
@@ -3486,8 +3486,8 @@ workflow:
           completion_params:
             temperature: 0.5
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: cceda174-6558-4c97-aa65-a668e8afd62c
           role: system
@@ -3550,8 +3550,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         query_variable_selector:
         - llm-followup
         - text
@@ -3590,8 +3590,8 @@ workflow:
           completion_params:
             temperature: 0.5
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: 930ec6c2-ce4f-417e-9a2e-7f47419c8748
           role: system
@@ -3649,8 +3649,8 @@ workflow:
           completion_params:
             temperature: 0.3
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: 89ae8b3f-769b-4f58-b103-49428345342a
           role: system
@@ -3704,8 +3704,8 @@ workflow:
           completion_params:
             temperature: 0.7
           mode: chat
-          name: gemini-3-flash-preview
-          provider: langgenius/gemini/google
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
         prompt_template:
         - id: f8fbe3d5-d0a2-44b0-bef8-59211ddf4664
           role: system

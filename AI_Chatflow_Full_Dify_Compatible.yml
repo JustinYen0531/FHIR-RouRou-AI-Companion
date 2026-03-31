@@ -890,8 +890,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         query_variable_selector:
         - sys
         - query
@@ -922,8 +922,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         query_variable_selector:
         - sys
         - query
@@ -957,8 +957,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -1031,8 +1031,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -1157,8 +1157,8 @@ workflow:
           completion_params:
             temperature: 0.2
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -1197,8 +1197,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -1271,8 +1271,8 @@ workflow:
           completion_params:
             temperature: 0.2
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -1355,8 +1355,8 @@ workflow:
           completion_params:
             temperature: 0.2
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -1434,8 +1434,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -1513,8 +1513,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -1584,8 +1584,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -1684,8 +1684,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -1759,8 +1759,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -2400,8 +2400,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         query_variable_selector:
         - sys
         - query
@@ -2438,8 +2438,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         query_variable_selector:
         - sys
         - query
@@ -2476,8 +2476,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         query_variable_selector:
         - conversation
         - routing_mode_override
@@ -2509,8 +2509,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -2546,8 +2546,8 @@ workflow:
           completion_params:
             temperature: 0.5
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -2610,8 +2610,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -2702,8 +2702,8 @@ workflow:
           completion_params:
             temperature: 0.6
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -2779,8 +2779,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -2856,8 +2856,8 @@ workflow:
           completion_params:
             temperature: 0.4
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -2904,8 +2904,8 @@ workflow:
           completion_params:
             temperature: 0.5
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -2948,8 +2948,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         query_variable_selector:
         - llm-followup
         - text
@@ -2981,8 +2981,8 @@ workflow:
           completion_params:
             temperature: 0.5
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -3024,8 +3024,8 @@ workflow:
           completion_params:
             temperature: 0.3
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
@@ -3065,8 +3065,8 @@ workflow:
           completion_params:
             temperature: 0.7
           mode: chat
-          name: ''
-          provider: ''
+          name: 'llama-3.1-8b-instant'
+          provider: 'langgenius/groq/groq'
         prompt_template:
         - role: system
           text: |
