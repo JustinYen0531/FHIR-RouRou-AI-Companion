@@ -1,6 +1,5 @@
-const DEFAULT_FLOWISE_BASE_URL = 'http://localhost:3000';
-const DEFAULT_FLOWISE_API_KEY = '';
-const DEFAULT_FLOWISE_CHATFLOW_ID = '';
+const DEFAULT_GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
+const DEFAULT_GROQ_API_KEY = '';
 
 const APP_STATE = {
   currentScreen: 'screen-chat',
@@ -150,19 +149,15 @@ function formatChatError(payload = {}) {
   const message = payload.error || '聊天訊息送出失敗';
 
   if (payload.code === 'internal_server_error' || payload.status === 500) {
-    return `Flowise 或代理後端回了 500 錯誤，流程目前沒有成功執行。\n\n原始訊息：${message}`;
+    return `AI Companion 後端回了 500 錯誤，流程目前沒有成功執行。\n\n原始訊息：${message}`;
   }
 
-  if (payload.code === 'flowise_timeout' || payload.status === 504) {
-    return 'Flowise 超時了，這次等待太久沒有回來。通常代表 Flowise chatflow 卡在某個節點、模型沒有回應，或後端執行過慢。';
+  if (payload.code === 'groq_timeout' || payload.status === 504) {
+    return 'Groq 超時了，這次等待太久沒有回來。通常代表模型沒有回應或後端執行過慢。';
   }
 
-  if (message.includes('Missing Flowise chatflow id')) {
-    return '目前沒有可用的 Flowise chatflow id，請到 Settings 確認聊天流設定。';
-  }
-
-  if (message.includes('Missing Flowise API key')) {
-    return '目前沒有可用的 Flowise API key，請到 Settings 確認聊天流設定。';
+  if (message.includes('Missing Groq API key')) {
+    return '目前沒有可用的 Groq API key，請到 Settings 確認聊天引擎設定。';
   }
 
   return `目前無法連接聊天流：${message}`;
@@ -170,24 +165,19 @@ function formatChatError(payload = {}) {
 
 function getRuntimeConfig() {
   return {
-    apiBaseUrl: localStorage.getItem('rourou.flowiseBaseUrl') || DEFAULT_FLOWISE_BASE_URL,
-    apiKey: localStorage.getItem('rourou.flowiseApiKey') || DEFAULT_FLOWISE_API_KEY,
-    chatflowId: localStorage.getItem('rourou.flowiseChatflowId') || DEFAULT_FLOWISE_CHATFLOW_ID,
+    apiBaseUrl: localStorage.getItem('rourou.groqBaseUrl') || DEFAULT_GROQ_BASE_URL,
+    apiKey: localStorage.getItem('rourou.groqApiKey') || DEFAULT_GROQ_API_KEY,
     userId: APP_STATE.userId
   };
 }
 
 function initializeRuntimeConfig() {
-  if (!localStorage.getItem('rourou.flowiseBaseUrl')) {
-    localStorage.setItem('rourou.flowiseBaseUrl', DEFAULT_FLOWISE_BASE_URL);
+  if (!localStorage.getItem('rourou.groqBaseUrl')) {
+    localStorage.setItem('rourou.groqBaseUrl', DEFAULT_GROQ_BASE_URL);
   }
 
-  if (!localStorage.getItem('rourou.flowiseApiKey')) {
-    localStorage.setItem('rourou.flowiseApiKey', DEFAULT_FLOWISE_API_KEY);
-  }
-
-  if (!localStorage.getItem('rourou.flowiseChatflowId')) {
-    localStorage.setItem('rourou.flowiseChatflowId', DEFAULT_FLOWISE_CHATFLOW_ID);
+  if (!localStorage.getItem('rourou.groqApiKey')) {
+    localStorage.setItem('rourou.groqApiKey', DEFAULT_GROQ_API_KEY);
   }
 }
 
@@ -206,7 +196,6 @@ async function ensureModeSynced() {
       conversation_id: APP_STATE.conversationId,
       user: config.userId,
       api_key: config.apiKey,
-      chatflow_id: config.chatflowId,
       api_base_url: config.apiBaseUrl,
       hide_response: true
     })
@@ -245,7 +234,6 @@ async function sendMessage() {
         conversation_id: APP_STATE.conversationId,
         user: config.userId,
         api_key: config.apiKey,
-        chatflow_id: config.chatflowId,
         api_base_url: config.apiBaseUrl
       })
     });
@@ -267,16 +255,16 @@ async function sendMessage() {
 
 function injectRuntimeSettings() {
   const settingsScreen = document.getElementById('screen-settings');
-  if (!settingsScreen || document.getElementById('flowise-runtime-card')) return;
+  if (!settingsScreen || document.getElementById('ai-engine-runtime-card')) return;
 
   const settingsMain = settingsScreen.querySelector('main');
   if (!settingsMain) return;
 
   const wrapper = document.createElement('section');
   wrapper.className = 'settings-card';
-  wrapper.id = 'flowise-runtime-card';
+  wrapper.id = 'ai-engine-runtime-card';
   wrapper.innerHTML = `
-    <div class="settings-group-label">FLOWISE CHATFLOW</div>
+    <div class="settings-group-label">AI COMPANION ENGINE</div>
     <div class="settings-inner">
       <div class="setting-group">
         <div class="setting-title">
@@ -284,14 +272,13 @@ function injectRuntimeSettings() {
           <span>聊天流連線設定</span>
         </div>
         <div style="display:flex;flex-direction:column;gap:12px">
-          <input id="flowise-base-url" type="text" placeholder="http://localhost:3000" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
-          <input id="flowise-chatflow-id" type="text" placeholder="chatflow id" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
-          <input id="flowise-api-key" type="password" placeholder="optional api key" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
-          <input id="flowise-user-id" type="text" placeholder="user id" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
-          <button id="save-flowise-config" class="cta-primary with-icon" type="button">儲存聊天流設定</button>
+          <input id="groq-base-url" type="text" placeholder="https://api.groq.com/openai/v1" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
+          <input id="groq-api-key" type="password" placeholder="gsk_..." style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
+          <input id="groq-user-id" type="text" placeholder="user id" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
+          <button id="save-ai-engine-config" class="cta-primary with-icon" type="button">儲存聊天引擎設定</button>
         </div>
         <p style="font-size:12px;color:#64727a;line-height:1.6;margin-top:12px">
-          這裡設定 Flowise base URL、chatflow id、API key 與 user id。前端會透過本地 Node proxy 轉發到 Flowise。
+          這裡設定 Groq base URL、API key 與 user id。前端會透過本地 Node proxy 轉發到程式版 AI Companion 引擎。
         </p>
       </div>
     </div>
@@ -300,19 +287,17 @@ function injectRuntimeSettings() {
   settingsMain.insertBefore(wrapper, settingsMain.firstChild);
 
   const config = getRuntimeConfig();
-  document.getElementById('flowise-base-url').value = config.apiBaseUrl;
-  document.getElementById('flowise-chatflow-id').value = config.chatflowId;
-  document.getElementById('flowise-api-key').value = config.apiKey;
-  document.getElementById('flowise-user-id').value = config.userId;
+  document.getElementById('groq-base-url').value = config.apiBaseUrl;
+  document.getElementById('groq-api-key').value = config.apiKey;
+  document.getElementById('groq-user-id').value = config.userId;
 
-  document.getElementById('save-flowise-config').addEventListener('click', () => {
-    localStorage.setItem('rourou.flowiseBaseUrl', document.getElementById('flowise-base-url').value.trim() || DEFAULT_FLOWISE_BASE_URL);
-    localStorage.setItem('rourou.flowiseChatflowId', document.getElementById('flowise-chatflow-id').value.trim() || DEFAULT_FLOWISE_CHATFLOW_ID);
-    localStorage.setItem('rourou.flowiseApiKey', document.getElementById('flowise-api-key').value.trim() || DEFAULT_FLOWISE_API_KEY);
-    localStorage.setItem('rourou.userId', document.getElementById('flowise-user-id').value.trim() || APP_STATE.userId);
+  document.getElementById('save-ai-engine-config').addEventListener('click', () => {
+    localStorage.setItem('rourou.groqBaseUrl', document.getElementById('groq-base-url').value.trim() || DEFAULT_GROQ_BASE_URL);
+    localStorage.setItem('rourou.groqApiKey', document.getElementById('groq-api-key').value.trim() || DEFAULT_GROQ_API_KEY);
+    localStorage.setItem('rourou.userId', document.getElementById('groq-user-id').value.trim() || APP_STATE.userId);
     APP_STATE.userId = localStorage.getItem('rourou.userId') || APP_STATE.userId;
     APP_STATE.syncedMode = '';
-    appendSystemNotice('聊天流設定已更新。之後送出的訊息會走 Flowise。');
+    appendSystemNotice('聊天引擎設定已更新。之後送出的訊息會走 Node 程式版 AI Companion。');
   });
 }
 
@@ -321,7 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
   showScreen('screen-chat');
   updateModeLabels();
   injectRuntimeSettings();
-  appendSystemNotice('前端目前走 Flowise + 本地 Node proxy。設定完成後可直接從聊天畫面測試。');
+  appendSystemNotice('前端目前走 Node 程式版 AI Companion + Groq。設定完成後可直接從聊天畫面測試。');
 });
 
 window.showScreen = showScreen;

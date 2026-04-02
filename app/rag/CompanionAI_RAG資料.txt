@@ -1,0 +1,1178 @@
+187	A. Shahid et al. (eds.), STOP, THAT and One Hundred Other Sleep Scales,
+DOI 10.1007/978-1-4419-9893-4_42, © Springer Science+Business Media, LLC 2012
+42
+Purpose One 	of 	the 	most 	frequently 	used
+instruments for evaluating depression in adults,
+the questionnaire allows clinicians to assess the
+nature and severity of mood disorders in patient
+populations. The scale is comprised of 21 items
+for inquiry, though only the first 17 are used in
+scoring. Each question examines a different
+symptom or aspect of depression, including:
+mood, guilty feelings, suicidal ideation, insom-
+nia, agitation, and somatic symptoms. The scale
+is suitable for use in a variety of research and
+clinical settings, and can be applied as both a
+single-use instrument for measuring depression
+severity and as a tool for monitoring changes in
+depressive symptoms over the course of treat-
+ment. Items 4, 5, and 6 refer specifically to sleep,
+inquiring about insomnia prior to sleep onset,
+disturbed sleep in the middle of the night, and
+trouble falling back sleep in the early morning,
+respectively. Other items may be peripherally
+involved with sleep difficulties as they refer to
+fatigue, retardation, and somatic symptoms in
+general. It should be noted that there have been
+different iterations with longer, shorter, and one
+version with specific modifications for seasonal
+affective disorder [10] .
+Population for Testing The scale has been vali-
+dated across a variety of studies, primarily in adult
+populations possessing major depressive disorder.
+Administration The 	scale 	is 	administered
+through an interview conducted by a trained
+clinician. 	Its 	administration 	time 	will 	vary
+depending on the specific needs of the patient and
+the interviewer’s preferred approach. On average,
+it should require approximately 10–15 min. Some
+have expressed concern regarding the interpretive
+nature of the instrument. The scale requires a
+trained clinician capable of distilling information
+regarding both frequency and intensity of symp-
+toms into a single score, potentially making it
+inefficient for use in large research projects. To
+address this, a number of researchers (including
+Potts and colleagues [1] ) have designed struc-
+tured-interview versions of the HAM-D which
+can be administered in a variety of settings by
+interviewers without backgrounds in psychiatry.
+For even greater ease of use, a self-report, paper-
+and-pencil version is also available – the Hamilton
+Depression Inventory developed by Reynolds
+and Kobak [2] . Additional alternative versions
+include tests with fewer items and questionnaires
+with modified rating scales.
+Reliability and Validity The psychometric prop-
+erties of the HAM-D have been examined in a
+wide array of studies since its creation by Hamilton
+in 1960 [3]. One of the most recent reviews con-
+ducted by Bagby and colleagues [4] evaluated
+psychometric properties reported in 70 different
+articles, finding an internal reliability ranging from
+.46 to .97, an inter-rater reliability of .82 to .98,
+and a test–retest reliability of .81 to .98. Though
+scores for the scale as a whole appear to be quite
+high, studies examining inter-rater reliabilities and
+Hamilton Rating Scale
+for Depression (HAM-D)
+
+-- 1 of 64 --
+
+188 	42 	Hamilton Rating Scale for Depression (HAM-D)
+test–retest coefficients at the level of individual
+items have found values that are much lower.
+Others have criticized the scale as outdated in
+terms of the DSM-IV definition of depression and
+have claimed that its scoring is unclear. Overall,
+the HAM-D’s tremendous staying power has made
+it the subject of studies both laudatory and critical
+in nature [5, 6]. Decisions regarding its psycho-
+metric suitability should be undertaken carefully
+and on a case-by-case basis. For one of Hamilton’s
+final writings on the subject of depression and the
+selection of depression scales, turn to a review
+written by Hamilton and Shapiro in Measuring
+Human Problems: A Practical Guide [7].
+Obtaining a Copy A copy of the original scale
+can be found in Hamilton [3] . A large number of
+modifi ed versions are available from their
+respective designers.
+Scoring Though all 21 items may be valuable
+for both research and clinical purposes, only the
+first 17 are used for scoring. During the inter-
+view, clinicians solicit patient reports on a vari-
+ety of depressive symptoms and use their clinical
+expertise to assign each a score for severity. For
+the majority of questions, scores range from 0 to
+4, with 4 representing more acute signs of depres-
+sion. Several questions have ranges that extend
+only as high as 2 or 3. A total score is tallied and
+can then be compared with previous scores or
+can be contrasted with a pre-defined cutoff score.
+Over the decades, a number of values have been
+suggested as potential cutoffs – total scores to
+be used as indicators of remission. Though the
+cutoff of 7 suggested by Frank and colleagues
+[8] has become a consensus for determining
+remission, others suggest that it should be as low
+as 2 [9].
+
+-- 2 of 64 --
+
+189	References
+References
+1. Potts, M. K., Daniels, M., Burnam, M. A., & Wells, K. B.
+(1991). A structured interview version of the Hamilton
+Depression Rating Scale: evidence of reliability and
+versatility of administration.
+2. Reynolds, W. M., & Kobak, K. A. (1995). Hamilton
+Depression Inventory. Odessa, FL: Psychological
+Assessment Resources.
+3. Hamilton, M. (1960). A rating scale for depression.
+Journal of Neurology, Neurosurgery, and Psychiatry,
+23 , 56–62.
+4. Bagby, R. M., Ryder, A. G., Schuller, D. R., & Marshall,
+M. B. (2004) The Hamilton Depression Rating Scale:
+has the gold standard become a lead weight? American
+Journal of Psychiatry, 161(12), 2163–2177.
+5. Hedlund, J. L., & Vieweg, B. W. (1979). The Hamilton
+Rating Scale for Depression: a comprehensive review.
+Journal of Operational Psychiatry, 10, 149–165.
+6. Knesevich, J. W., Biggs, J. T., Clayton, P. J., & Ziegler,
+V. E. (1977). Validity of the Hamilton Rating Scale for
+Depression. The British Journal of Psychiatry, 131,
+49–52.
+7. Hamilton, M., & Shaprio, C. M. (1990). Depression. In
+D. F. Peck & C. M. Shapiro (Eds.), Measuring Human
+Problems (25–65). Great Britain: John Wiley & Sons.
+8. Frank, E., Prien, R. F., Jarrett, R. B., Keller, M. B.,
+Kupfer, D. J., Lavori, P. W., Rush, A. J., & Weissman,
+M. M. (1991). Conceptualization and rationale for con-
+sensus definitions of terms in major depressive disor-
+der: remission, recovery, relapse, and recurrence.
+Archives of General Psychiatry, 48(9), 851–855.
+
+-- 3 of 64 --
+
+190 	42 	Hamilton Rating Scale for Depression (HAM-D)
+9. Zimmerman, M., Posternak, M. A., & Chelminski, I.
+(2005). Is the cutoff to define remission on the
+Hamilton Rating Scale for Depression too high? The
+Journal of Nervous and Mental Disease, 193(3),
+170–175.
+10. Williams, J. B. W., Link, M. J., Rosenthal, N. E.,
+Terman, M. (1998). Structured Interview Guide for
+the Hamilton Depression Rating Scale, Seasonal
+Affective Disorders Version (SIGHSAD). New York
+Psychiatric Institute, New York.
+Representative Studies Using Scale
+Reynolds, C. F., Dew, M. A., Pollock, B. G., Mulsant, B. H.,
+Frank, E., Miller, M. D., Houck, P. R., Mazumdar, S.,
+Butters, M. A., Stack, J. A., Schlernitzauer, M. A.,
+Whyte, E. M., Gildengers, A., Karp, J., Lenze, E., Szanto,
+K., Bensasi, S., & Kupfer, D. J. (2006). Maintenance
+treatment of major depression in old age. New England
+Journal of Medicine, 354(11), 1130–1138.
+Brecht, S., Kajdasz, D., Ball, S., & Thase, M. E. (2008).
+Clinical impact of duloxetine treatment on sleep in
+patients with major depressive disorder. International
+Clinical Psychopharmacology, 23(6), 317–324.
+Levitan, R., Shen, J., Jindal, J., Driver, H. S., Kennedy,
+S. H., & Shapiro, C. M. (2000). A preliminary
+randomized double-blind placebo controlled trial of
+tryptophan combined with fluoxetine in the treatment
+of major depression: anti-depressant and hypnotic
+effects. Journal of Psychiatry & Neuroscience, 25,
+337–346.
+
+-- 4 of 64 --
+
+憂鬱
+神經科部
+核心課程編號：B17
+
+-- 5 of 64 --
+
+學習目標
+PGY 	UGY
+知識
+1.憂鬱症與其他精神病的共病現象
+2.憂鬱症與其他精神病鑑別診斷
+3.憂鬱症的認知理論
+4. 憂鬱症的治療與處置
+5. 自殺防治及強制住院相關法令與
+通報
+知識
+1. 	憂鬱症的症狀、徵候和病因
+2. 	憂鬱症的診斷標準、次分類
+3. 	憂鬱症的流行病學
+4. 	憂鬱症的生物心理社會因素
+5. 	憂鬱症治療的原則（含藥物和心理治療）
+6. 	抗憂鬱藥的機轉和副作用
+7. 	會診精神科的時機
+8. 	強制住院相關的法令與通報
+技能
+1. 	憂鬱症相關的病史詢問
+2. 	憂鬱症相關的精神狀態檢查及描述精神
+病理
+3. 	評估自殺的危險性
+4. 	促進病人順從醫囑
+
+-- 6 of 64 --
+
+ITE考題
+1. 簡述憂鬱症分類與診斷條件 [20分]
+2. 憂鬱症與其他疾病共病現象 [15分]
+3. 憂鬱症的鑑別診斷(三個) [15分]
+4. 簡述憂鬱症的治療與處置 [25分]
+5. 簡述自殺防治及強制住院相關法令與通報 [25分]
+
+-- 7 of 64 --
+
+憂鬱症的病因1
+憂鬱症的病因複雜，牽涉到多項生物學、心理學
+與社會學的相互機制，「多變因的模式」是最好
+的解釋方式。
+ 	影響憂鬱症的主要兩大神經系統，主要是大腦
+情緒中樞的單胺系統及下視丘-腦下垂體-腎上腺
+皮質(HPA)系統。 憂鬱症患者的HPA系統的活性
+過高，使得患者對cortisol抑制回饋作用不足；
+另外，憂鬱症患者下視丘的過度分泌CRF，促進
+腦下垂體分泌腎上腺皮質刺激素，也可能是產生
+焦慮、性慾降低、食慾降低及睡眠障礙的原因。
+
+-- 8 of 64 --
+
+憂鬱症的病因2
+精神藥理學有關憂鬱症相關的中樞神經傳導
+物質的研究報告，如serotonin及
+norepinephrine，包括其合成與代謝的過程以
+及相關機制的控管，神經傳導物質傳遞過程
+中與接受體的作用機轉等。
+serotonin 	在神經元突觸間隙(synaptic cleft)
+的作用，需依賴載具(serotonin transporter)
+的執行，而載具的蛋白結構及其調控基因，
+也成為目前憂鬱症基因的熱門研究重點。
+
+-- 9 of 64 --
+
+憂鬱症的病因3
+藥物也可能引起憂鬱症，如抗高血壓藥物、抗癌藥
+及類固醇等藥物均可能產生憂鬱症；身體荷爾蒙分
+泌異常也可能引起憂鬱症，例如甲狀腺功能低下。
+而月經前、產後及停經後婦女，也常有憂鬱症。
+腦部受傷、中風（腦血管栓塞或出血）或腦瘤也可
+能引起憂鬱症。
+先有所謂脆弱的體質，加上後天的條件上，包括藥
+物及其他物質的濫用，或個人對於生活重大壓力事
+件的調適困難，如孤獨、失業、貧窮、慢性身體疾
+病等因素的壓力下，憂鬱症就發生。
+
+-- 10 of 64 --
+
+憂鬱症的症狀、徵候
+1. 胃口變差、食慾減退或增加、體重明顯減輕或增加、失眠或
+嗜睡、幾乎整天都極度疲勞與缺乏能量、精神或動作反應激
+動或遲滯、性慾降低、頭痛、頭昏、眼睛疲勞、眼角酸痛、
+口渴、頸部酸痛、胸悶、呼吸不暢、胸痛、腹脹、頻尿、身
+體酸痛、腰酸痛、盜汗與便秘感或一天數次大便等。
+2. 憂鬱、心情沮喪或掉到谷底、無望、易流淚、悲傷、激動易
+怒、害怕與恐懼、寂寞、無聊、感情淡薄、對自己不滿意、
+滿足感減少、興趣明顯減退、失去幽默感、低估自己能力、
+悲觀、自我譴責（常感到罪惡感或無價值感）、低自尊、容
+易感到挫折、社交退縮、時常健忘、思考、注意、決斷力減
+退或猶豫不決、意志喪失、作業效率或生產力皆減少、自殺
+意念及行為、胸部沈重苦悶與強迫回想舊事等。
+
+-- 11 of 64 --
+
+憂鬱症的症狀、徵候
+3.可能是孩童與青少年期常見的改變症狀：
+功課突然退步、突然開始坐立不安、身體動作突
+然變慢、講話音調變單調或變得沈默不語、無法
+解釋地情緒激躁、無法解釋地常常哭泣、常常顯
+得很害怕或緊張、突然變得有攻擊性、有反社會
+行為、開始使用酒精或其它成癮性物質、不停地
+抱怨身體某部位疼痛不適，卻又找不到病因。
+
+-- 12 of 64 --
+
+憂鬱症的心理因素1
+人格與人格發展
+憂鬱發作與負面事件之間有直接聯繫，受個人的性
+格所影響、應對負面事件的方式可能與他們的憂鬱
+發作有關。低自尊心、自暴自棄或者歪曲的認識可
+能與憂鬱症有關。
+哪些心理因素造成了憂鬱症或者對憂鬱症造成影響
+現在還不是完全清楚，但是糾正思維模式後患者的
+心境與自尊心都會改善。
+
+-- 13 of 64 --
+
+憂鬱症的心理因素2
+美國心理學家艾倫·貝克（Aaron T. Beck）於20世紀
+60年代初發展了現在被稱為憂鬱的認知模式的理論。
+他主張三個觀念引起了憂鬱症：一、認知三合一模
+式—關於自己，關於周圍世界，關於自己的未來的
+消極認知；二、反覆的消極認知模式或圖式；三、
+歪曲的信息處理。根據這理論，他發展了系統化的
+認知行為療法（CBT）。
+根據美國心理學家馬汀·塞利格曼（Martin
+Seligman），人類的憂鬱症狀與實驗室動物的習得
+性失助類似。(就是「經過某事後學習得來的」無助
+感，意謂著一種被動的動物消極行為。)
+
+-- 14 of 64 --
+
+憂鬱症的心理因素3
+典型的憂鬱素質與悲觀主義
+患者經常因為消極的事件而責怪自己；與之對應的
+是，1993年一項針對因憂鬱症住院的青少年的研究
+顯示即使事情有積極的結果他們也並不感到滿意。
+根據加拿大心理-社會心理學家阿爾伯特·班杜拉
+（Albert Bandura）的社會學習理論：基於失敗的經
+歷、對失敗的社會模型的觀察、缺乏社會支持和他
+們自己的身體和情感狀態（包括緊張和壓力），憂
+鬱症患者對自己產生消極的認識。這造成了消極的
+自我概念和自我效能感的缺失，即患者不相信他們
+能對事物產生影響或者達成目標。
+
+-- 15 of 64 --
+
+憂鬱症的心理因素4
+一項女性憂鬱症的調查顯示，心理易感因素—例如
+早年喪失母親、缺乏值得信任的關係、負責照看更
+年幼的孩子及失業可以和生活緊張性刺激互相影響
+增加患憂鬱症的風險。
+對於老年人，易感因素往往是健康問題、與子女或
+配偶轉換角色（由照顧者變為被照顧者）、重要夥
+伴的逝世、因朋友的健康問題所造成的社會關係改
+變等。
+
+-- 16 of 64 --
+
+憂鬱症的心理因素5
+憂鬱症本質的理論
+根據奧地利精神病專家西格蒙德·弗洛伊德
+（Sigmund Freud）的經典精神分析理論，憂鬱症，
+或精神憂鬱症可能與人際關係喪失和早年經歷有關。
+存在主義理論心理學家則把憂鬱症與現時存在意義
+和未來願景的缺失相聯繫。存在主義心理學的奠基
+人—美國心理學家亞伯拉罕·馬斯洛（Abraham
+Maslow）則認為當人們無法滿足需求或者自我實現
+以認識到自己的潛力時，憂鬱症可能發作。
+
+-- 17 of 64 --
+
+憂鬱症的生物因素1
+單胺假說
+研究人員發現，大多數已知的抗憂鬱藥會增加
+一種或多種單胺類神經遞質在腦內的水平。單
+胺類神經遞質包括：5-HT、NE和Dopamine。
+抗憂鬱藥會提高這些物質在大腦神經元之間
+（突觸）的水平或直接影響神經元之間的感受
+器。
+
+-- 18 of 64 --
+
+憂鬱症的生物因素2
+允許性假說
+研究人員認為，在單胺類神經遞質中，5-HT被用來
+調節其他神經遞質系統，5-HT活性降低會導致這些
+系統處於失調狀態，因此當5-HT水平降低時，會造
+成NE水平降低，NE會使人產生憂鬱的感覺。
+這種假說的支持者提出：患者應當針對最突出的徵
+狀選擇有特殊機理的抗憂鬱藥，即焦慮與暴躁的病
+人應該選擇選擇性5-羥色胺再攝取抑製劑（SSRIs）
+或者去甲腎上腺素再攝取抑製劑（NRIs），感到能
+量喪失和生活無趣的病人應選擇能提高Dopamine和
+NE水平的藥物。
+
+-- 19 of 64 --
+
+憂鬱症的生物因素3
+
+-- 20 of 64 --
+
+憂鬱症的社會因素
+ 	貧窮和社會孤立通常會提高患精神問題的風險。
+ 	兒時遭受虐待（身體、情感、性或者被忽視）會提高今後患憂鬱障
+礙的風險
+ 	家庭功能受損，例如父母（尤其是母親）患憂鬱症、嚴重的夫妻衝
+突或離婚、失去雙親或者其他使家庭功能受損的情況都是患病的風
+險因素。在成年以後，生活應激事件與重性憂鬱發作有很強的聯繫。
+尤其第一次發作比複發更容易由生活應激事件引發。
+ 	缺乏社會支持造成了應激事件增加進而引發憂鬱症，或者是社會支
+持的缺乏直接引發憂鬱症，生活應激事件與社會支持之間的關係尚
+有爭議。犯罪或違禁藥物造成的不和諧的鄰里關係是發病的危險因
+素，而融洽宜人的鄰里關係則是防止憂鬱症的保護因素。儘管各種
+各樣的因素交錯混雜，但是惡劣的工作條件，特別是費力且只有很
+少的自主決定權的工作，可能與憂鬱症有關。
+
+-- 21 of 64 --
+
+憂鬱症的流行病學1
+ 憂鬱症的異質性很高，關於憂鬱症盛行率的統計，各地
+區不一。世界衛生組織預估的盛行率是總人口數的3%，
+而美國衛生研究院的報告指出，一般人口中，憂鬱症的
+終生盛行率為15%。
+ 憂鬱症的盛行率，女性比男性高約2倍，其原因包括社會
+經濟因素，如婦女相對的弱勢，有較高機會在孩童時期
+受到性侵害等以及受女性荷爾蒙的影響，如產後憂鬱症
+及更年期憂鬱症。一半的憂鬱症發病年齡在20~50歲。
+老年憂鬱症的盛行率不低，約為25~50%，但是容易被
+輕忽及低估。 老年憂鬱症通常與獨居、低社經階層及身
+體疾病相關。
+
+-- 22 of 64 --
+
+憂鬱症的流行病學2
+根據2010 	年世界衛生組織進行的全球疾病負擔
+研究註一 ，以疾病導致失能而言，在所有疾病中
+，憂鬱症造成的失能人年數註二 排在所有疾病的
+第二位；對照自1990 	年開始的全球疾病負擔研
+究結果，肇因於憂鬱症的疾病負擔，從1990 	年
+到2010 	年大幅增加了37.5%註三。可見憂鬱症帶
+來的負擔，隨著時間愈來愈顯著，所以憂鬱症的
+治療和預防更是益發重要。
+註一「全球疾病負擔研究」係Global Burden of Disease study。
+註二「失能人年數」係years lived with disability，YLD。
+註三 PLoS Med, 2013. 10(11): p. e1001547.
+
+-- 23 of 64 --
+
+憂鬱症的流行病學3
+ 台灣地區的重鬱症盛行率，由台大李明濱教授及陳為堅教
+授等人所主持的台灣精神疾病調查顯示，在2003 年到
+2005 年間，18 歲以上成年人符合重鬱症診斷標準者大約
+在1.2%左右，也就是將近有20 萬人罹患重鬱症註一 。其實
+這是依照較嚴謹的標準，用來定義憂鬱症狀嚴重度較高的
+個案；所以，要是不管有沒有達到嚴格的診斷標準，在一
+般人口中，因憂鬱焦慮情緒而感到困擾的比例必定大幅提
+高。憂鬱不但影響生活品質，還可能造成一個最不願意見
+到的遺憾，那就是─ 自殺。
+ 根據研究顯示，自殺死亡的個案中，約九成在生前患有憂
+鬱症，反之，憂鬱症患者約15%最後會自殺死亡。
+註一 Psychol Med, 2012.42(6): p. 1227-37.
+
+-- 24 of 64 --
+
+憂鬱症的分類與診斷1
+一、原發性憂鬱症：一般是指由以下三個原因所引發
+的憂鬱症 。
+1. 	與這些人的遺傳體質相關，雖然影響程度輕重有別。
+2.憂鬱型性格，先天就是有此鬱鬱寡歡的特質。別人
+認為快樂的一件事，對這些人而言，只出現短暫的
+歡愉，隨即又陷入苦悶的情緒。
+3.有明確的外界刺激或誘發因素，如親人的死亡等重
+大事件，這些事件通常來得太突然，且超出正常可
+忍受 的範圍。
+
+-- 25 of 64 --
+
+憂鬱症的分類與診斷2
+二、次發性憂鬱症：一般是指生理疾病導致的憂鬱症。
+1. 	腦部的疾病，如巴金森症、中風、腦瘤、痴呆症。
+2. 	內分泌疾病，如甲狀腺機能低下、腎上腺功能過高。
+3. 	惡性貧血。
+4. 	各種癌症患者
+5. 	藥物引起之憂鬱症
+6. 	其他生理疾病，如心臟病。
+這樣的分類，目的是想釐清憂鬱症的病因，但上述
+的病因仍有相有交互作用，想清楚分界並不容易。
+
+-- 26 of 64 --
+
+DSM-5憂鬱情緒精神科診斷
+美國精神醫學會在2013 	年5 	月公佈最新版，也就
+是第五版精神疾病診斷與統計手冊（DSM-5），
+當中與憂鬱情緒相關的精神科診斷包括：重鬱症
+、持續性憂鬱症（或稱輕鬱情感障礙症）、適應
+障礙症，以及經前期情緒障礙症。
+註一「第五版精神疾病診斷與統計手冊」係The Fifth Edition of the Diagnostic
+and Statistical Manual of Mental Disorders, DSM-5。
+註二「重鬱症」係Major Depressive Disorder。
+註三「持續性憂鬱症」係Persistent Depressive Disorder；輕鬱情感障礙症」係
+Dysthymia。
+註四「適應障礙症」係Adjustment Disorders。
+註五「經前期情緒障礙症」係Premenstrual Dysphoric Disorder。
+註六「雙相情緒障礙症」或稱「躁鬱症」係Bipolar（Affective）Disorder。
+
+-- 27 of 64 --
+
+DSM-5 	重鬱症(I)
+「重鬱症」診斷標準要求持續兩個星期，每天大部
+分時間內，出現至少五項與憂鬱情緒相關的特徵性
+症狀，並且必須包括(1)憂鬱情緒或(2)喪失興趣或愉
+悅感的其中一項，同時伴隨有功能上的顯著變化。
+(1)幾乎每天大多數時間都呈現憂鬱情緒；
+(2)幾乎每天大多數時間，對於全部（或幾乎全部）
+的活動都喪失興趣或無法從中感到愉悅；
+(3)顯著的體重減少或增加(如在一個月之內體重變化
+超過5%)或幾乎每天都有食慾減低或增加的現象；
+(4)幾乎每天都有失眠或嗜睡的現象；
+
+-- 28 of 64 --
+
+DSM-5 	重鬱症 	(II)
+ (5)幾乎每天都呈現精神運動性激動或遲滯；
+ (6)幾乎每天都感到疲倦或沒有力氣
+ (7)幾乎每天覺得自己沒有價值，或有過度或不合理的罪
+惡感
+ (8)幾乎每天都感到思考或專注能力的下降，或變得猶豫
+不決
+ (9)反覆出現輕生的念頭，或反覆出現沒有具體計劃的自
+ 	殺意念，或已出現自殺企圖或已有特定的自殺計劃。
+ 個案因這些症狀而感到顯著痛苦，或是因此在社交、職
+業或其他重要領域的功能顯著下降。
+
+-- 29 of 64 --
+
+DSM-5持續性憂鬱症 	(I)
+「持續性憂鬱症」的診斷標準和重鬱症略有不同，
+強調的是個案呈現長期的憂鬱症狀，持續至少兩年
+，其中超過一半的天數，幾乎一整天都感到憂鬱。
+當個案感覺憂鬱時，出現至少兩項相關症狀，包括
+：(1)吃不下或吃得太多；(2)失眠或嗜睡；(3)疲倦或
+沒有力氣；(4)感到自卑；(5)注意力不集中或難以做
+決定；(6)覺得未來沒有希望。在這兩年中，從來沒
+有連續兩個月完全沒有症狀。個案因這些症狀而感
+到顯著痛苦，或是因此在社交、職業或其他重要領
+域的功能顯著下降。
+
+-- 30 of 64 --
+
+DSM-5持續性憂鬱症 	(II)
+診斷需排除因服用藥物、濫用物質或身體疾
+病造成憂鬱症狀；同時，這些憂鬱症狀也不能
+用妄想症、思覺失調症（包括相關類群診斷）
+或其他精神病症作更好的解釋。
+個案需不曾有過躁症或輕躁症發作，也不曾
+符合循環性情緒障礙症的診斷準則。另外，若
+憂鬱症狀的嚴重程度達到重鬱症的標準，並且
+持續長達連續兩年的時間，這也歸類為「持續
+性憂鬱症」。
+
+-- 31 of 64 --
+
+DSM-5 	適應障礙症(I)
+「適應障礙症」指的就是壓力反應。
+個案在遭遇壓力源後的三個月內出現情緒或行為
+症狀，其影響所及包括：
+(1)引發超乎預期應有的反應，並造成顯著痛苦；
+或
+(2)導致個案社交、職業或其他重要領域的功能顯
+著下降；又或者是(1)(2)兩者兼具。
+一旦壓力源消失，或該壓力事件的後果不復存在
+後，症狀應在六個月內消失。
+
+-- 32 of 64 --
+
+DSM-5 	適應障礙症(II)
+依據個案的情緒、行為症狀，可進一步分
+類註記為：合併憂鬱情緒、合併焦慮情緒
+、合併混合焦慮及憂鬱情緒等。
+這些因壓力造成的困擾，並不符合其他精
+神疾病的診斷標準，也不僅只是原有精神
+疾病的症狀惡化；同時，如果個案正處於
+正常哀傷反應時，則不可歸類為適應障礙
+症。
+
+-- 33 of 64 --
+
+憂鬱症與其他精神病的鑑別診斷1
+要確認對病人重度憂鬱障礙的診斷最為恰當，必須
+排除其他可能的診斷，包括情緒低落障礙、環境適
+應性障礙合併憂鬱情緒或雙向情感障礙。
+情緒低落障礙是一種慢性的、相對較輕的心境紊亂，
+病人在至少兩年的時間段內幾乎每天都情緒低落。
+情緒低落障礙的徵狀沒有重度憂鬱障礙嚴重，但是
+情緒低落障礙病人更易受到疊加的重度憂鬱發作的
+困擾（有時被稱為雙重憂鬱症)。
+
+-- 34 of 64 --
+
+憂鬱症與其他精神病的鑑別診斷2
+環境適應性障礙合併憂鬱情緒是由一種特定的事件
+或應激產生的心理反應所引起的心境紊亂。適應性
+障礙的情緒和行為上的徵狀雖然明顯但是不符合重
+度憂鬱發作的標準。
+雙向情感障礙，之前被稱之為躁鬱症，這種病的特
+點是憂鬱期和躁狂期或輕躁期輪流交替。
+有關於憂鬱症是否應該被單獨歸為一類的爭論，因
+為被確診為重型憂鬱障礙的病患也經常會體驗到輕
+躁徵狀，提示各種情緒低落障礙應當是一個連續體。
+
+-- 35 of 64 --
+
+憂鬱症與其他精神病共病現象1
+一、憂鬱症常見的共患精神疾病：
+1. 	恐慌症：50-65%患者合併有憂鬱症。
+2. 	強迫症：67%患者合併有憂鬱症。
+3. 	重大創傷後症候群：48%患者合併有憂鬱症。
+4. 	焦慮症：8-39%患者合併有憂鬱症。
+5. 	其他如精神分裂症、畏懼症，也都有很高的比例合
+併有憂鬱症。
+
+-- 36 of 64 --
+
+憂鬱症與其他精神病共病現象2
+二、憂鬱症常見的共患身體疾病：
+1. 	巴金森症：研究顯示，憂鬱症會讓巴金森症患者
+的認知功能逐漸惡化，而巴金森症本身的腦部單
+胺酸功能改變，加上患者的失能，造成憂鬱症比
+例增高。
+2.心肌梗塞：罹患心肌梗塞後的半年追蹤研究顯示，
+合併憂鬱症患者的死亡率是沒有合併憂鬱症患者
+的4 	倍，原因和憂鬱症患者脂肪代謝的改變、交感
+神經活動增加、及抗憂鬱劑的使用有關。
+
+-- 37 of 64 --
+
+憂鬱症與其他精神病共病現象3
+二、憂鬱症常見的共患身體疾病：
+3.糖尿病：一項追蹤憂鬱症患者13年的研究顯示，
+憂鬱症患者罹患糖尿病的比例是正常人的2.2倍，
+原因除憂鬱症患者內分泌的改變外，飲食異常及
+運動的減少也是原因之一。
+4.其他如中風、停經後徵候群、痴呆症等身體疾病，
+也常見合併有憂鬱症。
+以上與憂鬱症共患的身體疾病，臨床上容易被輕
+忽，造成疾病本身的惡化或預後變差。
+
+-- 38 of 64 --
+
+輕中重度憂鬱症的治療1
+輕度憂鬱可以調整壓力、自我調適。
+中、重度以上憂鬱症則建議先以藥物治療為主，搭
+配非藥物的支持性心理治療，效果最佳。過早放棄
+治療、治療不完全，常是憂鬱症容易復發的原因。
+憂鬱症的治療主要分為三個部分:
+一、心理治療:主要是支持性、認知改變為取向的心理
+治療。支持性心理治療，支持憂鬱患者的自我強度，
+給予鼓勵、肯定、說明、傾聽、同理與再保證。認
+知心理治療，則在於教導患者辨識並改變不合理的
+錯誤認知，發展新的思考模式。
+
+-- 39 of 64 --
+
+輕中重度憂鬱症的治療2
+ 憂鬱症的治療主要分為三個部分:
+二、藥物治療和電痙攣治療(ECT): 藥物治療是近50年發展
+最快的部分，依作用機轉可分成以下五類：
+1. 	三環抗憂鬱劑(tricyclic antidepressants, TCA)
+2. 	單胺氧化酶抑制劑(monoamine oxidase inhibitors,
+MAOI)
+3. 	選擇性血清素回收抑制劑(selective serotonin reuptake
+inhibitors, SSRI)
+4. 	血清素及正腎上腺素回收抑制劑(serotonin and
+norepinephrine reuptake inhibitors, SNRI)
+5. NaSSA(noradrenergic and specific serotonergic
+antidepressants)
+
+-- 40 of 64 --
+
+輕中重度憂鬱症的治療3
+憂鬱症的治療主要分為三個部分:
+二、藥物治療和電痙攣治療(ECT):
+新一代的抗憂鬱藥物，可以改善大腦血清素、或是
+正腎上腺素的調節分泌，如：千憂解(Cymbalta)、
+百憂解(Prozac)、克憂果(Seroxat)、無鬱寧(Luvox)、
+樂復得(Zoloft)、速悅(Efexor)、威博雋(Wellbutrin)、
+歐蕾思(Aurorix)、美思鬱(Cirzodone)、鬱思樂(Ixel)、
+立普能(Lexapro)、樂活憂(Remeron)等等，副作用
+很少，效果在1-2週心情就開始改善，3-4週情緒就
+幾乎回到水平。電痙攣治療(ECT)目前已較少使用。
+
+-- 41 of 64 --
+
+輕中重度憂鬱症的治療4
+憂鬱症的治療主要分為三個部分:
+三、良好的生活習慣: 	包括規律生活，養成固定的運動
+習慣，戒除喝酒、抽煙等不良嗜好，培養可以放鬆
+自己的方法，參加社區或社團活動，增加人際關係
+網絡，皆可有效改善憂鬱症。
+藥物的使用原則如下：
+1.選擇副作用較少，病人可以忍受的藥物，因為無論
+使用哪一種藥物，對於療效差異皆不大。
+2.儘可能使用單一種的抗憂鬱劑，除有特別原因，例
+如雙極性情感疾病，在憂鬱期時，可以使用抗憂鬱
+劑加上鋰鹽治療。
+
+-- 42 of 64 --
+
+輕中重度憂鬱症的治療5
+藥物的使用原則如下：
+1.盡量使用每日服用一次的藥物增加病人服藥遵從性。
+2.可以優先選擇病人或其家屬過去曾服用過且有效的抗
+憂鬱劑。
+3.對於激躁不安的憂鬱症患者，TCA或SARI有鎮靜作
+用；反之，反應變遲滯的憂鬱症患者，可以使用較具
+活力的，如MAOI、SNRI。
+4.憂鬱症患者有精神病症狀者，可以合併低劑量的抗精
+神病藥物。
+
+-- 43 of 64 --
+
+自殺預防及強制住院相關法令與通報1
+自殺不算犯罪，但防治自殺是國家的責任，自殺防治
+專線:0800-788-955。
+憲法第 	15 	條：人民之生存權、工作權及財產權，應
+予保障。
+警察職權行使法第 	19 	條有下情形之一者得為管束：
+一、瘋狂或酒醉，非管束不能救護其生命、身體之危險
+，或預防他人生命、身體之危險。
+二、意圖自殺，非管束不能救護其生命。
+三、暴行或鬥毆，非管束不能預防其傷害。
+
+-- 44 of 64 --
+
+自殺預防及強制住院相關法令與通報2
+ 警察職權行使法第 19 條有下列情形之一者得為管束：
+四、其他認為必須救護或有危害公共安全之虞，非管束不能救
+護或不能預防危害。
+警察為前項管束，應於危險或危害結束時終止管束，管束時
+間最長不得逾二十四小時；並應即時以適當方法通知或交由
+其家屬或其他關係人，或適當之機關 (構) 或人員保護。
+ 警察職權行使法第 20 條有下列情形之一者，於必要時，得
+對其使用警銬或其他經核定之戒具：
+一、抗拒留置、管束措施時。
+二、攻擊警察或他人，毀損執行人員或他人物品或有攻擊、毀
+損行為之虞時。
+三、自殺、自傷或有自殺、自傷之虞時。
+
+-- 45 of 64 --
+
+自殺預防及強制住院相關法令與通報3
+精神衛生法（中華民國九十六年七月四日修正公布
+全文 	63 	條；並自公布後一年施行）
+ 第二十一條 (960605全文修正)
+嚴重病人如有明顯傷害他人或自己之虞，或有傷害行為時，
+經專科醫師診斷有全日住院治療之必要者，保護人應協助病
+人，前往精神醫療機構辦理住院。前項嚴重病人不接受全日
+住院治療時，應由二位以上專科醫師鑑定，經書面證明有全
+日住院治療之必要者，應強制其住院；其強制住院，應在中
+央衛生主管機關指定之精神醫療機構為之。
+前項鑑定，以全日住院方式為之者，其住院鑑定期間，以七
+日為限。
+
+-- 46 of 64 --
+
+自殺預防及強制住院相關法令與通報4
+第二十三條 	(960605全文修正)
+依第二十一條第二項規定之強制住院，其期間以三
+十日為限。但經二位專科醫師鑑定，認有必要繼續
+住院治療者，應留院治療。嚴重病人不接受時，應
+強制其繼續住院，並通知其保護人或家屬及當地衛
+生主管機關。強制住院期間，每隔六個月，應依上
+述程序重新評估。
+
+-- 47 of 64 --
+
+自殺預防及強制住院相關法令與通報5
+精神照護機構為保護病人安全，經告知病人後，
+得限制其活動之區域範圍。
+精神醫療機構為醫療之目的或為防範緊急暴力意
+外、自殺或自傷之事件，得拘束病人身體或限制
+其行動自由於特定之保護設施內，並應定時評估
+，不得逾必要之時間。
+精神醫療機構以外之精神照護機構，為防範緊急
+暴力意外、自殺或自傷之事件，得拘束病人身體
+，並立即護送其就醫。
+
+-- 48 of 64 --
+
+
+
+-- 49 of 64 --
+
+常用諮商微技巧-I
+ Minimal verbal response: 肢體語言及口語之應用
+用來表現你正用心在傾聽對方亦可鼓勵對方繼續談話，這技巧通常
+配合使用肢體語言，如點頭和微笑：
+ 嗯嗯…
+ 我了解
+ 是..是…
+ Unstructured invitations: 非結構性的邀約
+通常使用在初期建立關係時。此技巧可以提供個案自行選擇主題及
+方向來討論：
+ please begin wherever you would like（請就你想談的開始談吧；
+想說什麼就說什麼吧!）
+ 想談些什麼呢？
+
+-- 50 of 64 --
+
+常用諮商微技巧-II
+ Silence: 靜默
+Speaker: I am not sure how to begin.
+Responder: Umm-hum （with a reassuring smile）
+Speaker: 我想這次我真的是搞砸了
+Responder: 身體微向前屈並帶著想繼續聽下去的表情
+ Closed questions: 封閉性問題
+尋求『是』或『否』的答案時使用
+ 你很怕他嗎?
+ 你昨天晚上有去嗎?
+ 你幾歲?
+
+-- 51 of 64 --
+
+常用諮商微技巧-III
+ Probes: 探索
+可以告訴我你對他的感覺嗎?
+ 你覺得你可以如何達成你的目標呢？
+ 可以請你描述所有你所記得的情境嗎?
+ Requests for clarification: 要求澄清
+應用在個案似乎很混淆或者未覺察到自己前後矛盾的語
+言表達時
+ I am a little confused. Please help me by explaining more
+clearly why you want to quit college.
+ Please help me to understand how you believe that her
+behavior made you so angry.
+
+-- 52 of 64 --
+
+常用諮商微技巧-IV
+ Accents: 語調重複
+用在強調某個重點或者需要個案加強說明的點或者是感
+覺到必須進一步探討的議題時：
+ Speaker: 上星期我去了一個很棒的舞會，但是我也不
+知道爲什麼我會感覺到好骯髒、好討厭？
+Responder: 骯髒？討厭？
+Speaker: 這些聚會最大的缺點就是必須要試著去討好
+那些我根本就不在乎的人
+Responder: 試著去討好不在乎的人？
+
+-- 53 of 64 --
+
+常用諮商微技巧-V
+ Restatements:重覆語意
+重述個案談話內容的某一部份，通常是一個句子或者是某個鮮明的
+重點：
+ Speaker: 數學真的很難！
+Responder: 數學真的很難！
+ Speaker: 我真的不想變懶惰！
+ Responder: 你真的不想變懶惰！
+ Reflections of feeling: 情緒之反應
+回映（mirroring）個案的情緒及心理感受如：悲傷、害怕：
+ Speaker: 我真的很害怕未來！
+Responder: 你真的很害怕未來！
+ Speaker: 你知道嗎？所有的事都不對勁了，我甚至想不起來有
+什麼可以令我感到快樂？
+Responder: 聽起來你似乎是憂鬱的。
+
+-- 54 of 64 --
+
+常用諮商微技巧-VI
+ Summarizations of feelings, thoughts or behaviors: 感覺,想
+法, 或行為之總結
+Speaker: sometimes I love my folks, but I also hate them.
+Responder: you both love and hate your parents.
+Speaker: If I could be successful and liked.
+Responder: you seem to believe both that you must be perfect
+and loved by everyone.
+ Reflections of thinking-believing: 回映價值觀及相關想法
+Speaker: I really don’t like management, but might like
+computer science.
+Responder: so you think you might like to major in computer
+science.
+
+-- 55 of 64 --
+
+常用諮商微技巧-VII
+ Confrontations: 面質
+Speaker: 我根本不在乎我媽要我做什麼，我喜歡我交往的
+對象，而且我和喬治相處的很好。但是我還是得努力爭取
+我媽對喬治的認同，雖然他對我而言是有一點太老了。
+Responder : 雖然你說不在乎你媽要你做什麼，但是你仍期
+待他能認同喬治。
+ Acknowledgements of (reflection of) behavior:提醒(回映)行
+為表現
+Speaker: 談話時緊握拳頭
+Responder :當你提到學校的時候，你是緊握拳頭的。
+ Focusing commands: 焦點性建議
+Speaker: 談話時緊握拳頭
+Responder : 注意一下你的手在做什麼?
+
+-- 56 of 64 --
+
+常用諮商微技巧-VII
+ Requests-suggestions for speaker activity
+Responder:描述一下你是如何看待你未來的規劃的
+Responder: 用五分鐘的時間談談你的優點，但不可以使用
+『是…可是..』等字詞
+ Rational exaggerations: 合理的誇大
+Speaker: 我就是沒有辦法在團體中說話，因為我總是覺得
+自己很呆而且很不合時宜，我就是會擔心可能會有人認為
+我好笨，然後就排斥我，如果我說錯了什麼的話。
+Responder: 你似乎相信你必須被每個人所認同，而且如果
+有人不被你所說的話吸引，你就會覺得這是很恐怖或者不
+能接受的事。
+
+-- 57 of 64 --
+
+常用諮商微技巧-VIII
+ Interpretations: 解析
+Speaker: 他總是不幫忙作家裡的事，我就覺得很生氣。
+Responder: 聽起來似乎你是認為， 他 不幫忙作家裡的事
+是因為他不夠愛你，而不是他可能是偷懶或有其他原因才
+不做家事。
+ Information giving:
+
+-- 58 of 64 --
+
+行 	為 	科 	學
+329	家 庭 醫 學 與 基 層 醫 療 	第十期
+前言
+13
+(depression)
+2.8% 	13~185.6% 	[1]
+60%
+[2]
+[3-5]
+危險因子
+(
+) 	[6-
+9]
+[10]
+(major depressive
+episode)5
+[9]
+篩檢
+U.S. Preventive Services Task
+Force12~18
+[11]
+8~16
+(Children's Depression
+Inventory_Taiwan Version) [12] 	13
+[23]
+27
+陳怡如1 	陳志道2 	林育如3
+1 亞東紀念醫院 家庭醫學科 住院醫師
+2 亞東紀念醫院 家庭醫學科 主任
+3 亞東紀念醫院 精神科 主治醫師
+depression, child, adolescent, diagnosis, treatment
+
+-- 59 of 64 --
+
+行 	為 	科 	學
+330	家 庭 醫 學 與 基 層 醫 療 	第十期
+表一 兒童與青少年憂鬱症的危險因子
+生物性 	心理性 	環境
+憂鬱症的家族史 	情感依賴 	反社會的同儕
+女性 	自殺未遂史 	身體活動減少
+青春期的荷爾蒙改變 	無效的應對技巧 	與父母的衝突增加
+低出生體重 	自卑 	關係的喪失（如家庭成員或朋友的死
+亡、男女關係、友誼）
+母親年齡小於18歲 	負面的身體形象 	低社經地位
+內科疾病（如氣喘、糖尿
+病、偏頭痛）
+負面的思維方式（如壞事總是發生在
+我身上，沒有事情是照著計畫走的）
+暴飲暴食
+肥胖 	自我意識 	學習成績差
+其它精神科疾病（如焦慮
+症、學習障礙）
+交友關係不佳
+睡眠中斷 	物質濫用
+創傷事件（如身體或性虐待、事故）
+資料來源：參考資料6-9
+表二 兒童、青少年以及成人的重鬱疾患(major depression disorder)診斷準則
+以下五項(或更多)在兩週中同時出現，造成先前功能改變；至少包含以下症狀之一(1)憂鬱情緒或(2)失去興趣
+或愉悅感。
+幾乎整天且每天心情憂鬱，可由主觀報告(如感到悲傷、空虛或無助)或由他人觀察(如看起來在哭)得知。(註
+：孩童與青少年可以是情緒易怒)
+幾乎整天且每天對所有活動降低興趣或愉悅感(主觀說明或他人觀察)。
+體重明顯減輕或增加(一個月內體重變化超過5%)，或幾乎每天食慾降低或增加。(註：在孩童，需考量無法
+達到預期體重。)
+幾乎每天都失眠或嗜眠。
+幾乎每天精神動作激動或遲緩(別人觀察到，不只是主觀感受不安或緩慢)。
+幾乎每天疲倦或無精打采。
+幾乎每天自我感到無價值感，或者有過度或不恰當的罪惡感(可能達妄想的程度；不僅是對生病自責或內責)。
+幾乎每天思考能力和專注力降低，或是猶豫不決(主觀報告或他人觀察)。
+反覆想到死亡(不只是害怕死亡)，反覆有自殺意念而無具體計畫，或有自殺舉動，或是有具體的自殺計畫。
+這些症狀引起臨床上顯著苦惱或社交、職業或其他重要領域功能減損。
+這些症狀無法歸因於某一物質或另一身體病況的生理效應。
+鬱症發作無法以情感性思覺失調症、思覺失調症、類思覺失調症、妄想症或其他特定或非特定思覺失調症和
+其他精神病症做更好的解釋。
+從未有過躁症或輕躁症發作。
+資料來源：參考資料14
+
+-- 60 of 64 --
+
+行 	為 	科 	學
+331	家 庭 醫 學 與 基 層 醫 療 	第十期
+1. 	2. 	3. 	4.
+5.T
+T
+65
+70
+75 	[13]
+21
+0~317
+[23]
+臨床症狀與診斷
+( 	) 	[14]
+( 	)
+(somatic symptoms)
+(separation anxiety)
+[15]
+( 	)
+( 	) 	[7]
+(
+isotretinoin)() 	[7]
+(adjustment disorder with depressive
+features)
+表三 	憂鬱症的鑑別診斷
+內科疾病 	貧血、癌症、慢性疲勞症候群(c h r o n i c f a t i g u e s y n d r o m e)、甲狀腺功能亢進或低下、傳
+染性病因(如H I V、肝炎)、發炎性腸道疾病(i n f l a m m a t o r y b o w e l d i s e a s e)、單核球增多症
+(mononucleosis)、中樞神經系統疾病、紅斑性狼瘡或膠原血管疾病(collagen vascular disease)
+藥物使用 	抗精神病藥物(antipsychotics)、beta blockers、避孕藥、類固醇、isotretinoin
+精神疾病 	適應障礙併發憂鬱情緒(adjustment disorder with depressive features)、厭食症(anorexia
+nervosa)、焦慮症(anxiety disorders)、注意力不足過動症(ADHD)、躁鬱症(bipolar disorder)、
+暴食症(bulimia nervosa、行為規範障礙(conduct disorder)、輕鬱症(dysthymia)、人格障礙
+(personality disorders)、精神病(psychotic disorders)、物質使用(如酒精、barbiturates、海洛因)
+資料來源：參考資料7
+
+-- 61 of 64 --
+
+行 	為 	科 	學
+332	家 庭 醫 學 與 基 層 醫 療 	第十期
+(
+)
+(pressured speech)
+[17]
+治療
+[7]
+1. 心理治療
+(mania)
+(hypomania)
+自殺風險的評估
+Centers for Disease Control
+and Prevention2007 	10~14
+0.9
+15~196.9
+[16]
+( 	)
+()
+表四 兒童與青少年憂鬱症指引—使用藥物治療的問題
+是中度到重度的憂鬱症嗎？
+以前有憂鬱症發作過嗎？
+以前是否曾使用藥物來治療憂鬱症？
+有憂鬱症的家族史嗎？
+有對藥物有顯著反應的憂鬱症家族史嗎？
+環境因素的壓力源已被解除，但情緒卻沒有相對應的進步？
+已嘗試過實證的心理治療(如認知行為治療、人際關係治療)，但卻沒有成功？
+註：針對以上的問題，任何一題病人的答案是〝是〞，則考慮開始藥物治療。
+資料來源：參考資料19,22
+
+-- 62 of 64 --
+
+行 	為 	科 	學
+333	家 庭 醫 學 與 基 層 醫 療 	第十期
+American Psychiatric Association
+A m e r i c a n A c a d e m y o f C h i l d a n d
+Adolescent Psychiatry
+(cognitive
+behavior therapy, CBT)
+(interpersonal therapy)
+CBT
+CBT
+[7] 	CBT
+[18]
+2. 藥物治療
+( 	) 	[19, 22]
+guideline
+fluoxetine 	citalopram 	sertraline
+[20]escitalopram
+12
+(black box warning)
+(
+)
+[20]
+療程和轉診時機
+4~6 	[21]
+參考資料
+1. Costello EJ, Erkanli A, Angold A: Is there an
+epidemic of child or adolescent depression? J
+Child Psychol Psychiatry. 2006;47:1263-71.
+2. We i s s m a n M M, Wo l k S, G o l d s t e i n R B, e t
+al: Depressed adolescents grown up. JAMA.
+1999;281:1707-13.
+3. F e r g u s s o n D M , Wo o d w a r d L J : M e n t a l
+health, educational, and social role outcomes
+o f a d o l e s c e n t s w i t h d e p r e s s i o n. A r c h G e n
+Psychiatry. 2002; 59:225-31.
+4. Keenan-Miller D, Hammen CL, Brennan PA:
+Health outcomes related to early adolescent
+
+-- 63 of 64 --
+
+行 	為 	科 	學
+334	家 庭 醫 學 與 基 層 醫 療 	第十期
+depression. J Adolesc Health. 2007;41:256-62.
+5. Wells KB, Kataoka SH, Asarnow JR: Affective
+disorders in children and adolescents: addressing
+u n m e t n e e d i n p r i m a r y c a r e s e t t i n g s. B i o l
+Psychiatry. 2001;49:1111-20.
+6. Kessler RC, Avenevoli S, Ries Merikangas K:
+Mood disorders in children and adolescents:
+an epidemiologic perspective. Biol Psychiatry.
+2001; 49:1002-14.
+7. Richardson LP, Katzenellenbogen R: Childhood
+and adolescent depression: the role of primary
+care providers in diagnosis and treatment. Curr
+Probl Pediatr Adolesc Health Care. 2005;35:6-
+24.
+8. Brent DA, Maalouf FT: Pediatric depression:
+is there evidence to improve evidence-based
+treatments? J Child Psychol Psychiatry. 2009;
+50:143-52.
+9. Beardslee WR, Gladstone TR: Prevention of
+childhood depression: recent findings and future
+prospects. Biol Psychiatry. 2001;49:1101-10.
+10. Birmaher B, Ryan ND, Williamson DE et al:
+Childhood and adolescent depression: a review
+of the past 10 years. Part I. J Am Acad Child
+Adolesc Psychiatry. 1996;35:1427-39.
+11. U.S. Preventive Services Task Force: Screening
+and treatment for major depressive disorder
+in children and adolescents: recommendation
+statement. Pediatrics. 2009;123:1223-8.
+12. Kovacs M, MHS Staff
+13. Kovacs M, MHS Staff
+2008 	21
+14. American Psychiatric Association
+DSM-5
+2014 	94-5
+15. Williams SB, O 	Connor EA, Eder M, Whitlock
+E P: S c r e e n i n g f o r c h i l d a n d a d o l e s c e n t
+depression in primary care settings: a systematic
+evidence review for the US Preventive Services
+Task Force. Pediatrics. 2009;123:e716-e35.
+16. Horowitz LM, Ballard ED, Pao M: Suicide
+s c r e e n i n g i n s c h o o l s, p r i m a r y c a r e a n d
+emergency departments. Curr Opin Pediatr.
+2009;21:620-7.
+17. Shain BN, American Academy of Pediatrics
+Committee on Adolescence: Suicide and suicide
+attempts in adolescents. Pediatrics. 2007;120:
+669-76.
+18. Brent D, Emslie G, Clarke G, et al: Switching
+to another SSRI or to venlafaxine with or
+without cognitive behavioral therapy for
+adolescents with SSRI-resistant depression: the
+TORDIA randomized controlled trial. JAMA.
+2008;299:901-13.
+19. Ryan ND: Child and adolescent depression:
+short-term treatment effectiveness and long-
+term opportunities. Int J Methods Psychiatr
+Res. 2003; 12:44-53.
+20. Hughes CW, Emslie GJ, Crismon ML, et al:
+Texas Children 	s Medication Algorithm
+P r o j e c t: u p d a t e f r o m Te x a s C o n s e n s u s
+Conference Panel on Medication Treatment of
+Childhood Major Depressive Disorder. J Am
+Acad Child Adolesc Psychiatry. 2007;46:667-86.
+21. E m s l i e 	G J , 	M a y e s 	T L : 	M o o d
+d i s o r d e r s i n c h i l d r e n a n d a d o l e s c e n t s:
+p s y c h o p h a r m a c o l o g i c a l t r e a t m e n t. B i o l
+Psychiatry. 2001;49:1082-90.
+22. Emslie GJ, Mayes TL, Ruberu M: Continuation
+and maintenance therapy of early-onset major
+depressive disorder. Paediatr Drugs. 2005;
+7:203-17.
+23. Beck AT, Steer RA, Brown GK,
+1900 	15-26
+
+-- 64 of 64 --

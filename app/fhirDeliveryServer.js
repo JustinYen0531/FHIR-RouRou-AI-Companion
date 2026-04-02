@@ -2,7 +2,8 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { buildSessionExportBundle } = require('./fhirBundleBuilder');
-const { DEFAULT_FLOWISE_BASE_URL, sendFlowiseChatMessage } = require('./flowiseChatClient');
+const { AICompanionEngine } = require('./aiCompanionEngine');
+const { DEFAULT_GROQ_BASE_URL } = require('./groqChatClient');
 
 const APP_DIR = __dirname;
 const STATIC_FILES = {
@@ -125,9 +126,8 @@ async function processExportPayload(payload, options = {}) {
 }
 
 async function processChatPayload(payload, options = {}) {
-  const apiKey = (options.flowiseApiKey || payload.api_key || '').trim();
-  const apiBaseUrl = (options.flowiseBaseUrl || payload.api_base_url || DEFAULT_FLOWISE_BASE_URL).trim();
-  const chatflowId = (options.flowiseChatflowId || payload.chatflow_id || '').trim();
+  const apiKey = (options.groqApiKey || payload.api_key || '').trim();
+  const apiBaseUrl = (options.groqBaseUrl || payload.api_base_url || DEFAULT_GROQ_BASE_URL).trim();
   const user = (payload.user || 'web-demo-user').trim();
   const message = (payload.message || '').trim();
 
@@ -138,26 +138,19 @@ async function processChatPayload(payload, options = {}) {
     };
   }
 
-  if (!chatflowId) {
-    return {
-      statusCode: 500,
-      body: { error: 'Missing Flowise chatflow id. Set FLOWISE_CHATFLOW_ID or send chatflow_id from the client.' }
-    };
-  }
-
   try {
-    const result = await sendFlowiseChatMessage(
+    const engine = options.engine || new AICompanionEngine({
+      apiKey,
+      baseUrl: apiBaseUrl,
+      fetchImpl: options.fetchImpl,
+      sessions: options.sessions
+    });
+    const result = await engine.handleMessage(
       {
         message,
         inputs: payload.inputs || {},
         user,
         conversation_id: payload.conversation_id || ''
-      },
-      {
-        apiKey,
-        baseUrl: apiBaseUrl,
-        chatflowId,
-        fetchImpl: options.fetchImpl
       }
     );
 
@@ -169,7 +162,8 @@ async function processChatPayload(payload, options = {}) {
         conversation_id: result.conversation_id,
         answer: payload.hide_response ? '' : result.answer,
         message_id: result.message_id,
-        metadata: result.metadata
+        metadata: result.metadata,
+        session_export: result.session_export || null
       }
     };
   } catch (error) {
@@ -177,7 +171,7 @@ async function processChatPayload(payload, options = {}) {
       statusCode: error.status || 502,
       body: {
         error: error.message,
-        code: error.code || 'flowise_proxy_error',
+        code: error.code || 'ai_companion_proxy_error',
         status: error.status || 502,
         conversation_id: payload.conversation_id || ''
       }
@@ -186,6 +180,14 @@ async function processChatPayload(payload, options = {}) {
 }
 
 function createServer(options = {}) {
+  const sharedSessions = options.sessions || new Map();
+  const sharedEngine = options.engine || new AICompanionEngine({
+    apiKey: options.groqApiKey || '',
+    baseUrl: options.groqBaseUrl || DEFAULT_GROQ_BASE_URL,
+    fetchImpl: options.fetchImpl,
+    sessions: sharedSessions
+  });
+
   return http.createServer(async (req, res) => {
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
@@ -204,8 +206,8 @@ function createServer(options = {}) {
     if (req.method === 'GET' && req.url === '/health') {
       sendJson(res, 200, {
         ok: true,
-        flowise_configured: Boolean(options.flowiseChatflowId || process.env.FLOWISE_CHATFLOW_ID),
-        flowise_requires_key: Boolean(options.flowiseApiKey || process.env.FLOWISE_API_KEY)
+        groq_configured: Boolean(options.groqApiKey || process.env.GROQ_API_KEY),
+        ai_engine: 'node'
       });
       return;
     }
@@ -231,7 +233,7 @@ function createServer(options = {}) {
 
       const result =
         req.url === '/api/chat/message'
-          ? await processChatPayload(payload, options)
+          ? await processChatPayload(payload, Object.assign({}, options, { engine: sharedEngine, sessions: sharedSessions }))
           : await processExportPayload(payload, options);
       sendJson(res, result.statusCode, result.body);
     });
@@ -241,10 +243,9 @@ function createServer(options = {}) {
 if (require.main === module) {
   const port = Number(process.env.PORT || 8787);
   const fhirBaseUrl = process.env.FHIR_SERVER_URL || '';
-  const flowiseApiKey = process.env.FLOWISE_API_KEY || '';
-  const flowiseBaseUrl = process.env.FLOWISE_API_BASE_URL || DEFAULT_FLOWISE_BASE_URL;
-  const flowiseChatflowId = process.env.FLOWISE_CHATFLOW_ID || '';
-  const server = createServer({ fhirBaseUrl, flowiseApiKey, flowiseBaseUrl, flowiseChatflowId });
+  const groqApiKey = process.env.GROQ_API_KEY || '';
+  const groqBaseUrl = process.env.GROQ_API_BASE_URL || DEFAULT_GROQ_BASE_URL;
+  const server = createServer({ fhirBaseUrl, groqApiKey, groqBaseUrl });
   server.listen(port, () => {
     console.log('FHIR delivery server listening on http://localhost:' + port);
     console.log('Static app available at http://localhost:' + port + '/');
@@ -253,10 +254,10 @@ if (require.main === module) {
     } else {
       console.log('FHIR delivery server is running in dry-run mode.');
     }
-    if (flowiseChatflowId) {
-      console.log('Flowise chat proxy configured for', flowiseBaseUrl, 'chatflow', flowiseChatflowId);
+    if (groqApiKey) {
+      console.log('AI companion engine configured for Groq at', groqBaseUrl);
     } else {
-      console.log('Flowise chat proxy is waiting for FLOWISE_CHATFLOW_ID or a client-provided chatflow_id.');
+      console.log('AI companion engine is waiting for GROQ_API_KEY or a client-provided api_key.');
     }
   });
 }

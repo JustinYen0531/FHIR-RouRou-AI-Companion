@@ -43,42 +43,40 @@ async function testTransactionDelivery() {
 }
 
 async function testChatProxyDelivery() {
-  const fakeFetch = async (url, options) => {
-    assert.strictEqual(url, 'http://localhost:3000/api/v1/prediction/flow-123');
-    assert.strictEqual(options.method, 'POST');
-    assert.ok(options.headers.Authorization.includes('flowise-secret'));
-    return {
-      ok: true,
-      status: 200,
-      text: async () => JSON.stringify({
-        sessionId: 'conv-123',
-        text: '你好，我有收到你的訊息。',
-        chatMessageId: 'msg-123',
-        usedTools: []
-      })
-    };
+  const fakeEngine = {
+    handleMessage: async (payload) => {
+      assert.strictEqual(payload.message, '最近很累');
+      assert.strictEqual(payload.user, 'demo-user');
+      return {
+        conversation_id: 'conv-123',
+        answer: '你好，我有收到你的訊息。',
+        message_id: 'msg-123',
+        metadata: { route: 'Natural' },
+        session_export: getSamplePayload()
+      };
+    }
   };
 
   const result = await processChatPayload(
     {
       message: '最近很累',
       user: 'demo-user',
-      api_key: 'flowise-secret',
-      chatflow_id: 'flow-123'
+      api_key: 'groq-secret'
     },
-    { fetchImpl: fakeFetch }
+    { engine: fakeEngine }
   );
 
   assert.strictEqual(result.statusCode, 200);
   assert.strictEqual(result.body.ok, true);
   assert.strictEqual(result.body.conversation_id, 'conv-123');
   assert.strictEqual(result.body.answer, '你好，我有收到你的訊息。');
+  assert.ok(result.body.session_export);
 }
 
-async function testChatProxyMissingChatflowId() {
+async function testChatProxyMissingApiKey() {
   const result = await processChatPayload({ message: 'hello', user: 'demo-user' }, {});
   assert.strictEqual(result.statusCode, 500);
-  assert.ok(result.body.error.includes('Missing Flowise chatflow id'));
+  assert.ok(result.body.error.includes('Missing Groq API key'));
 }
 
 async function run() {
@@ -86,7 +84,7 @@ async function run() {
   await testBlockedDelivery();
   await testTransactionDelivery();
   await testChatProxyDelivery();
-  await testChatProxyMissingChatflowId();
+  await testChatProxyMissingApiKey();
   console.log('FHIR delivery server tests passed.');
 }
 

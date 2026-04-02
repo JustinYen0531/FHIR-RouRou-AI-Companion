@@ -1,0 +1,171 @@
+const assert = require('assert');
+const { AICompanionEngine } = require('./aiCompanionEngine');
+
+function createStubModelClient() {
+  return async ({ systemPrompt, userPrompt }) => {
+    if (systemPrompt.includes('低能量與認知負擔偵測器')) {
+      return { text: 'continue_auto' };
+    }
+    if (systemPrompt.includes('你是意圖分類器')) {
+      return { text: 'mode_5_natural' };
+    }
+    if (systemPrompt.includes('根據本輪使用者輸入，輸出簡短 JSON 字串')) {
+      return {
+        text: JSON.stringify({
+          route_type: 'normal',
+          source_mode: 'mode_5_natural',
+          followup_status: 'resolved',
+          sentiment_tags: ['tired'],
+          behavioral_tags: [],
+          cognitive_tags: [],
+          warning_tags: [],
+          summary: userPrompt
+        })
+      };
+    }
+    if (systemPrompt.includes('判斷病人的互動負擔')) {
+      return {
+        text: JSON.stringify({
+          burden_level: 'medium',
+          response_style: 'natural',
+          followup_budget: '1',
+          burden_note: 'stub'
+        })
+      };
+    }
+    if (systemPrompt.includes('更新 HAM-D 線索狀態')) {
+      return {
+        text: JSON.stringify({
+          progress_stage: 'initial',
+          current_focus: 'depressed_mood',
+          supported_dimensions: ['depressed_mood'],
+          covered_dimensions: ['depressed_mood'],
+          missing_dimensions: ['guilt', 'work_interest', 'retardation', 'agitation', 'somatic_anxiety', 'insomnia'],
+          next_recommended_dimension: 'work_interest',
+          recent_evidence: ['最近很累'],
+          needs_clarification: 'no',
+          status_summary: 'stub'
+        })
+      };
+    }
+    if (systemPrompt.includes('統一的摘要草稿 JSON')) {
+      return {
+        text: JSON.stringify({
+          active_mode: 'mode_5_natural',
+          risk_flag: 'false',
+          followup_status: 'resolved',
+          latest_tags: 'stub',
+          red_flags: 'none',
+          hamd_progress: 'stub',
+          draft_summary: '最近很累。'
+        })
+      };
+    }
+    if (systemPrompt.includes('可交付給醫師或臨床團隊閱讀')) {
+      return {
+        text: JSON.stringify({
+          summary_version: 'p1_clinician_draft_v1',
+          active_mode: 'mode_5_natural',
+          risk_level: 'watch',
+          chief_concerns: ['最近很累'],
+          symptom_observations: ['疲累'],
+          hamd_signals: ['depressed_mood'],
+          followup_needs: [],
+          safety_flags: [],
+          patient_tone: 'low_energy',
+          draft_summary: '最近很累。'
+        })
+      };
+    }
+    if (systemPrompt.includes('給病人自己審閱')) {
+      return {
+        text: JSON.stringify({
+          packet_version: 'p3_patient_review_v1',
+          status: 'draft_review',
+          patient_facing_summary: '最近很累。',
+          confirm_items: [],
+          editable_items: [],
+          remove_if_wrong: [],
+          authorization_needed: 'yes',
+          authorization_prompt: '是否分享給臨床團隊？'
+        })
+      };
+    }
+    if (systemPrompt.includes('病人審閱 / 授權狀態')) {
+      return {
+        text: JSON.stringify({
+          state_version: 'p3_authorization_state_v1',
+          authorization_status: 'ready_for_consent',
+          share_with_clinician: 'yes',
+          review_blockers: [],
+          patient_actions: [],
+          restricted_sections: [],
+          consent_note: 'stub'
+        })
+      };
+    }
+    if (systemPrompt.includes('FHIR / TW Core 映射草稿')) {
+      return {
+        text: JSON.stringify({
+          draft_version: 'p3_fhir_delivery_v1',
+          delivery_status: 'ready_for_mapping',
+          consent_gate: 'ready_for_consent',
+          resources: [],
+          narrative_summary: '最近很累。'
+        })
+      };
+    }
+    if (systemPrompt.includes('交付 readiness 狀態')) {
+      return {
+        text: JSON.stringify({
+          state_version: 'p3_delivery_readiness_v1',
+          readiness_status: 'ready_for_backend_mapping',
+          primary_blockers: [],
+          next_step: 'handoff',
+          provenance_requirements: [],
+          handoff_note: 'stub'
+        })
+      };
+    }
+    if (systemPrompt.includes('像真人的朋友')) {
+      return { text: '我在，最近真的很累的感覺很不好受。' };
+    }
+    if (systemPrompt.includes('安全回應節點')) {
+      return { text: '我有聽到你現在很痛苦。請立刻聯絡身邊可信任的人或當地緊急協助資源。' };
+    }
+    return { text: 'stub response' };
+  };
+}
+
+async function testCommandRouting() {
+  const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
+  const result = await engine.handleMessage({ message: 'auto', user: 'demo', conversation_id: 'conv-1' });
+  assert.strictEqual(result.answer.includes('已切回 auto 模式'), true);
+  assert.strictEqual(result.state.routing_mode_override, 'auto');
+}
+
+async function testHighRiskRouting() {
+  const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
+  const result = await engine.handleMessage({ message: '我想死', user: 'demo', conversation_id: 'conv-2' });
+  assert.strictEqual(result.state.active_mode, 'safety');
+  assert.strictEqual(result.state.risk_flag, 'true');
+  assert.ok(result.answer.includes('請立刻聯絡'));
+}
+
+async function testNaturalFlowBuildsSessionExport() {
+  const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
+  const result = await engine.handleMessage({ message: '最近很累', user: 'demo', conversation_id: 'conv-3' });
+  assert.strictEqual(result.state.active_mode, 'mode_5_natural');
+  assert.ok(result.session_export);
+  assert.ok(result.session_export.clinician_summary_draft);
+  assert.strictEqual(result.session_export.delivery_readiness_state.readiness_status, 'ready_for_backend_mapping');
+}
+
+async function run() {
+  await testCommandRouting();
+  await testHighRiskRouting();
+  await testNaturalFlowBuildsSessionExport();
+  console.log('AI companion engine tests passed.');
+}
+
+run();
