@@ -1,0 +1,192 @@
+[
+  {
+    "name": "pending_question",
+    "selector": [
+      "conversation",
+      "pending_question"
+    ],
+    "default_value": "none",
+    "value_type": "string",
+    "description": "Store the latest clarification question so the next turn can answer it"
+  },
+  {
+    "name": "risk_flag",
+    "selector": [
+      "conversation",
+      "risk_flag"
+    ],
+    "default_value": "false",
+    "value_type": "string",
+    "description": "Whether the latest user turn hit a red flag path"
+  },
+  {
+    "name": "red_flag_payload",
+    "selector": [
+      "conversation",
+      "red_flag_payload"
+    ],
+    "default_value": "none",
+    "value_type": "string",
+    "description": "Structured JSON-like summary for the latest detected red flag"
+  },
+  {
+    "name": "followup_turn_count",
+    "selector": [
+      "conversation",
+      "followup_turn_count"
+    ],
+    "default_value": "0",
+    "value_type": "string",
+    "description": "Number of consecutive clarification turns in the current follow-up chain"
+  },
+  {
+    "name": "followup_status",
+    "selector": [
+      "conversation",
+      "followup_status"
+    ],
+    "default_value": "none",
+    "value_type": "string",
+    "description": "Current follow-up lifecycle state"
+  },
+  {
+    "name": "active_mode",
+    "selector": [
+      "conversation",
+      "active_mode"
+    ],
+    "default_value": "auto",
+    "value_type": "string",
+    "description": "Last resolved routing mode for the current turn"
+  },
+  {
+    "name": "latest_tag_payload",
+    "selector": [
+      "conversation",
+      "latest_tag_payload"
+    ],
+    "default_value": "none",
+    "value_type": "string",
+    "description": "Structured tag output for the latest normal user turn"
+  },
+  {
+    "name": "hamd_progress_state",
+    "selector": [
+      "conversation",
+      "hamd_progress_state"
+    ],
+    "default_value": "none",
+    "value_type": "string",
+    "description": "Structured HAM-D progress snapshot for mission mode"
+  },
+  {
+    "name": "summary_draft_state",
+    "selector": [
+      "conversation",
+      "summary_draft_state"
+    ],
+    "default_value": "none",
+    "value_type": "string",
+    "description": "Unified pre-summary state for future clinician draft generation"
+  },
+  {
+    "name": "clinician_summary_draft",
+    "selector": [
+      "conversation",
+      "clinician_summary_draft"
+    ],
+    "default_value": "none",
+    "value_type": "string",
+    "description": "Clinician-facing draft summary generated from the unified summary state"
+  },
+  {
+    "name": "routing_mode_override",
+    "selector": [
+      "conversation",
+      "routing_mode_override"
+    ],
+    "default_value": "auto",
+    "value_type": "string",
+    "description": "Persisted manual routing mode override; auto means automatic routing"
+  },
+  {
+    "name": "command_feedback",
+    "selector": [
+      "conversation",
+      "command_feedback"
+    ],
+    "default_value": "none",
+    "value_type": "string",
+    "description": "Short confirmation text for command-mode switches"
+  },
+  {
+    "name": "patient_review_packet",
+    "selector": [
+      "conversation",
+      "patient_review_packet"
+    ],
+    "default_value": "none",
+    "value_type": "string",
+    "description": "Patient-facing review packet generated from clinician summary draft"
+  },
+  {
+    "name": "fhir_delivery_draft",
+    "selector": [
+      "conversation",
+      "fhir_delivery_draft"
+    ],
+    "default_value": "none",
+    "value_type": "string",
+    "description": "Draft FHIR/TW Core delivery payload generated from reviewed summary state"
+  },
+  {
+    "name": "mission_retrieval_audit",
+    "selector": [
+      "conversation",
+      "mission_retrieval_audit"
+    ],
+    "default_value": "none",
+    "value_type": "string",
+    "description": "Retrieval governance snapshot for mission mode knowledge usage"
+  },
+  {
+    "name": "option_retrieval_audit",
+    "selector": [
+      "conversation",
+      "option_retrieval_audit"
+    ],
+    "default_value": "none",
+    "value_type": "string",
+    "description": "Retrieval governance snapshot for option mode knowledge usage"
+  },
+  {
+    "name": "burden_level_state",
+    "selector": [
+      "conversation",
+      "burden_level_state"
+    ],
+    "default_value": "none",
+    "value_type": "string",
+    "description": "Structured burden and response-style state for cognitive load aware routing and replies"
+  },
+  {
+    "name": "patient_authorization_state",
+    "selector": [
+      "conversation",
+      "patient_authorization_state"
+    ],
+    "default_value": "none",
+    "value_type": "string",
+    "description": "Structured review and consent readiness state derived from the patient review packet"
+  },
+  {
+    "name": "delivery_readiness_state",
+    "selector": [
+      "conversation",
+      "delivery_readiness_state"
+    ],
+    "default_value": "none",
+    "value_type": "string",
+    "description": "Structured pre-delivery readiness state for FHIR and clinician export workflows"
+  }
+]

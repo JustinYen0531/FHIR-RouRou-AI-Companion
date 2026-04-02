@@ -44,17 +44,17 @@ async function testTransactionDelivery() {
 
 async function testChatProxyDelivery() {
   const fakeFetch = async (url, options) => {
-    assert.strictEqual(url, 'https://api.dify.ai/v1/chat-messages');
+    assert.strictEqual(url, 'http://localhost:3000/api/v1/prediction/flow-123');
     assert.strictEqual(options.method, 'POST');
-    assert.ok(options.headers.Authorization.includes('app-'));
+    assert.ok(options.headers.Authorization.includes('flowise-secret'));
     return {
       ok: true,
       status: 200,
       text: async () => JSON.stringify({
-        conversation_id: 'conv-123',
-        answer: '你好，我有收到你的訊息。',
-        message_id: 'msg-123',
-        metadata: { usage: { total_tokens: 10 } }
+        sessionId: 'conv-123',
+        text: '你好，我有收到你的訊息。',
+        chatMessageId: 'msg-123',
+        usedTools: []
       })
     };
   };
@@ -63,7 +63,8 @@ async function testChatProxyDelivery() {
     {
       message: '最近很累',
       user: 'demo-user',
-      api_key: 'app-demo-key'
+      api_key: 'flowise-secret',
+      chatflow_id: 'flow-123'
     },
     { fetchImpl: fakeFetch }
   );
@@ -74,10 +75,10 @@ async function testChatProxyDelivery() {
   assert.strictEqual(result.body.answer, '你好，我有收到你的訊息。');
 }
 
-async function testChatProxyMissingApiKey() {
+async function testChatProxyMissingChatflowId() {
   const result = await processChatPayload({ message: 'hello', user: 'demo-user' }, {});
   assert.strictEqual(result.statusCode, 500);
-  assert.ok(result.body.error.includes('Missing Dify API key'));
+  assert.ok(result.body.error.includes('Missing Flowise chatflow id'));
 }
 
 async function run() {
@@ -85,7 +86,7 @@ async function run() {
   await testBlockedDelivery();
   await testTransactionDelivery();
   await testChatProxyDelivery();
-  await testChatProxyMissingApiKey();
+  await testChatProxyMissingChatflowId();
   console.log('FHIR delivery server tests passed.');
 }
 

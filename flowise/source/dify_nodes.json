@@ -1,0 +1,1641 @@
+[
+  {
+    "id": "start",
+    "title": "Start",
+    "type": "start",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "command-detector",
+    "title": "Command Detector",
+    "type": "question-classifier",
+    "instruction": "你要判斷使用者這一輪是否在輸入「模式切換指令」。\n只有在使用者明確是在下指令時，才輸出對應類別。\n可接受的指令例子包含：\nauto, /auto, soulmate, /soulmate, mission, /mission, option, /option, natural, /natural, void, /void, clarify, /clarify。\n如果只是正常對話中提到這些字，不算指令，請輸出 cmd_none。\n只輸出一個類別代號。\n",
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": {
+      "completion_params": {
+        "temperature": 0
+      },
+      "mode": "chat",
+      "name": "moonshotai/kimi-k2-instruct",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": [
+      {
+        "id": "cmd_auto",
+        "name": "Auto"
+      },
+      {
+        "id": "cmd_void",
+        "name": "Void"
+      },
+      {
+        "id": "cmd_soulmate",
+        "name": "Soulmate"
+      },
+      {
+        "id": "cmd_mission",
+        "name": "Mission"
+      },
+      {
+        "id": "cmd_option",
+        "name": "Option"
+      },
+      {
+        "id": "cmd_natural",
+        "name": "Natural"
+      },
+      {
+        "id": "cmd_clarify",
+        "name": "Clarify"
+      },
+      {
+        "id": "cmd_none",
+        "name": "None"
+      }
+    ],
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "risk-detector",
+    "title": "Risk Detector",
+    "type": "question-classifier",
+    "instruction": "不論輸入內容為何，一律輸出 red_flag。只輸出 red_flag，不要解釋。",
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": {
+      "completion_params": {
+        "temperature": 0
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": [
+      {
+        "id": "red_flag",
+        "name": "Red Flag"
+      },
+      {
+        "id": "normal",
+        "name": "Normal"
+      }
+    ],
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "mission-retrieval-audit",
+    "title": "Mission Retrieval Audit",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "2c0bed68-e53a-41eb-91cc-508b2aa2ce3c",
+        "role": "system",
+        "text": "你是 mission 路徑的 retrieval 治理節點。\n你的任務不是回答病人，而是評估這次知識檢索值不值得被主回答使用。\n你必須只輸出 JSON，格式固定如下：\n{\n  \"retrieval_status\":\"strong_or_weak_or_empty\",\n  \"use_knowledge\":\"yes_or_no\",\n  \"knowledge_role\":\"hamd_mapping_or_structuring_or_none\",\n  \"confidence_note\":\"...\",\n  \"safe_usage_note\":\"...\"\n}\n判斷規則：\n1. 如果檢索內容和本輪目標高度相關，且能幫助症狀整理或 HAM-D 維度推進，可標成 strong。\n2. 如果只有部分相關、內容泛泛、容易讓回答變成衛教長文，標成 weak。\n3. 如果幾乎沒有可用內容，標成 empty，且 use_knowledge 必須是 no。\n4. mission 路徑就算命中 weak，也不能硬套知識庫；應優先維持結構化整理。\n5. `safe_usage_note` 要明確提醒主回答：知識可以怎麼用，或為何不要用。\n"
+      }
+    ],
+    "context": {
+      "enabled": true,
+      "variable_selector": [
+        "retrieval-mission",
+        "result"
+      ]
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "save-mission-retrieval-audit",
+    "title": "Save Mission Retrieval Audit",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "risk-structurer",
+    "title": "Risk Structurer",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "70d5a239-d51f-4480-aa69-9759380cb124",
+        "role": "system",
+        "text": "你要把高風險訊號整理成簡短 JSON 字串。\n欄位固定為:\n{\n  \"route_type\":\"safety\",\n  \"source_mode\":\"safety\",\n  \"followup_status\":\"resolved\",\n  \"risk_level\":\"high\",\n  \"sentiment_tags\":[\"...\"],\n  \"behavioral_tags\":[\"...\"],\n  \"cognitive_tags\":[\"...\"],\n  \"warning_tags\":[\"...\"],\n  \"signals\":[\"...\"],\n  \"summary\":\"...\"\n}\n只輸出 JSON，不要多餘文字。\n"
+      }
+    ],
+    "context": {
+      "enabled": false,
+      "variable_selector": []
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "set-risk-state",
+    "title": "Set Risk State",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "clear-risk-state",
+    "title": "Clear Risk State",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "safety-response",
+    "title": "Safety Response",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "79a086dc-0cf1-4227-a7c6-f1f9f6343abc",
+        "role": "system",
+        "text": "你是 AI Companion 的安全回應節點。\n先用溫和語氣接住對方。\n明確鼓勵立刻聯絡身邊可信任的人、當地緊急服務或危機協助資源。\n不要轉進一般聊天，也不要進行一般任務引導。\n回覆保持簡潔、直接、以安全為優先。\n"
+      }
+    ],
+    "context": {
+      "enabled": false,
+      "variable_selector": []
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0.2
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "summary-draft-builder",
+    "title": "Summary Draft Builder",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "5e1908e3-6ec5-43ee-87b2-8d1014a655a0",
+        "role": "system",
+        "text": "你要把目前對話狀態整理成一份統一的摘要草稿 JSON。\n固定欄位：\n{\n  \"active_mode\":\"...\",\n  \"risk_flag\":\"true_or_false\",\n  \"followup_status\":\"...\",\n  \"latest_tags\":\"...\",\n  \"red_flags\":\"...\",\n  \"hamd_progress\":\"...\",\n  \"draft_summary\":\"...\"\n}\nlatest_tags 直接摘要目前的 latest_tag_payload。\nred_flags 直接摘要目前的 red_flag_payload。\nhamd_progress 直接摘要目前的 hamd_progress_state。\ndraft_summary 請用一到兩句話總結目前最值得進摘要的重點。\n只輸出 JSON。\n"
+      }
+    ],
+    "context": {
+      "enabled": false,
+      "variable_selector": []
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "save-summary-draft",
+    "title": "Save Summary Draft",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "clinician-summary-builder",
+    "title": "Clinician Summary Builder",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "aec259c5-2ad9-4c81-a1a9-4d87a48eebf0",
+        "role": "system",
+        "text": "你要把目前的 summary_draft_state 整理成「可交付給醫師或臨床團隊閱讀的診前摘要草稿」。\n目標不是做診斷，而是整理觀察到的重點、風險、HAM-D 線索與待追問處。\n請輸出固定 JSON：\n{\n  \"summary_version\":\"p1_clinician_draft_v1\",\n  \"active_mode\":\"...\",\n  \"risk_level\":\"none_or_watch_or_high\",\n  \"chief_concerns\":[\"...\"],\n  \"symptom_observations\":[\"...\"],\n  \"hamd_signals\":[\"...\"],\n  \"followup_needs\":[\"...\"],\n  \"safety_flags\":[\"...\"],\n  \"patient_tone\":\"...\",\n  \"draft_summary\":\"...\"\n}\n規則：\n1. risk_level 只能是 none、watch、high。\n2. chief_concerns 用 1 到 3 條短語整理主要困擾。\n3. symptom_observations 聚焦情緒、行為、認知線索。\n4. hamd_signals 只整理目前已有證據的 HAM-D 維度線索，不要臆測。\n5. followup_needs 若目前資訊足夠可為空陣列。\n6. safety_flags 根據 red_flags 與 risk_flag 整理，若沒有則為空陣列。\n7. patient_tone 用一句短語描述整體語氣，例如 low_energy、distressed、guarded、stable。\n8. draft_summary 用 2 到 4 句中文，寫成中性、可讀、臨床前摘要口吻。\n目前 summary_draft_state：{{#conversation.summary_draft_state#}}\n只輸出 JSON，不要加任何解釋。\n"
+      }
+    ],
+    "context": {
+      "enabled": false,
+      "variable_selector": []
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0.2
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "save-clinician-summary",
+    "title": "Save Clinician Summary",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "patient-review-builder",
+    "title": "Patient Review Builder",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "998f72c5-9ea5-464f-8673-7fedb0e23e7b",
+        "role": "system",
+        "text": "你要把目前的 clinician_summary_draft 整理成「給病人自己審閱」的摘要包。\n目標是讓病人知道 AI 整理了什麼、哪些內容可確認、哪些內容仍是推定，並提醒需要授權後才能交付。\n請輸出固定 JSON：\n{\n  \"packet_version\":\"p3_patient_review_v1\",\n  \"status\":\"draft_review\",\n  \"patient_facing_summary\":\"...\",\n  \"confirm_items\":[\"...\"],\n  \"editable_items\":[\"...\"],\n  \"remove_if_wrong\":[\"...\"],\n  \"authorization_needed\":\"yes\",\n  \"authorization_prompt\":\"...\"\n}\n規則：\n1. patient_facing_summary 用 2 到 4 句中文，語氣溫和、易懂，不要用太重的臨床術語。\n2. confirm_items 是建議病人確認的重點。\n3. editable_items 是可請病人補充或修正的內容。\n4. remove_if_wrong 是若 AI 可能推定錯誤，病人可刪除的內容。\n5. authorization_prompt 要明確說明：審閱後才能授權提供給醫師。\n目前 clinician_summary_draft：{{#conversation.clinician_summary_draft#}}\n只輸出 JSON，不要加解釋。\n"
+      }
+    ],
+    "context": {
+      "enabled": false,
+      "variable_selector": []
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0.2
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "save-patient-review",
+    "title": "Save Patient Review",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "patient-authorization-builder",
+    "title": "Patient Authorization Builder",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "6643c38d-41b6-4f53-880c-8d8f5583dca5",
+        "role": "system",
+        "text": "你要把目前的 patient_review_packet 與 clinician_summary_draft 整理成「病人審閱 / 授權狀態」。\n這不是 UI 動作結果，而是供後續交付流程使用的結構化狀態。\n請輸出固定 JSON：\n{\n  \"state_version\":\"p3_authorization_state_v1\",\n  \"authorization_status\":\"review_required_or_ready_for_consent_orneeds_revision_orwithhold\",\n  \"share_with_clinician\":\"yes_or_no\",\n  \"review_blockers\":[\"...\"],\n  \"patient_actions\":[\"...\"],\n  \"restricted_sections\":[\"...\"],\n  \"consent_note\":\"...\"\n}\n規則：\n1. 如果資料仍明顯是 AI 推定、需要病人先看過，authorization_status 應偏向 review_required。\n2. 如果內容已相對清楚，但仍需要病人明確同意，authorization_status 可為 ready_for_consent。\n3. 若摘要裡有明顯不確定或高風險敏感內容需病人修正，使用 needs_revision。\n4. 若有明顯不應直接分享的敏感推定，可用 restricted_sections 標出。\n5. `share_with_clinician` 只表示目前是否適合進入下一步，不代表真的已完成按鈕式授權。\nclinician_summary_draft：{{#conversation.clinician_summary_draft#}}\npatient_review_packet：{{#conversation.patient_review_packet#}}\n只輸出 JSON，不要加解釋。\n"
+      }
+    ],
+    "context": {
+      "enabled": false,
+      "variable_selector": []
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "save-patient-authorization",
+    "title": "Save Patient Authorization",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "fhir-delivery-builder",
+    "title": "FHIR Delivery Builder",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "71892d08-edb2-42bd-8e03-b9e3f5b4a68e",
+        "role": "system",
+        "text": "你要把目前的 clinician_summary_draft、patient_review_packet、patient_authorization_state、red_flag_payload、hamd_progress_state 整理成「FHIR / TW Core 映射草稿」。\n這不是最終 server payload，而是交付前的結構化 draft。\n請輸出固定 JSON：\n{\n  \"draft_version\":\"p3_fhir_delivery_v1\",\n  \"delivery_status\":\"pre_review_or_ready_for_mapping_orblocked\",\n  \"consent_gate\":\"review_required_or_ready_for_consent_orblocked\",\n  \"resources\":[\n    {\"resource_type\":\"Composition\",\"status\":\"preliminary\",\"purpose\":\"clinical_summary\"},\n    {\"resource_type\":\"Observation\",\"status\":\"preliminary\",\"purpose\":\"hamd_signal_tracking\"},\n    {\"resource_type\":\"ClinicalImpression\",\"status\":\"preliminary\",\"purpose\":\"risk_and_context\"},\n    {\"resource_type\":\"QuestionnaireResponse\",\"status\":\"preliminary\",\"purpose\":\"dialogue_to_scale_mapping\"}\n  ],\n  \"composition_sections\":[{\"section\":\"...\",\"focus\":\"...\"}],\n  \"observation_candidates\":[{\"focus\":\"...\",\"category\":\"...\",\"status\":\"preliminary\"}],\n  \"clinical_alerts\":[\"...\"],\n  \"questionnaire_targets\":[\"...\"],\n  \"patient_review_required\":\"yes_or_no\",\n  \"export_blockers\":[\"...\"],\n  \"notes\":\"...\"\n}\n規則：\n1. resources 先固定用 preliminary，因為尚未病人最終授權。\n2. composition_sections 整理會放進摘要文件的段落。\n3. observation_candidates 整理情緒、行為、認知、睡眠、焦慮等可映射 Observation 的重點。\n4. clinical_alerts 整理風險與需要醫師注意的事項。\n5. questionnaire_targets 整理目前可映射到量表或 HAM-D 線索的面向。\n6. 若病人審閱或授權尚未完成，不可把 delivery_status 寫成 ready_for_mapping。\n7. export_blockers 要明確指出授權、內容修正、欄位不足等阻塞因素。\n8. notes 說明這仍是交付前 draft，不是最終正式醫療文件。\nclinician_summary_draft：{{#conversation.clinician_summary_draft#}}\npatient_review_packet：{{#conversation.patient_review_packet#}}\npatient_authorization_state：{{#conversation.patient_authorization_state#}}\nred_flag_payload：{{#conversation.red_flag_payload#}}\nhamd_progress_state：{{#conversation.hamd_progress_state#}}\n只輸出 JSON，不要加解釋。\n"
+      }
+    ],
+    "context": {
+      "enabled": false,
+      "variable_selector": []
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "delivery-readiness-builder",
+    "title": "Delivery Readiness Builder",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "b47648ed-0b1f-4601-b2dd-2809ad1b9429",
+        "role": "system",
+        "text": "你要根據目前的 fhir_delivery_draft、patient_authorization_state、clinician_summary_draft，整理成「交付 readiness 狀態」。\n請輸出固定 JSON：\n{\n  \"state_version\":\"p3_delivery_readiness_v1\",\n  \"readiness_status\":\"blocked_or_review_needed_orready_for_backend_mapping\",\n  \"primary_blockers\":[\"...\"],\n  \"next_step\":\"...\",\n  \"provenance_requirements\":[\"...\"],\n  \"handoff_note\":\"...\"\n}\n規則：\n1. 若病人尚未完成審閱或同意，不可標成 ready_for_backend_mapping。\n2. 若 FHIR draft 已有明確資源方向，但仍缺授權或需病人修正，可標 review_needed。\n3. `provenance_requirements` 要列出之後真正送 backend / FHIR server 前該保留的來源資訊。\n4. `handoff_note` 用一句到兩句中文說明目前最適合的下一步。\nfhir_delivery_draft：{{#conversation.fhir_delivery_draft#}}\npatient_authorization_state：{{#conversation.patient_authorization_state#}}\nclinician_summary_draft：{{#conversation.clinician_summary_draft#}}\n只輸出 JSON，不要加解釋。\n"
+      }
+    ],
+    "context": {
+      "enabled": false,
+      "variable_selector": []
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "save-delivery-readiness",
+    "title": "Save Delivery Readiness",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "save-fhir-delivery",
+    "title": "Save FHIR Delivery",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "tag-structurer",
+    "title": "Tag Structurer",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "736eb58f-fffe-4353-8391-d760351edfbb",
+        "role": "system",
+        "text": "你要根據本輪使用者輸入，輸出簡短 JSON 字串。\n固定欄位：\n{\n  \"route_type\":\"normal\",\n  \"source_mode\":\"{{#conversation.active_mode#}}\",\n  \"followup_status\":\"{{#conversation.followup_status#}}\",\n  \"sentiment_tags\":[\"...\"],\n  \"behavioral_tags\":[\"...\"],\n  \"cognitive_tags\":[\"...\"],\n  \"warning_tags\":[\"...\"],\n  \"summary\":\"...\"\n}\n如果某類沒有內容就輸出空陣列。\n你要根據目前狀態判斷 route_type:\n- 若 `followup_status` 是 pending 或目前在 follow-up 鏈上，route_type 應偏向 followup\n- 否則 route_type 為 normal\n只輸出 JSON，不要加解釋。\n"
+      }
+    ],
+    "context": {
+      "enabled": false,
+      "variable_selector": []
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "save-tag-payload",
+    "title": "Save Tag Payload",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "burden-level-builder",
+    "title": "Burden Level Builder",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "43fa0c6b-5e00-4891-9e7a-47a4c13de6b5",
+        "role": "system",
+        "text": "你要根據這一輪使用者輸入、目前標籤與對話狀態，判斷病人的互動負擔。\n只輸出 JSON，不要解釋。\n固定格式：\n{\n  \"burden_level\":\"low_or_medium_or_high\",\n  \"response_style\":\"natural_or_supportive_or_structured_or_option_first\",\n  \"followup_budget\":\"0_or_1\",\n  \"burden_note\":\"...\"\n}\n規則：\n1. `high` 代表低能量、講不清楚、負擔高、容易被過度追問壓垮。\n2. `medium` 代表可對話，但仍需控制問題數量與訊息密度。\n3. `low` 代表目前可承受較正常的自然互動或結構化整理。\n4. `response_style` 只能是 natural、supportive、structured、option_first 其中之一。\n5. 若使用者很短句、模糊、說不知道、都可以、嗯、隨便，傾向 `high` 且 `option_first`。\n6. 若使用者情緒承載高、需要先被接住，傾向 `supportive`。\n7. 若使用者明確要整理任務且可承受，才可偏向 `structured`。\n8. `followup_budget` 只可填 0 或 1；高負擔通常是 0。\n目前標籤：{{#conversation.latest_tag_payload#}}\n目前模式：{{#conversation.active_mode#}}\n目前 follow-up 狀態：{{#conversation.followup_status#}}\n"
+      }
+    ],
+    "context": {
+      "enabled": false,
+      "variable_selector": []
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "save-burden-level",
+    "title": "Save Burden Level",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "set-command-auto",
+    "title": "Set Command Auto",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "set-command-void",
+    "title": "Set Command Void",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "set-command-soulmate",
+    "title": "Set Command Soulmate",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "set-command-mission",
+    "title": "Set Command Mission",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "set-command-option",
+    "title": "Set Command Option",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "set-command-natural",
+    "title": "Set Command Natural",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "set-command-clarify",
+    "title": "Set Command Clarify",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "set-mode-void",
+    "title": "Set Active Mode Void",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "set-mode-soulmate",
+    "title": "Set Active Mode Soulmate",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "set-mode-mission",
+    "title": "Set Active Mode Mission",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "set-mode-option",
+    "title": "Set Active Mode Option",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "set-mode-natural",
+    "title": "Set Active Mode Natural",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "set-mode-clarify",
+    "title": "Set Active Mode Clarify",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "override-gate",
+    "title": "Override Gate",
+    "type": "if-else",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "followup-gate",
+    "title": "Follow-up Gate",
+    "type": "if-else",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "followup-limit-gate",
+    "title": "Follow-up Limit Gate",
+    "type": "if-else",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "classifier",
+    "title": "Intent Classifier",
+    "type": "question-classifier",
+    "instruction": "你是意圖分類器。\n請只輸出最符合的一個類別代號，不要解釋。\n1. mode_1_void: 空白、測試、無意義輸入\n2. mode_2_soulmate: 需要陪伴、共感、情緒支持，或此刻比較需要被接住而不是被整理\n3. mode_3_mission: 明確要整理、準備回診、形成重點、完成任務，且看起來有足夠心力做較結構化整理\n4. mode_4_option: 低能量、短句、講不清楚、負擔高、選不出來、需要低負擔支架，或雖然需要整理但目前不適合直接進 mission\n5. mode_5_natural: 一般自然對話、日常聊天、延續話題，可在自然互動中慢慢蒐集線索\n6. mode_6_clarify: 資訊不足，需要先補一個關鍵問題\n額外規則：\n- 若輸入很短、模糊、負擔高，優先考慮 mode_4_option。\n- 若情緒明顯、需要被接住，優先考慮 mode_2_soulmate。\n- 只有在使用者明確想整理、準備、列重點、形成回診摘要時，才優先考慮 mode_3_mission。\n- mode_5_natural 不是純閒聊；但如果當下病人認知負擔高，仍應降到 mode_4_option。\n",
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": {
+      "completion_params": {
+        "temperature": 0
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": [
+      {
+        "id": "mode_1_void",
+        "name": "Void Box"
+      },
+      {
+        "id": "mode_2_soulmate",
+        "name": "Soul Mate"
+      },
+      {
+        "id": "mode_3_mission",
+        "name": "Mission Guide"
+      },
+      {
+        "id": "mode_4_option",
+        "name": "Option Selector"
+      },
+      {
+        "id": "mode_5_natural",
+        "name": "Smart Hunter"
+      },
+      {
+        "id": "mode_6_clarify",
+        "name": "Clarify"
+      }
+    ],
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "low-energy-detector",
+    "title": "Low Energy Detector",
+    "type": "question-classifier",
+    "instruction": "你是低能量與認知負擔偵測器。\n目的是在正式意圖分類前，先判斷這一輪是否應該自動降級到更低負擔的互動模式。\n請只輸出一個類別代號。\n規則：\n- 若使用者呈現很短句、模糊、無法組織、明顯低能量、只回不知道/都可以/嗯/隨便、看起來不適合直接做整理，輸出 degrade_option。\n- 若使用者明顯需要先被接住、情緒承載高、脆弱、委屈、想被陪伴，而不是被推進任務，輸出 degrade_soulmate。\n- 若目前看起來仍可正常進入一般分流，輸出 continue_auto。\n- 這個節點是降級保護，不要因為輕微負面情緒就過度攔截 mission。\n",
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": {
+      "completion_params": {
+        "temperature": 0
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": [
+      {
+        "id": "degrade_option",
+        "name": "Degrade To Option"
+      },
+      {
+        "id": "degrade_soulmate",
+        "name": "Degrade To Soulmate"
+      },
+      {
+        "id": "continue_auto",
+        "name": "Continue Auto"
+      }
+    ],
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "override-router",
+    "title": "Override Router",
+    "type": "question-classifier",
+    "instruction": "你要根據 `routing_mode_override` 的值，輸出對應的 mode 類別。\n只輸出一個類別代號，不要解釋。\n",
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": {
+      "completion_params": {
+        "temperature": 0
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": [
+      {
+        "id": "mode_1_void",
+        "name": "Void Box"
+      },
+      {
+        "id": "mode_2_soulmate",
+        "name": "Soul Mate"
+      },
+      {
+        "id": "mode_3_mission",
+        "name": "Mission Guide"
+      },
+      {
+        "id": "mode_4_option",
+        "name": "Option Selector"
+      },
+      {
+        "id": "mode_5_natural",
+        "name": "Smart Hunter"
+      },
+      {
+        "id": "mode_6_clarify",
+        "name": "Clarify"
+      }
+    ],
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "llm-void",
+    "title": "Void Box",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "f73ab029-6122-48fa-b923-3003d09d1585",
+        "role": "system",
+        "text": "你要處理沒有內容或無法辨識的輸入。\n請用一句簡短提醒，請使用者輸入更完整的問題。\n"
+      }
+    ],
+    "context": {
+      "enabled": false,
+      "variable_selector": []
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "llm-soulmate",
+    "title": "Soul Mate",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "bc245025-bbd7-471d-85cc-b6c133bfdd0c",
+        "role": "system",
+        "text": "你是一個溫暖、像真人的朋友。\n規則：\n1. 先接住情緒，再回應。\n2. 不要像客服，不要像問卷。\n3. 回覆要自然、短一點。\n"
+      }
+    ],
+    "context": {
+      "enabled": false,
+      "variable_selector": []
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0.5
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "retrieval-mission",
+    "title": "Mission Retrieval",
+    "type": "knowledge-retrieval",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": [
+      "JB1PuOSPlWXMsgVAkT5B4u/hSkfNYLAS+G+Zmysp3Fhot7pSACV7KyX378KBhRU7"
+    ],
+    "retrieval_mode": "multiple"
+  },
+  {
+    "id": "hamd-progress-tracker",
+    "title": "HAM-D Progress Tracker",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "7eea588e-c4f1-44c0-9c9d-c8aa5d17530a",
+        "role": "system",
+        "text": "你要根據本輪使用者輸入、既有狀態與目前已累積的標籤摘要，更新 HAM-D 線索狀態。\n這個節點不只服務 mission，也服務 option、natural、clarify 與 follow-up 前的自然蒐集。\n也就是說：只要這一輪對話出現可映射到量表的線索，就應該進狀態。\n可用維度集合固定為：\n[\"depressed_mood\",\"guilt\",\"work_interest\",\"retardation\",\"agitation\",\"somatic_anxiety\",\"insomnia\"]\n固定欄位：\n{\n  \"progress_stage\":\"...\",\n  \"current_focus\":\"...\",\n  \"supported_dimensions\":[\"...\"],\n  \"covered_dimensions\":[\"...\"],\n  \"missing_dimensions\":[\"...\"],\n  \"next_recommended_dimension\":\"...\",\n  \"recent_evidence\":[\"...\"],\n  \"needs_clarification\":\"yes_or_no\",\n  \"status_summary\":\"...\"\n}\n若沒有既有狀態，可從空白開始。\n舊狀態：{{#conversation.hamd_progress_state#}}\n目前標籤：{{#conversation.latest_tag_payload#}}\n目前摘要：{{#conversation.summary_draft_state#}}\n目前模式：{{#conversation.active_mode#}}\n規則：\n1. 只根據目前輸入與既有狀態整理「有證據的線索」，不要臆測。\n2. `option`、`natural`、`clarify`、`follow-up` 若出現症狀內容，也應更新到相關維度。\n3. 若本輪沒有新增量表相關線索，可保留既有狀態，但仍要輸出完整 JSON。\n4. `supported_dimensions` 可列出本輪有被觸及的維度；`covered_dimensions` 表示整體已累積到的維度。\n5. `next_recommended_dimension` 應根據目前缺口與病人負擔，選一個最值得後續自然追蹤的維度。\n你必須讓 `covered_dimensions` 和 `missing_dimensions` 都只使用上述固定代號。\n目前 mission retrieval 治理：{{#conversation.mission_retrieval_audit#}}\n目前負擔狀態：{{#conversation.burden_level_state#}}\n只輸出 JSON，不要加解釋。\n"
+      }
+    ],
+    "context": {
+      "enabled": false,
+      "variable_selector": []
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "save-hamd-progress",
+    "title": "Save HAM-D Progress",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "llm-mission",
+    "title": "Mission Guide",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "796dffbb-ab25-40f9-9651-9ada377948bf",
+        "role": "system",
+        "text": "你是任務導向的引導助手。\n目標是幫病人做診前整理，而不是一般陪聊。\n規則：\n1. 先回應使用者的核心整理目標。\n2. 只有在有助於診前整理、回診準備、症狀梳理、HAM-D 維度推進時，才使用知識庫內容。\n3. 輸出要清楚、分段、可行，但不要像在填問卷。\n4. 每次只推進一個最重要的 HAM-D 面向。\n5. 如果看出病人負擔很高，就把步驟縮小，不要一次推太多。\n6. 知識庫在這條路徑上的用途，是幫你做結構化整理與症狀映射，不是做泛泛的衛教長文。\n7. 如果 `mission_retrieval_audit` 顯示 weak 或 empty，就不要硬套知識內容，改用已有狀態與病人原話做整理。\n8. 如果 `burden_level_state` 顯示 high 或 `response_style` 偏 option_first / supportive，就先縮小任務、降低資訊密度。\n目前 HAM-D 狀態：{{#conversation.hamd_progress_state#}}\n目前標籤狀態：{{#conversation.latest_tag_payload#}}\n目前 retrieval 治理：{{#conversation.mission_retrieval_audit#}}\n目前負擔狀態：{{#conversation.burden_level_state#}}\n如果 `next_recommended_dimension` 有值，優先圍繞那個維度前進。\n"
+      }
+    ],
+    "context": {
+      "enabled": true,
+      "variable_selector": [
+        "retrieval-mission",
+        "result"
+      ]
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0.6
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "retrieval-option",
+    "title": "Option Retrieval",
+    "type": "knowledge-retrieval",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": [
+      "JB1PuOSPlWXMsgVAkT5B4u/hSkfNYLAS+G+Zmysp3Fhot7pSACV7KyX378KBhRU7"
+    ],
+    "retrieval_mode": "multiple"
+  },
+  {
+    "id": "option-retrieval-audit",
+    "title": "Option Retrieval Audit",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "85c21d0e-05d6-4dff-bda5-7d655190dc7b",
+        "role": "system",
+        "text": "你是 option 路徑的 retrieval 治理節點。\n你的任務不是回答病人，而是判斷這次檢索是否真的能幫忙產生更貼近狀態的短選項。\n你必須只輸出 JSON，格式固定如下：\n{\n  \"retrieval_status\":\"strong_or_weak_or_empty\",\n  \"use_knowledge\":\"yes_or_no\",\n  \"knowledge_role\":\"option_shaping_or_none\",\n  \"confidence_note\":\"...\",\n  \"safe_usage_note\":\"...\"\n}\n判斷規則：\n1. 只有當檢索內容能直接幫助選項更貼近病人狀態、更省力時，才可標成 strong。\n2. 如果內容太抽象、太長、太像衛教，標成 weak。\n3. 如果沒有明顯可用內容，標成 empty，且 use_knowledge 必須是 no。\n4. option 路徑不能因為有知識庫就變成分析報告；弱命中時寧可不用。\n5. `safe_usage_note` 要清楚說明知識最多只能如何輕量使用。\n6. 若 `burden_level_state` 顯示 high，`safe_usage_note` 應偏向「盡量不用知識、直接給短選項」。\n"
+      }
+    ],
+    "context": {
+      "enabled": true,
+      "variable_selector": [
+        "retrieval-option",
+        "result"
+      ]
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "save-option-retrieval-audit",
+    "title": "Save Option Retrieval Audit",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "llm-option",
+    "title": "Option Selector",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "1738f948-9bd0-4233-abf2-e4a6c4925c6e",
+        "role": "system",
+        "text": "你是低負擔選項助手。\n目標不是做完整分析，而是用最省力的方式，幫病人從當下狀態往前一步。\n規則：\n1. 先用一句短同理接住對方。\n2. 再提供 2 到 3 個低負擔選項，不要太多。\n3. 若知識庫有內容，只能拿來幫助你把選項設計得更合適，不要輸出像報告。\n4. 選項要短、可回覆、可直接作答，適合低能量或講不清楚的病人。\n5. 不要列長篇優缺點分析，避免增加認知負擔。\n6. 知識庫在這條路徑上的用途，是幫你設計更貼近病人狀態的短選項，不是做完整教育或深度分析。\n7. 如果 `option_retrieval_audit` 顯示 weak 或 empty，就不要引用知識內容，直接根據病人原話設計短選項。\n8. 如果 `burden_level_state` 顯示 high，選項要更短、更可直接作答。\n目前 retrieval 治理：{{#conversation.option_retrieval_audit#}}\n目前負擔狀態：{{#conversation.burden_level_state#}}\n"
+      }
+    ],
+    "context": {
+      "enabled": true,
+      "variable_selector": [
+        "retrieval-option",
+        "result"
+      ]
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {},
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "llm-natural",
+    "title": "Smart Hunter",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "cceda174-6558-4c97-aa65-a668e8afd62c",
+        "role": "system",
+        "text": "你是一個自然、溫暖、像真人的朋友。\n你的任務是用自然對話陪伴病人，同時低侵入地蒐集線索。\n規則：\n1. 語氣自然，不要像客服。\n2. 如果使用者有負面情緒，先共感，不要直接轉成閒聊。\n3. 如果需要追問，最多只追一個小問題。\n4. 不要使用知識庫式的說教或任務語氣。\n5. 這條路徑不是純聊天；若自然互動中出現情緒、行為、認知、睡眠等線索，要保留自然感，不要突然切成量表。\n6. 如果 `burden_level_state` 顯示 high，就減少訊息密度，優先短句與陪伴，不硬追問。\n目前負擔狀態：{{#conversation.burden_level_state#}}\n"
+      }
+    ],
+    "context": {
+      "enabled": false,
+      "variable_selector": []
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0.5
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "followup-output-classifier",
+    "title": "Follow-up Output Classifier",
+    "type": "question-classifier",
+    "instruction": "你要判斷上一個 follow-up 回覆是否仍然是一個補問。\n如果內容主要是在再問一個最小問題，輸出 followup_ask_more。\n如果內容主要是在直接回答或收斂，輸出 followup_answer_now。\n只輸出類別代號。\n",
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": {
+      "completion_params": {
+        "temperature": 0
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": [
+      {
+        "id": "followup_ask_more",
+        "name": "Ask More"
+      },
+      {
+        "id": "followup_answer_now",
+        "name": "Answer Now"
+      }
+    ],
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "llm-followup",
+    "title": "Follow-up Resolver",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "930ec6c2-ce4f-417e-9a2e-7f47419c8748",
+        "role": "system",
+        "text": "你正在處理上一輪留下的補問。\n已知補問內容：{{#conversation.pending_question#}}\n請根據使用者本輪回答，直接完成上一輪對話。\n如果資訊仍不足，且目前還沒到第二輪上限，只再提出一個最小補問。\n不要一次問超過一個問題。\n如果對方顯示低能量、講不清楚、負擔高，優先收斂或把問題縮得更小。\n若 `burden_level_state` 顯示 high 或 `followup_budget` 是 0，優先直接回答，不再補問。\n目前負擔狀態：{{#conversation.burden_level_state#}}\n"
+      }
+    ],
+    "context": {
+      "enabled": false,
+      "variable_selector": []
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0.5
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "llm-followup-final",
+    "title": "Follow-up Finalizer",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "89ae8b3f-769b-4f58-b103-49428345342a",
+        "role": "system",
+        "text": "你正在處理最後一次補問收斂。\n已知補問內容：{{#conversation.pending_question#}}\n現在不允許再追問。\n請根據目前已有資訊，給出最好的收斂回答。\n語氣要降低負擔，不要讓病人覺得自己還被要求補更多。\n目前負擔狀態：{{#conversation.burden_level_state#}}\n"
+      }
+    ],
+    "context": {
+      "enabled": false,
+      "variable_selector": []
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0.3
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "llm-clarify",
+    "title": "Clarify Question",
+    "type": "llm",
+    "instruction": null,
+    "prompt_template": [
+      {
+        "id": "f8fbe3d5-d0a2-44b0-bef8-59211ddf4664",
+        "role": "system",
+        "text": "你要先補一個最關鍵的問題。\n規則：\n1. 只問一個問題。\n2. 問題要短。\n3. 問題要能直接幫助下一輪回答。\n"
+      }
+    ],
+    "context": {
+      "enabled": false,
+      "variable_selector": []
+    },
+    "memory": {
+      "query_prompt_template": "{{#sys.query#}}\n\n{{#sys.files#}}",
+      "role_prefix": {
+        "assistant": "",
+        "user": ""
+      },
+      "window": {
+        "enabled": false,
+        "size": 10
+      }
+    },
+    "model": {
+      "completion_params": {
+        "temperature": 0.7
+      },
+      "mode": "chat",
+      "name": "llama-3.1-8b-instant",
+      "provider": "langgenius/groq/groq"
+    },
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "clear-pending",
+    "title": "Clear Pending Question",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "save-pending",
+    "title": "Save Pending Question",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "save-pending-followup",
+    "title": "Save Follow-up Question",
+    "type": "assigner",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "answer-safety",
+    "title": "Safety Answer",
+    "type": "answer",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "answer-void",
+    "title": "Void Answer",
+    "type": "answer",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "answer-soulmate",
+    "title": "Soulmate Answer",
+    "type": "answer",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "answer-mission",
+    "title": "Mission Answer",
+    "type": "answer",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "answer-option",
+    "title": "Option Answer",
+    "type": "answer",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "answer-natural",
+    "title": "Natural Answer",
+    "type": "answer",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "answer-followup",
+    "title": "Follow-up Answer",
+    "type": "answer",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "answer-clarify",
+    "title": "Clarify Answer",
+    "type": "answer",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  },
+  {
+    "id": "answer-command",
+    "title": "Command Answer",
+    "type": "answer",
+    "instruction": null,
+    "prompt_template": null,
+    "context": null,
+    "memory": null,
+    "model": null,
+    "classes": null,
+    "dataset_ids": null,
+    "retrieval_mode": null
+  }
+]

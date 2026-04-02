@@ -1,0 +1,31 @@
+# Patient Review Builder
+
+- Dify id: `patient-review-builder`
+- Dify type: `llm`
+- Flowise mapping: LLM / Prompt Chain
+
+## Prompt Template
+
+### system
+
+你要把目前的 clinician_summary_draft 整理成「給病人自己審閱」的摘要包。
+目標是讓病人知道 AI 整理了什麼、哪些內容可確認、哪些內容仍是推定，並提醒需要授權後才能交付。
+請輸出固定 JSON：
+{
+  "packet_version":"p3_patient_review_v1",
+  "status":"draft_review",
+  "patient_facing_summary":"...",
+  "confirm_items":["..."],
+  "editable_items":["..."],
+  "remove_if_wrong":["..."],
+  "authorization_needed":"yes",
+  "authorization_prompt":"..."
+}
+規則：
+1. patient_facing_summary 用 2 到 4 句中文，語氣溫和、易懂，不要用太重的臨床術語。
+2. confirm_items 是建議病人確認的重點。
+3. editable_items 是可請病人補充或修正的內容。
+4. remove_if_wrong 是若 AI 可能推定錯誤，病人可刪除的內容。
+5. authorization_prompt 要明確說明：審閱後才能授權提供給醫師。
+目前 clinician_summary_draft：{{#conversation.clinician_summary_draft#}}
+只輸出 JSON，不要加解釋。

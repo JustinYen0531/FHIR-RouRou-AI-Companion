@@ -65,22 +65,23 @@ node app\fhirDeliveryServer.js
 node app\fhirDeliveryServer.test.js
 ```
 
-## Dify Chatflow 前端整合
+## Flowise Chatflow 前端整合
 
-現在 [app/index.html](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/index.html) 可以透過本地 server 串接 Dify Chatflow。
+現在 [app/index.html](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/index.html) 可以透過本地 server 串接 Flowise Chatflow。
 
-建議先用環境變數設定聊天流 API key：
+建議先用環境變數設定 Flowise chatflow id：
 
 ```powershell
-$env:DIFY_APP_API_KEY="app-xxxxxxxxxxxxxxxx"
+$env:FLOWISE_CHATFLOW_ID="your-flowise-chatflow-id"
 node app\fhirDeliveryServer.js
 ```
 
-如果 Dify 不是用預設雲端 API，也可以一起設定 base URL：
+如果 Flowise 不是跑在預設本地 URL，也可以一起設定 base URL 與 API key：
 
 ```powershell
-$env:DIFY_API_BASE_URL="https://api.dify.ai/v1"
-$env:DIFY_APP_API_KEY="app-xxxxxxxxxxxxxxxx"
+$env:FLOWISE_API_BASE_URL="http://localhost:3000"
+$env:FLOWISE_CHATFLOW_ID="your-flowise-chatflow-id"
+$env:FLOWISE_API_KEY="optional-secret"
 node app\fhirDeliveryServer.js
 ```
 
@@ -95,8 +96,9 @@ node app\fhirDeliveryServer.js
 
 如果你不想把 key 放在環境變數，也可以在 Settings 頁面內填入：
 
-- Dify Base URL
-- Dify API Key
+- Flowise Base URL
+- Flowise Chatflow ID
+- Flowise API Key
 - User ID
 
-這個設定會存在瀏覽器 localStorage，適合本機 demo；若要正式部署，仍建議把 API key 放在 server 端。
+這個設定會存在瀏覽器 localStorage，適合本機 demo；若要正式部署，仍建議把 Flowise API key 放在 server 端。

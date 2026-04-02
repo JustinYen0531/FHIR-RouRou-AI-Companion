@@ -1,5 +1,6 @@
-const DEFAULT_DIFY_BASE_URL = 'https://api.dify.ai/v1';
-const DEFAULT_DIFY_APP_KEY = 'app-rsEik4bkKMqvHtBUt5qtb3H6';
+const DEFAULT_FLOWISE_BASE_URL = 'http://localhost:3000';
+const DEFAULT_FLOWISE_API_KEY = '';
+const DEFAULT_FLOWISE_CHATFLOW_ID = '';
 
 const APP_STATE = {
   currentScreen: 'screen-chat',
@@ -149,15 +150,19 @@ function formatChatError(payload = {}) {
   const message = payload.error || '聊天訊息送出失敗';
 
   if (payload.code === 'internal_server_error' || payload.status === 500) {
-    return `Dify app 本身回了 500 錯誤，流程目前沒有成功執行。請到 Dify 檢查這個 app 的已發佈版本和節點執行紀錄。\n\n原始訊息：${message}`;
+    return `Flowise 或代理後端回了 500 錯誤，流程目前沒有成功執行。\n\n原始訊息：${message}`;
   }
 
-  if (payload.code === 'dify_timeout' || payload.status === 504) {
-    return `Dify 超時了，這次等待太久沒有回來。通常代表 workflow 卡在某個節點、模型沒有回應，或 app 本身執行過慢。`;
+  if (payload.code === 'flowise_timeout' || payload.status === 504) {
+    return 'Flowise 超時了，這次等待太久沒有回來。通常代表 Flowise chatflow 卡在某個節點、模型沒有回應，或後端執行過慢。';
   }
 
-  if (message.includes('Missing Dify API key')) {
-    return '目前沒有可用的 Dify app key，請到 Settings 確認聊天流設定。';
+  if (message.includes('Missing Flowise chatflow id')) {
+    return '目前沒有可用的 Flowise chatflow id，請到 Settings 確認聊天流設定。';
+  }
+
+  if (message.includes('Missing Flowise API key')) {
+    return '目前沒有可用的 Flowise API key，請到 Settings 確認聊天流設定。';
   }
 
   return `目前無法連接聊天流：${message}`;
@@ -165,19 +170,24 @@ function formatChatError(payload = {}) {
 
 function getRuntimeConfig() {
   return {
-    apiBaseUrl: localStorage.getItem('rourou.difyBaseUrl') || DEFAULT_DIFY_BASE_URL,
-    apiKey: localStorage.getItem('rourou.difyApiKey') || DEFAULT_DIFY_APP_KEY,
+    apiBaseUrl: localStorage.getItem('rourou.flowiseBaseUrl') || DEFAULT_FLOWISE_BASE_URL,
+    apiKey: localStorage.getItem('rourou.flowiseApiKey') || DEFAULT_FLOWISE_API_KEY,
+    chatflowId: localStorage.getItem('rourou.flowiseChatflowId') || DEFAULT_FLOWISE_CHATFLOW_ID,
     userId: APP_STATE.userId
   };
 }
 
 function initializeRuntimeConfig() {
-  if (!localStorage.getItem('rourou.difyBaseUrl')) {
-    localStorage.setItem('rourou.difyBaseUrl', DEFAULT_DIFY_BASE_URL);
+  if (!localStorage.getItem('rourou.flowiseBaseUrl')) {
+    localStorage.setItem('rourou.flowiseBaseUrl', DEFAULT_FLOWISE_BASE_URL);
   }
 
-  if (!localStorage.getItem('rourou.difyApiKey')) {
-    localStorage.setItem('rourou.difyApiKey', DEFAULT_DIFY_APP_KEY);
+  if (!localStorage.getItem('rourou.flowiseApiKey')) {
+    localStorage.setItem('rourou.flowiseApiKey', DEFAULT_FLOWISE_API_KEY);
+  }
+
+  if (!localStorage.getItem('rourou.flowiseChatflowId')) {
+    localStorage.setItem('rourou.flowiseChatflowId', DEFAULT_FLOWISE_CHATFLOW_ID);
   }
 }
 
@@ -196,6 +206,7 @@ async function ensureModeSynced() {
       conversation_id: APP_STATE.conversationId,
       user: config.userId,
       api_key: config.apiKey,
+      chatflow_id: config.chatflowId,
       api_base_url: config.apiBaseUrl,
       hide_response: true
     })
@@ -234,6 +245,7 @@ async function sendMessage() {
         conversation_id: APP_STATE.conversationId,
         user: config.userId,
         api_key: config.apiKey,
+        chatflow_id: config.chatflowId,
         api_base_url: config.apiBaseUrl
       })
     });
@@ -255,16 +267,16 @@ async function sendMessage() {
 
 function injectRuntimeSettings() {
   const settingsScreen = document.getElementById('screen-settings');
-  if (!settingsScreen || document.getElementById('dify-runtime-card')) return;
+  if (!settingsScreen || document.getElementById('flowise-runtime-card')) return;
 
   const settingsMain = settingsScreen.querySelector('main');
   if (!settingsMain) return;
 
   const wrapper = document.createElement('section');
   wrapper.className = 'settings-card';
-  wrapper.id = 'dify-runtime-card';
+  wrapper.id = 'flowise-runtime-card';
   wrapper.innerHTML = `
-    <div class="settings-group-label">DIFY CHATFLOW</div>
+    <div class="settings-group-label">FLOWISE CHATFLOW</div>
     <div class="settings-inner">
       <div class="setting-group">
         <div class="setting-title">
@@ -272,13 +284,14 @@ function injectRuntimeSettings() {
           <span>聊天流連線設定</span>
         </div>
         <div style="display:flex;flex-direction:column;gap:12px">
-          <input id="dify-base-url" type="text" placeholder="https://api.dify.ai/v1" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
-          <input id="dify-api-key" type="password" placeholder="app-..." style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
-          <input id="dify-user-id" type="text" placeholder="user id" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
-          <button id="save-dify-config" class="cta-primary with-icon" type="button">儲存聊天流設定</button>
+          <input id="flowise-base-url" type="text" placeholder="http://localhost:3000" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
+          <input id="flowise-chatflow-id" type="text" placeholder="chatflow id" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
+          <input id="flowise-api-key" type="password" placeholder="optional api key" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
+          <input id="flowise-user-id" type="text" placeholder="user id" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
+          <button id="save-flowise-config" class="cta-primary with-icon" type="button">儲存聊天流設定</button>
         </div>
         <p style="font-size:12px;color:#64727a;line-height:1.6;margin-top:12px">
-          目前已預設連到你的 Dify app。這裡仍可改成其他 app key 或自架 Dify base URL。
+          這裡設定 Flowise base URL、chatflow id、API key 與 user id。前端會透過本地 Node proxy 轉發到 Flowise。
         </p>
       </div>
     </div>
@@ -287,17 +300,19 @@ function injectRuntimeSettings() {
   settingsMain.insertBefore(wrapper, settingsMain.firstChild);
 
   const config = getRuntimeConfig();
-  document.getElementById('dify-base-url').value = config.apiBaseUrl;
-  document.getElementById('dify-api-key').value = config.apiKey;
-  document.getElementById('dify-user-id').value = config.userId;
+  document.getElementById('flowise-base-url').value = config.apiBaseUrl;
+  document.getElementById('flowise-chatflow-id').value = config.chatflowId;
+  document.getElementById('flowise-api-key').value = config.apiKey;
+  document.getElementById('flowise-user-id').value = config.userId;
 
-  document.getElementById('save-dify-config').addEventListener('click', () => {
-    localStorage.setItem('rourou.difyBaseUrl', document.getElementById('dify-base-url').value.trim() || DEFAULT_DIFY_BASE_URL);
-    localStorage.setItem('rourou.difyApiKey', document.getElementById('dify-api-key').value.trim() || DEFAULT_DIFY_APP_KEY);
-    localStorage.setItem('rourou.userId', document.getElementById('dify-user-id').value.trim() || APP_STATE.userId);
+  document.getElementById('save-flowise-config').addEventListener('click', () => {
+    localStorage.setItem('rourou.flowiseBaseUrl', document.getElementById('flowise-base-url').value.trim() || DEFAULT_FLOWISE_BASE_URL);
+    localStorage.setItem('rourou.flowiseChatflowId', document.getElementById('flowise-chatflow-id').value.trim() || DEFAULT_FLOWISE_CHATFLOW_ID);
+    localStorage.setItem('rourou.flowiseApiKey', document.getElementById('flowise-api-key').value.trim() || DEFAULT_FLOWISE_API_KEY);
+    localStorage.setItem('rourou.userId', document.getElementById('flowise-user-id').value.trim() || APP_STATE.userId);
     APP_STATE.userId = localStorage.getItem('rourou.userId') || APP_STATE.userId;
     APP_STATE.syncedMode = '';
-    appendSystemNotice('聊天流設定已更新。之後送出的訊息會走 Dify Chatflow。');
+    appendSystemNotice('聊天流設定已更新。之後送出的訊息會走 Flowise。');
   });
 }
 
@@ -306,7 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
   showScreen('screen-chat');
   updateModeLabels();
   injectRuntimeSettings();
-  appendSystemNotice('前端已預設連到指定的 Dify app，可直接從聊天畫面開始測試。');
+  appendSystemNotice('前端目前走 Flowise + 本地 Node proxy。設定完成後可直接從聊天畫面測試。');
 });
 
 window.showScreen = showScreen;

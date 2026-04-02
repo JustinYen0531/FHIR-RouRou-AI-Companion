@@ -1,0 +1,905 @@
+[
+  {
+    "id": "save-mission-retrieval-audit",
+    "title": "Save Mission Retrieval Audit",
+    "items": [
+      {
+        "input_type": "variable",
+        "operation": "overwrite",
+        "value": [
+          "mission-retrieval-audit",
+          "text"
+        ],
+        "variable_selector": [
+          "conversation",
+          "mission_retrieval_audit"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "set-risk-state",
+    "title": "Set Risk State",
+    "items": [
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "true",
+        "variable_selector": [
+          "conversation",
+          "risk_flag"
+        ]
+      },
+      {
+        "input_type": "variable",
+        "operation": "overwrite",
+        "value": [
+          "risk-structurer",
+          "text"
+        ],
+        "variable_selector": [
+          "conversation",
+          "red_flag_payload"
+        ]
+      },
+      {
+        "input_type": "variable",
+        "operation": "overwrite",
+        "value": [
+          "risk-structurer",
+          "text"
+        ],
+        "variable_selector": [
+          "conversation",
+          "latest_tag_payload"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "none",
+        "variable_selector": [
+          "conversation",
+          "pending_question"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "safety",
+        "variable_selector": [
+          "conversation",
+          "active_mode"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "clear-risk-state",
+    "title": "Clear Risk State",
+    "items": [
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "false",
+        "variable_selector": [
+          "conversation",
+          "risk_flag"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "none",
+        "variable_selector": [
+          "conversation",
+          "red_flag_payload"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "save-summary-draft",
+    "title": "Save Summary Draft",
+    "items": [
+      {
+        "input_type": "variable",
+        "operation": "overwrite",
+        "value": [
+          "summary-draft-builder",
+          "text"
+        ],
+        "variable_selector": [
+          "conversation",
+          "summary_draft_state"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "save-clinician-summary",
+    "title": "Save Clinician Summary",
+    "items": [
+      {
+        "input_type": "variable",
+        "operation": "overwrite",
+        "value": [
+          "clinician-summary-builder",
+          "text"
+        ],
+        "variable_selector": [
+          "conversation",
+          "clinician_summary_draft"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "save-patient-review",
+    "title": "Save Patient Review",
+    "items": [
+      {
+        "input_type": "variable",
+        "operation": "overwrite",
+        "value": [
+          "patient-review-builder",
+          "text"
+        ],
+        "variable_selector": [
+          "conversation",
+          "patient_review_packet"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "save-patient-authorization",
+    "title": "Save Patient Authorization",
+    "items": [
+      {
+        "input_type": "variable",
+        "operation": "overwrite",
+        "value": [
+          "patient-authorization-builder",
+          "text"
+        ],
+        "variable_selector": [
+          "conversation",
+          "patient_authorization_state"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "save-delivery-readiness",
+    "title": "Save Delivery Readiness",
+    "items": [
+      {
+        "input_type": "variable",
+        "operation": "overwrite",
+        "value": [
+          "delivery-readiness-builder",
+          "text"
+        ],
+        "variable_selector": [
+          "conversation",
+          "delivery_readiness_state"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "save-fhir-delivery",
+    "title": "Save FHIR Delivery",
+    "items": [
+      {
+        "input_type": "variable",
+        "operation": "overwrite",
+        "value": [
+          "fhir-delivery-builder",
+          "text"
+        ],
+        "variable_selector": [
+          "conversation",
+          "fhir_delivery_draft"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "save-tag-payload",
+    "title": "Save Tag Payload",
+    "items": [
+      {
+        "input_type": "variable",
+        "operation": "overwrite",
+        "value": [
+          "tag-structurer",
+          "text"
+        ],
+        "variable_selector": [
+          "conversation",
+          "latest_tag_payload"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "save-burden-level",
+    "title": "Save Burden Level",
+    "items": [
+      {
+        "input_type": "variable",
+        "operation": "overwrite",
+        "value": [
+          "burden-level-builder",
+          "text"
+        ],
+        "variable_selector": [
+          "conversation",
+          "burden_level_state"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "set-command-auto",
+    "title": "Set Command Auto",
+    "items": [
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "auto",
+        "variable_selector": [
+          "conversation",
+          "routing_mode_override"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "auto",
+        "variable_selector": [
+          "conversation",
+          "active_mode"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "none",
+        "variable_selector": [
+          "conversation",
+          "pending_question"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "0",
+        "variable_selector": [
+          "conversation",
+          "followup_turn_count"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "resolved",
+        "variable_selector": [
+          "conversation",
+          "followup_status"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "已切回 auto 模式，之後會重新依照使用者語氣與內容自動分流。",
+        "variable_selector": [
+          "conversation",
+          "command_feedback"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "set-command-void",
+    "title": "Set Command Void",
+    "items": [
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "mode_1_void",
+        "variable_selector": [
+          "conversation",
+          "routing_mode_override"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "mode_1_void",
+        "variable_selector": [
+          "conversation",
+          "active_mode"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "none",
+        "variable_selector": [
+          "conversation",
+          "pending_question"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "0",
+        "variable_selector": [
+          "conversation",
+          "followup_turn_count"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "resolved",
+        "variable_selector": [
+          "conversation",
+          "followup_status"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "已切換到 void 模式，之後會優先維持樹洞式接住，直到你輸入其他模式指令或 auto。",
+        "variable_selector": [
+          "conversation",
+          "command_feedback"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "set-command-soulmate",
+    "title": "Set Command Soulmate",
+    "items": [
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "mode_2_soulmate",
+        "variable_selector": [
+          "conversation",
+          "routing_mode_override"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "mode_2_soulmate",
+        "variable_selector": [
+          "conversation",
+          "active_mode"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "none",
+        "variable_selector": [
+          "conversation",
+          "pending_question"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "0",
+        "variable_selector": [
+          "conversation",
+          "followup_turn_count"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "resolved",
+        "variable_selector": [
+          "conversation",
+          "followup_status"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "已切換到 soulmate 模式，之後會優先維持陪伴式互動，直到你輸入其他模式指令或 auto。",
+        "variable_selector": [
+          "conversation",
+          "command_feedback"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "set-command-mission",
+    "title": "Set Command Mission",
+    "items": [
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "mode_3_mission",
+        "variable_selector": [
+          "conversation",
+          "routing_mode_override"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "mode_3_mission",
+        "variable_selector": [
+          "conversation",
+          "active_mode"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "none",
+        "variable_selector": [
+          "conversation",
+          "pending_question"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "0",
+        "variable_selector": [
+          "conversation",
+          "followup_turn_count"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "resolved",
+        "variable_selector": [
+          "conversation",
+          "followup_status"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "已切換到 mission 模式，之後會優先維持任務整理與診前引導，直到你輸入其他模式指令或 auto。",
+        "variable_selector": [
+          "conversation",
+          "command_feedback"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "set-command-option",
+    "title": "Set Command Option",
+    "items": [
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "mode_4_option",
+        "variable_selector": [
+          "conversation",
+          "routing_mode_override"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "mode_4_option",
+        "variable_selector": [
+          "conversation",
+          "active_mode"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "none",
+        "variable_selector": [
+          "conversation",
+          "pending_question"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "0",
+        "variable_selector": [
+          "conversation",
+          "followup_turn_count"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "resolved",
+        "variable_selector": [
+          "conversation",
+          "followup_status"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "已切換到 option 模式，之後會優先用低負擔選項式互動，同時保留量表線索，直到你輸入其他模式指令或 auto。",
+        "variable_selector": [
+          "conversation",
+          "command_feedback"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "set-command-natural",
+    "title": "Set Command Natural",
+    "items": [
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "mode_5_natural",
+        "variable_selector": [
+          "conversation",
+          "routing_mode_override"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "mode_5_natural",
+        "variable_selector": [
+          "conversation",
+          "active_mode"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "none",
+        "variable_selector": [
+          "conversation",
+          "pending_question"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "0",
+        "variable_selector": [
+          "conversation",
+          "followup_turn_count"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "resolved",
+        "variable_selector": [
+          "conversation",
+          "followup_status"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "已切換到 natural 模式，之後會優先用自然互動蒐集線索，直到你輸入其他模式指令或 auto。",
+        "variable_selector": [
+          "conversation",
+          "command_feedback"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "set-command-clarify",
+    "title": "Set Command Clarify",
+    "items": [
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "mode_6_clarify",
+        "variable_selector": [
+          "conversation",
+          "routing_mode_override"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "mode_6_clarify",
+        "variable_selector": [
+          "conversation",
+          "active_mode"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "none",
+        "variable_selector": [
+          "conversation",
+          "pending_question"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "0",
+        "variable_selector": [
+          "conversation",
+          "followup_turn_count"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "resolved",
+        "variable_selector": [
+          "conversation",
+          "followup_status"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "已切換到 clarify 模式，之後會優先用最小補問來釐清資訊，直到你輸入其他模式指令或 auto。",
+        "variable_selector": [
+          "conversation",
+          "command_feedback"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "set-mode-void",
+    "title": "Set Active Mode Void",
+    "items": [
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "mode_1_void",
+        "variable_selector": [
+          "conversation",
+          "active_mode"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "set-mode-soulmate",
+    "title": "Set Active Mode Soulmate",
+    "items": [
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "mode_2_soulmate",
+        "variable_selector": [
+          "conversation",
+          "active_mode"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "set-mode-mission",
+    "title": "Set Active Mode Mission",
+    "items": [
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "mode_3_mission",
+        "variable_selector": [
+          "conversation",
+          "active_mode"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "set-mode-option",
+    "title": "Set Active Mode Option",
+    "items": [
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "mode_4_option",
+        "variable_selector": [
+          "conversation",
+          "active_mode"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "set-mode-natural",
+    "title": "Set Active Mode Natural",
+    "items": [
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "mode_5_natural",
+        "variable_selector": [
+          "conversation",
+          "active_mode"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "set-mode-clarify",
+    "title": "Set Active Mode Clarify",
+    "items": [
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "mode_6_clarify",
+        "variable_selector": [
+          "conversation",
+          "active_mode"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "save-hamd-progress",
+    "title": "Save HAM-D Progress",
+    "items": [
+      {
+        "input_type": "variable",
+        "operation": "overwrite",
+        "value": [
+          "hamd-progress-tracker",
+          "text"
+        ],
+        "variable_selector": [
+          "conversation",
+          "hamd_progress_state"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "save-option-retrieval-audit",
+    "title": "Save Option Retrieval Audit",
+    "items": [
+      {
+        "input_type": "variable",
+        "operation": "overwrite",
+        "value": [
+          "option-retrieval-audit",
+          "text"
+        ],
+        "variable_selector": [
+          "conversation",
+          "option_retrieval_audit"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "clear-pending",
+    "title": "Clear Pending Question",
+    "items": [
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "none",
+        "variable_selector": [
+          "conversation",
+          "pending_question"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "0",
+        "variable_selector": [
+          "conversation",
+          "followup_turn_count"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "resolved",
+        "variable_selector": [
+          "conversation",
+          "followup_status"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "save-pending",
+    "title": "Save Pending Question",
+    "items": [
+      {
+        "input_type": "variable",
+        "operation": "overwrite",
+        "value": [
+          "llm-clarify",
+          "text"
+        ],
+        "variable_selector": [
+          "conversation",
+          "pending_question"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "1",
+        "variable_selector": [
+          "conversation",
+          "followup_turn_count"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "pending",
+        "variable_selector": [
+          "conversation",
+          "followup_status"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "save-pending-followup",
+    "title": "Save Follow-up Question",
+    "items": [
+      {
+        "input_type": "variable",
+        "operation": "overwrite",
+        "value": [
+          "llm-followup",
+          "text"
+        ],
+        "variable_selector": [
+          "conversation",
+          "pending_question"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "2",
+        "variable_selector": [
+          "conversation",
+          "followup_turn_count"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "pending",
+        "variable_selector": [
+          "conversation",
+          "followup_status"
+        ]
+      },
+      {
+        "input_type": "constant",
+        "operation": "overwrite",
+        "value": "followup",
+        "variable_selector": [
+          "conversation",
+          "active_mode"
+        ]
+      }
+    ]
+  }
+]

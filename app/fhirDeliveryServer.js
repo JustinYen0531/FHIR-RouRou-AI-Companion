@@ -2,7 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { buildSessionExportBundle } = require('./fhirBundleBuilder');
-const { DEFAULT_DIFY_BASE_URL, sendDifyChatMessage } = require('./difyChatClient');
+const { DEFAULT_FLOWISE_BASE_URL, sendFlowiseChatMessage } = require('./flowiseChatClient');
 
 const APP_DIR = __dirname;
 const STATIC_FILES = {
@@ -125,8 +125,9 @@ async function processExportPayload(payload, options = {}) {
 }
 
 async function processChatPayload(payload, options = {}) {
-  const apiKey = (options.difyApiKey || payload.api_key || '').trim();
-  const apiBaseUrl = (options.difyBaseUrl || payload.api_base_url || DEFAULT_DIFY_BASE_URL).trim();
+  const apiKey = (options.flowiseApiKey || payload.api_key || '').trim();
+  const apiBaseUrl = (options.flowiseBaseUrl || payload.api_base_url || DEFAULT_FLOWISE_BASE_URL).trim();
+  const chatflowId = (options.flowiseChatflowId || payload.chatflow_id || '').trim();
   const user = (payload.user || 'web-demo-user').trim();
   const message = (payload.message || '').trim();
 
@@ -137,15 +138,15 @@ async function processChatPayload(payload, options = {}) {
     };
   }
 
-  if (!apiKey) {
+  if (!chatflowId) {
     return {
       statusCode: 500,
-      body: { error: 'Missing Dify API key. Set DIFY_APP_API_KEY or send api_key from the client.' }
+      body: { error: 'Missing Flowise chatflow id. Set FLOWISE_CHATFLOW_ID or send chatflow_id from the client.' }
     };
   }
 
   try {
-    const result = await sendDifyChatMessage(
+    const result = await sendFlowiseChatMessage(
       {
         message,
         inputs: payload.inputs || {},
@@ -155,6 +156,7 @@ async function processChatPayload(payload, options = {}) {
       {
         apiKey,
         baseUrl: apiBaseUrl,
+        chatflowId,
         fetchImpl: options.fetchImpl
       }
     );
@@ -175,7 +177,7 @@ async function processChatPayload(payload, options = {}) {
       statusCode: error.status || 502,
       body: {
         error: error.message,
-        code: error.code || 'dify_proxy_error',
+        code: error.code || 'flowise_proxy_error',
         status: error.status || 502,
         conversation_id: payload.conversation_id || ''
       }
@@ -202,7 +204,8 @@ function createServer(options = {}) {
     if (req.method === 'GET' && req.url === '/health') {
       sendJson(res, 200, {
         ok: true,
-        dify_configured: Boolean(options.difyApiKey || process.env.DIFY_APP_API_KEY || process.env.DIFY_API_KEY)
+        flowise_configured: Boolean(options.flowiseChatflowId || process.env.FLOWISE_CHATFLOW_ID),
+        flowise_requires_key: Boolean(options.flowiseApiKey || process.env.FLOWISE_API_KEY)
       });
       return;
     }
@@ -238,9 +241,10 @@ function createServer(options = {}) {
 if (require.main === module) {
   const port = Number(process.env.PORT || 8787);
   const fhirBaseUrl = process.env.FHIR_SERVER_URL || '';
-  const difyApiKey = process.env.DIFY_APP_API_KEY || process.env.DIFY_API_KEY || '';
-  const difyBaseUrl = process.env.DIFY_API_BASE_URL || DEFAULT_DIFY_BASE_URL;
-  const server = createServer({ fhirBaseUrl, difyApiKey, difyBaseUrl });
+  const flowiseApiKey = process.env.FLOWISE_API_KEY || '';
+  const flowiseBaseUrl = process.env.FLOWISE_API_BASE_URL || DEFAULT_FLOWISE_BASE_URL;
+  const flowiseChatflowId = process.env.FLOWISE_CHATFLOW_ID || '';
+  const server = createServer({ fhirBaseUrl, flowiseApiKey, flowiseBaseUrl, flowiseChatflowId });
   server.listen(port, () => {
     console.log('FHIR delivery server listening on http://localhost:' + port);
     console.log('Static app available at http://localhost:' + port + '/');
@@ -249,10 +253,10 @@ if (require.main === module) {
     } else {
       console.log('FHIR delivery server is running in dry-run mode.');
     }
-    if (difyApiKey) {
-      console.log('Dify chat proxy configured for', difyBaseUrl);
+    if (flowiseChatflowId) {
+      console.log('Flowise chat proxy configured for', flowiseBaseUrl, 'chatflow', flowiseChatflowId);
     } else {
-      console.log('Dify chat proxy is waiting for DIFY_APP_API_KEY or a client-provided api_key.');
+      console.log('Flowise chat proxy is waiting for FLOWISE_CHATFLOW_ID or a client-provided chatflow_id.');
     }
   });
 }

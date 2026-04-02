@@ -1,0 +1,2258 @@
+{
+  "name": "AI Companion Flowise Blueprint",
+  "source": "AI_Chat_Companion_New_Skeleton (4).yml",
+  "generated_at": "2026-04-02T03:23:16.922Z",
+  "architecture": {
+    "orchestration": "Node proxy + Flowise chatflow runtime",
+    "memory": "Flowise sessionId + Node-side business state",
+    "rag": "Local file corpus + Flowise retriever"
+  },
+  "state_variables": [
+    {
+      "name": "pending_question",
+      "value_type": "string",
+      "default_value": "none",
+      "description": "Store the latest clarification question so the next turn can answer it"
+    },
+    {
+      "name": "risk_flag",
+      "value_type": "string",
+      "default_value": "false",
+      "description": "Whether the latest user turn hit a red flag path"
+    },
+    {
+      "name": "red_flag_payload",
+      "value_type": "string",
+      "default_value": "none",
+      "description": "Structured JSON-like summary for the latest detected red flag"
+    },
+    {
+      "name": "followup_turn_count",
+      "value_type": "string",
+      "default_value": "0",
+      "description": "Number of consecutive clarification turns in the current follow-up chain"
+    },
+    {
+      "name": "followup_status",
+      "value_type": "string",
+      "default_value": "none",
+      "description": "Current follow-up lifecycle state"
+    },
+    {
+      "name": "active_mode",
+      "value_type": "string",
+      "default_value": "auto",
+      "description": "Last resolved routing mode for the current turn"
+    },
+    {
+      "name": "latest_tag_payload",
+      "value_type": "string",
+      "default_value": "none",
+      "description": "Structured tag output for the latest normal user turn"
+    },
+    {
+      "name": "hamd_progress_state",
+      "value_type": "string",
+      "default_value": "none",
+      "description": "Structured HAM-D progress snapshot for mission mode"
+    },
+    {
+      "name": "summary_draft_state",
+      "value_type": "string",
+      "default_value": "none",
+      "description": "Unified pre-summary state for future clinician draft generation"
+    },
+    {
+      "name": "clinician_summary_draft",
+      "value_type": "string",
+      "default_value": "none",
+      "description": "Clinician-facing draft summary generated from the unified summary state"
+    },
+    {
+      "name": "routing_mode_override",
+      "value_type": "string",
+      "default_value": "auto",
+      "description": "Persisted manual routing mode override; auto means automatic routing"
+    },
+    {
+      "name": "command_feedback",
+      "value_type": "string",
+      "default_value": "none",
+      "description": "Short confirmation text for command-mode switches"
+    },
+    {
+      "name": "patient_review_packet",
+      "value_type": "string",
+      "default_value": "none",
+      "description": "Patient-facing review packet generated from clinician summary draft"
+    },
+    {
+      "name": "fhir_delivery_draft",
+      "value_type": "string",
+      "default_value": "none",
+      "description": "Draft FHIR/TW Core delivery payload generated from reviewed summary state"
+    },
+    {
+      "name": "mission_retrieval_audit",
+      "value_type": "string",
+      "default_value": "none",
+      "description": "Retrieval governance snapshot for mission mode knowledge usage"
+    },
+    {
+      "name": "option_retrieval_audit",
+      "value_type": "string",
+      "default_value": "none",
+      "description": "Retrieval governance snapshot for option mode knowledge usage"
+    },
+    {
+      "name": "burden_level_state",
+      "value_type": "string",
+      "default_value": "none",
+      "description": "Structured burden and response-style state for cognitive load aware routing and replies"
+    },
+    {
+      "name": "patient_authorization_state",
+      "value_type": "string",
+      "default_value": "none",
+      "description": "Structured review and consent readiness state derived from the patient review packet"
+    },
+    {
+      "name": "delivery_readiness_state",
+      "value_type": "string",
+      "default_value": "none",
+      "description": "Structured pre-delivery readiness state for FHIR and clinician export workflows"
+    }
+  ],
+  "node_mapping": [
+    {
+      "id": "start",
+      "title": "Start",
+      "type": "start",
+      "flowise_component": "Chatflow input / Start"
+    },
+    {
+      "id": "command-detector",
+      "title": "Command Detector",
+      "type": "question-classifier",
+      "flowise_component": "Custom JS Function + If Else + Set Variable"
+    },
+    {
+      "id": "risk-detector",
+      "title": "Risk Detector",
+      "type": "question-classifier",
+      "flowise_component": "Custom JS Function + If Else + Set Variable"
+    },
+    {
+      "id": "mission-retrieval-audit",
+      "title": "Mission Retrieval Audit",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "save-mission-retrieval-audit",
+      "title": "Save Mission Retrieval Audit",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "risk-structurer",
+      "title": "Risk Structurer",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "set-risk-state",
+      "title": "Set Risk State",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "clear-risk-state",
+      "title": "Clear Risk State",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "safety-response",
+      "title": "Safety Response",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "summary-draft-builder",
+      "title": "Summary Draft Builder",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "save-summary-draft",
+      "title": "Save Summary Draft",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "clinician-summary-builder",
+      "title": "Clinician Summary Builder",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "save-clinician-summary",
+      "title": "Save Clinician Summary",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "patient-review-builder",
+      "title": "Patient Review Builder",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "save-patient-review",
+      "title": "Save Patient Review",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "patient-authorization-builder",
+      "title": "Patient Authorization Builder",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "save-patient-authorization",
+      "title": "Save Patient Authorization",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "fhir-delivery-builder",
+      "title": "FHIR Delivery Builder",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "delivery-readiness-builder",
+      "title": "Delivery Readiness Builder",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "save-delivery-readiness",
+      "title": "Save Delivery Readiness",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "save-fhir-delivery",
+      "title": "Save FHIR Delivery",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "tag-structurer",
+      "title": "Tag Structurer",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "save-tag-payload",
+      "title": "Save Tag Payload",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "burden-level-builder",
+      "title": "Burden Level Builder",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "save-burden-level",
+      "title": "Save Burden Level",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "set-command-auto",
+      "title": "Set Command Auto",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "set-command-void",
+      "title": "Set Command Void",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "set-command-soulmate",
+      "title": "Set Command Soulmate",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "set-command-mission",
+      "title": "Set Command Mission",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "set-command-option",
+      "title": "Set Command Option",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "set-command-natural",
+      "title": "Set Command Natural",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "set-command-clarify",
+      "title": "Set Command Clarify",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "set-mode-void",
+      "title": "Set Active Mode Void",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "set-mode-soulmate",
+      "title": "Set Active Mode Soulmate",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "set-mode-mission",
+      "title": "Set Active Mode Mission",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "set-mode-option",
+      "title": "Set Active Mode Option",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "set-mode-natural",
+      "title": "Set Active Mode Natural",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "set-mode-clarify",
+      "title": "Set Active Mode Clarify",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "override-gate",
+      "title": "Override Gate",
+      "type": "if-else",
+      "flowise_component": "If Else"
+    },
+    {
+      "id": "followup-gate",
+      "title": "Follow-up Gate",
+      "type": "if-else",
+      "flowise_component": "If Else"
+    },
+    {
+      "id": "followup-limit-gate",
+      "title": "Follow-up Limit Gate",
+      "type": "if-else",
+      "flowise_component": "If Else"
+    },
+    {
+      "id": "classifier",
+      "title": "Intent Classifier",
+      "type": "question-classifier",
+      "flowise_component": "Custom JS Function + If Else + Set Variable"
+    },
+    {
+      "id": "low-energy-detector",
+      "title": "Low Energy Detector",
+      "type": "question-classifier",
+      "flowise_component": "Custom JS Function + If Else + Set Variable"
+    },
+    {
+      "id": "override-router",
+      "title": "Override Router",
+      "type": "question-classifier",
+      "flowise_component": "Custom JS Function + If Else + Set Variable"
+    },
+    {
+      "id": "llm-void",
+      "title": "Void Box",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "llm-soulmate",
+      "title": "Soul Mate",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "retrieval-mission",
+      "title": "Mission Retrieval",
+      "type": "knowledge-retrieval",
+      "flowise_component": "Document Store + Retriever + QA Chain"
+    },
+    {
+      "id": "hamd-progress-tracker",
+      "title": "HAM-D Progress Tracker",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "save-hamd-progress",
+      "title": "Save HAM-D Progress",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "llm-mission",
+      "title": "Mission Guide",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "retrieval-option",
+      "title": "Option Retrieval",
+      "type": "knowledge-retrieval",
+      "flowise_component": "Document Store + Retriever + QA Chain"
+    },
+    {
+      "id": "option-retrieval-audit",
+      "title": "Option Retrieval Audit",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "save-option-retrieval-audit",
+      "title": "Save Option Retrieval Audit",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "llm-option",
+      "title": "Option Selector",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "llm-natural",
+      "title": "Smart Hunter",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "followup-output-classifier",
+      "title": "Follow-up Output Classifier",
+      "type": "question-classifier",
+      "flowise_component": "Custom JS Function + If Else + Set Variable"
+    },
+    {
+      "id": "llm-followup",
+      "title": "Follow-up Resolver",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "llm-followup-final",
+      "title": "Follow-up Finalizer",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "llm-clarify",
+      "title": "Clarify Question",
+      "type": "llm",
+      "flowise_component": "LLM / Prompt Chain"
+    },
+    {
+      "id": "clear-pending",
+      "title": "Clear Pending Question",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "save-pending",
+      "title": "Save Pending Question",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "save-pending-followup",
+      "title": "Save Follow-up Question",
+      "type": "assigner",
+      "flowise_component": "Set Variable"
+    },
+    {
+      "id": "answer-safety",
+      "title": "Safety Answer",
+      "type": "answer",
+      "flowise_component": "Final output node"
+    },
+    {
+      "id": "answer-void",
+      "title": "Void Answer",
+      "type": "answer",
+      "flowise_component": "Final output node"
+    },
+    {
+      "id": "answer-soulmate",
+      "title": "Soulmate Answer",
+      "type": "answer",
+      "flowise_component": "Final output node"
+    },
+    {
+      "id": "answer-mission",
+      "title": "Mission Answer",
+      "type": "answer",
+      "flowise_component": "Final output node"
+    },
+    {
+      "id": "answer-option",
+      "title": "Option Answer",
+      "type": "answer",
+      "flowise_component": "Final output node"
+    },
+    {
+      "id": "answer-natural",
+      "title": "Natural Answer",
+      "type": "answer",
+      "flowise_component": "Final output node"
+    },
+    {
+      "id": "answer-followup",
+      "title": "Follow-up Answer",
+      "type": "answer",
+      "flowise_component": "Final output node"
+    },
+    {
+      "id": "answer-clarify",
+      "title": "Clarify Answer",
+      "type": "answer",
+      "flowise_component": "Final output node"
+    },
+    {
+      "id": "answer-command",
+      "title": "Command Answer",
+      "type": "answer",
+      "flowise_component": "Final output node"
+    }
+  ],
+  "prompt_nodes": [
+    {
+      "id": "command-detector",
+      "title": "Command Detector",
+      "type": "question-classifier",
+      "prompt_file": "flowise/prompts/command-detector.md"
+    },
+    {
+      "id": "risk-detector",
+      "title": "Risk Detector",
+      "type": "question-classifier",
+      "prompt_file": "flowise/prompts/risk-detector.md"
+    },
+    {
+      "id": "mission-retrieval-audit",
+      "title": "Mission Retrieval Audit",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/mission-retrieval-audit.md"
+    },
+    {
+      "id": "risk-structurer",
+      "title": "Risk Structurer",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/risk-structurer.md"
+    },
+    {
+      "id": "safety-response",
+      "title": "Safety Response",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/safety-response.md"
+    },
+    {
+      "id": "summary-draft-builder",
+      "title": "Summary Draft Builder",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/summary-draft-builder.md"
+    },
+    {
+      "id": "clinician-summary-builder",
+      "title": "Clinician Summary Builder",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/clinician-summary-builder.md"
+    },
+    {
+      "id": "patient-review-builder",
+      "title": "Patient Review Builder",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/patient-review-builder.md"
+    },
+    {
+      "id": "patient-authorization-builder",
+      "title": "Patient Authorization Builder",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/patient-authorization-builder.md"
+    },
+    {
+      "id": "fhir-delivery-builder",
+      "title": "FHIR Delivery Builder",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/fhir-delivery-builder.md"
+    },
+    {
+      "id": "delivery-readiness-builder",
+      "title": "Delivery Readiness Builder",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/delivery-readiness-builder.md"
+    },
+    {
+      "id": "tag-structurer",
+      "title": "Tag Structurer",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/tag-structurer.md"
+    },
+    {
+      "id": "burden-level-builder",
+      "title": "Burden Level Builder",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/burden-level-builder.md"
+    },
+    {
+      "id": "classifier",
+      "title": "Intent Classifier",
+      "type": "question-classifier",
+      "prompt_file": "flowise/prompts/intent-classifier.md"
+    },
+    {
+      "id": "low-energy-detector",
+      "title": "Low Energy Detector",
+      "type": "question-classifier",
+      "prompt_file": "flowise/prompts/low-energy-detector.md"
+    },
+    {
+      "id": "override-router",
+      "title": "Override Router",
+      "type": "question-classifier",
+      "prompt_file": "flowise/prompts/override-router.md"
+    },
+    {
+      "id": "llm-void",
+      "title": "Void Box",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/void-box.md"
+    },
+    {
+      "id": "llm-soulmate",
+      "title": "Soul Mate",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/soul-mate.md"
+    },
+    {
+      "id": "hamd-progress-tracker",
+      "title": "HAM-D Progress Tracker",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/ham-d-progress-tracker.md"
+    },
+    {
+      "id": "llm-mission",
+      "title": "Mission Guide",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/mission-guide.md"
+    },
+    {
+      "id": "option-retrieval-audit",
+      "title": "Option Retrieval Audit",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/option-retrieval-audit.md"
+    },
+    {
+      "id": "llm-option",
+      "title": "Option Selector",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/option-selector.md"
+    },
+    {
+      "id": "llm-natural",
+      "title": "Smart Hunter",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/smart-hunter.md"
+    },
+    {
+      "id": "followup-output-classifier",
+      "title": "Follow-up Output Classifier",
+      "type": "question-classifier",
+      "prompt_file": "flowise/prompts/follow-up-output-classifier.md"
+    },
+    {
+      "id": "llm-followup",
+      "title": "Follow-up Resolver",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/follow-up-resolver.md"
+    },
+    {
+      "id": "llm-followup-final",
+      "title": "Follow-up Finalizer",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/follow-up-finalizer.md"
+    },
+    {
+      "id": "llm-clarify",
+      "title": "Clarify Question",
+      "type": "llm",
+      "prompt_file": "flowise/prompts/clarify-question.md"
+    }
+  ],
+  "assigners": [
+    {
+      "id": "save-mission-retrieval-audit",
+      "title": "Save Mission Retrieval Audit",
+      "writes": [
+        {
+          "variable": "conversation.mission_retrieval_audit",
+          "input_type": "variable",
+          "operation": "overwrite",
+          "value": [
+            "mission-retrieval-audit",
+            "text"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "set-risk-state",
+      "title": "Set Risk State",
+      "writes": [
+        {
+          "variable": "conversation.risk_flag",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "true"
+        },
+        {
+          "variable": "conversation.red_flag_payload",
+          "input_type": "variable",
+          "operation": "overwrite",
+          "value": [
+            "risk-structurer",
+            "text"
+          ]
+        },
+        {
+          "variable": "conversation.latest_tag_payload",
+          "input_type": "variable",
+          "operation": "overwrite",
+          "value": [
+            "risk-structurer",
+            "text"
+          ]
+        },
+        {
+          "variable": "conversation.pending_question",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "none"
+        },
+        {
+          "variable": "conversation.active_mode",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "safety"
+        }
+      ]
+    },
+    {
+      "id": "clear-risk-state",
+      "title": "Clear Risk State",
+      "writes": [
+        {
+          "variable": "conversation.risk_flag",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "false"
+        },
+        {
+          "variable": "conversation.red_flag_payload",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "none"
+        }
+      ]
+    },
+    {
+      "id": "save-summary-draft",
+      "title": "Save Summary Draft",
+      "writes": [
+        {
+          "variable": "conversation.summary_draft_state",
+          "input_type": "variable",
+          "operation": "overwrite",
+          "value": [
+            "summary-draft-builder",
+            "text"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "save-clinician-summary",
+      "title": "Save Clinician Summary",
+      "writes": [
+        {
+          "variable": "conversation.clinician_summary_draft",
+          "input_type": "variable",
+          "operation": "overwrite",
+          "value": [
+            "clinician-summary-builder",
+            "text"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "save-patient-review",
+      "title": "Save Patient Review",
+      "writes": [
+        {
+          "variable": "conversation.patient_review_packet",
+          "input_type": "variable",
+          "operation": "overwrite",
+          "value": [
+            "patient-review-builder",
+            "text"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "save-patient-authorization",
+      "title": "Save Patient Authorization",
+      "writes": [
+        {
+          "variable": "conversation.patient_authorization_state",
+          "input_type": "variable",
+          "operation": "overwrite",
+          "value": [
+            "patient-authorization-builder",
+            "text"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "save-delivery-readiness",
+      "title": "Save Delivery Readiness",
+      "writes": [
+        {
+          "variable": "conversation.delivery_readiness_state",
+          "input_type": "variable",
+          "operation": "overwrite",
+          "value": [
+            "delivery-readiness-builder",
+            "text"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "save-fhir-delivery",
+      "title": "Save FHIR Delivery",
+      "writes": [
+        {
+          "variable": "conversation.fhir_delivery_draft",
+          "input_type": "variable",
+          "operation": "overwrite",
+          "value": [
+            "fhir-delivery-builder",
+            "text"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "save-tag-payload",
+      "title": "Save Tag Payload",
+      "writes": [
+        {
+          "variable": "conversation.latest_tag_payload",
+          "input_type": "variable",
+          "operation": "overwrite",
+          "value": [
+            "tag-structurer",
+            "text"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "save-burden-level",
+      "title": "Save Burden Level",
+      "writes": [
+        {
+          "variable": "conversation.burden_level_state",
+          "input_type": "variable",
+          "operation": "overwrite",
+          "value": [
+            "burden-level-builder",
+            "text"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "set-command-auto",
+      "title": "Set Command Auto",
+      "writes": [
+        {
+          "variable": "conversation.routing_mode_override",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "auto"
+        },
+        {
+          "variable": "conversation.active_mode",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "auto"
+        },
+        {
+          "variable": "conversation.pending_question",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "none"
+        },
+        {
+          "variable": "conversation.followup_turn_count",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "0"
+        },
+        {
+          "variable": "conversation.followup_status",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "resolved"
+        },
+        {
+          "variable": "conversation.command_feedback",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "已切回 auto 模式，之後會重新依照使用者語氣與內容自動分流。"
+        }
+      ]
+    },
+    {
+      "id": "set-command-void",
+      "title": "Set Command Void",
+      "writes": [
+        {
+          "variable": "conversation.routing_mode_override",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "mode_1_void"
+        },
+        {
+          "variable": "conversation.active_mode",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "mode_1_void"
+        },
+        {
+          "variable": "conversation.pending_question",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "none"
+        },
+        {
+          "variable": "conversation.followup_turn_count",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "0"
+        },
+        {
+          "variable": "conversation.followup_status",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "resolved"
+        },
+        {
+          "variable": "conversation.command_feedback",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "已切換到 void 模式，之後會優先維持樹洞式接住，直到你輸入其他模式指令或 auto。"
+        }
+      ]
+    },
+    {
+      "id": "set-command-soulmate",
+      "title": "Set Command Soulmate",
+      "writes": [
+        {
+          "variable": "conversation.routing_mode_override",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "mode_2_soulmate"
+        },
+        {
+          "variable": "conversation.active_mode",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "mode_2_soulmate"
+        },
+        {
+          "variable": "conversation.pending_question",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "none"
+        },
+        {
+          "variable": "conversation.followup_turn_count",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "0"
+        },
+        {
+          "variable": "conversation.followup_status",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "resolved"
+        },
+        {
+          "variable": "conversation.command_feedback",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "已切換到 soulmate 模式，之後會優先維持陪伴式互動，直到你輸入其他模式指令或 auto。"
+        }
+      ]
+    },
+    {
+      "id": "set-command-mission",
+      "title": "Set Command Mission",
+      "writes": [
+        {
+          "variable": "conversation.routing_mode_override",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "mode_3_mission"
+        },
+        {
+          "variable": "conversation.active_mode",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "mode_3_mission"
+        },
+        {
+          "variable": "conversation.pending_question",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "none"
+        },
+        {
+          "variable": "conversation.followup_turn_count",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "0"
+        },
+        {
+          "variable": "conversation.followup_status",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "resolved"
+        },
+        {
+          "variable": "conversation.command_feedback",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "已切換到 mission 模式，之後會優先維持任務整理與診前引導，直到你輸入其他模式指令或 auto。"
+        }
+      ]
+    },
+    {
+      "id": "set-command-option",
+      "title": "Set Command Option",
+      "writes": [
+        {
+          "variable": "conversation.routing_mode_override",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "mode_4_option"
+        },
+        {
+          "variable": "conversation.active_mode",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "mode_4_option"
+        },
+        {
+          "variable": "conversation.pending_question",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "none"
+        },
+        {
+          "variable": "conversation.followup_turn_count",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "0"
+        },
+        {
+          "variable": "conversation.followup_status",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "resolved"
+        },
+        {
+          "variable": "conversation.command_feedback",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "已切換到 option 模式，之後會優先用低負擔選項式互動，同時保留量表線索，直到你輸入其他模式指令或 auto。"
+        }
+      ]
+    },
+    {
+      "id": "set-command-natural",
+      "title": "Set Command Natural",
+      "writes": [
+        {
+          "variable": "conversation.routing_mode_override",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "mode_5_natural"
+        },
+        {
+          "variable": "conversation.active_mode",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "mode_5_natural"
+        },
+        {
+          "variable": "conversation.pending_question",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "none"
+        },
+        {
+          "variable": "conversation.followup_turn_count",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "0"
+        },
+        {
+          "variable": "conversation.followup_status",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "resolved"
+        },
+        {
+          "variable": "conversation.command_feedback",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "已切換到 natural 模式，之後會優先用自然互動蒐集線索，直到你輸入其他模式指令或 auto。"
+        }
+      ]
+    },
+    {
+      "id": "set-command-clarify",
+      "title": "Set Command Clarify",
+      "writes": [
+        {
+          "variable": "conversation.routing_mode_override",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "mode_6_clarify"
+        },
+        {
+          "variable": "conversation.active_mode",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "mode_6_clarify"
+        },
+        {
+          "variable": "conversation.pending_question",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "none"
+        },
+        {
+          "variable": "conversation.followup_turn_count",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "0"
+        },
+        {
+          "variable": "conversation.followup_status",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "resolved"
+        },
+        {
+          "variable": "conversation.command_feedback",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "已切換到 clarify 模式，之後會優先用最小補問來釐清資訊，直到你輸入其他模式指令或 auto。"
+        }
+      ]
+    },
+    {
+      "id": "set-mode-void",
+      "title": "Set Active Mode Void",
+      "writes": [
+        {
+          "variable": "conversation.active_mode",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "mode_1_void"
+        }
+      ]
+    },
+    {
+      "id": "set-mode-soulmate",
+      "title": "Set Active Mode Soulmate",
+      "writes": [
+        {
+          "variable": "conversation.active_mode",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "mode_2_soulmate"
+        }
+      ]
+    },
+    {
+      "id": "set-mode-mission",
+      "title": "Set Active Mode Mission",
+      "writes": [
+        {
+          "variable": "conversation.active_mode",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "mode_3_mission"
+        }
+      ]
+    },
+    {
+      "id": "set-mode-option",
+      "title": "Set Active Mode Option",
+      "writes": [
+        {
+          "variable": "conversation.active_mode",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "mode_4_option"
+        }
+      ]
+    },
+    {
+      "id": "set-mode-natural",
+      "title": "Set Active Mode Natural",
+      "writes": [
+        {
+          "variable": "conversation.active_mode",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "mode_5_natural"
+        }
+      ]
+    },
+    {
+      "id": "set-mode-clarify",
+      "title": "Set Active Mode Clarify",
+      "writes": [
+        {
+          "variable": "conversation.active_mode",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "mode_6_clarify"
+        }
+      ]
+    },
+    {
+      "id": "save-hamd-progress",
+      "title": "Save HAM-D Progress",
+      "writes": [
+        {
+          "variable": "conversation.hamd_progress_state",
+          "input_type": "variable",
+          "operation": "overwrite",
+          "value": [
+            "hamd-progress-tracker",
+            "text"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "save-option-retrieval-audit",
+      "title": "Save Option Retrieval Audit",
+      "writes": [
+        {
+          "variable": "conversation.option_retrieval_audit",
+          "input_type": "variable",
+          "operation": "overwrite",
+          "value": [
+            "option-retrieval-audit",
+            "text"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clear-pending",
+      "title": "Clear Pending Question",
+      "writes": [
+        {
+          "variable": "conversation.pending_question",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "none"
+        },
+        {
+          "variable": "conversation.followup_turn_count",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "0"
+        },
+        {
+          "variable": "conversation.followup_status",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "resolved"
+        }
+      ]
+    },
+    {
+      "id": "save-pending",
+      "title": "Save Pending Question",
+      "writes": [
+        {
+          "variable": "conversation.pending_question",
+          "input_type": "variable",
+          "operation": "overwrite",
+          "value": [
+            "llm-clarify",
+            "text"
+          ]
+        },
+        {
+          "variable": "conversation.followup_turn_count",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "1"
+        },
+        {
+          "variable": "conversation.followup_status",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "pending"
+        }
+      ]
+    },
+    {
+      "id": "save-pending-followup",
+      "title": "Save Follow-up Question",
+      "writes": [
+        {
+          "variable": "conversation.pending_question",
+          "input_type": "variable",
+          "operation": "overwrite",
+          "value": [
+            "llm-followup",
+            "text"
+          ]
+        },
+        {
+          "variable": "conversation.followup_turn_count",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "2"
+        },
+        {
+          "variable": "conversation.followup_status",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "pending"
+        },
+        {
+          "variable": "conversation.active_mode",
+          "input_type": "constant",
+          "operation": "overwrite",
+          "value": "followup"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "start-command-detector",
+      "source": "start",
+      "sourceHandle": "source",
+      "target": "command-detector",
+      "targetHandle": "target",
+      "sourceType": "start",
+      "targetType": "question-classifier"
+    },
+    {
+      "id": "command-auto-set",
+      "source": "command-detector",
+      "sourceHandle": "cmd_auto",
+      "target": "set-command-auto",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "command-void-set",
+      "source": "command-detector",
+      "sourceHandle": "cmd_void",
+      "target": "set-command-void",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "command-soulmate-set",
+      "source": "command-detector",
+      "sourceHandle": "cmd_soulmate",
+      "target": "set-command-soulmate",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "command-mission-set",
+      "source": "command-detector",
+      "sourceHandle": "cmd_mission",
+      "target": "set-command-mission",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "command-option-set",
+      "source": "command-detector",
+      "sourceHandle": "cmd_option",
+      "target": "set-command-option",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "command-natural-set",
+      "source": "command-detector",
+      "sourceHandle": "cmd_natural",
+      "target": "set-command-natural",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "command-clarify-set",
+      "source": "command-detector",
+      "sourceHandle": "cmd_clarify",
+      "target": "set-command-clarify",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "gate-followup-limit",
+      "source": "followup-gate",
+      "sourceHandle": "true",
+      "target": "followup-limit-gate",
+      "targetHandle": "target",
+      "sourceType": "if-else",
+      "targetType": "if-else"
+    },
+    {
+      "id": "safety-answer-edge",
+      "source": "safety-response",
+      "sourceHandle": "source",
+      "target": "answer-safety",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "answer"
+    },
+    {
+      "id": "gate-followup-resolver",
+      "source": "followup-limit-gate",
+      "sourceHandle": "false",
+      "target": "llm-followup",
+      "targetHandle": "target",
+      "sourceType": "if-else",
+      "targetType": "llm"
+    },
+    {
+      "id": "gate-followup-finalize",
+      "source": "followup-limit-gate",
+      "sourceHandle": "true",
+      "target": "llm-followup-final",
+      "targetHandle": "target",
+      "sourceType": "if-else",
+      "targetType": "llm"
+    },
+    {
+      "id": "low-energy-option-route",
+      "source": "low-energy-detector",
+      "sourceHandle": "degrade_option",
+      "target": "set-mode-option",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "low-energy-soulmate-route",
+      "source": "low-energy-detector",
+      "sourceHandle": "degrade_soulmate",
+      "target": "set-mode-soulmate",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "override-void",
+      "source": "override-router",
+      "sourceHandle": "mode_1_void",
+      "target": "set-mode-void",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "override-soulmate",
+      "source": "override-router",
+      "sourceHandle": "mode_2_soulmate",
+      "target": "set-mode-soulmate",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "override-option",
+      "source": "override-router",
+      "sourceHandle": "mode_4_option",
+      "target": "set-mode-option",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "override-natural",
+      "source": "override-router",
+      "sourceHandle": "mode_5_natural",
+      "target": "set-mode-natural",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "override-clarify",
+      "source": "override-router",
+      "sourceHandle": "mode_6_clarify",
+      "target": "set-mode-clarify",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "classifier-void",
+      "source": "classifier",
+      "sourceHandle": "mode_1_void",
+      "target": "set-mode-void",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "set-mode-void-llm",
+      "source": "set-mode-void",
+      "sourceHandle": "source",
+      "target": "llm-void",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "llm"
+    },
+    {
+      "id": "classifier-soulmate",
+      "source": "classifier",
+      "sourceHandle": "mode_2_soulmate",
+      "target": "set-mode-soulmate",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "set-mode-soulmate-llm",
+      "source": "set-mode-soulmate",
+      "sourceHandle": "source",
+      "target": "llm-soulmate",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "llm"
+    },
+    {
+      "id": "classifier-option",
+      "source": "classifier",
+      "sourceHandle": "mode_4_option",
+      "target": "set-mode-option",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "set-mode-option-retrieval",
+      "source": "set-mode-option",
+      "sourceHandle": "source",
+      "target": "retrieval-option",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "knowledge-retrieval"
+    },
+    {
+      "id": "classifier-natural",
+      "source": "classifier",
+      "sourceHandle": "mode_5_natural",
+      "target": "set-mode-natural",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "set-mode-natural-llm",
+      "source": "set-mode-natural",
+      "sourceHandle": "source",
+      "target": "llm-natural",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "llm"
+    },
+    {
+      "id": "classifier-clarify",
+      "source": "classifier",
+      "sourceHandle": "mode_6_clarify",
+      "target": "set-mode-clarify",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "set-mode-clarify-llm",
+      "source": "set-mode-clarify",
+      "sourceHandle": "source",
+      "target": "llm-clarify",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "llm"
+    },
+    {
+      "id": "clinician-draft-save-edge",
+      "source": "clinician-summary-builder",
+      "sourceHandle": "source",
+      "target": "save-clinician-summary",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "assigner"
+    },
+    {
+      "id": "clinician-patient-review-edge",
+      "source": "save-clinician-summary",
+      "sourceHandle": "source",
+      "target": "patient-review-builder",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "llm"
+    },
+    {
+      "id": "patient-review-save-edge",
+      "source": "patient-review-builder",
+      "sourceHandle": "source",
+      "target": "save-patient-review",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "assigner"
+    },
+    {
+      "id": "patient-review-authorization-edge",
+      "source": "save-patient-review",
+      "sourceHandle": "source",
+      "target": "patient-authorization-builder",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "llm"
+    },
+    {
+      "id": "patient-authorization-save-edge",
+      "source": "patient-authorization-builder",
+      "sourceHandle": "source",
+      "target": "save-patient-authorization",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "assigner"
+    },
+    {
+      "id": "patient-authorization-fhir-edge",
+      "source": "save-patient-authorization",
+      "sourceHandle": "source",
+      "target": "fhir-delivery-builder",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "llm"
+    },
+    {
+      "id": "fhir-delivery-save-edge",
+      "source": "fhir-delivery-builder",
+      "sourceHandle": "source",
+      "target": "save-fhir-delivery",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "assigner"
+    },
+    {
+      "id": "fhir-readiness-build-edge",
+      "source": "save-fhir-delivery",
+      "sourceHandle": "source",
+      "target": "delivery-readiness-builder",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "llm"
+    },
+    {
+      "id": "delivery-readiness-save-edge",
+      "source": "delivery-readiness-builder",
+      "sourceHandle": "source",
+      "target": "save-delivery-readiness",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "assigner"
+    },
+    {
+      "id": "command-answer-auto",
+      "source": "set-command-auto",
+      "sourceHandle": "source",
+      "target": "answer-command",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "answer"
+    },
+    {
+      "id": "command-answer-void",
+      "source": "set-command-void",
+      "sourceHandle": "source",
+      "target": "answer-command",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "answer"
+    },
+    {
+      "id": "command-answer-soulmate",
+      "source": "set-command-soulmate",
+      "sourceHandle": "source",
+      "target": "answer-command",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "answer"
+    },
+    {
+      "id": "command-answer-mission",
+      "source": "set-command-mission",
+      "sourceHandle": "source",
+      "target": "answer-command",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "answer"
+    },
+    {
+      "id": "command-answer-option",
+      "source": "set-command-option",
+      "sourceHandle": "source",
+      "target": "answer-command",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "answer"
+    },
+    {
+      "id": "command-answer-natural",
+      "source": "set-command-natural",
+      "sourceHandle": "source",
+      "target": "answer-command",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "answer"
+    },
+    {
+      "id": "command-answer-clarify",
+      "source": "set-command-clarify",
+      "sourceHandle": "source",
+      "target": "answer-command",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "answer"
+    },
+    {
+      "id": "retrieval-option-audit-edge",
+      "source": "retrieval-option",
+      "sourceHandle": "source",
+      "target": "option-retrieval-audit",
+      "targetHandle": "target",
+      "sourceType": "knowledge-retrieval",
+      "targetType": "llm"
+    },
+    {
+      "id": "option-audit-save-edge",
+      "source": "option-retrieval-audit",
+      "sourceHandle": "source",
+      "target": "save-option-retrieval-audit",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "assigner"
+    },
+    {
+      "id": "option-audit-llm-edge",
+      "source": "save-option-retrieval-audit",
+      "sourceHandle": "source",
+      "target": "llm-option",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "llm"
+    },
+    {
+      "id": "followup-output-classify-edge",
+      "source": "llm-followup",
+      "sourceHandle": "source",
+      "target": "followup-output-classifier",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "question-classifier"
+    },
+    {
+      "id": "followup-output-askmore",
+      "source": "followup-output-classifier",
+      "sourceHandle": "followup_ask_more",
+      "target": "save-pending-followup",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "followup-output-answernow",
+      "source": "followup-output-classifier",
+      "sourceHandle": "followup_answer_now",
+      "target": "clear-pending",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "followup-final-clear",
+      "source": "llm-followup-final",
+      "sourceHandle": "source",
+      "target": "clear-pending",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "assigner"
+    },
+    {
+      "id": "clarify-save",
+      "source": "llm-clarify",
+      "sourceHandle": "source",
+      "target": "save-pending",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "assigner"
+    },
+    {
+      "id": "void-answer-edge",
+      "source": "llm-void",
+      "sourceHandle": "source",
+      "target": "answer-void",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "answer"
+    },
+    {
+      "id": "soulmate-answer-edge",
+      "source": "llm-soulmate",
+      "sourceHandle": "source",
+      "target": "answer-soulmate",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "answer"
+    },
+    {
+      "id": "mission-answer-edge",
+      "source": "llm-mission",
+      "sourceHandle": "source",
+      "target": "answer-mission",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "answer"
+    },
+    {
+      "id": "option-answer-edge",
+      "source": "llm-option",
+      "sourceHandle": "source",
+      "target": "answer-option",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "answer"
+    },
+    {
+      "id": "natural-answer-edge",
+      "source": "llm-natural",
+      "sourceHandle": "source",
+      "target": "answer-natural",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "answer"
+    },
+    {
+      "id": "followup-answer-edge",
+      "source": "clear-pending",
+      "sourceHandle": "source",
+      "target": "answer-followup",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "answer"
+    },
+    {
+      "id": "clarify-answer-edge",
+      "source": "save-pending",
+      "sourceHandle": "source",
+      "target": "answer-clarify",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "answer"
+    },
+    {
+      "sourceHandle": "source",
+      "targetHandle": "target",
+      "sourceType": "start",
+      "targetType": "question-classifier"
+    },
+    {
+      "id": "risk-detector-red_flag-risk-structurer-target",
+      "source": "risk-detector",
+      "sourceHandle": "red_flag",
+      "target": "risk-structurer",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "llm"
+    },
+    {
+      "id": "risk-structurer-source-set-risk-state-target",
+      "source": "risk-structurer",
+      "sourceHandle": "source",
+      "target": "set-risk-state",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "assigner"
+    },
+    {
+      "id": "set-risk-state-source-safety-response-target",
+      "source": "set-risk-state",
+      "sourceHandle": "source",
+      "target": "safety-response",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "llm"
+    },
+    {
+      "id": "followup-gate-pending_not_empty-llm-followup-final-target",
+      "source": "followup-gate",
+      "sourceHandle": "pending_not_empty",
+      "target": "llm-followup-final",
+      "targetHandle": "target",
+      "sourceType": "if-else",
+      "targetType": "llm"
+    },
+    {
+      "id": "followup-gate-false-llm-followup-target",
+      "source": "followup-gate",
+      "sourceHandle": "false",
+      "target": "llm-followup",
+      "targetHandle": "target",
+      "sourceType": "if-else",
+      "targetType": "llm"
+    },
+    {
+      "id": "followup-gate-pending_not_empty-followup-limit-gate-target",
+      "source": "followup-gate",
+      "sourceHandle": "pending_not_empty",
+      "target": "followup-limit-gate",
+      "targetHandle": "target",
+      "sourceType": "if-else",
+      "targetType": "if-else"
+    },
+    {
+      "id": "followup-limit-gate-limit_reached-llm-followup-final-target",
+      "source": "followup-limit-gate",
+      "sourceHandle": "limit_reached",
+      "target": "llm-followup-final",
+      "targetHandle": "target",
+      "sourceType": "if-else",
+      "targetType": "llm"
+    },
+    {
+      "id": "command-detector-cmd_none-risk-detector-target",
+      "source": "command-detector",
+      "sourceHandle": "cmd_none",
+      "target": "risk-detector",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "question-classifier"
+    },
+    {
+      "id": "followup-gate-false-override-gate-target",
+      "source": "followup-gate",
+      "sourceHandle": "false",
+      "target": "override-gate",
+      "targetHandle": "target",
+      "sourceType": "if-else",
+      "targetType": "if-else"
+    },
+    {
+      "id": "low-energy-detector-continue_auto-classifier-target",
+      "source": "low-energy-detector",
+      "sourceHandle": "continue_auto",
+      "target": "classifier",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "question-classifier"
+    },
+    {
+      "id": "risk-detector-normal-clear-risk-state-target",
+      "source": "risk-detector",
+      "sourceHandle": "normal",
+      "target": "clear-risk-state",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "clear-risk-state-source-followup-gate-target",
+      "source": "clear-risk-state",
+      "sourceHandle": "source",
+      "target": "followup-gate",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "if-else"
+    },
+    {
+      "id": "save-pending-followup-source-answer-followup-target",
+      "source": "save-pending-followup",
+      "sourceHandle": "source",
+      "target": "answer-followup",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "answer"
+    },
+    {
+      "id": "override-gate-override_active-override-router-target",
+      "source": "override-gate",
+      "sourceHandle": "override_active",
+      "target": "override-router",
+      "targetHandle": "target",
+      "sourceType": "if-else",
+      "targetType": "question-classifier"
+    },
+    {
+      "id": "override-gate-false-low-energy-detector-target",
+      "source": "override-gate",
+      "sourceHandle": "false",
+      "target": "low-energy-detector",
+      "targetHandle": "target",
+      "sourceType": "if-else",
+      "targetType": "question-classifier"
+    },
+    {
+      "id": "override-router-mode_3_mission-set-mode-mission-target",
+      "source": "override-router",
+      "sourceHandle": "mode_3_mission",
+      "target": "set-mode-mission",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    },
+    {
+      "id": "retrieval-mission-source-mission-retrieval-audit-target",
+      "source": "retrieval-mission",
+      "sourceHandle": "source",
+      "target": "mission-retrieval-audit",
+      "targetHandle": "target",
+      "sourceType": "knowledge-retrieval",
+      "targetType": "llm"
+    },
+    {
+      "id": "mission-retrieval-audit-source-save-mission-retrieval-audit-target",
+      "source": "mission-retrieval-audit",
+      "sourceHandle": "source",
+      "target": "save-mission-retrieval-audit",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "assigner"
+    },
+    {
+      "id": "save-mission-retrieval-audit-source-llm-mission-target",
+      "source": "save-mission-retrieval-audit",
+      "sourceHandle": "source",
+      "target": "llm-mission",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "llm"
+    },
+    {
+      "id": "save-hamd-progress-source-clinician-summary-builder-target",
+      "source": "save-hamd-progress",
+      "sourceHandle": "source",
+      "target": "clinician-summary-builder",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "llm"
+    },
+    {
+      "id": "save-burden-level-source-clinician-summary-builder-target",
+      "source": "save-burden-level",
+      "sourceHandle": "source",
+      "target": "clinician-summary-builder",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "llm"
+    },
+    {
+      "id": "save-mission-retrieval-audit-source-clinician-summary-builder-target",
+      "source": "save-mission-retrieval-audit",
+      "sourceHandle": "source",
+      "target": "clinician-summary-builder",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "llm"
+    },
+    {
+      "id": "hamd-progress-tracker-source-save-hamd-progress-target",
+      "source": "hamd-progress-tracker",
+      "sourceHandle": "source",
+      "target": "save-hamd-progress",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "assigner"
+    },
+    {
+      "id": "llm-mission-source-hamd-progress-tracker-target",
+      "source": "llm-mission",
+      "sourceHandle": "source",
+      "target": "hamd-progress-tracker",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "llm"
+    },
+    {
+      "id": "llm-mission-source-tag-structurer-target",
+      "source": "llm-mission",
+      "sourceHandle": "source",
+      "target": "tag-structurer",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "llm"
+    },
+    {
+      "id": "tag-structurer-source-save-tag-payload-target",
+      "source": "tag-structurer",
+      "sourceHandle": "source",
+      "target": "save-tag-payload",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "assigner"
+    },
+    {
+      "id": "llm-mission-source-summary-draft-builder-target",
+      "source": "llm-mission",
+      "sourceHandle": "source",
+      "target": "summary-draft-builder",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "llm"
+    },
+    {
+      "id": "llm-mission-source-burden-level-builder-target",
+      "source": "llm-mission",
+      "sourceHandle": "source",
+      "target": "burden-level-builder",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "llm"
+    },
+    {
+      "id": "burden-level-builder-source-save-burden-level-target",
+      "source": "burden-level-builder",
+      "sourceHandle": "source",
+      "target": "save-burden-level",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "assigner"
+    },
+    {
+      "id": "summary-draft-builder-source-save-summary-draft-target",
+      "source": "summary-draft-builder",
+      "sourceHandle": "source",
+      "target": "save-summary-draft",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "assigner"
+    },
+    {
+      "id": "save-summary-draft-source-clinician-summary-builder-target",
+      "source": "save-summary-draft",
+      "sourceHandle": "source",
+      "target": "clinician-summary-builder",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "llm"
+    },
+    {
+      "id": "save-tag-payload-source-clinician-summary-builder-target",
+      "source": "save-tag-payload",
+      "sourceHandle": "source",
+      "target": "clinician-summary-builder",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "llm"
+    },
+    {
+      "id": "patient-review-builder-source-fhir-delivery-builder-target",
+      "source": "patient-review-builder",
+      "sourceHandle": "source",
+      "target": "fhir-delivery-builder",
+      "targetHandle": "target",
+      "sourceType": "llm",
+      "targetType": "llm"
+    },
+    {
+      "id": "set-mode-mission-source-retrieval-mission-target",
+      "source": "set-mode-mission",
+      "sourceHandle": "source",
+      "target": "retrieval-mission",
+      "targetHandle": "target",
+      "sourceType": "assigner",
+      "targetType": "knowledge-retrieval"
+    },
+    {
+      "id": "classifier-mode_3_mission-set-mode-mission-target",
+      "source": "classifier",
+      "sourceHandle": "mode_3_mission",
+      "target": "set-mode-mission",
+      "targetHandle": "target",
+      "sourceType": "question-classifier",
+      "targetType": "assigner"
+    }
+  ]
+}
