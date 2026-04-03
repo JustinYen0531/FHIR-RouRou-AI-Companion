@@ -2252,6 +2252,12 @@ body {
   transition: all 0.3s ease;
 }
 
+.shortcut-page-shell {
+  position: relative;
+  min-height: 266px;
+  padding-right: 92px;
+}
+
 .shortcut-pages {
   display: flex;
   overflow-x: auto;
@@ -2288,16 +2294,17 @@ body {
   align-items: stretch;
 }
 
-.shortcut-chip,
-.shortcut-add-btn {
+.shortcut-chip {
   min-height: 82px;
   border-radius: 24px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 250, 254, 0.96));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(246, 250, 254, 0.62));
   color: #44575f;
   padding: 12px 10px;
   font-weight: 700;
-  border: 1px solid rgba(168, 180, 187, 0.14);
-  box-shadow: 0 10px 24px rgba(41, 52, 58, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  box-shadow: 0 10px 24px rgba(41, 52, 58, 0.045);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2306,7 +2313,7 @@ body {
 }
 
 .shortcut-chip:hover,
-.shortcut-add-btn:hover {
+.shortcut-fab:hover {
   transform: translateY(-1px);
   box-shadow: 0 14px 28px rgba(41, 52, 58, 0.08);
 }
@@ -2323,31 +2330,28 @@ body {
   overflow-wrap: anywhere;
 }
 
-.shortcut-add-btn {
-  background: linear-gradient(135deg, var(--primary), var(--primary-dim));
+.shortcut-fab {
+  position: absolute;
+  right: 0;
+  bottom: 18px;
+  width: 74px;
+  height: 74px;
+  border-radius: 28px;
+  background: linear-gradient(135deg, rgba(68, 102, 85, 0.92), rgba(57, 90, 73, 0.9));
   color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 16px 28px rgba(68, 102, 85, 0.2);
 }
 
-.shortcut-add-btn .mat-icon {
-  font-size: 26px;
-}
-
-.shortcut-page-grid-system .shortcut-add-btn {
-  grid-column: 4;
-  grid-row: 3;
-}
-
-.shortcut-page-grid-custom {
-  position: relative;
+.shortcut-fab .mat-icon {
+  font-size: 28px;
 }
 
 .shortcut-page-grid-empty {
-  grid-template-columns: minmax(0, 3fr) minmax(88px, 1fr);
+  grid-template-columns: 1fr;
   align-items: stretch;
-}
-
-.shortcut-page-grid-empty .shortcut-add-btn {
-  min-height: 100%;
 }
 
 .shortcut-custom-item {
@@ -2379,12 +2383,14 @@ body {
 .shortcut-empty-card {
   min-height: 178px;
   border-radius: 26px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(246,250,254,0.82));
-  border: 1px dashed rgba(168, 180, 187, 0.4);
+  background: linear-gradient(180deg, rgba(255,255,255,0.72), rgba(246,250,254,0.56));
+  border: 1px dashed rgba(255, 255, 255, 0.5);
   padding: 18px 18px;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .shortcut-empty-title {
@@ -2398,11 +2404,6 @@ body {
   font-size: 13px;
   line-height: 1.65;
   color: #66757d;
-}
-
-.shortcut-add-btn-secondary {
-  min-height: 178px;
-  align-self: stretch;
 }
 
 .shortcut-pager-dots {

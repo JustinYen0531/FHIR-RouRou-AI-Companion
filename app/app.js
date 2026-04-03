@@ -957,11 +957,11 @@ function renderShortcutPager() {
   if (!pageOne || !pageTwo) return;
 
   pageOne.innerHTML = `
+    <div class="shortcut-page-shell">
       <div class="shortcut-page-grid shortcut-page-grid-system">
-      ${DEFAULT_SHORTCUT_PAGE_ONE.map((item) =>
-        renderShortcutChip(item)
-      ).join('')}
-      <button class="shortcut-add-btn" type="button" onclick="openShortcutComposer()" aria-label="新增自訂快捷">
+        ${DEFAULT_SHORTCUT_PAGE_ONE.map((item) => renderShortcutChip(item)).join('')}
+      </div>
+      <button class="shortcut-fab" type="button" onclick="openShortcutComposer()" aria-label="新增自訂快捷">
         <span class="mat-icon">add</span>
       </button>
     </div>
@@ -969,26 +969,30 @@ function renderShortcutPager() {
 
   if (APP_STATE.customShortcuts.length) {
     pageTwo.innerHTML = `
-      <div class="shortcut-page-grid shortcut-page-grid-custom">
-        ${APP_STATE.customShortcuts.map((item, index) =>
-          `<div class="shortcut-custom-item">
-            ${renderShortcutChip(item)}
-            <button class="shortcut-delete-btn" type="button" aria-label="刪除 ${escapeHtml(item.label)}" onclick="removeCustomShortcut(${index})"><span class="mat-icon">close</span></button>
-          </div>`
-        ).join('')}
-        <button class="shortcut-add-btn shortcut-add-btn-secondary" type="button" onclick="openShortcutComposer()" aria-label="新增自訂快捷">
+      <div class="shortcut-page-shell">
+        <div class="shortcut-page-grid shortcut-page-grid-custom">
+          ${APP_STATE.customShortcuts.map((item, index) =>
+            `<div class="shortcut-custom-item">
+              ${renderShortcutChip(item)}
+              <button class="shortcut-delete-btn" type="button" aria-label="刪除 ${escapeHtml(item.label)}" onclick="removeCustomShortcut(${index})"><span class="mat-icon">close</span></button>
+            </div>`
+          ).join('')}
+        </div>
+        <button class="shortcut-fab" type="button" onclick="openShortcutComposer()" aria-label="新增自訂快捷">
           <span class="mat-icon">add</span>
         </button>
       </div>
     `;
   } else {
     pageTwo.innerHTML = `
-      <div class="shortcut-page-grid shortcut-page-grid-empty">
-        <div class="shortcut-empty-card">
-          <div class="shortcut-empty-title">現在沒有任何自定義指令</div>
-          <p class="shortcut-empty-body">按右邊的＋新增後，這一頁就會出現你自己的快捷命令。</p>
+      <div class="shortcut-page-shell">
+        <div class="shortcut-page-grid shortcut-page-grid-empty">
+          <div class="shortcut-empty-card">
+            <div class="shortcut-empty-title">現在沒有任何自定義指令</div>
+            <p class="shortcut-empty-body">按右下角的＋新增後，這一頁就會出現你自己的快捷命令。</p>
+          </div>
         </div>
-        <button class="shortcut-add-btn shortcut-add-btn-secondary" type="button" onclick="openShortcutComposer()" aria-label="新增自訂快捷">
+        <button class="shortcut-fab" type="button" onclick="openShortcutComposer()" aria-label="新增自訂快捷">
           <span class="mat-icon">add</span>
         </button>
       </div>
@@ -1406,15 +1410,14 @@ async function animateAiMessage(bubble, text) {
 
 function handleInput(input) {
   const shortcutBar = document.getElementById('shortcut-bar');
-  const hasFocus = document.activeElement === input;
   const isEmpty = input.value.trim().length === 0;
-  const shouldShow = hasFocus && isEmpty;
+  const shouldShow = isEmpty;
   
   if (!shortcutBar) return;
   if (shouldShow) {
     shortcutBar.style.display = 'block';
     setTimeout(() => {
-      if (document.activeElement === input && input.value.trim().length === 0) {
+      if (input.value.trim().length === 0) {
         shortcutBar.style.opacity = '1';
         shortcutBar.style.transform = 'translateY(0)';
         shortcutBar.style.pointerEvents = 'all';
@@ -1425,7 +1428,7 @@ function handleInput(input) {
     shortcutBar.style.transform = 'translateY(10px)';
     shortcutBar.style.pointerEvents = 'none';
     setTimeout(() => {
-      if (!(document.activeElement === input && input.value.trim().length === 0)) {
+      if (input.value.trim().length !== 0) {
         shortcutBar.style.display = 'none';
       }
     }, 300);
