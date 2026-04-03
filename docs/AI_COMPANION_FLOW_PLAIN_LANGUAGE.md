@@ -215,3 +215,7 @@
 - 重要記憶不能丟
 - 文件輸出要保留
 - 不要再因為每輪都跑太多東西，把 API 配額打爆
+
+## 13. 如果你要實際測
+請直接看：
+- [AI_COMPANION_TEST_CHECKLIST.md](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/docs/AI_COMPANION_TEST_CHECKLIST.md)

@@ -23,6 +23,8 @@
 - 醫師摘要、病人審閱稿、FHIR draft 改成按需生成。
 - 白話版完整說明見：
   - [AI_COMPANION_FLOW_PLAIN_LANGUAGE.md](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/docs/AI_COMPANION_FLOW_PLAIN_LANGUAGE.md)
+- 手動測試清單見：
+  - [AI_COMPANION_TEST_CHECKLIST.md](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/docs/AI_COMPANION_TEST_CHECKLIST.md)
 
 ## Runtime
 - 主 server: [app/fhirDeliveryServer.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/fhirDeliveryServer.js)
