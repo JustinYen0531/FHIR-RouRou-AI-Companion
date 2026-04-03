@@ -256,6 +256,88 @@ function escapeHtml(value) {
   return div.innerHTML;
 }
 
+function renderInlineMarkdown(text) {
+  return text
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(?!\*)([^*]+)\*/g, '<em>$1</em>');
+}
+
+function renderMessageMarkdown(text) {
+  const normalized = escapeHtml(text || '').replace(/\r\n/g, '\n').trim();
+  if (!normalized) {
+    return '';
+  }
+
+  const blocks = normalized.split(/\n{2,}/);
+  const html = blocks.map((block) => {
+    const lines = block.split('\n').filter(Boolean);
+
+    if (lines.length > 0 && lines.every((line) => /^[-*]\s+/.test(line))) {
+      const items = lines
+        .map((line) => `<li>${renderInlineMarkdown(line.replace(/^[-*]\s+/, ''))}</li>`)
+        .join('');
+      return `<ul>${items}</ul>`;
+    }
+
+    if (lines.length > 0 && lines.every((line) => /^\d+\.\s+/.test(line))) {
+      const items = lines
+        .map((line) => `<li>${renderInlineMarkdown(line.replace(/^\d+\.\s+/, ''))}</li>`)
+        .join('');
+      return `<ol>${items}</ol>`;
+    }
+
+    return `<p>${renderInlineMarkdown(lines.join('<br/>'))}</p>`;
+  }).join('');
+
+  return html;
+}
+
+function createMessageBubble(role) {
+  const container = document.getElementById('chat-messages');
+  if (!container) return {};
+
+  const group = document.createElement('div');
+  group.className = `msg-group ${role}`;
+
+  const bubble = document.createElement('div');
+  bubble.className = `bubble ${role === 'user' ? 'user-bubble' : 'ai-bubble'}`;
+  group.appendChild(bubble);
+
+  const typingIndicator = container.querySelector('.typing-indicator');
+  if (typingIndicator) {
+    container.insertBefore(group, typingIndicator);
+  } else {
+    container.appendChild(group);
+  }
+
+  scrollChatToBottom();
+  return { container, group, bubble };
+}
+
+function getTypingDelay(character) {
+  if (character === '\n') return 70;
+  if (/[，、；：]/.test(character)) return 35;
+  if (/[。！？]/.test(character)) return 90;
+  return 8;
+}
+
+async function animateAiMessage(bubble, text) {
+  const normalized = (text || '').replace(/\r\n/g, '\n');
+  bubble.classList.add('is-typing');
+  bubble.textContent = '';
+
+  for (const character of normalized) {
+    bubble.textContent += character;
+    scrollChatToBottom();
+    await new Promise((resolve) => setTimeout(resolve, getTypingDelay(character)));
+  }
+
+  bubble.classList.remove('is-typing');
+  bubble.innerHTML = renderMessageMarkdown(normalized);
+  scrollChatToBottom();
+}
+
 function handleInput(input) {
   const qrc = document.getElementById('quick-replies');
   const soa = document.getElementById('structured-output-actions');
@@ -303,19 +385,19 @@ function scrollChatToBottom() {
   }
 }
 
-function appendMessage(role, text) {
-  const container = document.getElementById('chat-messages');
-  if (!container) return;
+async function appendMessage(role, text, options = {}) {
+  const { bubble } = createMessageBubble(role);
+  if (!bubble) return;
 
-  const group = document.createElement('div');
-  group.className = `msg-group ${role}`;
-  group.innerHTML = `<div class="bubble ${role === 'user' ? 'user-bubble' : 'ai-bubble'}">${escapeHtml(text)}</div>`;
+  if (role === 'ai' && options.animate) {
+    await animateAiMessage(bubble, text);
+    return;
+  }
 
-  const typingIndicator = container.querySelector('.typing-indicator');
-  if (typingIndicator) {
-    container.insertBefore(group, typingIndicator);
+  if (role === 'ai') {
+    bubble.innerHTML = renderMessageMarkdown(text);
   } else {
-    container.appendChild(group);
+    bubble.textContent = text;
   }
 
   scrollChatToBottom();
@@ -431,7 +513,7 @@ async function sendMessage() {
   if (!message) return;
 
   APP_STATE.isSending = true;
-  appendMessage('user', message);
+  await appendMessage('user', message);
   input.value = '';
   handleInput(input); // To restore quick replies UI state if needed
   setTyping(true);
@@ -466,11 +548,12 @@ async function sendMessage() {
     }
 
     APP_STATE.conversationId = payload.conversation_id || APP_STATE.conversationId;
-    appendMessage('ai', payload.answer || '我有收到你的訊息，但這次沒有拿到完整回覆。');
-  } catch (error) {
-    appendMessage('ai', error.message || '目前無法連接聊天流。');
-  } finally {
     setTyping(false);
+    await appendMessage('ai', payload.answer || '我有收到你的訊息，但這次沒有拿到完整回覆。', { animate: true });
+  } catch (error) {
+    setTyping(false);
+    await appendMessage('ai', error.message || '目前無法連接聊天流。', { animate: true });
+  } finally {
     APP_STATE.isSending = false;
   }
 }
@@ -510,11 +593,12 @@ async function requestOutput(outputType) {
     }
 
     APP_STATE.conversationId = payload.conversation_id || APP_STATE.conversationId;
-    appendMessage('ai', payload.formatted_text || formatOutputPayload(payload.output_type, payload.output));
-  } catch (error) {
-    appendMessage('ai', error.message || '目前無法產生輸出。');
-  } finally {
     setTyping(false);
+    await appendMessage('ai', payload.formatted_text || formatOutputPayload(payload.output_type, payload.output), { animate: true });
+  } catch (error) {
+    setTyping(false);
+    await appendMessage('ai', error.message || '目前無法產生輸出。', { animate: true });
+  } finally {
     APP_STATE.isSending = false;
   }
 }

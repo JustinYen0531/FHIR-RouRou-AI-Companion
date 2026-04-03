@@ -1984,6 +1984,51 @@ body {
   border-top-left-radius: 10px;
 }
 
+.ai-bubble p,
+.user-bubble p {
+  margin: 0;
+}
+
+.ai-bubble p + p,
+.user-bubble p + p,
+.ai-bubble ul + p,
+.ai-bubble ol + p,
+.user-bubble ul + p,
+.user-bubble ol + p,
+.ai-bubble p + ul,
+.ai-bubble p + ol,
+.user-bubble p + ul,
+.user-bubble p + ol {
+  margin-top: 12px;
+}
+
+.ai-bubble ul,
+.ai-bubble ol,
+.user-bubble ul,
+.user-bubble ol {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.ai-bubble li + li,
+.user-bubble li + li {
+  margin-top: 6px;
+}
+
+.ai-bubble code,
+.user-bubble code {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(32, 48, 56, 0.08);
+  font-size: 0.9em;
+}
+
+.ai-bubble.is-typing,
+.user-bubble.is-typing {
+  white-space: pre-wrap;
+}
+
 .ai-bubble.soft {
   background: rgba(214, 241, 223, 0.72);
 }
