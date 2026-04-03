@@ -2260,6 +2260,7 @@ body {
 
 .shortcut-page-shell-system {
   padding-right: 0;
+  min-height: auto;
 }
 
 .shortcut-pages {

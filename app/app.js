@@ -971,7 +971,7 @@ function renderShortcutPager() {
           ${APP_STATE.customShortcuts.map((item, index) =>
             `<div class="shortcut-custom-item">
               ${renderShortcutChip(item)}
-              <button class="shortcut-delete-btn" type="button" aria-label="刪除 ${escapeHtml(item.label)}" onclick="removeCustomShortcut(${index}, event)"><span class="mat-icon">close</span></button>
+              <button class="shortcut-delete-btn" type="button" data-index="${index}" aria-label="刪除 ${escapeHtml(item.label)}"><span class="mat-icon">close</span></button>
             </div>`
           ).join('')}
         </div>
@@ -1068,11 +1068,7 @@ function submitShortcutComposer() {
   }
 }
 
-function removeCustomShortcut(index, event) {
-  if (event) {
-    event.preventDefault();
-    event.stopPropagation();
-  }
+function removeCustomShortcut(index) {
   APP_STATE.customShortcuts.splice(index, 1);
   saveCustomShortcuts();
   renderShortcutPager();
@@ -1904,6 +1900,13 @@ function wireShortcutInteractions() {
         viewport.dataset.suppressClick = 'false';
         event.preventDefault();
         event.stopPropagation();
+        return;
+      }
+      const deleteButton = event.target.closest('.shortcut-delete-btn');
+      if (deleteButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        removeCustomShortcut(Number(deleteButton.dataset.index));
         return;
       }
       const button = event.target.closest('.shortcut-chip');
