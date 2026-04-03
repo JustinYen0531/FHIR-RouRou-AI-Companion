@@ -14,7 +14,14 @@ const APP_STATE = {
   currentReportTab: 'auto',
   moodPoints: [100, 100, 100, 100, 100, 100, 100], 
   selectedMoodTags: [],
-  phq9Scores: Array(9).fill(0) 
+  phq9Scores: Array(9).fill(0),
+  reportOutputs: {
+    clinician_summary: null,
+    patient_review: null,
+    fhir_delivery: null,
+    session_export: null,
+    updatedAt: ''
+  }
 };
 
 const MODE_DEFINITIONS = {
@@ -32,6 +39,144 @@ const OUTPUT_DEFINITIONS = {
   patient_review: { label: '病人審閱稿', instruction: '產生病人審閱稿' },
   fhir_delivery: { label: 'FHIR Draft', instruction: '產生FHIR draft' }
 };
+
+const OUTPUT_COMMANDS = [
+  { type: 'clinician_summary', patterns: [/幫我整理給醫生/, /整理給醫師/, /醫師摘要/, /clinician summary/i, /doctor summary/i] },
+  { type: 'patient_review', patterns: [/病人審閱稿/, /給我病人版本/, /patient review/i] },
+  { type: 'fhir_delivery', patterns: [/fhir draft/i, /\bfhir\b/i, /產生fhir/i] }
+];
+
+function detectOutputCommand(text) {
+  const normalized = String(text || '').trim();
+  for (const item of OUTPUT_COMMANDS) {
+    if (item.patterns.some((pattern) => pattern.test(normalized))) {
+      return item.type;
+    }
+  }
+  return '';
+}
+
+function formatTimeLabel(date = new Date()) {
+  return date.toLocaleString('zh-TW', {
+    hour: '2-digit',
+    minute: '2-digit',
+    month: 'numeric',
+    day: 'numeric'
+  });
+}
+
+function getHamdSummary(summary) {
+  const signalCount = Array.isArray(summary?.hamd_signals) ? summary.hamd_signals.length : 0;
+  if (signalCount >= 4) {
+    return { score: '20', label: '需要優先追蹤', trend: '偵測到較多情緒訊號' };
+  }
+  if (signalCount >= 2) {
+    return { score: '14', label: '中度情緒負擔', trend: '已整理主要情緒線索' };
+  }
+  if (signalCount >= 1) {
+    return { score: '9', label: '輕度情緒波動', trend: '已更新本次對話重點' };
+  }
+  return { score: '6', label: '暫無明顯警訊', trend: '目前以一般聊天記錄為主' };
+}
+
+function renderClinicalInsights(summary) {
+  const concerns = Array.isArray(summary?.chief_concerns) ? summary.chief_concerns : [];
+  const observations = Array.isArray(summary?.symptom_observations) ? summary.symptom_observations : [];
+  const hamdSignals = Array.isArray(summary?.hamd_signals) ? summary.hamd_signals : [];
+  const combined = [
+    ...concerns.map((item) => ({ title: '主要困擾', body: item, icon: 'priority_high' })),
+    ...observations.map((item) => ({ title: '症狀觀察', body: item, icon: 'visibility' })),
+    ...hamdSignals.map((item) => ({ title: 'HAM-D 線索', body: item, icon: 'monitor_heart' }))
+  ].slice(0, 6);
+
+  if (!combined.length) {
+    return `
+      <div class="insight-row">
+        <div class="insight-ico tertiary"><span class="mat-icon">info</span></div>
+        <div class="insight-text"><b>尚未產生醫師摘要</b><span>按下「整理給醫師」後，這裡會更新成可閱讀的重點條目。</span></div>
+      </div>
+    `;
+  }
+
+  return combined.map((item) => `
+    <div class="insight-row">
+      <div class="insight-ico tertiary"><span class="mat-icon">${item.icon}</span></div>
+      <div class="insight-text"><b>${escapeHtml(item.title)}</b><span>${escapeHtml(item.body)}</span></div>
+    </div>
+  `).join('');
+}
+
+function renderReportOutputs() {
+  const clinician = APP_STATE.reportOutputs.clinician_summary || {};
+  const patientReview = APP_STATE.reportOutputs.patient_review || {};
+  const fhirDelivery = APP_STATE.reportOutputs.fhir_delivery || {};
+  const updatedAt = APP_STATE.reportOutputs.updatedAt;
+  const hamd = getHamdSummary(clinician);
+
+  const intro = document.getElementById('report-auto-intro');
+  const score = document.getElementById('report-hamd-score');
+  const desc = document.getElementById('report-hamd-desc');
+  const trend = document.getElementById('report-trend-label');
+  const insights = document.getElementById('report-clinical-insights');
+  const note = document.getElementById('report-clinician-note');
+  const patientSummary = document.getElementById('report-patient-review-summary');
+  const patientMeta = document.getElementById('report-patient-review-meta');
+  const fhirStatus = document.getElementById('report-fhir-status');
+  const fhirSummary = document.getElementById('report-fhir-summary');
+  const fhirResources = document.getElementById('report-fhir-resources');
+  const authNote = document.getElementById('report-auth-note');
+
+  if (intro) {
+    intro.textContent = updatedAt
+      ? `這是 Rou Rou 依據最新對話整理的報表。最後更新時間：${updatedAt}。`
+      : '這是 Rou Rou 為你整理的本週心情概覽，請確認資訊準確後再交由醫師審閱。';
+  }
+
+  if (score) score.textContent = hamd.score;
+  if (desc) desc.textContent = hamd.label;
+  if (trend) trend.textContent = hamd.trend;
+  if (insights) insights.innerHTML = renderClinicalInsights(clinician);
+
+  if (note) {
+    note.value = clinician?.draft_summary || '';
+  }
+
+  if (patientSummary) {
+    patientSummary.textContent = patientReview?.patient_facing_summary || '尚未產生病人審閱稿。按下「病人審閱稿」後，這裡會顯示病人可閱讀版本。';
+  }
+
+  if (patientMeta) {
+    patientMeta.textContent = patientReview?.status
+      ? `目前狀態：${patientReview.status}`
+      : '目前狀態：尚未生成';
+  }
+
+  if (fhirStatus) {
+    fhirStatus.textContent = fhirDelivery?.delivery_status || '尚未生成';
+  }
+
+  if (fhirSummary) {
+    fhirSummary.textContent = fhirDelivery?.narrative_summary || '尚未產生 FHIR Draft。按下「FHIR Draft」後，這裡會顯示可交付摘要。';
+  }
+
+  if (fhirResources) {
+    const count = Array.isArray(fhirDelivery?.resources) ? fhirDelivery.resources.length : 0;
+    fhirResources.textContent = `FHIR resources：${count}`;
+  }
+
+  if (authNote) {
+    authNote.textContent = updatedAt
+      ? `我已確認以上報表內容。若要交付給主治醫師，請確認最後更新時間與摘要內容。最後更新：${updatedAt}。`
+      : '我已確認以上報告內容，並授權 Rou Rou 將此摘要加密傳送至主治醫師診間系統，以作為本次診療輔助。';
+  }
+}
+
+function storeOutputResult(payload) {
+  APP_STATE.reportOutputs[payload.output_type] = payload.output || null;
+  APP_STATE.reportOutputs.session_export = payload.session_export || APP_STATE.reportOutputs.session_export;
+  APP_STATE.reportOutputs.updatedAt = formatTimeLabel(new Date());
+  renderReportOutputs();
+}
 
 function showScreen(screenId) {
   document.querySelectorAll('.screen').forEach((screen) => {
@@ -518,6 +663,15 @@ async function sendMessage() {
   const message = input.value.trim();
   if (!message) return;
 
+  const outputType = detectOutputCommand(message);
+  if (outputType) {
+    await appendMessage('user', message);
+    input.value = '';
+    handleInput(input);
+    await requestOutput(outputType, { fromChatCommand: true });
+    return;
+  }
+
   APP_STATE.isSending = true;
   await appendMessage('user', message);
   input.value = '';
@@ -569,7 +723,7 @@ function formatOutputPayload(outputType, output) {
   return `${label}\n\n${JSON.stringify(output, null, 2)}`;
 }
 
-async function requestOutput(outputType) {
+async function requestOutput(outputType, options = {}) {
   if (APP_STATE.isSending) return;
   const definition = OUTPUT_DEFINITIONS[outputType] || { label: outputType, instruction: outputType };
   APP_STATE.isSending = true;
@@ -599,8 +753,14 @@ async function requestOutput(outputType) {
     }
 
     APP_STATE.conversationId = payload.conversation_id || APP_STATE.conversationId;
+    storeOutputResult(payload);
     setTyping(false);
-    await appendMessage('ai', payload.formatted_text || formatOutputPayload(payload.output_type, payload.output), { animate: true });
+    appendSystemNotice(`${definition.label} 已更新，請到 Reports 查看。`);
+    if (options.fromChatCommand) {
+      await appendMessage('ai', `${definition.label} 已更新。你可以到 Reports 頁面查看最新內容。`, { animate: true });
+    }
+    showScreen('screen-report');
+    switchReportTab('auto');
   } catch (error) {
     setTyping(false);
     await appendMessage('ai', error.message || '目前無法產生輸出。', { animate: true });
@@ -698,6 +858,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateModeLabels();
   injectRuntimeSettings();
   injectOutputActions();
+  renderReportOutputs();
 });
 
 window.showScreen = showScreen;

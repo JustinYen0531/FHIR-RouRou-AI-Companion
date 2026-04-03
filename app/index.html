@@ -243,7 +243,7 @@
 
       <!-- TAB: AUTO (Existing Content) -->
       <div id="report-tab-auto" class="report-tab-content active">
-        <p class="greeting-sub" style="margin: 0 20px 20px;">這是 Rou Rou 為你整理的本週心情概覽，請確認資訊準確後再交由醫師審閱。</p>
+        <p class="greeting-sub" id="report-auto-intro" style="margin: 0 20px 20px;">這是 Rou Rou 為你整理的本週心情概覽，請確認資訊準確後再交由醫師審閱。</p>
 
       <section class="card-section">
         <div class="section-label">AI-ASSISTED ASSESSMENT</div>
@@ -256,8 +256,8 @@
               transform="rotate(-90 80 80)"/>
           </svg>
           <div class="ring-label">
-            <span class="ring-score">18</span>
-            <span class="ring-desc">中度情緒低落</span>
+            <span class="ring-score" id="report-hamd-score">18</span>
+            <span class="ring-desc" id="report-hamd-desc">中度情緒低落</span>
           </div>
         </div>
         <div class="score-row">
@@ -270,7 +270,7 @@
       <section class="section">
         <div class="section-header-row">
           <h3 class="section-heading">情緒波形圖 (7d)</h3>
-          <span class="trend-label">趨勢趨向平穩</span>
+          <span class="trend-label" id="report-trend-label">趨勢趨向平穩</span>
         </div>
         <div class="wave-chart">
           <div class="wave-bar" style="height:50%"></div>
@@ -285,7 +285,7 @@
 
       <section class="section">
         <h3 class="section-heading">臨床諮商建議 (Clinical Insights)</h3>
-        <div class="insight-list">
+        <div class="insight-list" id="report-clinical-insights">
           <div class="insight-row"><div class="insight-ico tertiary"><span class="mat-icon">bedtime</span></div><div class="insight-text"><b>生理節律觀察</b><span>過去 72 小時呈現入睡延遲軌跡，建議導入睡前正念引導。</span></div><button class="remove-btn"><span class="mat-icon">do_not_disturb_on</span></button></div>
           <div class="insight-row"><div class="insight-ico primary"><span class="mat-icon">sentiment_dissatisfied</span></div><div class="insight-text"><b>自責認知模式</b><span>對話文本中觀察到顯著的自我貶低結構，需關注認知失調頻率。</span></div><button class="remove-btn"><span class="mat-icon">do_not_disturb_on</span></button></div>
           <div class="insight-row"><div class="insight-ico secondary"><span class="mat-icon">work</span></div><div class="insight-text"><b>職業功能評估</b><span>提及週三會議壓力增加與應對機制失靈，暫時性社交迴避風險上升。</span></div><button class="remove-btn"><span class="mat-icon">do_not_disturb_on</span></button></div>
@@ -296,15 +296,31 @@
       <section class="section">
         <h3 class="section-heading">給醫師的補充筆記</h3>
         <div class="textarea-wrap">
-          <textarea placeholder="還有什麼想告訴醫師的嗎？例如藥物副作用或是特殊的觸發事件..."></textarea>
+          <textarea id="report-clinician-note" placeholder="還有什麼想告訴醫師的嗎？例如藥物副作用或是特殊的觸發事件..."></textarea>
           <span class="mat-icon" style="color:#446655;opacity:.4;position:absolute;right:16px;bottom:16px">edit_note</span>
+        </div>
+      </section>
+
+      <section class="section">
+        <h3 class="section-heading">病人審閱稿</h3>
+        <div class="note-card">
+          <p class="note-text" id="report-patient-review-summary">尚未產生病人審閱稿。按下「病人審閱稿」後，這裡會顯示病人可閱讀版本。</p>
+          <div class="note-footer" id="report-patient-review-meta">目前狀態：尚未生成</div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h3 class="section-heading">FHIR Draft</h3>
+        <div class="note-card">
+          <p class="note-text" id="report-fhir-summary">尚未產生 FHIR Draft。按下「FHIR Draft」後，這裡會顯示可交付摘要。</p>
+          <div class="note-footer"><span id="report-fhir-status">尚未生成</span> · <span id="report-fhir-resources">FHIR resources：0</span></div>
         </div>
       </section>
 
         <section class="section auth-section">
           <div class="auth-notice">
             <span class="mat-icon fill" style="color:#446655">verified_user</span>
-            <p>我已確認以上報告內容，並授權 Rou Rou 將此摘要加密傳送至主治醫師診間系統，以作為本次診療輔助。</p>
+            <p id="report-auth-note">我已確認以上報告內容，並授權 Rou Rou 將此摘要加密傳送至主治醫師診間系統，以作為本次診療輔助。</p>
           </div>
           <button class="primary-btn">數位授權並送出報告</button>
           <button class="ghost-btn">暫存報告，稍後再傳送</button>
