@@ -275,6 +275,7 @@ const APP_STATE = {
   phq9Scores: Array(9).fill(0),
   chatHistory: [],
   lastChatMetadata: null,
+  customShortcuts: loadCustomShortcuts(),
   reportOutputs: {
     clinician_summary: null,
     patient_analysis: null,
@@ -294,6 +295,19 @@ const APP_STATE = {
     detailOpen: false
   }
 };
+
+function loadCustomShortcuts() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem('rourou.customShortcuts') || '[]');
+    return Array.isArray(parsed) ? parsed.filter((item) => item && item.label && item.command) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCustomShortcuts() {
+  localStorage.setItem('rourou.customShortcuts', JSON.stringify(APP_STATE.customShortcuts || []));
+}
 
 const MODE_DEFINITIONS = {
   void: { command: 'void', label: '模式：樹洞模式', display: '樹洞模式' },
@@ -913,11 +927,154 @@ function startChat() {
   appendSystemNotice(`已切換為 ${MODE_DEFINITIONS[APP_STATE.selectedMode]?.display || '自然聊天'}。`);
 }
 
+const DEFAULT_SHORTCUT_PAGE_ONE = [
+  { label: '整理給醫師', command: 'OUTPUT:clinician_summary' },
+  { label: '請分析我', command: 'OUTPUT:patient_analysis' },
+  { label: 'FHIR 草稿', command: 'OUTPUT:fhir_delivery' },
+  { label: '樹洞模式', command: 'void' },
+  { label: '靈魂陪伴', command: 'soulmate' },
+  { label: '任務引導', command: 'mission' },
+  { label: '選項引導', command: 'option' },
+  { label: '自然聊天', command: 'natural' }
+];
+
+function formatShortcutLabel(label) {
+  const text = String(label || '').trim();
+  if (text.length <= 2) return text;
+  if (text.length <= 4) return `${text.slice(0, 2)}\n${text.slice(2)}`;
+  if (text.length <= 6) return `${text.slice(0, 2)}\n${text.slice(2, 4)}\n${text.slice(4)}`;
+  return `${text.slice(0, 2)}\n${text.slice(2, 4)}\n${text.slice(4, 6)}…`;
+}
+
+function renderShortcutChip(item, options = {}) {
+  const display = formatShortcutLabel(item.label);
+  const className = options.className || 'shortcut-chip';
+  const commandAttr = encodeURIComponent(String(item.command || ''));
+  const attrs = `${options.attrs || ''} data-command="${commandAttr}"`;
+  return `<button class="${className}" type="button" ${attrs}><span class="shortcut-chip-label">${escapeHtml(display).replace(/\n/g, '<br/>')}</span></button>`;
+}
+
+function renderShortcutPager() {
+  const pageOne = document.getElementById('shortcut-page-system');
+  const pageTwo = document.getElementById('shortcut-page-custom');
+  const dots = document.getElementById('shortcut-pager-dots');
+  if (!pageOne || !pageTwo) return;
+
+  pageOne.innerHTML = `
+      <div class="shortcut-page-grid shortcut-page-grid-system">
+      ${DEFAULT_SHORTCUT_PAGE_ONE.map((item) =>
+        renderShortcutChip(item)
+      ).join('')}
+      <button class="shortcut-add-btn" type="button" onclick="openShortcutComposer()" aria-label="新增自訂快捷">
+        <span class="mat-icon">add</span>
+      </button>
+    </div>
+  `;
+
+  if (APP_STATE.customShortcuts.length) {
+    pageTwo.innerHTML = `
+      <div class="shortcut-page-grid shortcut-page-grid-custom">
+        ${APP_STATE.customShortcuts.map((item, index) =>
+          `<div class="shortcut-custom-item">
+            ${renderShortcutChip(item)}
+            <button class="shortcut-delete-btn" type="button" aria-label="刪除 ${escapeHtml(item.label)}" onclick="removeCustomShortcut(${index})"><span class="mat-icon">close</span></button>
+          </div>`
+        ).join('')}
+      </div>
+    `;
+  } else {
+    pageTwo.innerHTML = `
+      <div class="shortcut-empty-card">
+        <div class="shortcut-empty-title">這一頁留給你的自訂命令</div>
+        <p class="shortcut-empty-body">從第一頁右下角的＋新增後，往右滑就能看到，點一下會直接送出。</p>
+      </div>
+    `;
+  }
+
+  if (dots) {
+    dots.innerHTML = `
+      <span class="shortcut-dot active" data-page="0"></span>
+      <span class="shortcut-dot" data-page="1"></span>
+    `;
+  }
+}
+
 function sendQuickReply(text) {
   const input = document.getElementById('chat-input');
   if (!input) return;
   input.value = text;
   sendMessage();
+}
+
+function activateShortcut(command) {
+  const normalized = decodeURIComponent(String(command || '')).trim();
+  if (!normalized) return;
+
+  if (normalized.startsWith('OUTPUT:')) {
+    const outputType = normalized.replace(/^OUTPUT:/, '');
+    requestOutput(outputType);
+    return;
+  }
+
+  sendQuickReply(normalized);
+}
+
+function openShortcutComposer() {
+  const modal = document.getElementById('shortcut-composer');
+  if (!modal) return;
+  const labelInput = document.getElementById('shortcut-label-input');
+  const commandInput = document.getElementById('shortcut-command-input');
+  if (labelInput) labelInput.value = '';
+  if (commandInput) commandInput.value = '';
+  modal.classList.add('active');
+  modal.setAttribute('aria-hidden', 'false');
+  setTimeout(() => labelInput?.focus(), 30);
+}
+
+function closeShortcutComposer() {
+  const modal = document.getElementById('shortcut-composer');
+  if (!modal) return;
+  modal.classList.remove('active');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+function submitShortcutComposer() {
+  const labelInput = document.getElementById('shortcut-label-input');
+  const commandInput = document.getElementById('shortcut-command-input');
+  const label = String(labelInput?.value || '').trim();
+  const command = String(commandInput?.value || '').trim();
+  if (!command) {
+    appendSystemNotice('請先輸入要快速送出的命令。');
+    return;
+  }
+
+  APP_STATE.customShortcuts.unshift({
+    label: label || command,
+    command
+  });
+  APP_STATE.customShortcuts = APP_STATE.customShortcuts.slice(0, 12);
+  saveCustomShortcuts();
+  renderShortcutPager();
+  closeShortcutComposer();
+  const viewport = document.getElementById('shortcut-pages');
+  if (viewport) {
+    viewport.scrollTo({ left: viewport.clientWidth, behavior: 'smooth' });
+    updateShortcutPagerState();
+  }
+}
+
+function removeCustomShortcut(index) {
+  APP_STATE.customShortcuts.splice(index, 1);
+  saveCustomShortcuts();
+  renderShortcutPager();
+}
+
+function updateShortcutPagerState() {
+  const viewport = document.getElementById('shortcut-pages');
+  const dots = Array.from(document.querySelectorAll('.shortcut-dot'));
+  if (!viewport || !dots.length) return;
+  const page = viewport.scrollLeft >= viewport.clientWidth * 0.5 ? 1 : 0;
+  dots.forEach((dot, index) => dot.classList.toggle('active', index === page));
 }
 
 function escapeHtml(value) {
@@ -1234,34 +1391,31 @@ async function animateAiMessage(bubble, text) {
 }
 
 function handleInput(input) {
-  const qrc = document.getElementById('quick-replies');
-  const soa = document.getElementById('structured-output-actions');
+  const shortcutBar = document.getElementById('shortcut-bar');
   const hasFocus = document.activeElement === input;
   const isEmpty = input.value.trim().length === 0;
   const shouldShow = hasFocus && isEmpty;
   
-  [qrc, soa].forEach(el => {
-    if (!el) return;
-    if (shouldShow) {
-      el.style.display = 'flex';
-      setTimeout(() => {
-        if (document.activeElement === input && input.value.trim().length === 0) {
-          el.style.opacity = '1';
-          el.style.transform = 'translateY(0)';
-          el.style.pointerEvents = 'all';
-        }
-      }, 50);
-    } else {
-      el.style.opacity = '0';
-      el.style.transform = 'translateY(10px)';
-      el.style.pointerEvents = 'none';
-      setTimeout(() => {
-        if (!(document.activeElement === input && input.value.trim().length === 0)) {
-          el.style.display = 'none';
-        }
-      }, 300);
-    }
-  });
+  if (!shortcutBar) return;
+  if (shouldShow) {
+    shortcutBar.style.display = 'block';
+    setTimeout(() => {
+      if (document.activeElement === input && input.value.trim().length === 0) {
+        shortcutBar.style.opacity = '1';
+        shortcutBar.style.transform = 'translateY(0)';
+        shortcutBar.style.pointerEvents = 'all';
+      }
+    }, 50);
+  } else {
+    shortcutBar.style.opacity = '0';
+    shortcutBar.style.transform = 'translateY(10px)';
+    shortcutBar.style.pointerEvents = 'none';
+    setTimeout(() => {
+      if (!(document.activeElement === input && input.value.trim().length === 0)) {
+        shortcutBar.style.display = 'none';
+      }
+    }, 300);
+  }
 }
 
 function setThinkingState(visible, nodeName = '') {
@@ -1722,23 +1876,27 @@ async function requestOutput(outputType, options = {}) {
   }
 }
 
-function injectOutputActions() {
-  const inputSection = document.querySelector('#screen-chat .input-section');
-  if (!inputSection || document.getElementById('structured-output-actions')) return;
+function wireShortcutInteractions() {
+  const viewport = document.getElementById('shortcut-pages');
+  if (viewport && !viewport.dataset.wired) {
+    viewport.dataset.wired = 'true';
+    viewport.addEventListener('scroll', updateShortcutPagerState, { passive: true });
+    viewport.addEventListener('click', (event) => {
+      const button = event.target.closest('.shortcut-chip');
+      if (!button) return;
+      activateShortcut(button.dataset.command || '');
+    });
+  }
 
-  const actionWrap = document.createElement('div');
-  actionWrap.id = 'structured-output-actions';
-  actionWrap.className = 'quick-replies';
-  actionWrap.style.transition = 'all 0.3s ease-in-out';
-  actionWrap.style.display = 'none';
-  actionWrap.style.opacity = '0';
-  actionWrap.style.transform = 'translateY(10px)';
-  actionWrap.innerHTML = `
-    <button class="qr-chip" type="button" onclick="requestOutput('clinician_summary')">整理給醫師</button>
-    <button class="qr-chip" type="button" onclick="requestOutput('patient_analysis')">請分析我</button>
-    <button class="qr-chip" type="button" onclick="requestOutput('fhir_delivery')">FHIR 草稿</button>
-  `;
-  inputSection.insertBefore(actionWrap, inputSection.firstChild);
+  const composer = document.getElementById('shortcut-composer');
+  if (composer && !composer.dataset.wired) {
+    composer.dataset.wired = 'true';
+    composer.addEventListener('click', (event) => {
+      if (event.target === composer) {
+        closeShortcutComposer();
+      }
+    });
+  }
 }
 
 function injectRuntimeSettings() {
@@ -1810,12 +1968,14 @@ document.addEventListener('DOMContentLoaded', () => {
   showScreen('screen-home');
   updateModeLabels();
   injectRuntimeSettings();
-  injectOutputActions();
+  renderShortcutPager();
+  wireShortcutInteractions();
   renderReportOutputs();
   switchAutoAudience(APP_STATE.currentWeeklyAudience);
   TherapeuticMemory.renderProfileUI();
   clearMicroInterventionCard();
   closeMicroInterventionDetail();
+  updateShortcutPagerState();
 });
 
 window.showScreen = showScreen;
@@ -1826,6 +1986,7 @@ window.handleInput = handleInput;
 window.selectMode = selectMode;
 window.startChat = startChat;
 window.sendQuickReply = sendQuickReply;
+window.activateShortcut = activateShortcut;
 window.sendMessage = sendMessage;
 window.requestOutput = requestOutput;
 window.switchAutoAudience = switchAutoAudience;
@@ -1833,6 +1994,10 @@ window.toggleModeExplainer = toggleModeExplainer;
 window.openMicroIntervention = openMicroIntervention;
 window.closeMicroInterventionDetail = closeMicroInterventionDetail;
 window.dismissMicroIntervention = dismissMicroIntervention;
+window.openShortcutComposer = openShortcutComposer;
+window.closeShortcutComposer = closeShortcutComposer;
+window.submitShortcutComposer = submitShortcutComposer;
+window.removeCustomShortcut = removeCustomShortcut;
 
 function toggleMemoryDrawer() {
   const drawer = document.getElementById('memory-drawer');

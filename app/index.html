@@ -100,12 +100,12 @@
     </main>
 
     <section class="input-section glass">
-      <div id="quick-replies" class="quick-replies" style="display:none; opacity:0; transform:translateY(10px); pointer-events:none;">
-        <button class="qr-chip" type="button" onclick="sendQuickReply('void')">樹洞模式</button>
-        <button class="qr-chip" type="button" onclick="sendQuickReply('soulmate')">靈魂陪伴</button>
-        <button class="qr-chip" type="button" onclick="sendQuickReply('mission')">任務引導</button>
-        <button class="qr-chip" type="button" onclick="sendQuickReply('option')">選項引導</button>
-        <button class="qr-chip" type="button" onclick="sendQuickReply('natural')">自然聊天</button>
+      <div id="shortcut-bar" class="shortcut-bar" style="display:none; opacity:0; transform:translateY(10px); pointer-events:none;">
+        <div id="shortcut-pages" class="shortcut-pages">
+          <div id="shortcut-page-system" class="shortcut-page"></div>
+          <div id="shortcut-page-custom" class="shortcut-page"></div>
+        </div>
+        <div id="shortcut-pager-dots" class="shortcut-pager-dots"></div>
       </div>
       <div class="input-row">
         <div class="text-input-wrap">
@@ -719,6 +719,28 @@
         <button id="micro-detail-primary" class="micro-detail-primary" type="button">我做完了</button>
         <button id="micro-detail-secondary" class="micro-detail-secondary" type="button" onclick="dismissMicroIntervention('snooze')">稍後再說</button>
       </footer>
+    </div>
+  </div>
+
+  <div id="shortcut-composer" class="shortcut-composer-overlay" aria-hidden="true">
+    <div class="shortcut-composer-card">
+      <div class="shortcut-composer-header">
+        <div>
+          <div class="shortcut-composer-title">新增快捷命令</div>
+          <div class="shortcut-composer-subtitle">這個按鈕會出現在第二頁，點一下就直接送出。</div>
+        </div>
+        <button class="icon-btn" type="button" aria-label="關閉" onclick="closeShortcutComposer()">
+          <span class="mat-icon">close</span>
+        </button>
+      </div>
+      <div class="shortcut-composer-form">
+        <input id="shortcut-label-input" type="text" placeholder="顯示名稱，例如：叫我休息" />
+        <textarea id="shortcut-command-input" rows="3" placeholder="實際送出的內容，例如：請先陪我慢慢整理現在最卡的事"></textarea>
+      </div>
+      <div class="shortcut-composer-actions">
+        <button class="micro-card-secondary" type="button" onclick="closeShortcutComposer()">取消</button>
+        <button class="micro-card-primary" type="button" onclick="submitShortcutComposer()">加入快捷</button>
+      </div>
     </div>
   </div>
 

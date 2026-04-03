@@ -2247,6 +2247,142 @@ body {
   display: none;
 }
 
+.shortcut-bar {
+  margin-bottom: 10px;
+  transition: all 0.3s ease;
+}
+
+.shortcut-pages {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  gap: 12px;
+  scroll-behavior: smooth;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.shortcut-pages::-webkit-scrollbar {
+  display: none;
+}
+
+.shortcut-page {
+  min-width: 100%;
+  scroll-snap-align: start;
+}
+
+.shortcut-page-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+
+.shortcut-chip,
+.shortcut-add-btn {
+  min-height: 74px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #556870;
+  padding: 10px 6px;
+  font-weight: 700;
+  border: 1px solid rgba(168, 180, 187, 0.16);
+  box-shadow: 0 8px 20px rgba(41, 52, 58, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.shortcut-chip-label {
+  font-size: 12px;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+}
+
+.shortcut-add-btn {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dim));
+  color: white;
+}
+
+.shortcut-add-btn .mat-icon {
+  font-size: 26px;
+}
+
+.shortcut-page-grid-system .shortcut-add-btn {
+  grid-column: 5;
+}
+
+.shortcut-page-grid-custom {
+  position: relative;
+}
+
+.shortcut-custom-item {
+  position: relative;
+}
+
+.shortcut-custom-item .shortcut-chip {
+  width: 100%;
+}
+
+.shortcut-delete-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(18, 26, 31, 0.68);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shortcut-delete-btn .mat-icon {
+  font-size: 14px;
+}
+
+.shortcut-empty-card {
+  min-height: 74px;
+  border-radius: 22px;
+  background: rgba(255,255,255,0.78);
+  border: 1px dashed rgba(168, 180, 187, 0.4);
+  padding: 14px 16px;
+}
+
+.shortcut-empty-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #31434a;
+}
+
+.shortcut-empty-body {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #66757d;
+}
+
+.shortcut-pager-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.shortcut-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(168, 180, 187, 0.45);
+}
+
+.shortcut-dot.active {
+  width: 18px;
+  background: rgba(68, 102, 85, 0.8);
+}
+
 .qr-chip,
 .chip,
 .mode-choice,
@@ -3189,6 +3325,88 @@ body {
 }
 
 .micro-detail-actions button {
+  flex: 1;
+}
+
+.shortcut-composer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  background: rgba(18, 26, 31, 0.28);
+  backdrop-filter: blur(10px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.shortcut-composer-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.shortcut-composer-card {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: calc(90px + env(safe-area-inset-bottom));
+  background: rgba(255,255,255,0.96);
+  border-radius: 28px;
+  padding: 18px;
+  box-shadow: 0 18px 50px rgba(18, 26, 31, 0.16);
+  transform: translateY(20px);
+  transition: transform 0.28s var(--ease-natural);
+}
+
+.shortcut-composer-overlay.active .shortcut-composer-card {
+  transform: translateY(0);
+}
+
+.shortcut-composer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.shortcut-composer-title {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #22323a;
+}
+
+.shortcut-composer-subtitle {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #66757d;
+}
+
+.shortcut-composer-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.shortcut-composer-form input,
+.shortcut-composer-form textarea {
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid rgba(168, 180, 187, 0.18);
+  background: #f7fafc;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: #2f4047;
+}
+
+.shortcut-composer-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.shortcut-composer-actions button {
   flex: 1;
 }
 .mem-tag.trigger { background: rgba(255,152,0,0.12); color: #e65100; }
