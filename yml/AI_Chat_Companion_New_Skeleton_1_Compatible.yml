@@ -1,0 +1,3645 @@
+app:
+  description: AI companion chatflow rebuilt on the latest exported advanced-chat
+    skeleton
+  icon: robot
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: advanced-chat
+  name: AI_Chat_Companion_New_Skeleton
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/groq:0.0.13
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables:
+  - description: Store the latest clarification question so the next turn can answer
+      it
+    id: pending-question-var
+    name: pending_question
+    selector:
+    - conversation
+    - pending_question
+    value: none
+    value_type: string
+  - description: Whether the latest user turn hit a red flag path
+    id: risk-flag-var
+    name: risk_flag
+    selector:
+    - conversation
+    - risk_flag
+    value: 'false'
+    value_type: string
+  - description: Structured JSON-like summary for the latest detected red flag
+    id: red-flag-payload-var
+    name: red_flag_payload
+    selector:
+    - conversation
+    - red_flag_payload
+    value: none
+    value_type: string
+  - description: Number of consecutive clarification turns in the current follow-up
+      chain
+    id: followup-turn-count-var
+    name: followup_turn_count
+    selector:
+    - conversation
+    - followup_turn_count
+    value: '0'
+    value_type: string
+  - description: Current follow-up lifecycle state
+    id: followup-status-var
+    name: followup_status
+    selector:
+    - conversation
+    - followup_status
+    value: none
+    value_type: string
+  - description: Last resolved routing mode for the current turn
+    id: active-mode-var
+    name: active_mode
+    selector:
+    - conversation
+    - active_mode
+    value: auto
+    value_type: string
+  - description: Structured tag output for the latest normal user turn
+    id: latest-tag-payload-var
+    name: latest_tag_payload
+    selector:
+    - conversation
+    - latest_tag_payload
+    value: none
+    value_type: string
+  - description: Structured HAM-D progress snapshot for mission mode
+    id: hamd-progress-state-var
+    name: hamd_progress_state
+    selector:
+    - conversation
+    - hamd_progress_state
+    value: none
+    value_type: string
+  - description: Unified pre-summary state for future clinician draft generation
+    id: summary-draft-state-var
+    name: summary_draft_state
+    selector:
+    - conversation
+    - summary_draft_state
+    value: none
+    value_type: string
+  - description: Clinician-facing draft summary generated from the unified summary
+      state
+    id: clinician-summary-draft-var
+    name: clinician_summary_draft
+    selector:
+    - conversation
+    - clinician_summary_draft
+    value: none
+    value_type: string
+  - description: Persisted manual routing mode override; auto means automatic routing
+    id: routing-mode-override-var
+    name: routing_mode_override
+    selector:
+    - conversation
+    - routing_mode_override
+    value: auto
+    value_type: string
+  - description: Short confirmation text for command-mode switches
+    id: command-feedback-var
+    name: command_feedback
+    selector:
+    - conversation
+    - command_feedback
+    value: none
+    value_type: string
+  - description: Patient-facing review packet generated from clinician summary draft
+    id: patient-review-packet-var
+    name: patient_review_packet
+    selector:
+    - conversation
+    - patient_review_packet
+    value: none
+    value_type: string
+  - description: Draft FHIR/TW Core delivery payload generated from reviewed summary
+      state
+    id: fhir-delivery-draft-var
+    name: fhir_delivery_draft
+    selector:
+    - conversation
+    - fhir_delivery_draft
+    value: none
+    value_type: string
+  - description: Retrieval governance snapshot for mission mode knowledge usage
+    id: mission-retrieval-audit-var
+    name: mission_retrieval_audit
+    selector:
+    - conversation
+    - mission_retrieval_audit
+    value: none
+    value_type: string
+  - description: Retrieval governance snapshot for option mode knowledge usage
+    id: option-retrieval-audit-var
+    name: option_retrieval_audit
+    selector:
+    - conversation
+    - option_retrieval_audit
+    value: none
+    value_type: string
+  - description: Structured burden and response-style state for cognitive load aware
+      routing and replies
+    id: burden-level-state-var
+    name: burden_level_state
+    selector:
+    - conversation
+    - burden_level_state
+    value: none
+    value_type: string
+  - description: Structured review and consent readiness state derived from the patient
+      review packet
+    id: patient-authorization-state-var
+    name: patient_authorization_state
+    selector:
+    - conversation
+    - patient_authorization_state
+    value: none
+    value_type: string
+  - description: Structured pre-delivery readiness state for FHIR and clinician export
+      workflows
+    id: delivery-readiness-state-var
+    name: delivery_readiness_state
+    selector:
+    - conversation
+    - delivery_readiness_state
+    value: none
+    value_type: string
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 50
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - id: start-command-detector
+      source: start
+      sourceHandle: source
+      target: command-detector
+      targetHandle: target
+      type: custom
+      selected: false
+      zIndex: 0
+    - id: command-auto-set
+      selected: false
+      source: command-detector
+      sourceHandle: cmd_auto
+      target: set-command-auto
+      targetHandle: target
+      type: custom
+    - id: command-void-set
+      selected: false
+      source: command-detector
+      sourceHandle: cmd_void
+      target: set-command-void
+      targetHandle: target
+      type: custom
+    - id: command-soulmate-set
+      selected: false
+      source: command-detector
+      sourceHandle: cmd_soulmate
+      target: set-command-soulmate
+      targetHandle: target
+      type: custom
+    - id: command-mission-set
+      selected: false
+      source: command-detector
+      sourceHandle: cmd_mission
+      target: set-command-mission
+      targetHandle: target
+      type: custom
+    - id: command-option-set
+      selected: false
+      source: command-detector
+      sourceHandle: cmd_option
+      target: set-command-option
+      targetHandle: target
+      type: custom
+    - id: command-natural-set
+      selected: false
+      source: command-detector
+      sourceHandle: cmd_natural
+      target: set-command-natural
+      targetHandle: target
+      type: custom
+    - id: command-clarify-set
+      selected: false
+      source: command-detector
+      sourceHandle: cmd_clarify
+      target: set-command-clarify
+      targetHandle: target
+      type: custom
+    - id: gate-followup-limit
+      selected: false
+      source: followup-gate
+      sourceHandle: 'true'
+      target: followup-limit-gate
+      targetHandle: target
+      type: custom
+    - id: safety-answer-edge
+      selected: false
+      source: safety-response
+      sourceHandle: source
+      target: answer-safety
+      targetHandle: target
+      type: custom
+    - id: gate-followup-resolver
+      selected: false
+      source: followup-limit-gate
+      sourceHandle: 'false'
+      target: llm-followup
+      targetHandle: target
+      type: custom
+    - id: gate-followup-finalize
+      selected: false
+      source: followup-limit-gate
+      sourceHandle: 'true'
+      target: llm-followup-final
+      targetHandle: target
+      type: custom
+    - id: low-energy-option-route
+      selected: false
+      source: low-energy-detector
+      sourceHandle: degrade_option
+      target: set-mode-option
+      targetHandle: target
+      type: custom
+    - id: low-energy-soulmate-route
+      selected: false
+      source: low-energy-detector
+      sourceHandle: degrade_soulmate
+      target: set-mode-soulmate
+      targetHandle: target
+      type: custom
+    - id: override-void
+      selected: false
+      source: override-router
+      sourceHandle: mode_1_void
+      target: set-mode-void
+      targetHandle: target
+      type: custom
+    - id: override-soulmate
+      selected: false
+      source: override-router
+      sourceHandle: mode_2_soulmate
+      target: set-mode-soulmate
+      targetHandle: target
+      type: custom
+    - id: override-option
+      selected: false
+      source: override-router
+      sourceHandle: mode_4_option
+      target: set-mode-option
+      targetHandle: target
+      type: custom
+    - id: override-natural
+      selected: false
+      source: override-router
+      sourceHandle: mode_5_natural
+      target: set-mode-natural
+      targetHandle: target
+      type: custom
+    - id: override-clarify
+      selected: false
+      source: override-router
+      sourceHandle: mode_6_clarify
+      target: set-mode-clarify
+      targetHandle: target
+      type: custom
+    - id: classifier-void
+      selected: false
+      source: classifier
+      sourceHandle: mode_1_void
+      target: set-mode-void
+      targetHandle: target
+      type: custom
+    - id: set-mode-void-llm
+      selected: false
+      source: set-mode-void
+      sourceHandle: source
+      target: llm-void
+      targetHandle: target
+      type: custom
+    - id: classifier-soulmate
+      selected: false
+      source: classifier
+      sourceHandle: mode_2_soulmate
+      target: set-mode-soulmate
+      targetHandle: target
+      type: custom
+    - id: set-mode-soulmate-llm
+      selected: false
+      source: set-mode-soulmate
+      sourceHandle: source
+      target: llm-soulmate
+      targetHandle: target
+      type: custom
+    - id: classifier-option
+      selected: false
+      source: classifier
+      sourceHandle: mode_4_option
+      target: set-mode-option
+      targetHandle: target
+      type: custom
+    - id: set-mode-option-retrieval
+      selected: false
+      source: set-mode-option
+      sourceHandle: source
+      target: retrieval-option
+      targetHandle: target
+      type: custom
+    - id: classifier-natural
+      selected: false
+      source: classifier
+      sourceHandle: mode_5_natural
+      target: set-mode-natural
+      targetHandle: target
+      type: custom
+    - id: set-mode-natural-llm
+      selected: false
+      source: set-mode-natural
+      sourceHandle: source
+      target: llm-natural
+      targetHandle: target
+      type: custom
+    - id: classifier-clarify
+      selected: false
+      source: classifier
+      sourceHandle: mode_6_clarify
+      target: set-mode-clarify
+      targetHandle: target
+      type: custom
+    - id: set-mode-clarify-llm
+      selected: false
+      source: set-mode-clarify
+      sourceHandle: source
+      target: llm-clarify
+      targetHandle: target
+      type: custom
+    - id: retrieval-mission-llm
+      selected: false
+      source: save-summary-draft
+      sourceHandle: source
+      target: llm-mission
+      targetHandle: target
+      type: custom
+    - id: summary-clinician-draft-edge
+      selected: false
+      source: save-summary-draft
+      sourceHandle: source
+      target: clinician-summary-builder
+      targetHandle: target
+      type: custom
+    - id: clinician-draft-save-edge
+      selected: false
+      source: clinician-summary-builder
+      sourceHandle: source
+      target: save-clinician-summary
+      targetHandle: target
+      type: custom
+    - id: clinician-patient-review-edge
+      selected: false
+      source: save-clinician-summary
+      sourceHandle: source
+      target: patient-review-builder
+      targetHandle: target
+      type: custom
+    - id: patient-review-save-edge
+      selected: false
+      source: patient-review-builder
+      sourceHandle: source
+      target: save-patient-review
+      targetHandle: target
+      type: custom
+    - id: patient-review-authorization-edge
+      selected: false
+      source: save-patient-review
+      sourceHandle: source
+      target: patient-authorization-builder
+      targetHandle: target
+      type: custom
+    - id: patient-authorization-save-edge
+      selected: false
+      source: patient-authorization-builder
+      sourceHandle: source
+      target: save-patient-authorization
+      targetHandle: target
+      type: custom
+    - id: patient-authorization-fhir-edge
+      selected: false
+      source: save-patient-authorization
+      sourceHandle: source
+      target: fhir-delivery-builder
+      targetHandle: target
+      type: custom
+    - id: fhir-delivery-save-edge
+      selected: false
+      source: fhir-delivery-builder
+      sourceHandle: source
+      target: save-fhir-delivery
+      targetHandle: target
+      type: custom
+    - id: fhir-readiness-build-edge
+      selected: false
+      source: save-fhir-delivery
+      sourceHandle: source
+      target: delivery-readiness-builder
+      targetHandle: target
+      type: custom
+    - id: delivery-readiness-save-edge
+      selected: false
+      source: delivery-readiness-builder
+      sourceHandle: source
+      target: save-delivery-readiness
+      targetHandle: target
+      type: custom
+    - id: command-answer-auto
+      selected: false
+      source: set-command-auto
+      sourceHandle: source
+      target: answer-command
+      targetHandle: target
+      type: custom
+    - id: command-answer-void
+      selected: false
+      source: set-command-void
+      sourceHandle: source
+      target: answer-command
+      targetHandle: target
+      type: custom
+    - id: command-answer-soulmate
+      selected: false
+      source: set-command-soulmate
+      sourceHandle: source
+      target: answer-command
+      targetHandle: target
+      type: custom
+    - id: command-answer-mission
+      selected: false
+      source: set-command-mission
+      sourceHandle: source
+      target: answer-command
+      targetHandle: target
+      type: custom
+    - id: command-answer-option
+      selected: false
+      source: set-command-option
+      sourceHandle: source
+      target: answer-command
+      targetHandle: target
+      type: custom
+    - id: command-answer-natural
+      selected: false
+      source: set-command-natural
+      sourceHandle: source
+      target: answer-command
+      targetHandle: target
+      type: custom
+    - id: command-answer-clarify
+      selected: false
+      source: set-command-clarify
+      sourceHandle: source
+      target: answer-command
+      targetHandle: target
+      type: custom
+    - id: retrieval-option-audit-edge
+      selected: false
+      source: retrieval-option
+      sourceHandle: source
+      target: option-retrieval-audit
+      targetHandle: target
+      type: custom
+    - id: option-audit-save-edge
+      selected: false
+      source: option-retrieval-audit
+      sourceHandle: source
+      target: save-option-retrieval-audit
+      targetHandle: target
+      type: custom
+    - id: option-audit-llm-edge
+      selected: false
+      source: save-option-retrieval-audit
+      sourceHandle: source
+      target: llm-option
+      targetHandle: target
+      type: custom
+    - id: followup-output-classify-edge
+      selected: false
+      source: llm-followup
+      sourceHandle: source
+      target: followup-output-classifier
+      targetHandle: target
+      type: custom
+    - id: followup-output-askmore
+      selected: false
+      source: followup-output-classifier
+      sourceHandle: followup_ask_more
+      target: save-pending-followup
+      targetHandle: target
+      type: custom
+    - id: followup-output-answernow
+      selected: false
+      source: followup-output-classifier
+      sourceHandle: followup_answer_now
+      target: clear-pending
+      targetHandle: target
+      type: custom
+    - id: followup-final-clear
+      selected: false
+      source: llm-followup-final
+      sourceHandle: source
+      target: clear-pending
+      targetHandle: target
+      type: custom
+    - id: clarify-save
+      selected: false
+      source: llm-clarify
+      sourceHandle: source
+      target: save-pending
+      targetHandle: target
+      type: custom
+    - id: void-answer-edge
+      selected: false
+      source: llm-void
+      sourceHandle: source
+      target: answer-void
+      targetHandle: target
+      type: custom
+    - id: soulmate-answer-edge
+      selected: false
+      source: llm-soulmate
+      sourceHandle: source
+      target: answer-soulmate
+      targetHandle: target
+      type: custom
+    - id: mission-answer-edge
+      selected: false
+      source: llm-mission
+      sourceHandle: source
+      target: answer-mission
+      targetHandle: target
+      type: custom
+    - id: option-answer-edge
+      selected: false
+      source: llm-option
+      sourceHandle: source
+      target: answer-option
+      targetHandle: target
+      type: custom
+    - id: natural-answer-edge
+      selected: false
+      source: llm-natural
+      sourceHandle: source
+      target: answer-natural
+      targetHandle: target
+      type: custom
+    - id: followup-answer-edge
+      selected: false
+      source: clear-pending
+      sourceHandle: source
+      target: answer-followup
+      targetHandle: target
+      type: custom
+    - id: clarify-answer-edge
+      selected: false
+      source: save-pending
+      sourceHandle: source
+      target: answer-clarify
+      targetHandle: target
+      type: custom
+    - id: start-source-command-detector-target
+      selected: false
+      source: start
+      sourceHandle: source
+      target: command-detector
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: risk-detector-red_flag-risk-structurer-target
+      selected: false
+      source: risk-detector
+      sourceHandle: red_flag
+      target: risk-structurer
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: risk-structurer-source-set-risk-state-target
+      selected: false
+      source: risk-structurer
+      sourceHandle: source
+      target: set-risk-state
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: set-risk-state-source-safety-response-target
+      selected: false
+      source: set-risk-state
+      sourceHandle: source
+      target: safety-response
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: followup-gate-pending_not_empty-llm-followup-final-target
+      selected: false
+      source: followup-gate
+      sourceHandle: pending_not_empty
+      target: llm-followup-final
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: followup-gate-false-llm-followup-target
+      selected: false
+      source: followup-gate
+      sourceHandle: 'false'
+      target: llm-followup
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: followup-gate-pending_not_empty-followup-limit-gate-target
+      selected: false
+      source: followup-gate
+      sourceHandle: pending_not_empty
+      target: followup-limit-gate
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: followup-limit-gate-limit_reached-llm-followup-final-target
+      selected: false
+      source: followup-limit-gate
+      sourceHandle: limit_reached
+      target: llm-followup-final
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: command-detector-cmd_none-risk-detector-target
+      selected: false
+      source: command-detector
+      sourceHandle: cmd_none
+      target: risk-detector
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: followup-gate-false-override-gate-target
+      selected: false
+      source: followup-gate
+      sourceHandle: 'false'
+      target: override-gate
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: low-energy-detector-continue_auto-classifier-target
+      selected: false
+      source: low-energy-detector
+      sourceHandle: continue_auto
+      target: classifier
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: risk-detector-normal-clear-risk-state-target
+      selected: false
+      source: risk-detector
+      sourceHandle: normal
+      target: clear-risk-state
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: clear-risk-state-source-followup-gate-target
+      selected: false
+      source: clear-risk-state
+      sourceHandle: source
+      target: followup-gate
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: save-pending-followup-source-answer-followup-target
+      selected: false
+      source: save-pending-followup
+      sourceHandle: source
+      target: answer-followup
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: override-gate-override_active-override-router-target
+      selected: false
+      source: override-gate
+      sourceHandle: override_active
+      target: override-router
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: override-gate-false-low-energy-detector-target
+      selected: false
+      source: override-gate
+      sourceHandle: 'false'
+      target: low-energy-detector
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: override-router-mode_3_mission-set-mode-mission-target
+      selected: false
+      source: override-router
+      sourceHandle: mode_3_mission
+      target: set-mode-mission
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: retrieval-mission-source-mission-retrieval-audit-target
+      selected: false
+      source: retrieval-mission
+      sourceHandle: source
+      target: mission-retrieval-audit
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: mission-retrieval-audit-source-save-mission-retrieval-audit-target
+      selected: false
+      source: mission-retrieval-audit
+      sourceHandle: source
+      target: save-mission-retrieval-audit
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: save-mission-retrieval-audit-source-llm-mission-target
+      selected: false
+      source: save-mission-retrieval-audit
+      sourceHandle: source
+      target: llm-mission
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: save-hamd-progress-source-clinician-summary-builder-target
+      selected: false
+      source: save-hamd-progress
+      sourceHandle: source
+      target: clinician-summary-builder
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: save-tag-payload-source-clinician-summary-builder-target
+      selected: false
+      source: save-tag-payload
+      sourceHandle: source
+      target: clinician-summary-builder
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: save-burden-level-source-clinician-summary-builder-target
+      selected: false
+      source: save-burden-level
+      sourceHandle: source
+      target: clinician-summary-builder
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: save-mission-retrieval-audit-source-clinician-summary-builder-target
+      selected: false
+      source: save-mission-retrieval-audit
+      sourceHandle: source
+      target: clinician-summary-builder
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: hamd-progress-tracker-source-save-hamd-progress-target
+      selected: false
+      source: hamd-progress-tracker
+      sourceHandle: source
+      target: save-hamd-progress
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: llm-mission-source-hamd-progress-tracker-target
+      selected: false
+      source: llm-mission
+      sourceHandle: source
+      target: hamd-progress-tracker
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: llm-mission-source-tag-structurer-target
+      selected: false
+      source: llm-mission
+      sourceHandle: source
+      target: tag-structurer
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: tag-structurer-source-save-tag-payload-target
+      selected: false
+      source: tag-structurer
+      sourceHandle: source
+      target: save-tag-payload
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - id: llm-mission-source-summary-draft-builder-target
+      selected: false
+      source: llm-mission
+      sourceHandle: source
+      target: summary-draft-builder
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        selected: false
+        title: Start
+        type: start
+        variables: []
+      height: 73
+      id: start
+      position:
+        x: -1132.2631841102761
+        y: 264.17623228606317
+      positionAbsolute:
+        x: -1132.2631841102761
+        y: 264.17623228606317
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        classes:
+        - id: cmd_auto
+          name: Auto
+        - id: cmd_void
+          name: Void
+        - id: cmd_soulmate
+          name: Soulmate
+        - id: cmd_mission
+          name: Mission
+        - id: cmd_option
+          name: Option
+        - id: cmd_natural
+          name: Natural
+        - id: cmd_clarify
+          name: Clarify
+        - id: cmd_none
+          name: None
+        instruction: '你要判斷使用者這一輪是否在輸入「模式切換指令」。
+
+          只有在使用者明確是在下指令時，才輸出對應類別。
+
+          可接受的指令例子包含：
+
+          auto, /auto, soulmate, /soulmate, mission, /mission, option, /option, natural,
+          /natural, void, /void, clarify, /clarify。
+
+          如果只是正常對話中提到這些字，不算指令，請輸出 cmd_none。
+
+          只輸出一個類別代號。
+
+          '
+        instructions: ''
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        query_variable_selector:
+        - sys
+        - query
+        selected: false
+        title: Command Detector
+        type: question-classifier
+      height: 404
+      id: command-detector
+      position:
+        x: -762.4381061057945
+        y: 258.7561701211314
+      positionAbsolute:
+        x: -762.4381061057945
+        y: 258.7561701211314
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        classes:
+        - id: red_flag
+          name: Red Flag
+        - id: normal
+          name: Normal
+        instruction: '你是高風險偵測器。
+
+          如果使用者出現自傷、自殺、想消失、活不下去、極端絕望、明確危險、請求立即幫助等危機訊號，輸出 red_flag。
+
+          其餘情況輸出 normal。
+
+          只輸出類別代號，不要解釋。
+
+          '
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        query_variable_selector:
+        - sys
+        - query
+        selected: false
+        title: Risk Detector
+        type: question-classifier
+      height: 176
+      id: risk-detector
+      position:
+        x: -468.3527132624994
+        y: 1424.2707296256303
+      positionAbsolute:
+        x: -468.3527132624994
+        y: 1424.2707296256303
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - retrieval-mission
+          - result
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: "你是 mission 路徑的 retrieval 治理節點。\n你的任務不是回答病人，而是評估這次知識檢索值不值得被主回答使用。\n\
+            你必須只輸出 JSON，格式固定如下：\n{\n  \"retrieval_status\":\"strong_or_weak_or_empty\"\
+            ,\n  \"use_knowledge\":\"yes_or_no\",\n  \"knowledge_role\":\"hamd_mapping_or_structuring_or_none\"\
+            ,\n  \"confidence_note\":\"...\",\n  \"safe_usage_note\":\"...\"\n}\n\
+            判斷規則：\n1. 如果檢索內容和本輪目標高度相關，且能幫助症狀整理或 HAM-D 維度推進，可標成 strong。\n2. 如果只有部分相關、內容泛泛、容易讓回答變成衛教長文，標成\
+            \ weak。\n3. 如果幾乎沒有可用內容，標成 empty，且 use_knowledge 必須是 no。\n4. mission 路徑就算命中\
+            \ weak，也不能硬套知識庫；應優先維持結構化整理。\n5. `safe_usage_note` 要明確提醒主回答：知識可以怎麼用，或為何不要用。\n"
+        selected: false
+        title: Mission Retrieval Audit
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: mission-retrieval-audit
+      position:
+        x: 1050.3367051827017
+        y: 395.5532037299673
+      positionAbsolute:
+        x: 1050.3367051827017
+        y: 395.5532037299673
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - mission-retrieval-audit
+          - text
+          variable_selector:
+          - conversation
+          - mission_retrieval_audit
+        selected: false
+        title: Save Mission Retrieval Audit
+        type: assigner
+        version: '2'
+      height: 84
+      id: save-mission-retrieval-audit
+      position:
+        x: 1827.8126535472995
+        y: 523.9999999999987
+      positionAbsolute:
+        x: 1827.8126535472995
+        y: 523.9999999999987
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: "你要把高風險訊號整理成簡短 JSON 字串。\n欄位固定為:\n{\n  \"route_type\":\"safety\",\n\
+            \  \"source_mode\":\"safety\",\n  \"followup_status\":\"resolved\",\n\
+            \  \"risk_level\":\"high\",\n  \"sentiment_tags\":[\"...\"],\n  \"behavioral_tags\"\
+            :[\"...\"],\n  \"cognitive_tags\":[\"...\"],\n  \"warning_tags\":[\"...\"\
+            ],\n  \"signals\":[\"...\"],\n  \"summary\":\"...\"\n}\n只輸出 JSON，不要多餘文字。\n"
+        selected: false
+        title: Risk Structurer
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: risk-structurer
+      position:
+        x: -130.63539689337188
+        y: 1300.0916105313902
+      positionAbsolute:
+        x: -130.63539689337188
+        y: 1300.0916105313902
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: overwrite
+          value: 'true'
+          variable_selector:
+          - conversation
+          - risk_flag
+        - input_type: variable
+          operation: overwrite
+          value:
+          - risk-structurer
+          - text
+          variable_selector:
+          - conversation
+          - red_flag_payload
+        - input_type: variable
+          operation: overwrite
+          value:
+          - risk-structurer
+          - text
+          variable_selector:
+          - conversation
+          - latest_tag_payload
+        - input_type: constant
+          operation: overwrite
+          value: none
+          variable_selector:
+          - conversation
+          - pending_question
+        - input_type: constant
+          operation: overwrite
+          value: safety
+          variable_selector:
+          - conversation
+          - active_mode
+        selected: false
+        title: Set Risk State
+        type: assigner
+        version: '2'
+      height: 188
+      id: set-risk-state
+      position:
+        x: 220.0269017270458
+        y: 1300.0916105313902
+      positionAbsolute:
+        x: 220.0269017270458
+        y: 1300.0916105313902
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: overwrite
+          value: 'false'
+          variable_selector:
+          - conversation
+          - risk_flag
+        - input_type: constant
+          operation: overwrite
+          value: none
+          variable_selector:
+          - conversation
+          - red_flag_payload
+        selected: false
+        title: Clear Risk State
+        type: assigner
+        version: '2'
+      height: 110
+      id: clear-risk-state
+      position:
+        x: -119.66423371819383
+        y: 1573.7406689197812
+      positionAbsolute:
+        x: -119.66423371819383
+        y: 1573.7406689197812
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0.2
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: '你是 AI Companion 的安全回應節點。
+
+            先用溫和語氣接住對方。
+
+            明確鼓勵立刻聯絡身邊可信任的人、當地緊急服務或危機協助資源。
+
+            不要轉進一般聊天，也不要進行一般任務引導。
+
+            回覆保持簡潔、直接、以安全為優先。
+
+            '
+        selected: false
+        title: Safety Response
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: safety-response
+      position:
+        x: 636.7379205259673
+        y: 1300.0916105313902
+      positionAbsolute:
+        x: 636.7379205259673
+        y: 1300.0916105313902
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: "你要把目前對話狀態整理成一份統一的摘要草稿 JSON。\n固定欄位：\n{\n  \"active_mode\":\"...\"\
+            ,\n  \"risk_flag\":\"true_or_false\",\n  \"followup_status\":\"...\",\n\
+            \  \"latest_tags\":\"...\",\n  \"red_flags\":\"...\",\n  \"hamd_progress\"\
+            :\"...\",\n  \"draft_summary\":\"...\"\n}\nlatest_tags 直接摘要目前的 latest_tag_payload。\n\
+            red_flags 直接摘要目前的 red_flag_payload。\nhamd_progress 直接摘要目前的 hamd_progress_state。\n\
+            draft_summary 請用一到兩句話總結目前最值得進摘要的重點。\n只輸出 JSON。\n"
+        selected: false
+        title: Summary Draft Builder
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: summary-draft-builder
+      position:
+        x: 2651.789826698582
+        y: 32.60447038615962
+      positionAbsolute:
+        x: 2651.789826698582
+        y: 32.60447038615962
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - summary-draft-builder
+          - text
+          variable_selector:
+          - conversation
+          - summary_draft_state
+        selected: false
+        title: Save Summary Draft
+        type: assigner
+        version: '2'
+      height: 84
+      id: save-summary-draft
+      position:
+        x: 2142.240981793542
+        y: 383.91822303004153
+      positionAbsolute:
+        x: 2142.240981793542
+        y: 383.91822303004153
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0.2
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: "你要把目前的 summary_draft_state 整理成「可交付給醫師或臨床團隊閱讀的診前摘要草稿」。\n目標不是做診斷，而是整理觀察到的重點、風險、HAM-D\
+            \ 線索與待追問處。\n請輸出固定 JSON：\n{\n  \"summary_version\":\"p1_clinician_draft_v1\"\
+            ,\n  \"active_mode\":\"...\",\n  \"risk_level\":\"none_or_watch_or_high\"\
+            ,\n  \"chief_concerns\":[\"...\"],\n  \"symptom_observations\":[\"...\"\
+            ],\n  \"hamd_signals\":[\"...\"],\n  \"followup_needs\":[\"...\"],\n \
+            \ \"safety_flags\":[\"...\"],\n  \"patient_tone\":\"...\",\n  \"draft_summary\"\
+            :\"...\"\n}\n規則：\n1. risk_level 只能是 none、watch、high。\n2. chief_concerns\
+            \ 用 1 到 3 條短語整理主要困擾。\n3. symptom_observations 聚焦情緒、行為、認知線索。\n4. hamd_signals\
+            \ 只整理目前已有證據的 HAM-D 維度線索，不要臆測。\n5. followup_needs 若目前資訊足夠可為空陣列。\n6. safety_flags\
+            \ 根據 red_flags 與 risk_flag 整理，若沒有則為空陣列。\n7. patient_tone 用一句短語描述整體語氣，例如\
+            \ low_energy、distressed、guarded、stable。\n8. draft_summary 用 2 到 4 句中文，寫成中性、可讀、臨床前摘要口吻。\n\
+            目前 summary_draft_state：{{#conversation.summary_draft_state#}}\n只輸出 JSON，不要加任何解釋。\n"
+        selected: false
+        title: Clinician Summary Builder
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: clinician-summary-builder
+      position:
+        x: 2692.426714820643
+        y: 339.9999999999999
+      positionAbsolute:
+        x: 2692.426714820643
+        y: 339.9999999999999
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - clinician-summary-builder
+          - text
+          variable_selector:
+          - conversation
+          - clinician_summary_draft
+        selected: false
+        title: Save Clinician Summary
+        type: assigner
+        version: '2'
+      height: 84
+      id: save-clinician-summary
+      position:
+        x: 3118.3729363222837
+        y: 339.9999999999999
+      positionAbsolute:
+        x: 3118.3729363222837
+        y: 339.9999999999999
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0.2
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: "你要把目前的 clinician_summary_draft 整理成「給病人自己審閱」的摘要包。\n目標是讓病人知道 AI 整理了什麼、哪些內容可確認、哪些內容仍是推定，並提醒需要授權後才能交付。\n\
+            請輸出固定 JSON：\n{\n  \"packet_version\":\"p3_patient_review_v1\",\n  \"status\"\
+            :\"draft_review\",\n  \"patient_facing_summary\":\"...\",\n  \"confirm_items\"\
+            :[\"...\"],\n  \"editable_items\":[\"...\"],\n  \"remove_if_wrong\":[\"\
+            ...\"],\n  \"authorization_needed\":\"yes\",\n  \"authorization_prompt\"\
+            :\"...\"\n}\n規則：\n1. patient_facing_summary 用 2 到 4 句中文，語氣溫和、易懂，不要用太重的臨床術語。\n\
+            2. confirm_items 是建議病人確認的重點。\n3. editable_items 是可請病人補充或修正的內容。\n4. remove_if_wrong\
+            \ 是若 AI 可能推定錯誤，病人可刪除的內容。\n5. authorization_prompt 要明確說明：審閱後才能授權提供給醫師。\n\
+            目前 clinician_summary_draft：{{#conversation.clinician_summary_draft#}}\n\
+            只輸出 JSON，不要加解釋。\n"
+        selected: false
+        title: Patient Review Builder
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: patient-review-builder
+      position:
+        x: 3456.9999999999973
+        y: 339.9999999999999
+      positionAbsolute:
+        x: 3456.9999999999973
+        y: 339.9999999999999
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - patient-review-builder
+          - text
+          variable_selector:
+          - conversation
+          - patient_review_packet
+        selected: false
+        title: Save Patient Review
+        type: assigner
+        version: '2'
+      height: 84
+      id: save-patient-review
+      position:
+        x: 3811.9999999999973
+        y: 339.9999999999999
+      positionAbsolute:
+        x: 3811.9999999999973
+        y: 339.9999999999999
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: "你要把目前的 patient_review_packet 與 clinician_summary_draft 整理成「病人審閱 /\
+            \ 授權狀態」。\n這不是 UI 動作結果，而是供後續交付流程使用的結構化狀態。\n請輸出固定 JSON：\n{\n  \"state_version\"\
+            :\"p3_authorization_state_v1\",\n  \"authorization_status\":\"review_required_or_ready_for_consent_orneeds_revision_orwithhold\"\
+            ,\n  \"share_with_clinician\":\"yes_or_no\",\n  \"review_blockers\":[\"\
+            ...\"],\n  \"patient_actions\":[\"...\"],\n  \"restricted_sections\":[\"\
+            ...\"],\n  \"consent_note\":\"...\"\n}\n規則：\n1. 如果資料仍明顯是 AI 推定、需要病人先看過，authorization_status\
+            \ 應偏向 review_required。\n2. 如果內容已相對清楚，但仍需要病人明確同意，authorization_status 可為\
+            \ ready_for_consent。\n3. 若摘要裡有明顯不確定或高風險敏感內容需病人修正，使用 needs_revision。\n\
+            4. 若有明顯不應直接分享的敏感推定，可用 restricted_sections 標出。\n5. `share_with_clinician`\
+            \ 只表示目前是否適合進入下一步，不代表真的已完成按鈕式授權。\nclinician_summary_draft：{{#conversation.clinician_summary_draft#}}\n\
+            patient_review_packet：{{#conversation.patient_review_packet#}}\n只輸出 JSON，不要加解釋。\n"
+        selected: false
+        title: Patient Authorization Builder
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: patient-authorization-builder
+      position:
+        x: 4254.999999999996
+        y: 339.9999999999999
+      positionAbsolute:
+        x: 4254.999999999996
+        y: 339.9999999999999
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - patient-authorization-builder
+          - text
+          variable_selector:
+          - conversation
+          - patient_authorization_state
+        selected: false
+        title: Save Patient Authorization
+        type: assigner
+        version: '2'
+      height: 84
+      id: save-patient-authorization
+      position:
+        x: 4601.999999999996
+        y: 339.9999999999999
+      positionAbsolute:
+        x: 4601.999999999996
+        y: 339.9999999999999
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: "你要把目前的 clinician_summary_draft、patient_review_packet、patient_authorization_state、red_flag_payload、hamd_progress_state\
+            \ 整理成「FHIR / TW Core 映射草稿」。\n這不是最終 server payload，而是交付前的結構化 draft。\n請輸出固定\
+            \ JSON：\n{\n  \"draft_version\":\"p3_fhir_delivery_v1\",\n  \"delivery_status\"\
+            :\"pre_review_or_ready_for_mapping_orblocked\",\n  \"consent_gate\":\"\
+            review_required_or_ready_for_consent_orblocked\",\n  \"resources\":[\n\
+            \    {\"resource_type\":\"Composition\",\"status\":\"preliminary\",\"\
+            purpose\":\"clinical_summary\"},\n    {\"resource_type\":\"Observation\"\
+            ,\"status\":\"preliminary\",\"purpose\":\"hamd_signal_tracking\"},\n \
+            \   {\"resource_type\":\"ClinicalImpression\",\"status\":\"preliminary\"\
+            ,\"purpose\":\"risk_and_context\"},\n    {\"resource_type\":\"QuestionnaireResponse\"\
+            ,\"status\":\"preliminary\",\"purpose\":\"dialogue_to_scale_mapping\"\
+            }\n  ],\n  \"composition_sections\":[{\"section\":\"...\",\"focus\":\"\
+            ...\"}],\n  \"observation_candidates\":[{\"focus\":\"...\",\"category\"\
+            :\"...\",\"status\":\"preliminary\"}],\n  \"clinical_alerts\":[\"...\"\
+            ],\n  \"questionnaire_targets\":[\"...\"],\n  \"patient_review_required\"\
+            :\"yes_or_no\",\n  \"export_blockers\":[\"...\"],\n  \"notes\":\"...\"\
+            \n}\n規則：\n1. resources 先固定用 preliminary，因為尚未病人最終授權。\n2. composition_sections\
+            \ 整理會放進摘要文件的段落。\n3. observation_candidates 整理情緒、行為、認知、睡眠、焦慮等可映射 Observation\
+            \ 的重點。\n4. clinical_alerts 整理風險與需要醫師注意的事項。\n5. questionnaire_targets 整理目前可映射到量表或\
+            \ HAM-D 線索的面向。\n6. 若病人審閱或授權尚未完成，不可把 delivery_status 寫成 ready_for_mapping。\n\
+            7. export_blockers 要明確指出授權、內容修正、欄位不足等阻塞因素。\n8. notes 說明這仍是交付前 draft，不是最終正式醫療文件。\n\
+            clinician_summary_draft：{{#conversation.clinician_summary_draft#}}\npatient_review_packet：{{#conversation.patient_review_packet#}}\n\
+            patient_authorization_state：{{#conversation.patient_authorization_state#}}\n\
+            red_flag_payload：{{#conversation.red_flag_payload#}}\nhamd_progress_state：{{#conversation.hamd_progress_state#}}\n\
+            只輸出 JSON，不要加解釋。\n"
+        selected: false
+        title: FHIR Delivery Builder
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: fhir-delivery-builder
+      position:
+        x: 4984.9999999999945
+        y: 339.9999999999999
+      positionAbsolute:
+        x: 4984.9999999999945
+        y: 339.9999999999999
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: "你要根據目前的 fhir_delivery_draft、patient_authorization_state、clinician_summary_draft，整理成「交付\
+            \ readiness 狀態」。\n請輸出固定 JSON：\n{\n  \"state_version\":\"p3_delivery_readiness_v1\"\
+            ,\n  \"readiness_status\":\"blocked_or_review_needed_orready_for_backend_mapping\"\
+            ,\n  \"primary_blockers\":[\"...\"],\n  \"next_step\":\"...\",\n  \"provenance_requirements\"\
+            :[\"...\"],\n  \"handoff_note\":\"...\"\n}\n規則：\n1. 若病人尚未完成審閱或同意，不可標成\
+            \ ready_for_backend_mapping。\n2. 若 FHIR draft 已有明確資源方向，但仍缺授權或需病人修正，可標\
+            \ review_needed。\n3. `provenance_requirements` 要列出之後真正送 backend / FHIR\
+            \ server 前該保留的來源資訊。\n4. `handoff_note` 用一句到兩句中文說明目前最適合的下一步。\nfhir_delivery_draft：{{#conversation.fhir_delivery_draft#}}\n\
+            patient_authorization_state：{{#conversation.patient_authorization_state#}}\n\
+            clinician_summary_draft：{{#conversation.clinician_summary_draft#}}\n只輸出\
+            \ JSON，不要加解釋。\n"
+        selected: false
+        title: Delivery Readiness Builder
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: delivery-readiness-builder
+      position:
+        x: 5677.999999999993
+        y: 339.9999999999999
+      positionAbsolute:
+        x: 5677.999999999993
+        y: 339.9999999999999
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - delivery-readiness-builder
+          - text
+          variable_selector:
+          - conversation
+          - delivery_readiness_state
+        selected: false
+        title: Save Delivery Readiness
+        type: assigner
+        version: '2'
+      height: 84
+      id: save-delivery-readiness
+      position:
+        x: 6150.999999999994
+        y: 339.9999999999999
+      positionAbsolute:
+        x: 6150.999999999994
+        y: 339.9999999999999
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - fhir-delivery-builder
+          - text
+          variable_selector:
+          - conversation
+          - fhir_delivery_draft
+        selected: false
+        title: Save FHIR Delivery
+        type: assigner
+        version: '2'
+      height: 84
+      id: save-fhir-delivery
+      position:
+        x: 5338.9999999999945
+        y: 339.9999999999999
+      positionAbsolute:
+        x: 5338.9999999999945
+        y: 339.9999999999999
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: "你要根據本輪使用者輸入，輸出簡短 JSON 字串。\n固定欄位：\n{\n  \"route_type\":\"normal\"\
+            ,\n  \"source_mode\":\"{{#conversation.active_mode#}}\",\n  \"followup_status\"\
+            :\"{{#conversation.followup_status#}}\",\n  \"sentiment_tags\":[\"...\"\
+            ],\n  \"behavioral_tags\":[\"...\"],\n  \"cognitive_tags\":[\"...\"],\n\
+            \  \"warning_tags\":[\"...\"],\n  \"summary\":\"...\"\n}\n如果某類沒有內容就輸出空陣列。\n\
+            你要根據目前狀態判斷 route_type:\n- 若 `followup_status` 是 pending 或目前在 follow-up\
+            \ 鏈上，route_type 應偏向 followup\n- 否則 route_type 為 normal\n只輸出 JSON，不要加解釋。\n"
+        selected: false
+        title: Tag Structurer
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: tag-structurer
+      position:
+        x: 2538.48960839774
+        y: 511.9033684741697
+      positionAbsolute:
+        x: 2538.48960839774
+        y: 511.9033684741697
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - tag-structurer
+          - text
+          variable_selector:
+          - conversation
+          - latest_tag_payload
+        selected: false
+        title: Save Tag Payload
+        type: assigner
+        version: '2'
+      height: 84
+      id: save-tag-payload
+      position:
+        x: 2863.018106337307
+        y: 516.8845583986551
+      positionAbsolute:
+        x: 2863.018106337307
+        y: 516.8845583986551
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: "你要根據這一輪使用者輸入、目前標籤與對話狀態，判斷病人的互動負擔。\n只輸出 JSON，不要解釋。\n固定格式：\n{\n  \"\
+            burden_level\":\"low_or_medium_or_high\",\n  \"response_style\":\"natural_or_supportive_or_structured_or_option_first\"\
+            ,\n  \"followup_budget\":\"0_or_1\",\n  \"burden_note\":\"...\"\n}\n規則：\n\
+            1. `high` 代表低能量、講不清楚、負擔高、容易被過度追問壓垮。\n2. `medium` 代表可對話，但仍需控制問題數量與訊息密度。\n\
+            3. `low` 代表目前可承受較正常的自然互動或結構化整理。\n4. `response_style` 只能是 natural、supportive、structured、option_first\
+            \ 其中之一。\n5. 若使用者很短句、模糊、說不知道、都可以、嗯、隨便，傾向 `high` 且 `option_first`。\n6. 若使用者情緒承載高、需要先被接住，傾向\
+            \ `supportive`。\n7. 若使用者明確要整理任務且可承受，才可偏向 `structured`。\n8. `followup_budget`\
+            \ 只可填 0 或 1；高負擔通常是 0。\n目前標籤：{{#conversation.latest_tag_payload#}}\n目前模式：{{#conversation.active_mode#}}\n\
+            目前 follow-up 狀態：{{#conversation.followup_status#}}\n"
+        selected: false
+        title: Burden Level Builder
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: burden-level-builder
+      position:
+        x: 947.0819194757569
+        y: -48.27486856371058
+      positionAbsolute:
+        x: 947.0819194757569
+        y: -48.27486856371058
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - burden-level-builder
+          - text
+          variable_selector:
+          - conversation
+          - burden_level_state
+        selected: false
+        title: Save Burden Level
+        type: assigner
+        version: '2'
+      height: 84
+      id: save-burden-level
+      position:
+        x: 1820
+        y: 420.70279911897217
+      positionAbsolute:
+        x: 1820
+        y: 420.70279911897217
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: overwrite
+          value: auto
+          variable_selector:
+          - conversation
+          - routing_mode_override
+        - input_type: constant
+          operation: overwrite
+          value: auto
+          variable_selector:
+          - conversation
+          - active_mode
+        - input_type: constant
+          operation: overwrite
+          value: none
+          variable_selector:
+          - conversation
+          - pending_question
+        - input_type: constant
+          operation: overwrite
+          value: '0'
+          variable_selector:
+          - conversation
+          - followup_turn_count
+        - input_type: constant
+          operation: overwrite
+          value: resolved
+          variable_selector:
+          - conversation
+          - followup_status
+        - input_type: constant
+          operation: overwrite
+          value: 已切回 auto 模式，之後會重新依照使用者語氣與內容自動分流。
+          variable_selector:
+          - conversation
+          - command_feedback
+        selected: false
+        title: Set Command Auto
+        type: assigner
+        version: '2'
+      height: 214
+      id: set-command-auto
+      position:
+        x: -468.3527132624994
+        y: -444.5462633838515
+      positionAbsolute:
+        x: -468.3527132624994
+        y: -444.5462633838515
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: overwrite
+          value: mode_1_void
+          variable_selector:
+          - conversation
+          - routing_mode_override
+        - input_type: constant
+          operation: overwrite
+          value: mode_1_void
+          variable_selector:
+          - conversation
+          - active_mode
+        - input_type: constant
+          operation: overwrite
+          value: none
+          variable_selector:
+          - conversation
+          - pending_question
+        - input_type: constant
+          operation: overwrite
+          value: '0'
+          variable_selector:
+          - conversation
+          - followup_turn_count
+        - input_type: constant
+          operation: overwrite
+          value: resolved
+          variable_selector:
+          - conversation
+          - followup_status
+        - input_type: constant
+          operation: overwrite
+          value: 已切換到 void 模式，之後會優先維持樹洞式接住，直到你輸入其他模式指令或 auto。
+          variable_selector:
+          - conversation
+          - command_feedback
+        selected: false
+        title: Set Command Void
+        type: assigner
+        version: '2'
+      height: 214
+      id: set-command-void
+      position:
+        x: -468.3527132624994
+        y: -148.8970125789304
+      positionAbsolute:
+        x: -468.3527132624994
+        y: -148.8970125789304
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: overwrite
+          value: mode_2_soulmate
+          variable_selector:
+          - conversation
+          - routing_mode_override
+        - input_type: constant
+          operation: overwrite
+          value: mode_2_soulmate
+          variable_selector:
+          - conversation
+          - active_mode
+        - input_type: constant
+          operation: overwrite
+          value: none
+          variable_selector:
+          - conversation
+          - pending_question
+        - input_type: constant
+          operation: overwrite
+          value: '0'
+          variable_selector:
+          - conversation
+          - followup_turn_count
+        - input_type: constant
+          operation: overwrite
+          value: resolved
+          variable_selector:
+          - conversation
+          - followup_status
+        - input_type: constant
+          operation: overwrite
+          value: 已切換到 soulmate 模式，之後會優先維持陪伴式互動，直到你輸入其他模式指令或 auto。
+          variable_selector:
+          - conversation
+          - command_feedback
+        selected: false
+        title: Set Command Soulmate
+        type: assigner
+        version: '2'
+      height: 214
+      id: set-command-soulmate
+      position:
+        x: -468.3527132624994
+        y: 169.01896137209542
+      positionAbsolute:
+        x: -468.3527132624994
+        y: 169.01896137209542
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: overwrite
+          value: mode_3_mission
+          variable_selector:
+          - conversation
+          - routing_mode_override
+        - input_type: constant
+          operation: overwrite
+          value: mode_3_mission
+          variable_selector:
+          - conversation
+          - active_mode
+        - input_type: constant
+          operation: overwrite
+          value: none
+          variable_selector:
+          - conversation
+          - pending_question
+        - input_type: constant
+          operation: overwrite
+          value: '0'
+          variable_selector:
+          - conversation
+          - followup_turn_count
+        - input_type: constant
+          operation: overwrite
+          value: resolved
+          variable_selector:
+          - conversation
+          - followup_status
+        - input_type: constant
+          operation: overwrite
+          value: 已切換到 mission 模式，之後會優先維持任務整理與診前引導，直到你輸入其他模式指令或 auto。
+          variable_selector:
+          - conversation
+          - command_feedback
+        selected: false
+        title: Set Command Mission
+        type: assigner
+        version: '2'
+      height: 214
+      id: set-command-mission
+      position:
+        x: -468.3527132624994
+        y: 443.55786821638605
+      positionAbsolute:
+        x: -468.3527132624994
+        y: 443.55786821638605
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: overwrite
+          value: mode_4_option
+          variable_selector:
+          - conversation
+          - routing_mode_override
+        - input_type: constant
+          operation: overwrite
+          value: mode_4_option
+          variable_selector:
+          - conversation
+          - active_mode
+        - input_type: constant
+          operation: overwrite
+          value: none
+          variable_selector:
+          - conversation
+          - pending_question
+        - input_type: constant
+          operation: overwrite
+          value: '0'
+          variable_selector:
+          - conversation
+          - followup_turn_count
+        - input_type: constant
+          operation: overwrite
+          value: resolved
+          variable_selector:
+          - conversation
+          - followup_status
+        - input_type: constant
+          operation: overwrite
+          value: 已切換到 option 模式，之後會優先用低負擔選項式互動，同時保留量表線索，直到你輸入其他模式指令或 auto。
+          variable_selector:
+          - conversation
+          - command_feedback
+        selected: false
+        title: Set Command Option
+        type: assigner
+        version: '2'
+      height: 214
+      id: set-command-option
+      position:
+        x: -468.3527132624994
+        y: 702.0149980907181
+      positionAbsolute:
+        x: -468.3527132624994
+        y: 702.0149980907181
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: overwrite
+          value: mode_5_natural
+          variable_selector:
+          - conversation
+          - routing_mode_override
+        - input_type: constant
+          operation: overwrite
+          value: mode_5_natural
+          variable_selector:
+          - conversation
+          - active_mode
+        - input_type: constant
+          operation: overwrite
+          value: none
+          variable_selector:
+          - conversation
+          - pending_question
+        - input_type: constant
+          operation: overwrite
+          value: '0'
+          variable_selector:
+          - conversation
+          - followup_turn_count
+        - input_type: constant
+          operation: overwrite
+          value: resolved
+          variable_selector:
+          - conversation
+          - followup_status
+        - input_type: constant
+          operation: overwrite
+          value: 已切換到 natural 模式，之後會優先用自然互動蒐集線索，直到你輸入其他模式指令或 auto。
+          variable_selector:
+          - conversation
+          - command_feedback
+        selected: false
+        title: Set Command Natural
+        type: assigner
+        version: '2'
+      height: 214
+      id: set-command-natural
+      position:
+        x: -468.3527132624994
+        y: 945.539049350089
+      positionAbsolute:
+        x: -468.3527132624994
+        y: 945.539049350089
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: overwrite
+          value: mode_6_clarify
+          variable_selector:
+          - conversation
+          - routing_mode_override
+        - input_type: constant
+          operation: overwrite
+          value: mode_6_clarify
+          variable_selector:
+          - conversation
+          - active_mode
+        - input_type: constant
+          operation: overwrite
+          value: none
+          variable_selector:
+          - conversation
+          - pending_question
+        - input_type: constant
+          operation: overwrite
+          value: '0'
+          variable_selector:
+          - conversation
+          - followup_turn_count
+        - input_type: constant
+          operation: overwrite
+          value: resolved
+          variable_selector:
+          - conversation
+          - followup_status
+        - input_type: constant
+          operation: overwrite
+          value: 已切換到 clarify 模式，之後會優先用最小補問來釐清資訊，直到你輸入其他模式指令或 auto。
+          variable_selector:
+          - conversation
+          - command_feedback
+        selected: false
+        title: Set Command Clarify
+        type: assigner
+        version: '2'
+      height: 214
+      id: set-command-clarify
+      position:
+        x: -468.3527132624994
+        y: 1171.8326252845045
+      positionAbsolute:
+        x: -468.3527132624994
+        y: 1171.8326252845045
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: overwrite
+          value: mode_1_void
+          variable_selector:
+          - conversation
+          - active_mode
+        selected: false
+        title: Set Active Mode Void
+        type: assigner
+        version: '2'
+      height: 84
+      id: set-mode-void
+      position:
+        x: 1140.0632431152583
+        y: 1062.52998545197
+      positionAbsolute:
+        x: 1140.0632431152583
+        y: 1062.52998545197
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: overwrite
+          value: mode_2_soulmate
+          variable_selector:
+          - conversation
+          - active_mode
+        selected: false
+        title: Set Active Mode Soulmate
+        type: assigner
+        version: '2'
+      height: 84
+      id: set-mode-soulmate
+      position:
+        x: 1140.0632431152583
+        y: 1217.1007983345469
+      positionAbsolute:
+        x: 1140.0632431152583
+        y: 1217.1007983345469
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: overwrite
+          value: mode_3_mission
+          variable_selector:
+          - conversation
+          - active_mode
+        selected: false
+        title: Set Active Mode Mission
+        type: assigner
+        version: '2'
+      height: 84
+      id: set-mode-mission
+      position:
+        x: 1140.0632431152583
+        y: 1652.5455981893404
+      positionAbsolute:
+        x: 1140.0632431152583
+        y: 1652.5455981893404
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: overwrite
+          value: mode_4_option
+          variable_selector:
+          - conversation
+          - active_mode
+        selected: false
+        title: Set Active Mode Option
+        type: assigner
+        version: '2'
+      height: 84
+      id: set-mode-option
+      position:
+        x: 1140.0632431152583
+        y: 1450.6736840780925
+      positionAbsolute:
+        x: 1140.0632431152583
+        y: 1450.6736840780925
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: overwrite
+          value: mode_5_natural
+          variable_selector:
+          - conversation
+          - active_mode
+        selected: false
+        title: Set Active Mode Natural
+        type: assigner
+        version: '2'
+      height: 84
+      id: set-mode-natural
+      position:
+        x: 1140.0632431152583
+        y: 1825.389386794617
+      positionAbsolute:
+        x: 1140.0632431152583
+        y: 1825.389386794617
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: overwrite
+          value: mode_6_clarify
+          variable_selector:
+          - conversation
+          - active_mode
+        selected: false
+        title: Set Active Mode Clarify
+        type: assigner
+        version: '2'
+      height: 84
+      id: set-mode-clarify
+      position:
+        x: 1140.0632431152583
+        y: 1982.6938507293235
+      positionAbsolute:
+        x: 1140.0632431152583
+        y: 1982.6938507293235
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: override_active
+          conditions:
+          - comparison_operator: is not
+            value: auto
+            variable_selector:
+            - conversation
+            - routing_mode_override
+        selected: false
+        title: Override Gate
+        type: if-else
+      height: 148
+      id: override-gate
+      position:
+        x: 481.620826320046
+        y: 1849.1999091203247
+      positionAbsolute:
+        x: 481.620826320046
+        y: 1849.1999091203247
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: pending_not_empty
+          conditions:
+          - comparison_operator: is not
+            value: none
+            variable_selector:
+            - conversation
+            - pending_question
+        selected: false
+        title: Follow-up Gate
+        type: if-else
+      height: 124
+      id: followup-gate
+      position:
+        x: 187.65252795420406
+        y: 1573.7406689197812
+      positionAbsolute:
+        x: 187.65252795420406
+        y: 1573.7406689197812
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: limit_reached
+          conditions:
+          - comparison_operator: is
+            value: '2'
+            variable_selector:
+            - conversation
+            - followup_turn_count
+        selected: false
+        title: Follow-up Limit Gate
+        type: if-else
+      height: 124
+      id: followup-limit-gate
+      position:
+        x: 489.8403982274888
+        y: 1450.6736840780925
+      positionAbsolute:
+        x: 489.8403982274888
+        y: 1450.6736840780925
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        classes:
+        - id: mode_1_void
+          name: Void Box
+        - id: mode_2_soulmate
+          name: Soul Mate
+        - id: mode_3_mission
+          name: Mission Guide
+        - id: mode_4_option
+          name: Option Selector
+        - id: mode_5_natural
+          name: Smart Hunter
+        - id: mode_6_clarify
+          name: Clarify
+        instruction: '你是意圖分類器。
+
+          請只輸出最符合的一個類別代號，不要解釋。
+
+          1. mode_1_void: 空白、測試、無意義輸入
+
+          2. mode_2_soulmate: 需要陪伴、共感、情緒支持，或此刻比較需要被接住而不是被整理
+
+          3. mode_3_mission: 明確要整理、準備回診、形成重點、完成任務，且看起來有足夠心力做較結構化整理
+
+          4. mode_4_option: 低能量、短句、講不清楚、負擔高、選不出來、需要低負擔支架，或雖然需要整理但目前不適合直接進 mission
+
+          5. mode_5_natural: 一般自然對話、日常聊天、延續話題，可在自然互動中慢慢蒐集線索
+
+          6. mode_6_clarify: 資訊不足，需要先補一個關鍵問題
+
+          額外規則：
+
+          - 若輸入很短、模糊、負擔高，優先考慮 mode_4_option。
+
+          - 若情緒明顯、需要被接住，優先考慮 mode_2_soulmate。
+
+          - 只有在使用者明確想整理、準備、列重點、形成回診摘要時，才優先考慮 mode_3_mission。
+
+          - mode_5_natural 不是純閒聊；但如果當下病人認知負擔高，仍應降到 mode_4_option。
+
+          '
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        query_variable_selector:
+        - sys
+        - query
+        selected: false
+        title: Intent Classifier
+        type: question-classifier
+      height: 328
+      id: classifier
+      position:
+        x: 797.3205281005842
+        y: 945.539049350089
+      positionAbsolute:
+        x: 797.3205281005842
+        y: 945.539049350089
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        classes:
+        - id: degrade_option
+          name: Degrade To Option
+        - id: degrade_soulmate
+          name: Degrade To Soulmate
+        - id: continue_auto
+          name: Continue Auto
+        instruction: '你是低能量與認知負擔偵測器。
+
+          目的是在正式意圖分類前，先判斷這一輪是否應該自動降級到更低負擔的互動模式。
+
+          請只輸出一個類別代號。
+
+          規則：
+
+          - 若使用者呈現很短句、模糊、無法組織、明顯低能量、只回不知道/都可以/嗯/隨便、看起來不適合直接做整理，輸出 degrade_option。
+
+          - 若使用者明顯需要先被接住、情緒承載高、脆弱、委屈、想被陪伴，而不是被推進任務，輸出 degrade_soulmate。
+
+          - 若目前看起來仍可正常進入一般分流，輸出 continue_auto。
+
+          - 這個節點是降級保護，不要因為輕微負面情緒就過度攔截 mission。
+
+          '
+        instructions: ''
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        query_variable_selector:
+        - sys
+        - query
+        selected: false
+        title: Low Energy Detector
+        type: question-classifier
+      height: 214
+      id: low-energy-detector
+      position:
+        x: 797.3205281005842
+        y: 2274.2877584235644
+      positionAbsolute:
+        x: 797.3205281005842
+        y: 2274.2877584235644
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        classes:
+        - id: mode_1_void
+          name: Void Box
+        - id: mode_2_soulmate
+          name: Soul Mate
+        - id: mode_3_mission
+          name: Mission Guide
+        - id: mode_4_option
+          name: Option Selector
+        - id: mode_5_natural
+          name: Smart Hunter
+        - id: mode_6_clarify
+          name: Clarify
+        instruction: '你要根據 `routing_mode_override` 的值，輸出對應的 mode 類別。
+
+          只輸出一個類別代號，不要解釋。
+
+          '
+        instructions: ''
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        query_variable_selector:
+        - conversation
+        - routing_mode_override
+        selected: false
+        title: Override Router
+        type: question-classifier
+      height: 328
+      id: override-router
+      position:
+        x: 797.3205281005842
+        y: 1882.4744334715606
+      positionAbsolute:
+        x: 797.3205281005842
+        y: 1882.4744334715606
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: '你要處理沒有內容或無法辨識的輸入。
+
+            請用一句簡短提醒，請使用者輸入更完整的問題。
+
+            '
+        selected: false
+        title: Void Box
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: llm-void
+      position:
+        x: 2067.722066601802
+        y: 945.539049350089
+      positionAbsolute:
+        x: 2067.722066601802
+        y: 945.539049350089
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0.5
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: '你是一個溫暖、像真人的朋友。
+
+            規則：
+
+            1. 先接住情緒，再回應。
+
+            2. 不要像客服，不要像問卷。
+
+            3. 回覆要自然、短一點。
+
+            '
+        selected: false
+        title: Soul Mate
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: llm-soulmate
+      position:
+        x: 1700.0365566051855
+        y: 1126.087172024162
+      positionAbsolute:
+        x: 1700.0365566051855
+        y: 1126.087172024162
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - JB1PuOSPlWXMsgVAkT5B4u/hSkfNYLAS+G+Zmysp3Fhot7pSACV7KyX378KBhRU7
+        multiple_retrieval_config:
+          reranking_enable: false
+          reranking_mode: reranking_model
+          top_k: 2
+        query_attachment_selector: []
+        query_variable_selector:
+        - sys
+        - query
+        retrieval_mode: multiple
+        selected: false
+        title: Mission Retrieval
+        type: knowledge-retrieval
+      height: 90
+      id: retrieval-mission
+      position:
+        x: 729.5035140939849
+        y: 383.91822303004153
+      positionAbsolute:
+        x: 729.5035140939849
+        y: 383.91822303004153
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: "你要根據本輪使用者輸入、既有狀態與目前已累積的標籤摘要，更新 HAM-D 線索狀態。\n這個節點不只服務 mission，也服務\
+            \ option、natural、clarify 與 follow-up 前的自然蒐集。\n也就是說：只要這一輪對話出現可映射到量表的線索，就應該進狀態。\n\
+            可用維度集合固定為：\n[\"depressed_mood\",\"guilt\",\"work_interest\",\"retardation\"\
+            ,\"agitation\",\"somatic_anxiety\",\"insomnia\"]\n固定欄位：\n{\n  \"progress_stage\"\
+            :\"...\",\n  \"current_focus\":\"...\",\n  \"supported_dimensions\":[\"\
+            ...\"],\n  \"covered_dimensions\":[\"...\"],\n  \"missing_dimensions\"\
+            :[\"...\"],\n  \"next_recommended_dimension\":\"...\",\n  \"recent_evidence\"\
+            :[\"...\"],\n  \"needs_clarification\":\"yes_or_no\",\n  \"status_summary\"\
+            :\"...\"\n}\n若沒有既有狀態，可從空白開始。\n舊狀態：{{#conversation.hamd_progress_state#}}\n\
+            目前標籤：{{#conversation.latest_tag_payload#}}\n目前摘要：{{#conversation.summary_draft_state#}}\n\
+            目前模式：{{#conversation.active_mode#}}\n規則：\n1. 只根據目前輸入與既有狀態整理「有證據的線索」，不要臆測。\n\
+            2. `option`、`natural`、`clarify`、`follow-up` 若出現症狀內容，也應更新到相關維度。\n3. 若本輪沒有新增量表相關線索，可保留既有狀態，但仍要輸出完整\
+            \ JSON。\n4. `supported_dimensions` 可列出本輪有被觸及的維度；`covered_dimensions` 表示整體已累積到的維度。\n\
+            5. `next_recommended_dimension` 應根據目前缺口與病人負擔，選一個最值得後續自然追蹤的維度。\n你必須讓 `covered_dimensions`\
+            \ 和 `missing_dimensions` 都只使用上述固定代號。\n目前 mission retrieval 治理：{{#conversation.mission_retrieval_audit#}}\n\
+            目前負擔狀態：{{#conversation.burden_level_state#}}\n只輸出 JSON，不要加解釋。\n"
+        selected: false
+        title: HAM-D Progress Tracker
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: hamd-progress-tracker
+      position:
+        x: 2530.2418163118614
+        y: 169.01896137209542
+      positionAbsolute:
+        x: 2530.2418163118614
+        y: 169.01896137209542
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - hamd-progress-tracker
+          - text
+          variable_selector:
+          - conversation
+          - hamd_progress_state
+        selected: false
+        title: Save HAM-D Progress
+        type: assigner
+        version: '2'
+      height: 84
+      id: save-hamd-progress
+      position:
+        x: 3021.6046863413376
+        y: 223.40863072927044
+      positionAbsolute:
+        x: 3021.6046863413376
+        y: 223.40863072927044
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - retrieval-mission
+          - result
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0.6
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - id: 796dffbb-ab25-40f9-9651-9ada377948bf
+          role: system
+          text: '你是任務導向的引導助手。
+
+            目標是幫病人做診前整理，而不是一般陪聊。
+
+            規則：
+
+            1. 先回應使用者的核心整理目標。
+
+            2. 只有在有助於診前整理、回診準備、症狀梳理、HAM-D 維度推進時，才使用知識庫內容。
+
+            3. 輸出要清楚、分段、可行，但不要像在填問卷。
+
+            4. 每次只推進一個最重要的 HAM-D 面向。
+
+            5. 如果看出病人負擔很高，就把步驟縮小，不要一次推太多。
+
+            6. 知識庫在這條路徑上的用途，是幫你做結構化整理與症狀映射，不是做泛泛的衛教長文。
+
+            7. 如果 `mission_retrieval_audit` 顯示 weak 或 empty，就不要硬套知識內容，改用已有狀態與病人原話做整理。
+
+            8. 如果 `burden_level_state` 顯示 high 或 `response_style` 偏 option_first /
+            supportive，就先縮小任務、降低資訊密度。
+
+            目前 HAM-D 狀態：{{#conversation.hamd_progress_state#}}
+
+            目前標籤狀態：{{#conversation.latest_tag_payload#}}
+
+            目前 retrieval 治理：{{#conversation.mission_retrieval_audit#}}
+
+            目前負擔狀態：{{#conversation.burden_level_state#}}
+
+            如果 `next_recommended_dimension` 有值，優先圍繞那個維度前進。
+
+            '
+        selected: false
+        title: Mission Guide
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: llm-mission
+      position:
+        x: 2213.460279803358
+        y: 133.01278643817767
+      positionAbsolute:
+        x: 2213.460279803358
+        y: 133.01278643817767
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - JB1PuOSPlWXMsgVAkT5B4u/hSkfNYLAS+G+Zmysp3Fhot7pSACV7KyX378KBhRU7
+        multiple_retrieval_config:
+          reranking_enable: false
+          reranking_mode: reranking_model
+          top_k: 3
+        query_attachment_selector: []
+        query_variable_selector:
+        - sys
+        - query
+        retrieval_mode: multiple
+        selected: false
+        title: Option Retrieval
+        type: knowledge-retrieval
+      height: 90
+      id: retrieval-option
+      position:
+        x: 1428.0611286776127
+        y: 1622.435847128834
+      positionAbsolute:
+        x: 1428.0611286776127
+        y: 1622.435847128834
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - retrieval-option
+          - result
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: "你是 option 路徑的 retrieval 治理節點。\n你的任務不是回答病人，而是判斷這次檢索是否真的能幫忙產生更貼近狀態的短選項。\n\
+            你必須只輸出 JSON，格式固定如下：\n{\n  \"retrieval_status\":\"strong_or_weak_or_empty\"\
+            ,\n  \"use_knowledge\":\"yes_or_no\",\n  \"knowledge_role\":\"option_shaping_or_none\"\
+            ,\n  \"confidence_note\":\"...\",\n  \"safe_usage_note\":\"...\"\n}\n\
+            判斷規則：\n1. 只有當檢索內容能直接幫助選項更貼近病人狀態、更省力時，才可標成 strong。\n2. 如果內容太抽象、太長、太像衛教，標成\
+            \ weak。\n3. 如果沒有明顯可用內容，標成 empty，且 use_knowledge 必須是 no。\n4. option 路徑不能因為有知識庫就變成分析報告；弱命中時寧可不用。\n\
+            5. `safe_usage_note` 要清楚說明知識最多只能如何輕量使用。\n6. 若 `burden_level_state` 顯示\
+            \ high，`safe_usage_note` 應偏向「盡量不用知識、直接給短選項」。\n"
+        selected: false
+        title: Option Retrieval Audit
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: option-retrieval-audit
+      position:
+        x: 1759.8427496895072
+        y: 1849.1999091203247
+      positionAbsolute:
+        x: 1759.8427496895072
+        y: 1849.1999091203247
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - option-retrieval-audit
+          - text
+          variable_selector:
+          - conversation
+          - option_retrieval_audit
+        selected: false
+        title: Save Option Retrieval Audit
+        type: assigner
+        version: '2'
+      height: 84
+      id: save-option-retrieval-audit
+      position:
+        x: 2067.722066601802
+        y: 1849.1999091203247
+      positionAbsolute:
+        x: 2067.722066601802
+        y: 1849.1999091203247
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - retrieval-option
+          - result
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0.4
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: '你是低負擔選項助手。
+
+            目標不是做完整分析，而是用最省力的方式，幫病人從當下狀態往前一步。
+
+            規則：
+
+            1. 先用一句短同理接住對方。
+
+            2. 再提供 2 到 3 個低負擔選項，不要太多。
+
+            3. 若知識庫有內容，只能拿來幫助你把選項設計得更合適，不要輸出像報告。
+
+            4. 選項要短、可回覆、可直接作答，適合低能量或講不清楚的病人。
+
+            5. 不要列長篇優缺點分析，避免增加認知負擔。
+
+            6. 知識庫在這條路徑上的用途，是幫你設計更貼近病人狀態的短選項，不是做完整教育或深度分析。
+
+            7. 如果 `option_retrieval_audit` 顯示 weak 或 empty，就不要引用知識內容，直接根據病人原話設計短選項。
+
+            8. 如果 `burden_level_state` 顯示 high，選項要更短、更可直接作答。
+
+            目前 retrieval 治理：{{#conversation.option_retrieval_audit#}}
+
+            目前負擔狀態：{{#conversation.burden_level_state#}}
+
+            '
+        selected: false
+        title: Option Selector
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: llm-option
+      position:
+        x: 2415.6815484986455
+        y: 1849.1999091203247
+      positionAbsolute:
+        x: 2415.6815484986455
+        y: 1849.1999091203247
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0.5
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: '你是一個自然、溫暖、像真人的朋友。
+
+            你的任務是用自然對話陪伴病人，同時低侵入地蒐集線索。
+
+            規則：
+
+            1. 語氣自然，不要像客服。
+
+            2. 如果使用者有負面情緒，先共感，不要直接轉成閒聊。
+
+            3. 如果需要追問，最多只追一個小問題。
+
+            4. 不要使用知識庫式的說教或任務語氣。
+
+            5. 這條路徑不是純聊天；若自然互動中出現情緒、行為、認知、睡眠等線索，要保留自然感，不要突然切成量表。
+
+            6. 如果 `burden_level_state` 顯示 high，就減少訊息密度，優先短句與陪伴，不硬追問。
+
+            目前負擔狀態：{{#conversation.burden_level_state#}}
+
+            '
+        selected: false
+        title: Smart Hunter
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: llm-natural
+      position:
+        x: 1765.8551538354725
+        y: 1988.744466148301
+      positionAbsolute:
+        x: 1765.8551538354725
+        y: 1988.744466148301
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        classes:
+        - id: followup_ask_more
+          name: Ask More
+        - id: followup_answer_now
+          name: Answer Now
+        instruction: '你要判斷上一個 follow-up 回覆是否仍然是一個補問。
+
+          如果內容主要是在再問一個最小問題，輸出 followup_ask_more。
+
+          如果內容主要是在直接回答或收斂，輸出 followup_answer_now。
+
+          只輸出類別代號。
+
+          '
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        query_variable_selector:
+        - llm-followup
+        - text
+        selected: false
+        title: Follow-up Output Classifier
+        type: question-classifier
+      height: 176
+      id: followup-output-classifier
+      position:
+        x: 1428.0611286776127
+        y: 1752.1100372512517
+      positionAbsolute:
+        x: 1428.0611286776127
+        y: 1752.1100372512517
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0.5
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: '你正在處理上一輪留下的補問。
+
+            已知補問內容：{{#conversation.pending_question#}}
+
+            請根據使用者本輪回答，直接完成上一輪對話。
+
+            如果資訊仍不足，且目前還沒到第二輪上限，只再提出一個最小補問。
+
+            不要一次問超過一個問題。
+
+            如果對方顯示低能量、講不清楚、負擔高，優先收斂或把問題縮得更小。
+
+            若 `burden_level_state` 顯示 high 或 `followup_budget` 是 0，優先直接回答，不再補問。
+
+            目前負擔狀態：{{#conversation.burden_level_state#}}
+
+            '
+        selected: false
+        title: Follow-up Resolver
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: llm-followup
+      position:
+        x: 797.3205281005842
+        y: 1711.832625284504
+      positionAbsolute:
+        x: 797.3205281005842
+        y: 1711.832625284504
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0.3
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: '你正在處理最後一次補問收斂。
+
+            已知補問內容：{{#conversation.pending_question#}}
+
+            現在不允許再追問。
+
+            請根據目前已有資訊，給出最好的收斂回答。
+
+            語氣要降低負擔，不要讓病人覺得自己還被要求補更多。
+
+            目前負擔狀態：{{#conversation.burden_level_state#}}
+
+            '
+        selected: false
+        title: Follow-up Finalizer
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: llm-followup-final
+      position:
+        x: 797.3205281005842
+        y: 1553.4378910610903
+      positionAbsolute:
+        x: 797.3205281005842
+        y: 1553.4378910610903
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 10
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: llama-3.1-8b-instant
+          provider: langgenius/groq/groq
+        prompt_template:
+        - role: system
+          text: '你要先補一個最關鍵的問題。
+
+            規則：
+
+            1. 只問一個問題。
+
+            2. 問題要短。
+
+            3. 問題要能直接幫助下一輪回答。
+
+            '
+        selected: false
+        title: Clarify Question
+        type: llm
+        vision:
+          enabled: false
+      height: 94
+      id: llm-clarify
+      position:
+        x: 1759.8427496895072
+        y: 2141.999999999997
+      positionAbsolute:
+        x: 1759.8427496895072
+        y: 2141.999999999997
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: overwrite
+          value: none
+          variable_selector:
+          - conversation
+          - pending_question
+        - input_type: constant
+          operation: overwrite
+          value: '0'
+          variable_selector:
+          - conversation
+          - followup_turn_count
+        - input_type: constant
+          operation: overwrite
+          value: resolved
+          variable_selector:
+          - conversation
+          - followup_status
+        selected: false
+        title: Clear Pending Question
+        type: assigner
+        version: '2'
+      height: 136
+      id: clear-pending
+      position:
+        x: 2061.722066601802
+        y: 1553.4378910610903
+      positionAbsolute:
+        x: 2061.722066601802
+        y: 1553.4378910610903
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - llm-clarify
+          - text
+          variable_selector:
+          - conversation
+          - pending_question
+        - input_type: constant
+          operation: overwrite
+          value: '1'
+          variable_selector:
+          - conversation
+          - followup_turn_count
+        - input_type: constant
+          operation: overwrite
+          value: pending
+          variable_selector:
+          - conversation
+          - followup_status
+        selected: false
+        title: Save Pending Question
+        type: assigner
+        version: '2'
+      height: 136
+      id: save-pending
+      position:
+        x: 2067.722066601802
+        y: 2153.9999999999964
+      positionAbsolute:
+        x: 2067.722066601802
+        y: 2153.9999999999964
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: overwrite
+          value:
+          - llm-followup
+          - text
+          variable_selector:
+          - conversation
+          - pending_question
+        - input_type: constant
+          operation: overwrite
+          value: '2'
+          variable_selector:
+          - conversation
+          - followup_turn_count
+        - input_type: constant
+          operation: overwrite
+          value: pending
+          variable_selector:
+          - conversation
+          - followup_status
+        - input_type: constant
+          operation: overwrite
+          value: followup
+          variable_selector:
+          - conversation
+          - active_mode
+        selected: false
+        title: Save Follow-up Question
+        type: assigner
+        version: '2'
+      height: 162
+      id: save-pending-followup
+      position:
+        x: 2067.722066601802
+        y: 1337.8543618520137
+      positionAbsolute:
+        x: 2067.722066601802
+        y: 1337.8543618520137
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#safety-response.text#}}'
+        selected: false
+        title: Safety Answer
+        type: answer
+        variables: []
+      height: 103
+      id: answer-safety
+      position:
+        x: 2723.5985959632826
+        y: 1300.0916105313902
+      positionAbsolute:
+        x: 2723.5985959632826
+        y: 1300.0916105313902
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#llm-void.text#}}'
+        selected: false
+        title: Void Answer
+        type: answer
+        variables: []
+      height: 103
+      id: answer-void
+      position:
+        x: 2713.5985959632826
+        y: 945.539049350089
+      positionAbsolute:
+        x: 2713.5985959632826
+        y: 945.539049350089
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#llm-soulmate.text#}}'
+        selected: false
+        title: Soulmate Answer
+        type: answer
+        variables: []
+      height: 103
+      id: answer-soulmate
+      position:
+        x: 2723.5985959632826
+        y: 1126.087172024162
+      positionAbsolute:
+        x: 2723.5985959632826
+        y: 1126.087172024162
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#llm-mission.text#}}'
+        selected: false
+        title: Mission Answer
+        type: answer
+        variables: []
+      height: 103
+      id: answer-mission
+      position:
+        x: 1547
+        y: 339.9999999999999
+      positionAbsolute:
+        x: 1547
+        y: 339.9999999999999
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#llm-option.text#}}'
+        selected: false
+        title: Option Answer
+        type: answer
+        variables: []
+      height: 103
+      id: answer-option
+      position:
+        x: 2723.5985959632826
+        y: 1849.1999091203247
+      positionAbsolute:
+        x: 2723.5985959632826
+        y: 1849.1999091203247
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#llm-natural.text#}}'
+        selected: false
+        title: Natural Answer
+        type: answer
+        variables: []
+      height: 103
+      id: answer-natural
+      position:
+        x: 2723.5985959632826
+        y: 1988.744466148301
+      positionAbsolute:
+        x: 2723.5985959632826
+        y: 1988.744466148301
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#llm-followup.text#}}'
+        selected: false
+        title: Follow-up Answer
+        type: answer
+        variables: []
+      height: 103
+      id: answer-followup
+      position:
+        x: 2723.5985959632826
+        y: 1532.2717532865038
+      positionAbsolute:
+        x: 2723.5985959632826
+        y: 1532.2717532865038
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#llm-clarify.text#}}'
+        selected: false
+        title: Clarify Answer
+        type: answer
+        variables: []
+      height: 103
+      id: answer-clarify
+      position:
+        x: 2723.5985959632826
+        y: 2153.9999999999964
+      positionAbsolute:
+        x: 2723.5985959632826
+        y: 2153.9999999999964
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#conversation.command_feedback#}}'
+        selected: false
+        title: Command Answer
+        type: answer
+        variables: []
+      height: 104
+      id: answer-command
+      position:
+        x: 2723.5985959632826
+        y: 633.7420032426162
+      positionAbsolute:
+        x: 2723.5985959632826
+        y: 633.7420032426162
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: -360.3040012660997
+      y: -138.78979525710577
+      zoom: 0.8705505632961246
+  rag_pipeline_variables: []

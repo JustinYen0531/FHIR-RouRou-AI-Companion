@@ -1,0 +1,751 @@
+{
+  "bundle_json": {
+    "resourceType": "Bundle",
+    "type": "transaction",
+    "entry": [
+      {
+        "fullUrl": "urn:uuid:f95c1274-f95c-e9ac-1274-f95c1274e9ac",
+        "resource": {
+          "resourceType": "Patient",
+          "meta": {
+            "profile": [
+              "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Patient-twcore"
+            ]
+          },
+          "identifier": [
+            {
+              "system": "https://example.org/fhir/NamingSystem/ai-companion-patient-key",
+              "value": "patient-001"
+            }
+          ],
+          "active": true,
+          "name": [
+            {
+              "text": "Test Patient"
+            }
+          ],
+          "gender": "female",
+          "birthDate": "1995-07-14"
+        },
+        "request": {
+          "method": "POST",
+          "url": "Patient"
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:d57322b3-d573-4df4-22b3-d57322b34df4",
+        "resource": {
+          "resourceType": "Encounter",
+          "meta": {
+            "profile": [
+              "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Encounter-twcore"
+            ]
+          },
+          "status": "in-progress",
+          "class": {
+            "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+            "code": "AMB",
+            "display": "ambulatory"
+          },
+          "subject": {
+            "reference": "urn:uuid:f95c1274-f95c-e9ac-1274-f95c1274e9ac"
+          },
+          "period": {
+            "start": "2026-03-29T09:00:00+08:00",
+            "end": "2026-03-29T09:30:00+08:00"
+          },
+          "identifier": [
+            {
+              "system": "https://example.org/fhir/NamingSystem/ai-companion-session-key",
+              "value": "session-001"
+            }
+          ]
+        },
+        "request": {
+          "method": "POST",
+          "url": "Encounter"
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:1595b6ab-1595-537e-b6ab-1595b6ab537e",
+        "resource": {
+          "resourceType": "QuestionnaireResponse",
+          "meta": {
+            "profile": [
+              "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/QuestionnaireResponse-twcore"
+            ]
+          },
+          "extension": [
+            {
+              "url": "https://example.org/fhir/StructureDefinition/ai-companion-generated",
+              "valueBoolean": true
+            },
+            {
+              "url": "https://example.org/fhir/StructureDefinition/patient-review-status",
+              "valueCode": "ready_for_consent"
+            },
+            {
+              "url": "https://example.org/fhir/StructureDefinition/review-source",
+              "valueString": "ai_draft_with_patient_share_allowed"
+            }
+          ],
+          "questionnaire": "https://example.org/fhir/Questionnaire/ai-companion-previsit-hamd-lite-v1",
+          "identifier": [
+            {
+              "system": "https://example.org/fhir/NamingSystem/ai-companion-questionnaire-response",
+              "value": "session-001"
+            }
+          ],
+          "status": "completed",
+          "subject": {
+            "reference": "urn:uuid:f95c1274-f95c-e9ac-1274-f95c1274e9ac"
+          },
+          "encounter": {
+            "reference": "urn:uuid:d57322b3-d573-4df4-22b3-d57322b34df4"
+          },
+          "authored": "2026-03-29T09:30:00+08:00",
+          "author": {
+            "display": "AI Companion MVP"
+          },
+          "item": [
+            {
+              "linkId": "depressed_mood",
+              "text": "Depressed mood",
+              "answer": [
+                {
+                  "valueString": "Observed via AI companion conversation."
+                }
+              ]
+            },
+            {
+              "linkId": "work_interest",
+              "text": "Work and interest decline",
+              "answer": [
+                {
+                  "valueString": "Observed via AI companion conversation."
+                }
+              ]
+            },
+            {
+              "linkId": "insomnia",
+              "text": "Insomnia",
+              "answer": [
+                {
+                  "valueString": "Observed via AI companion conversation."
+                }
+              ]
+            },
+            {
+              "linkId": "recent_evidence",
+              "text": "Recent evidence",
+              "answer": [
+                {
+                  "valueString": "近兩三週情緒低落"
+                },
+                {
+                  "valueString": "睡著後容易醒"
+                },
+                {
+                  "valueString": "工作效率下降"
+                }
+              ]
+            },
+            {
+              "linkId": "next_recommended_dimension",
+              "text": "Next recommended dimension",
+              "answer": [
+                {
+                  "valueString": "somatic_anxiety"
+                }
+              ]
+            }
+          ]
+        },
+        "request": {
+          "method": "POST",
+          "url": "QuestionnaireResponse"
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:47648379-4764-24b9-8379-4764837924b9",
+        "resource": {
+          "resourceType": "Observation",
+          "meta": {
+            "profile": [
+              "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Observation-screening-assessment-twcore"
+            ]
+          },
+          "extension": [
+            {
+              "url": "https://example.org/fhir/StructureDefinition/ai-companion-generated",
+              "valueBoolean": true
+            },
+            {
+              "url": "https://example.org/fhir/StructureDefinition/patient-review-status",
+              "valueCode": "ready_for_consent"
+            },
+            {
+              "url": "https://example.org/fhir/StructureDefinition/review-source",
+              "valueString": "ai_draft_with_patient_share_allowed"
+            }
+          ],
+          "identifier": [
+            {
+              "system": "https://example.org/fhir/NamingSystem/ai-companion-observation",
+              "value": "session-001:depressed_mood:0"
+            }
+          ],
+          "status": "preliminary",
+          "category": [
+            {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                  "code": "survey",
+                  "display": "Survey"
+                }
+              ]
+            }
+          ],
+          "code": {
+            "coding": [
+              {
+                "system": "https://example.org/fhir/CodeSystem/ai-companion-signals",
+                "code": "depressed_mood",
+                "display": "Depressed mood"
+              }
+            ],
+            "text": "Depressed mood"
+          },
+          "subject": {
+            "reference": "urn:uuid:f95c1274-f95c-e9ac-1274-f95c1274e9ac"
+          },
+          "encounter": {
+            "reference": "urn:uuid:d57322b3-d573-4df4-22b3-d57322b34df4"
+          },
+          "effectiveDateTime": "2026-03-29T09:30:00+08:00",
+          "derivedFrom": [
+            {
+              "reference": "urn:uuid:1595b6ab-1595-537e-b6ab-1595b6ab537e"
+            }
+          ],
+          "method": {
+            "text": "AI companion conversation extraction"
+          },
+          "valueString": "supported signal"
+        },
+        "request": {
+          "method": "POST",
+          "url": "Observation"
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:946b0681-946b-d1bf-0681-946b0681d1bf",
+        "resource": {
+          "resourceType": "Observation",
+          "meta": {
+            "profile": [
+              "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Observation-screening-assessment-twcore"
+            ]
+          },
+          "extension": [
+            {
+              "url": "https://example.org/fhir/StructureDefinition/ai-companion-generated",
+              "valueBoolean": true
+            },
+            {
+              "url": "https://example.org/fhir/StructureDefinition/patient-review-status",
+              "valueCode": "ready_for_consent"
+            },
+            {
+              "url": "https://example.org/fhir/StructureDefinition/review-source",
+              "valueString": "ai_draft_with_patient_share_allowed"
+            }
+          ],
+          "identifier": [
+            {
+              "system": "https://example.org/fhir/NamingSystem/ai-companion-observation",
+              "value": "session-001:work_interest:1"
+            }
+          ],
+          "status": "preliminary",
+          "category": [
+            {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                  "code": "survey",
+                  "display": "Survey"
+                }
+              ]
+            }
+          ],
+          "code": {
+            "coding": [
+              {
+                "system": "https://example.org/fhir/CodeSystem/ai-companion-signals",
+                "code": "work_interest",
+                "display": "Work and interest decline"
+              }
+            ],
+            "text": "Work and interest decline"
+          },
+          "subject": {
+            "reference": "urn:uuid:f95c1274-f95c-e9ac-1274-f95c1274e9ac"
+          },
+          "encounter": {
+            "reference": "urn:uuid:d57322b3-d573-4df4-22b3-d57322b34df4"
+          },
+          "effectiveDateTime": "2026-03-29T09:30:00+08:00",
+          "derivedFrom": [
+            {
+              "reference": "urn:uuid:1595b6ab-1595-537e-b6ab-1595b6ab537e"
+            }
+          ],
+          "method": {
+            "text": "AI companion conversation extraction"
+          },
+          "valueString": "supported signal"
+        },
+        "request": {
+          "method": "POST",
+          "url": "Observation"
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:87a1fd00-87a1-dd19-fd00-87a1fd00dd19",
+        "resource": {
+          "resourceType": "Observation",
+          "meta": {
+            "profile": [
+              "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Observation-screening-assessment-twcore"
+            ]
+          },
+          "extension": [
+            {
+              "url": "https://example.org/fhir/StructureDefinition/ai-companion-generated",
+              "valueBoolean": true
+            },
+            {
+              "url": "https://example.org/fhir/StructureDefinition/patient-review-status",
+              "valueCode": "ready_for_consent"
+            },
+            {
+              "url": "https://example.org/fhir/StructureDefinition/review-source",
+              "valueString": "ai_draft_with_patient_share_allowed"
+            }
+          ],
+          "identifier": [
+            {
+              "system": "https://example.org/fhir/NamingSystem/ai-companion-observation",
+              "value": "session-001:insomnia:2"
+            }
+          ],
+          "status": "preliminary",
+          "category": [
+            {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                  "code": "survey",
+                  "display": "Survey"
+                }
+              ]
+            }
+          ],
+          "code": {
+            "coding": [
+              {
+                "system": "https://example.org/fhir/CodeSystem/ai-companion-signals",
+                "code": "insomnia",
+                "display": "Insomnia"
+              }
+            ],
+            "text": "Insomnia"
+          },
+          "subject": {
+            "reference": "urn:uuid:f95c1274-f95c-e9ac-1274-f95c1274e9ac"
+          },
+          "encounter": {
+            "reference": "urn:uuid:d57322b3-d573-4df4-22b3-d57322b34df4"
+          },
+          "effectiveDateTime": "2026-03-29T09:30:00+08:00",
+          "derivedFrom": [
+            {
+              "reference": "urn:uuid:1595b6ab-1595-537e-b6ab-1595b6ab537e"
+            }
+          ],
+          "method": {
+            "text": "AI companion conversation extraction"
+          },
+          "valueString": "supported signal"
+        },
+        "request": {
+          "method": "POST",
+          "url": "Observation"
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:e2a99997-e2a9-a11d-9997-e2a99997a11d",
+        "resource": {
+          "resourceType": "Observation",
+          "meta": {
+            "profile": [
+              "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Observation-screening-assessment-twcore"
+            ]
+          },
+          "extension": [
+            {
+              "url": "https://example.org/fhir/StructureDefinition/ai-companion-generated",
+              "valueBoolean": true
+            },
+            {
+              "url": "https://example.org/fhir/StructureDefinition/patient-review-status",
+              "valueCode": "ready_for_consent"
+            },
+            {
+              "url": "https://example.org/fhir/StructureDefinition/review-source",
+              "valueString": "ai_draft_with_patient_share_allowed"
+            }
+          ],
+          "identifier": [
+            {
+              "system": "https://example.org/fhir/NamingSystem/ai-companion-observation",
+              "value": "session-001:passive_disappearance_ideation:3"
+            }
+          ],
+          "status": "preliminary",
+          "category": [
+            {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                  "code": "survey",
+                  "display": "Survey"
+                }
+              ]
+            }
+          ],
+          "code": {
+            "coding": [
+              {
+                "system": "https://example.org/fhir/CodeSystem/ai-companion-signals",
+                "code": "passive_disappearance_ideation",
+                "display": "passive_disappearance_ideation"
+              }
+            ],
+            "text": "passive_disappearance_ideation"
+          },
+          "subject": {
+            "reference": "urn:uuid:f95c1274-f95c-e9ac-1274-f95c1274e9ac"
+          },
+          "encounter": {
+            "reference": "urn:uuid:d57322b3-d573-4df4-22b3-d57322b34df4"
+          },
+          "effectiveDateTime": "2026-03-29T09:30:00+08:00",
+          "derivedFrom": [
+            {
+              "reference": "urn:uuid:1595b6ab-1595-537e-b6ab-1595b6ab537e"
+            }
+          ],
+          "method": {
+            "text": "AI companion conversation extraction"
+          },
+          "valueString": "supported signal",
+          "note": [
+            {
+              "text": "曾表達如果消失就好了"
+            },
+            {
+              "text": "否認立即自傷計畫"
+            }
+          ]
+        },
+        "request": {
+          "method": "POST",
+          "url": "Observation"
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:8291c8aa-8291-6945-c8aa-8291c8aa6945",
+        "resource": {
+          "resourceType": "Composition",
+          "meta": {
+            "profile": [
+              "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Composition-twcore"
+            ]
+          },
+          "extension": [
+            {
+              "url": "https://example.org/fhir/StructureDefinition/ai-companion-generated",
+              "valueBoolean": true
+            },
+            {
+              "url": "https://example.org/fhir/StructureDefinition/patient-review-status",
+              "valueCode": "ready_for_consent"
+            },
+            {
+              "url": "https://example.org/fhir/StructureDefinition/review-source",
+              "valueString": "ai_draft_with_patient_share_allowed"
+            }
+          ],
+          "identifier": [
+            {
+              "system": "https://example.org/fhir/NamingSystem/ai-companion-composition",
+              "value": "session-001"
+            }
+          ],
+          "status": "preliminary",
+          "type": {
+            "text": "AI Companion pre-visit summary"
+          },
+          "subject": {
+            "reference": "urn:uuid:f95c1274-f95c-e9ac-1274-f95c1274e9ac"
+          },
+          "encounter": {
+            "reference": "urn:uuid:d57322b3-d573-4df4-22b3-d57322b34df4"
+          },
+          "date": "2026-03-29T09:30:00+08:00",
+          "title": "AI Companion Pre-Visit Summary",
+          "confidentiality": "R",
+          "section": [
+            {
+              "code": {
+                "text": "chief-concerns"
+              },
+              "title": "Chief Concerns",
+              "text": {
+                "status": "generated",
+                "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><ul><li>近兩三週情緒低落</li><li>睡著後容易醒</li><li>工作效率下降</li></ul></div>"
+              }
+            },
+            {
+              "code": {
+                "text": "symptom-observations"
+              },
+              "title": "Symptom Observations",
+              "text": {
+                "status": "generated",
+                "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><ul><li>情緒低落</li><li>興趣下降</li><li>睡眠中斷</li></ul></div>"
+              },
+              "entry": [
+                {
+                  "reference": "urn:uuid:47648379-4764-24b9-8379-4764837924b9"
+                },
+                {
+                  "reference": "urn:uuid:946b0681-946b-d1bf-0681-946b0681d1bf"
+                },
+                {
+                  "reference": "urn:uuid:87a1fd00-87a1-dd19-fd00-87a1fd00dd19"
+                },
+                {
+                  "reference": "urn:uuid:e2a99997-e2a9-a11d-9997-e2a99997a11d"
+                }
+              ]
+            },
+            {
+              "code": {
+                "text": "safety-flags"
+              },
+              "title": "Safety",
+              "text": {
+                "status": "generated",
+                "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><ul><li>被動消失想法</li><li>目前否認立即自傷計畫</li></ul></div>"
+              }
+            },
+            {
+              "code": {
+                "text": "followup-needs"
+              },
+              "title": "Follow-up Needs",
+              "text": {
+                "status": "generated",
+                "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><ul><li>追蹤身體焦慮</li><li>確認被動消失念頭頻率</li></ul></div>"
+              }
+            }
+          ],
+          "author": [
+            {
+              "display": "AI Companion MVP"
+            }
+          ],
+          "relatesTo": [
+            {
+              "code": "appends",
+              "targetReference": {
+                "reference": "urn:uuid:1595b6ab-1595-537e-b6ab-1595b6ab537e"
+              }
+            }
+          ]
+        },
+        "request": {
+          "method": "POST",
+          "url": "Composition"
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:31649d99-3164-4662-9d99-31649d994662",
+        "resource": {
+          "resourceType": "DocumentReference",
+          "meta": {
+            "profile": [
+              "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/DocumentReference-twcore"
+            ]
+          },
+          "status": "current",
+          "docStatus": "preliminary",
+          "subject": {
+            "reference": "urn:uuid:f95c1274-f95c-e9ac-1274-f95c1274e9ac"
+          },
+          "context": {
+            "encounter": [
+              {
+                "reference": "urn:uuid:d57322b3-d573-4df4-22b3-d57322b34df4"
+              }
+            ]
+          },
+          "type": {
+            "text": "AI Companion clinician summary document"
+          },
+          "date": "2026-03-29T09:30:00+08:00",
+          "author": [
+            {
+              "display": "AI Companion MVP"
+            }
+          ],
+          "description": "Clinician-facing AI Companion pre-visit summary draft",
+          "content": [
+            {
+              "attachment": {
+                "contentType": "application/json",
+                "title": "AI Companion clinician summary draft",
+                "data": "ewogICJjaGllZl9jb25jZXJucyI6IFsKICAgICLov5HlhankuInpgLHmg4Xnt5LkvY7okL0iLAogICAgIuedoeiRl+W+jOWuueaYk+mGkiIsCiAgICAi5bel5L2c5pWI546H5LiL6ZmNIgogIF0sCiAgInN5bXB0b21fb2JzZXJ2YXRpb25zIjogWwogICAgIuaDhee3kuS9juiQvSIsCiAgICAi6IiI6Laj5LiL6ZmNIiwKICAgICLnnaHnnKDkuK3mlrciCiAgXSwKICAiZm9sbG93dXBfbmVlZHMiOiBbCiAgICAi6L+96Lmk6Lqr6auU54Sm5oWuIiwKICAgICLnorroqo3ooqvli5XmtojlpLHlv7XpoK3poLvnjociCiAgXSwKICAic2FmZXR5X2ZsYWdzIjogWwogICAgIuiiq+WLlea2iOWkseaDs+azlSIsCiAgICAi55uu5YmN5ZCm6KqN56uL5Y2z6Ieq5YK36KiI55WrIgogIF0sCiAgImhhbWRfc2lnbmFscyI6IFsKICAgICJkZXByZXNzZWRfbW9vZCIsCiAgICAid29ya19pbnRlcmVzdCIsCiAgICAiaW5zb21uaWEiCiAgXQp9"
+              }
+            }
+          ],
+          "relatesTo": [
+            {
+              "code": "appends",
+              "target": {
+                "reference": "urn:uuid:8291c8aa-8291-6945-c8aa-8291c8aa6945"
+              }
+            }
+          ]
+        },
+        "request": {
+          "method": "POST",
+          "url": "DocumentReference"
+        }
+      },
+      {
+        "fullUrl": "urn:uuid:2cb8c6a1-2cb8-764f-c6a1-2cb8c6a1764f",
+        "resource": {
+          "resourceType": "Provenance",
+          "meta": {
+            "profile": [
+              "https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Provenance-twcore"
+            ]
+          },
+          "recorded": "2026-03-29T09:30:00+08:00",
+          "target": [
+            {
+              "reference": "urn:uuid:1595b6ab-1595-537e-b6ab-1595b6ab537e"
+            },
+            {
+              "reference": "urn:uuid:8291c8aa-8291-6945-c8aa-8291c8aa6945"
+            },
+            {
+              "reference": "urn:uuid:31649d99-3164-4662-9d99-31649d994662"
+            },
+            {
+              "reference": "urn:uuid:47648379-4764-24b9-8379-4764837924b9"
+            },
+            {
+              "reference": "urn:uuid:946b0681-946b-d1bf-0681-946b0681d1bf"
+            },
+            {
+              "reference": "urn:uuid:87a1fd00-87a1-dd19-fd00-87a1fd00dd19"
+            },
+            {
+              "reference": "urn:uuid:e2a99997-e2a9-a11d-9997-e2a99997a11d"
+            }
+          ],
+          "agent": [
+            {
+              "type": {
+                "text": "author"
+              },
+              "who": {
+                "display": "AI Companion MVP"
+              }
+            }
+          ],
+          "entity": [
+            {
+              "role": "source",
+              "what": {
+                "display": "AI draft with patient share allowed"
+              }
+            },
+            {
+              "role": "derivation",
+              "what": {
+                "display": "ready_for_consent"
+              }
+            }
+          ],
+          "reason": [
+            {
+              "text": "AI companion pre-visit summary generation and patient review tracking"
+            }
+          ],
+          "location": {
+            "display": "urn:uuid:d57322b3-d573-4df4-22b3-d57322b34df4"
+          },
+          "patient": {
+            "reference": "urn:uuid:f95c1274-f95c-e9ac-1274-f95c1274e9ac"
+          }
+        },
+        "request": {
+          "method": "POST",
+          "url": "Provenance"
+        }
+      }
+    ]
+  },
+  "resource_index": {
+    "Patient": [
+      "urn:uuid:f95c1274-f95c-e9ac-1274-f95c1274e9ac"
+    ],
+    "Encounter": [
+      "urn:uuid:d57322b3-d573-4df4-22b3-d57322b34df4"
+    ],
+    "QuestionnaireResponse": [
+      "urn:uuid:1595b6ab-1595-537e-b6ab-1595b6ab537e"
+    ],
+    "Observation": [
+      "urn:uuid:47648379-4764-24b9-8379-4764837924b9",
+      "urn:uuid:946b0681-946b-d1bf-0681-946b0681d1bf",
+      "urn:uuid:87a1fd00-87a1-dd19-fd00-87a1fd00dd19",
+      "urn:uuid:e2a99997-e2a9-a11d-9997-e2a99997a11d"
+    ],
+    "Composition": [
+      "urn:uuid:8291c8aa-8291-6945-c8aa-8291c8aa6945"
+    ],
+    "DocumentReference": [
+      "urn:uuid:31649d99-3164-4662-9d99-31649d994662"
+    ],
+    "Provenance": [
+      "urn:uuid:2cb8c6a1-2cb8-764f-c6a1-2cb8c6a1764f"
+    ]
+  },
+  "validation_errors": [],
+  "blocking_reasons": [],
+  "validation_report": {
+    "valid": true,
+    "issue_count": 0,
+    "errors": 0,
+    "warnings": 0,
+    "issues": []
+  }
+}

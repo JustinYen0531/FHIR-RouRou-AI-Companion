@@ -49,17 +49,30 @@
           </div>
         </div>
       </div>
-      <div style="display:flex; gap:8px; align-items:center;">
-        <button class="icon-btn" type="button" aria-label="模式" onclick="showScreen('screen-energy')">
-          <span class="mat-icon">favorite</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button id="memory-badge-wrap" class="memory-badge-btn" onclick="toggleMemoryDrawer()" style="display:none">
+          <span class="mat-icon fill" style="font-size:16px">psychology</span>
+          <span id="memory-badge-count">0</span> 件記憶
         </button>
-        <button class="icon-btn" type="button" aria-label="設定" onclick="showScreen('screen-settings')">
-          <span class="mat-icon">settings</span>
+        <button class="icon-btn" onclick="showScreen('screen-settings')">
+          <span class="mat-icon">settings_heart</span>
         </button>
       </div>
     </header>
 
+    <!-- Memory Drawer -->
+    <div id="memory-drawer" class="memory-drawer" style="display:none">
+      <div class="memory-drawer-header">
+        <div class="memory-drawer-title"><span class="mat-icon fill">psychology</span> Rou Rou 記得的事</div>
+        <button class="icon-btn" onclick="toggleMemoryDrawer()"><span class="mat-icon">close</span></button>
+      </div>
+      <div id="memory-drawer-content" class="memory-drawer-content">
+        <div class="mem-empty"><span class="mat-icon">psychology</span><p>開始聊天後，Rou Rou 會慢慢記住你的事 🌱</p></div>
+      </div>
+    </div>
+
     <main class="chat-canvas" id="chat-messages">
+
       <div class="sensor-badge">
         <span>智能感測活躍中</span>
         <span class="mat-icon fill" style="font-size:14px">analytics</span>
@@ -147,45 +160,45 @@
 
       <div class="current-mode-badge">
         <span class="mat-icon fill" style="color:#446655">auto_awesome</span>
-        <div>
-          <div class="curr-mode-label">目前設定模式</div>
-          <div class="curr-mode-name" id="current-mode-name">Soul Mate 靈魂伴侶</div>
-        </div>
+          <div>
+            <div class="curr-mode-label">目前設定模式</div>
+            <div class="curr-mode-name" id="current-mode-name">靈魂陪伴</div>
+          </div>
         <span class="mat-icon" style="color:#bbb;margin-left:auto">radio_button_unchecked</span>
       </div>
 
       <div class="mode-list">
-        <div class="mode-card" onclick="selectMode(this,'Void Box 樹洞模式','void')">
+        <div class="mode-card" onclick="selectMode(this,'樹洞模式','void')">
           <div class="mode-icon void-icon"></div>
           <div class="mode-info">
-            <div class="mode-name">Void Box 樹洞模式</div>
+            <div class="mode-name">樹洞模式</div>
             <div class="mode-desc">只聽不說，讓我安靜地承接你所有的情緒與秘密。</div>
           </div>
         </div>
-        <div class="mode-card active" onclick="selectMode(this,'Soul Mate 靈魂伴侶','soul')">
+        <div class="mode-card active" onclick="selectMode(this,'靈魂陪伴','soul')">
           <div class="active-badge">ACTIVE</div>
           <div class="mode-icon soul-icon">♥</div>
           <div class="mode-info">
-            <div class="mode-name">Soul Mate 靈魂伴侶</div>
+            <div class="mode-name">靈魂陪伴</div>
             <div class="mode-desc">充滿溫度的深度共感，像老朋友般溫暖你的心靈。</div>
           </div>
         </div>
-        <div class="mode-card" onclick="selectMode(this,'Mission Guide 任務引導','mission')">
+        <div class="mode-card" onclick="selectMode(this,'任務引導','mission')">
           <div class="mode-icon mission-icon">◎</div>
           <div class="mode-info">
-            <div class="mode-name">Mission Guide 任務引導</div>
+            <div class="mode-name">任務引導</div>
             <div class="mode-desc">如果你感到迷茫，我將帶領你完成今日的心理復健練習。</div>
           </div>
         </div>
         <div class="mode-row">
-          <div class="mode-card-sm" onclick="selectMode(null,'Option Selector','option')">
+          <div class="mode-card-sm" onclick="selectMode(null,'選項引導','option')">
             <div class="mode-icon-sm">⊞</div>
-            <div class="mode-sm-name">Option Selector</div>
+            <div class="mode-sm-name">選項引導</div>
             <div class="mode-sm-desc">結構化對話，減少思考負擔</div>
           </div>
-          <div class="mode-card-sm" onclick="selectMode(null,'Smart Hunter','smart')">
+          <div class="mode-card-sm" onclick="selectMode(null,'自然聊天','smart')">
             <div class="mode-icon-sm">◉</div>
-            <div class="mode-sm-name">Smart Hunter</div>
+            <div class="mode-sm-name">自然聊天</div>
             <div class="mode-sm-desc">精準捕捉核心問題，高效解決困擾</div>
           </div>
         </div>
@@ -235,11 +248,40 @@
             <span class="mat-icon">edit_square</span>
             自主情緒追蹤
           </button>
+        
+          <button class="report-tab" onclick="switchReportTab('know')">
+            <span class="mat-icon">psychology</span>
+            認識你
+          </button>
         </div>
       </section>
 
       <!-- TAB: AUTO (Existing Content) -->
       <div id="report-tab-auto" class="report-tab-content active">
+        <div class="report-tabs glass" style="margin: 0 20px 16px;">
+          <button class="report-tab report-audience-tab active" data-audience="patient" onclick="switchAutoAudience('patient')">
+            <span class="mat-icon fill">favorite</span>
+            給病人的
+          </button>
+          <button class="report-tab report-audience-tab" data-audience="doctor" onclick="switchAutoAudience('doctor')">
+            <span class="mat-icon">medical_information</span>
+            給醫生的
+          </button>
+        </div>
+
+        <div id="report-audience-patient">
+          <p class="greeting-sub" style="margin: 0 20px 20px;">這是 Rou Rou 用比較容易理解的方式，整理給你的本週狀態說明。</p>
+
+          <section class="section">
+            <h3 class="section-heading">給我的分析報告</h3>
+            <div class="note-card">
+              <div id="report-patient-analysis-markdown" class="note-text"></div>
+              <div class="note-footer" id="report-patient-analysis-meta">目前狀態：尚未生成</div>
+            </div>
+          </section>
+        </div>
+
+        <div id="report-audience-doctor" style="display:none;">
         <p class="greeting-sub" id="report-auto-intro" style="margin: 0 20px 20px;">這是 Rou Rou 為你整理的本週心情概覽，請確認資訊準確後再交由醫師審閱。</p>
 
       <section class="card-section">
@@ -298,21 +340,13 @@
         </div>
       </section>
 
-      <section class="section">
-        <h3 class="section-heading">病人審閱稿</h3>
-        <div class="note-card">
-          <p class="note-text" id="report-patient-review-summary">尚未產生病人審閱稿。按下「病人審閱稿」後，這裡會顯示病人可閱讀版本。</p>
-          <div class="note-footer" id="report-patient-review-meta">目前狀態：尚未生成</div>
-        </div>
-      </section>
-
-      <section class="section">
-        <h3 class="section-heading">FHIR Draft</h3>
-        <div class="note-card">
-          <p class="note-text" id="report-fhir-summary">尚未產生 FHIR Draft。按下「FHIR Draft」後，這裡會顯示可交付摘要。</p>
-          <div class="note-footer"><span id="report-fhir-status">尚未生成</span> · <span id="report-fhir-resources">FHIR resources：0</span></div>
-        </div>
-      </section>
+        <section class="section">
+          <h3 class="section-heading">FHIR 草稿</h3>
+          <div class="note-card">
+            <p class="note-text" id="report-fhir-summary">尚未產生 FHIR 草稿。按下「FHIR 草稿」後，這裡會顯示可交付摘要。</p>
+            <div class="note-footer"><span id="report-fhir-status">尚未生成</span> · <span id="report-fhir-resources">FHIR resources：0</span></div>
+          </div>
+        </section>
 
         <section class="section auth-section">
           <div class="auth-notice">
@@ -322,6 +356,7 @@
           <button class="primary-btn">數位授權並送出報告</button>
           <button class="ghost-btn">暫存報告，稍後再傳送</button>
         </section>
+        </div>
       </div>
 
       <!-- TAB: MANUAL (New Content) -->
@@ -412,6 +447,21 @@
 
         <section class="section auth-section">
           <button class="primary-btn">儲存今日紀錄</button>
+        </section>
+      </div>
+
+      <!-- TAB: KNOW YOU -->
+      <div id="report-tab-know" class="report-tab-content">
+        <section class="card-section" style="padding-bottom: 24px">
+          <div class="section-label">THERAPEUTIC MEMORY</div>
+          <h3 class="section-heading">Rou Rou 認識你</h3>
+          <p class="greeting-sub">這是 Rou Rou 從對話中累積的心理畫像，越聊越準確。</p>
+          <div id="report-know-you-card" class="know-you-card">
+            <div class="know-you-empty">
+              <span class="mat-icon">psychology</span>
+              <p>還沒有足夠的對話資料<br>開始聊天後，這裡會出現 Rou Rou 對你的認識</p>
+            </div>
+          </div>
         </section>
       </div>
     </main>

@@ -2716,3 +2716,204 @@ body {
  color: var(--primary);
  opacity: 0.5;
 }
+
+/* ══════════════════════════════════════════════
+   THERAPEUTIC MEMORY UI
+   ══════════════════════════════════════════════ */
+
+.memory-badge-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--primary-container), rgba(198,235,213,0.6));
+  color: var(--on-primary-container);
+  font-size: 12px;
+  font-weight: 700;
+  border: 1.5px solid rgba(68,102,85,0.2);
+  cursor: pointer;
+  transition: all 0.25s var(--ease-natural);
+  letter-spacing: 0.01em;
+  box-shadow: 0 2px 8px rgba(68,102,85,0.12);
+}
+.memory-badge-btn:hover {
+  background: var(--primary-container);
+  transform: translateY(-1px);
+}
+.memory-drawer {
+  position: absolute;
+  top: 72px;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: rgba(255,255,255,0.97);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(68,102,85,0.1);
+  box-shadow: 0 8px 32px rgba(41,52,58,0.12);
+  max-height: 60vh;
+  overflow-y: auto;
+  animation: drawer-slide-down 0.3s var(--ease-natural);
+}
+@keyframes drawer-slide-down {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.memory-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid rgba(68,102,85,0.08);
+  position: sticky;
+  top: 0;
+  background: rgba(255,255,255,0.97);
+}
+.memory-drawer-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Manrope', sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--primary);
+}
+.memory-drawer-content { padding: 16px 20px 20px; }
+.mem-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 0;
+  color: var(--on-surface-variant);
+  opacity: 0.6;
+  text-align: center;
+}
+.mem-empty .mat-icon { font-size: 32px; opacity: 0.4; }
+.mem-empty p { font-size: 0.875rem; line-height: 1.6; }
+.mem-stat-row { display: flex; gap: 6px; margin-bottom: 16px; }
+.mem-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 8px;
+  background: var(--surface-container-low);
+  border-radius: 14px;
+}
+.mem-stat-num {
+  font-family: 'Manrope', sans-serif;
+  font-weight: 800;
+  font-size: 1.4rem;
+  color: var(--primary);
+  line-height: 1;
+}
+.mem-stat-label { font-size: 11px; color: var(--on-surface-variant); margin-top: 2px; }
+.mem-section { margin-bottom: 14px; }
+.mem-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+.mem-section-title .mat-icon { font-size: 14px; }
+.mem-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.mem-tag { padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.mem-tag.stress { background: rgba(168,56,54,0.1); color: var(--error); }
+.mem-tag.trigger { background: rgba(255,152,0,0.12); color: #e65100; }
+.mem-tag.anchor { background: var(--primary-container); color: var(--on-primary-container); }
+.mem-coping {
+  font-size: 0.875rem;
+  color: var(--on-surface);
+  line-height: 1.6;
+  padding: 8px 12px;
+  background: var(--surface-container-low);
+  border-radius: 10px;
+  border-left: 3px solid var(--primary);
+}
+.mem-clear-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 16px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: none;
+  border: 1px solid rgba(168,56,54,0.2);
+  color: var(--error);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.mem-clear-btn:hover { background: rgba(168,56,54,0.06); }
+
+/* Reports: 認識你 */
+.know-you-card {
+  background: var(--surface-container-lowest);
+  border-radius: 20px;
+  border: 1px solid rgba(68,102,85,0.1);
+  padding: 20px;
+  box-shadow: var(--shadow-card);
+}
+.know-you-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 0;
+  color: var(--on-surface-variant);
+  opacity: 0.6;
+  text-align: center;
+}
+.know-you-empty .mat-icon { font-size: 40px; opacity: 0.3; }
+.know-you-empty p { font-size: 0.9rem; line-height: 1.7; }
+.know-you-header { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.know-you-avatar {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary-container), var(--secondary-container));
+  display: flex; align-items: center; justify-content: center;
+  color: var(--primary); flex-shrink: 0;
+}
+.know-you-title { font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 1.05rem; color: var(--on-surface); }
+.know-you-sub { font-size: 11px; color: var(--on-surface-variant); margin-top: 2px; }
+.know-you-last { font-size: 10px; color: var(--outline); margin-bottom: 16px; padding-left: 2px; }
+.know-you-row {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(168,180,187,0.1);
+}
+.know-you-row:last-of-type { border-bottom: none; }
+.know-you-icon {
+  width: 36px; height: 36px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.know-you-icon .mat-icon { font-size: 18px; }
+.know-you-icon.stress { background: rgba(168,56,54,0.1); color: var(--error); }
+.know-you-icon.trigger { background: rgba(255,152,0,0.12); color: #e65100; }
+.know-you-icon.anchor { background: var(--primary-container); color: var(--on-primary-container); }
+.know-you-icon.coping { background: var(--secondary-container); color: var(--on-secondary-container); }
+.know-you-icon.theme { background: rgba(75,0,130,0.08); color: #6a1b9a; }
+.know-you-info { flex: 1; }
+.know-you-label { font-size: 10px; font-weight: 700; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+.know-you-value { font-size: 0.9rem; color: var(--on-surface); line-height: 1.5; font-weight: 500; }
+.know-you-edit-btn {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 16px; padding: 8px 16px; border-radius: 999px;
+  background: none; border: 1px solid rgba(168,56,54,0.2);
+  color: var(--error); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all 0.2s;
+  width: 100%; justify-content: center;
+}
+.know-you-edit-btn:hover { background: rgba(168,56,54,0.06); }
+
+/* Report tabs 三欄自適應 */
+.report-tabs { display: flex; gap: 4px; }
+.report-tab { flex: 1; min-width: 0; font-size: 11px; }
+

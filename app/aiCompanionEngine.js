@@ -127,7 +127,8 @@ const HIGH_RISK_PATTERNS = [
 
 const OUTPUT_COMMAND_PATTERNS = [
   { type: 'clinician_summary', patterns: [/幫我整理給醫生/, /整理給醫師/, /醫師摘要/, /clinician summary/i, /doctor summary/i] },
-  { type: 'patient_review', patterns: [/病人審閱稿/, /給我病人版本/, /patient review/i] },
+  { type: 'patient_analysis', patterns: [/請分析我/, /分析我/, /給我分析/, /給我病人版本/, /patient analysis/i] },
+  { type: 'patient_review', patterns: [/病人審閱稿/, /patient review/i] },
   { type: 'patient_authorization', patterns: [/授權狀態/, /病人授權稿/, /patient authorization/i] },
   { type: 'fhir_delivery', patterns: [/fhir draft/i, /\bfhir\b/i, /產生fhir/i] },
   { type: 'delivery_readiness', patterns: [/交付狀態/, /delivery readiness/i] },
@@ -136,9 +137,10 @@ const OUTPUT_COMMAND_PATTERNS = [
 
 const OUTPUT_LABELS = {
   clinician_summary: '醫師摘要',
+  patient_analysis: '給病人的分析報告',
   patient_review: '病人審閱稿',
   patient_authorization: '病人授權稿',
-  fhir_delivery: 'FHIR Draft',
+  fhir_delivery: 'FHIR 草稿',
   delivery_readiness: '交付狀態',
   session_export: 'Session Export'
 };
@@ -228,6 +230,7 @@ function defaultSessionExport(session) {
     },
     author: DEFAULT_AUTHOR,
     clinician_summary_draft: normalizeObjectState(session.state, 'clinician_summary_draft', {}),
+    patient_analysis: normalizeObjectState(session.state, 'patient_analysis', {}),
     hamd_progress_state: normalizeObjectState(session.state, 'hamd_progress_state', {}),
     red_flag_payload: normalizeObjectState(session.state, 'red_flag_payload', {}),
     patient_authorization_state: normalizeObjectState(session.state, 'patient_authorization_state', {}),
@@ -235,6 +238,44 @@ function defaultSessionExport(session) {
     patient_review_packet: normalizeObjectState(session.state, 'patient_review_packet', {}),
     fhir_delivery_draft: normalizeObjectState(session.state, 'fhir_delivery_draft', {}),
     summary_draft_state: normalizeObjectState(session.state, 'summary_draft_state', {})
+  };
+}
+
+function buildPatientAnalysis(state, fallbackMessage = '') {
+  const clinician = normalizeObjectState(state, 'clinician_summary_draft', {});
+  const patientReview = normalizeObjectState(state, 'patient_review_packet', {});
+  const concerns = normalizeArray(clinician.chief_concerns).slice(0, 3);
+  const observations = normalizeArray(clinician.symptom_observations).slice(0, 3);
+  const summary =
+    patientReview.patient_facing_summary ||
+    clinician.draft_summary ||
+    fallbackMessage ||
+    '目前還沒有足夠內容可以整理成給病人的分析。';
+
+  const bullets = [...concerns, ...observations].slice(0, 4);
+  const markdown = [
+    '## 給你的分析',
+    '',
+    summary,
+    '',
+    '### 我目前注意到的重點',
+    ...(bullets.length ? bullets.map((item) => `- ${item}`) : ['- 目前還需要更多對話，才能整理出更完整的重點。']),
+    '',
+    '### 接下來可以怎麼做',
+    '- 如果你願意，可以繼續聊最近最卡的一件事。',
+    '- 如果你想整理成醫療用摘要，可以按「整理給醫師」。',
+    '',
+    '### 提醒',
+    '這份內容是依據目前對話整理的陪伴式理解，不是醫療診斷。'
+  ].join('\\n');
+
+  return {
+    version: 'p3_patient_analysis_v1',
+    status: 'ready',
+    plain_summary: summary,
+    key_points: bullets,
+    reminder: '這份內容是依據目前對話整理的陪伴式理解，不是醫療診斷。',
+    markdown
   };
 }
 
@@ -688,6 +729,7 @@ class AICompanionEngine {
         authorization_prompt: '若你願意，我可以把這份整理提供給臨床團隊。'
       }
     });
+    state.patient_analysis = buildPatientAnalysis(state, message);
     state.patient_authorization_state = await this.runJsonTask('patientAuthorizationBuilder', session, message, {
       fallback: {
         state_version: 'p3_authorization_state_v1',
@@ -761,10 +803,12 @@ class AICompanionEngine {
     await this.ensureStructuredOutputs(session, instruction);
 
     let output;
-    if (outputType === 'clinician_summary') {
-      output = normalizeObjectState(session.state, 'clinician_summary_draft', {});
-    } else if (outputType === 'patient_review') {
-      output = normalizeObjectState(session.state, 'patient_review_packet', {});
+      if (outputType === 'clinician_summary') {
+        output = normalizeObjectState(session.state, 'clinician_summary_draft', {});
+      } else if (outputType === 'patient_analysis') {
+        output = normalizeObjectState(session.state, 'patient_analysis', {});
+      } else if (outputType === 'patient_review') {
+        output = normalizeObjectState(session.state, 'patient_review_packet', {});
     } else if (outputType === 'patient_authorization') {
       output = normalizeObjectState(session.state, 'patient_authorization_state', {});
     } else if (outputType === 'fhir_delivery') {

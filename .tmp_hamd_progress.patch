@@ -1,0 +1,129 @@
+diff --git a/app/app.js b/app/app.js
+index 2634af4..0000000 100644
+--- a/app/app.js
++++ b/app/app.js
+@@ -321,16 +321,52 @@ function formatTimeLabel(date = new Date()) {
+ 
+ function getHamdSummary(summary) {
+   const signalCount = Array.isArray(summary?.hamd_signals) ? summary.hamd_signals.length : 0;
++  const concerns = Array.isArray(summary?.chief_concerns) ? summary.chief_concerns : [];
++  const observations = Array.isArray(summary?.symptom_observations) ? summary.symptom_observations : [];
++  const pendingTopics = [...new Set([...concerns, ...observations])].slice(0, 3);
++
+   if (signalCount >= 4) {
+-    return { score: '20', label: '需要優先追蹤', trend: '偵測到較多情緒訊號' };
++    return {
++      progressPercent: 75,
++      progressLabel: '已整理較多情緒線索',
++      trend: '仍需人工評估後才能下定論',
++      primaryStatLabel: '目前完成',
++      primaryStatValue: '75%',
++      secondaryStatLabel: '仍需評估',
++      secondaryStatValue: pendingTopics.join('、') || '安全風險與症狀變化'
++    };
+   }
+   if (signalCount >= 2) {
+-    return { score: '14', label: '中度情緒負擔', trend: '已整理主要情緒線索' };
++    return {
++      progressPercent: 55,
++      progressLabel: '已完成初步整理',
++      trend: '還需要更多對話確認脈絡',
++      primaryStatLabel: '目前完成',
++      primaryStatValue: '55%',
++      secondaryStatLabel: '仍需評估',
++      secondaryStatValue: pendingTopics.join('、') || '情緒波動與生活功能'
++    };
+   }
+   if (signalCount >= 1) {
+-    return { score: '9', label: '輕度情緒波動', trend: '已更新本次對話重點' };
++    return {
++      progressPercent: 35,
++      progressLabel: '已記錄本次重點',
++      trend: '目前僅能視為初步訊號整理',
++      primaryStatLabel: '目前完成',
++      primaryStatValue: '35%',
++      secondaryStatLabel: '仍需評估',
++      secondaryStatValue: pendingTopics.join('、') || '情緒低落、壓力來源、睡眠與動機'
++    };
+   }
+-  return { score: '6', label: '暫無明顯警訊', trend: '目前以一般聊天記錄為主' };
++  return {
++    progressPercent: 20,
++    progressLabel: '尚未形成足夠評估依據',
++    trend: '目前以一般聊天記錄為主',
++    primaryStatLabel: '目前完成',
++    primaryStatValue: '20%',
++    secondaryStatLabel: '仍需評估',
++    secondaryStatValue: '需要更多描述才能整理成醫療摘要'
++  };
+ }
+@@ -403,9 +439,20 @@ function renderReportOutputs() {
+   const hamd = getHamdSummary(clinician);
+ 
+   const intro = document.getElementById('report-auto-intro');
++  const heading = document.getElementById('report-hamd-heading');
+   const score = document.getElementById('report-hamd-score');
+   const desc = document.getElementById('report-hamd-desc');
+   const trend = document.getElementById('report-trend-label');
++  const ring = document.getElementById('report-hamd-progress-ring');
++  const primaryStatLabel = document.getElementById('report-hamd-primary-label');
++  const primaryStatValue = document.getElementById('report-hamd-primary-value');
++  const secondaryStatLabel = document.getElementById('report-hamd-secondary-label');
++  const secondaryStatValue = document.getElementById('report-hamd-secondary-value');
+   const insights = document.getElementById('report-clinical-insights');
+   const note = document.getElementById('report-clinician-note');
+   const patientSummary = document.getElementById('report-patient-review-summary');
+@@ -421,9 +468,20 @@ function renderReportOutputs() {
+       : '這是 Rou Rou 為你整理的本週心情概覽，請確認資訊準確後再交由醫師審閱。';
+   }
+ 
+-  if (score) score.textContent = hamd.score;
+-  if (desc) desc.textContent = hamd.label;
++  if (heading) heading.textContent = 'HAM-D 評估進度';
++  if (score) score.textContent = `${hamd.progressPercent}%`;
++  if (desc) desc.textContent = hamd.progressLabel;
+   if (trend) trend.textContent = hamd.trend;
++  if (ring) {
++    const circumference = 440;
++    const progress = Math.max(0, Math.min(100, hamd.progressPercent));
++    const offset = circumference - (circumference * progress) / 100;
++    ring.setAttribute('stroke-dashoffset', String(offset));
++  }
++  if (primaryStatLabel) primaryStatLabel.textContent = hamd.primaryStatLabel;
++  if (primaryStatValue) primaryStatValue.textContent = hamd.primaryStatValue;
++  if (secondaryStatLabel) secondaryStatLabel.textContent = hamd.secondaryStatLabel;
++  if (secondaryStatValue) secondaryStatValue.textContent = hamd.secondaryStatValue;
+   if (insights) insights.innerHTML = renderClinicalInsights(clinician);
+diff --git a/app/index.html b/app/index.html
+index caefd77..0000000 100644
+--- a/app/index.html
++++ b/app/index.html
+@@ -247,23 +247,23 @@
+ 
+       <section class="card-section">
+         <div class="section-label">AI-ASSISTED ASSESSMENT</div>
+-        <h3 class="section-heading">HAM-D 指數</h3>
++        <h3 class="section-heading" id="report-hamd-heading">HAM-D 評估進度</h3>
+         <div class="hamd-ring-wrap">
+           <svg class="ring-svg" viewBox="0 0 160 160">
+             <circle cx="80" cy="80" r="70" fill="none" stroke="#e0e9f0" stroke-width="12"/>
+-            <circle cx="80" cy="80" r="70" fill="none" stroke="#446655" stroke-width="12"
++            <circle id="report-hamd-progress-ring" cx="80" cy="80" r="70" fill="none" stroke="#446655" stroke-width="12"
+               stroke-dasharray="440" stroke-dashoffset="132" stroke-linecap="round"
+               transform="rotate(-90 80 80)"/>
+           </svg>
+           <div class="ring-label">
+-            <span class="ring-score" id="report-hamd-score">18</span>
+-            <span class="ring-desc" id="report-hamd-desc">中度情緒低落</span>
++            <span class="ring-score" id="report-hamd-score">20%</span>
++            <span class="ring-desc" id="report-hamd-desc">尚未形成足夠評估依據</span>
+           </div>
+         </div>
+         <div class="score-row">
+-          <div class="score-item"><span class="score-name">上週</span><span class="score-val">22</span></div>
++          <div class="score-item"><span class="score-name" id="report-hamd-primary-label">目前完成</span><span class="score-val" id="report-hamd-primary-value">20%</span></div>
+           <div class="score-divider"></div>
+-          <div class="score-item"><span class="score-name">變動</span><span class="score-val green">-18%</span></div>
++          <div class="score-item"><span class="score-name" id="report-hamd-secondary-label">仍需評估</span><span class="score-val green" id="report-hamd-secondary-value">需要更多描述</span></div>
+         </div>
+       </section>

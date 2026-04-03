@@ -1,0 +1,97 @@
+diff --git a/app/app.js b/app/app.js
+--- a/app/app.js
++++ b/app/app.js
+@@ -69,0 +70,4 @@ function getHamdSummary(summary) {
++  const concerns = Array.isArray(summary?.chief_concerns) ? summary.chief_concerns : [];
++  const observations = Array.isArray(summary?.symptom_observations) ? summary.symptom_observations : [];
++  const pendingTopics = [...new Set([...concerns, ...observations])].slice(0, 3);
++
+@@ -71 +75,9 @@ function getHamdSummary(summary) {
+-    return { score: '20', label: '需要優先追蹤', trend: '偵測到較多情緒訊號' };
++    return {
++      progressPercent: 75,
++      progressLabel: '已整理較多情緒線索',
++      trend: '仍需人工評估後才能下定論',
++      primaryStatLabel: '目前完成',
++      primaryStatValue: '75%',
++      secondaryStatLabel: '仍需評估',
++      secondaryStatValue: pendingTopics.join('、') || '安全風險與症狀變化'
++    };
+@@ -74 +86,9 @@ function getHamdSummary(summary) {
+-    return { score: '14', label: '中度情緒負擔', trend: '已整理主要情緒線索' };
++    return {
++      progressPercent: 55,
++      progressLabel: '已完成初步整理',
++      trend: '還需要更多對話確認脈絡',
++      primaryStatLabel: '目前完成',
++      primaryStatValue: '55%',
++      secondaryStatLabel: '仍需評估',
++      secondaryStatValue: pendingTopics.join('、') || '情緒波動與生活功能'
++    };
+@@ -77 +97,9 @@ function getHamdSummary(summary) {
+-    return { score: '9', label: '輕度情緒波動', trend: '已更新本次對話重點' };
++    return {
++      progressPercent: 35,
++      progressLabel: '已記錄本次重點',
++      trend: '目前僅能視為初步訊號整理',
++      primaryStatLabel: '目前完成',
++      primaryStatValue: '35%',
++      secondaryStatLabel: '仍需評估',
++      secondaryStatValue: pendingTopics.join('、') || '情緒低落、壓力來源、睡眠與動機'
++    };
+@@ -79 +107,9 @@ function getHamdSummary(summary) {
+-  return { score: '6', label: '暫無明顯警訊', trend: '目前以一般聊天記錄為主' };
++  return {
++    progressPercent: 20,
++    progressLabel: '尚未形成足夠評估依據',
++    trend: '目前以一般聊天記錄為主',
++    primaryStatLabel: '目前完成',
++    primaryStatValue: '20%',
++    secondaryStatLabel: '仍需評估',
++    secondaryStatValue: '需要更多描述才能整理成醫療摘要'
++  };
+@@ -116,0 +153,5 @@ function renderReportOutputs() {
++  const heading = document.getElementById('report-hamd-heading');
++  const ring = document.getElementById('report-hamd-progress-ring');
++  const primaryStatLabel = document.getElementById('report-hamd-primary-label');
++  const primaryStatValue = document.getElementById('report-hamd-primary-value');
++  const secondaryStatLabel = document.getElementById('report-hamd-secondary-label');
+@@ -119,0 +161 @@ function renderReportOutputs() {
++  const secondaryStatValue = document.getElementById('report-hamd-secondary-value');
+@@ -135,2 +178,3 @@ function renderReportOutputs() {
+-  if (score) score.textContent = hamd.score;
+-  if (desc) desc.textContent = hamd.label;
++  if (heading) heading.textContent = 'HAM-D 評估進度';
++  if (score) score.textContent = `${hamd.progressPercent}%`;
++  if (desc) desc.textContent = hamd.progressLabel;
+@@ -137,0 +182,10 @@ function renderReportOutputs() {
++  if (ring) {
++    const circumference = 440;
++    const progress = Math.max(0, Math.min(100, hamd.progressPercent));
++    const offset = circumference - (circumference * progress) / 100;
++    ring.setAttribute('stroke-dashoffset', String(offset));
++  }
++  if (primaryStatLabel) primaryStatLabel.textContent = hamd.primaryStatLabel;
++  if (primaryStatValue) primaryStatValue.textContent = hamd.primaryStatValue;
++  if (secondaryStatLabel) secondaryStatLabel.textContent = hamd.secondaryStatLabel;
++  if (secondaryStatValue) secondaryStatValue.textContent = hamd.secondaryStatValue;
+diff --git a/app/index.html b/app/index.html
+--- a/app/index.html
++++ b/app/index.html
+@@ -250 +250 @@
+-        <h3 class="section-heading">HAM-D 指數</h3>
++        <h3 class="section-heading" id="report-hamd-heading">HAM-D 評估進度</h3>
+@@ -254 +254 @@
+-            <circle cx="80" cy="80" r="70" fill="none" stroke="#446655" stroke-width="12"
++            <circle id="report-hamd-progress-ring" cx="80" cy="80" r="70" fill="none" stroke="#446655" stroke-width="12"
+@@ -259,2 +259,2 @@
+-            <span class="ring-score" id="report-hamd-score">18</span>
+-            <span class="ring-desc" id="report-hamd-desc">中度情緒低落</span>
++            <span class="ring-score" id="report-hamd-score">20%</span>
++            <span class="ring-desc" id="report-hamd-desc">尚未形成足夠評估依據</span>
+@@ -264 +264 @@
+-          <div class="score-item"><span class="score-name">上週</span><span class="score-val">22</span></div>
++          <div class="score-item"><span class="score-name" id="report-hamd-primary-label">目前完成</span><span class="score-val" id="report-hamd-primary-value">20%</span></div>
+@@ -266 +266 @@
+-          <div class="score-item"><span class="score-name">變動</span><span class="score-val green">-18%</span></div>
++          <div class="score-item"><span class="score-name" id="report-hamd-secondary-label">仍需評估</span><span class="score-val green" id="report-hamd-secondary-value">需要更多描述</span></div>

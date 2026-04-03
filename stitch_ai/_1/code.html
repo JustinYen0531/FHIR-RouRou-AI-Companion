@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-TW"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>醫師端情緒輔助報告 - Rou Rou AI</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "error": "#a83836",
+              "surface": "#f6fafe",
+              "surface-container-high": "#e0e9f0",
+              "inverse-on-surface": "#999da1",
+              "surface-bright": "#f6fafe",
+              "surface-dim": "#d0dce3",
+              "on-error": "#fff7f6",
+              "primary": "#446655",
+              "surface-container": "#e7eff5",
+              "on-tertiary-container": "#612e15",
+              "tertiary-fixed-dim": "#eda180",
+              "secondary-dim": "#3a5768",
+              "error-container": "#fa746f",
+              "primary-fixed": "#c6ebd5",
+              "primary-container": "#c6ebd5",
+              "tertiary-container": "#fdaf8c",
+              "outline-variant": "#a8b4bb",
+              "secondary-container": "#c8e7fb",
+              "on-surface-variant": "#566167",
+              "on-primary-fixed": "#254636",
+              "outline": "#717c83",
+              "surface-container-low": "#eef4f9",
+              "on-tertiary": "#fff7f5",
+              "background": "#f6fafe",
+              "surface-tint": "#446655",
+              "on-primary-fixed-variant": "#416351",
+              "primary-dim": "#395a49",
+              "on-secondary-container": "#385566",
+              "surface-container-lowest": "#ffffff",
+              "surface-container-highest": "#d9e4eb",
+              "on-tertiary-fixed-variant": "#6c371d",
+              "on-secondary-fixed-variant": "#425f70",
+              "on-primary-container": "#375948",
+              "primary-fixed-dim": "#b8ddc7",
+              "on-background": "#29343a",
+              "inverse-primary": "#d6fde6",
+              "secondary-fixed-dim": "#bad9ed",
+              "on-primary": "#e6ffef",
+              "tertiary-fixed": "#fdaf8c",
+              "inverse-surface": "#0a0f12",
+              "error-dim": "#67040d",
+              "on-error-container": "#6e0a12",
+              "on-surface": "#29343a",
+              "surface-variant": "#d9e4eb",
+              "tertiary": "#8b4f34",
+              "on-secondary": "#f4faff",
+              "tertiary-dim": "#7d4429",
+              "secondary-fixed": "#c8e7fb",
+              "on-secondary-fixed": "#254353",
+              "on-tertiary-fixed": "#471a03",
+              "secondary": "#466374"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body text-on-surface leading-relaxed">
+<!-- TopAppBar -->
+<header class="bg-white/70 backdrop-blur-xl z-50 sticky top-0 flex items-center justify-between px-6 py-4 w-full shadow-[0_8px_24px_rgba(41,52,58,0.06)] bg-gradient-to-b from-emerald-50/50 to-transparent">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full overflow-hidden bg-primary-container border-2 border-white">
+<img alt="Practitioner Avatar" class="w-full h-full object-cover" data-alt="Close-up professional portrait of a healthcare professional in a clean clinic setting with soft clinical lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDm1gbSvgcXXE4iQxhVGo3kZdFZt1nt8hN4QsUGmjRYFpsHhq8OKg5TIpeGD-IV0O5yTHsVvJZZGlOkkUFiRXRpqN3pl4DoljxI5DSJSso5nIZh0rzbG-NysesDZAeKdNGc52Hy8RDgNsnn-5vqHkHOsYrGcDlOybb1fFxVCg_MD-xPD2DEVxvonNYwcDS_mNHSGgGJx0L7XBcb_cCO3C1UuiSjYzEjv5kXF_sa16Bm1YYaex6KTmxaIQJ4vGr-yMTMEq0Y9aQFx3M"/>
+</div>
+<div>
+<h1 class="text-emerald-900 font-bold tracking-tighter font-headline text-lg">Rou Rou</h1>
+<p class="text-[10px] text-on-surface-variant font-medium tracking-widest uppercase">Clinical Dashboard</p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-emerald-800" data-icon="settings_heart">settings_heart</span>
+</div>
+</header>
+<main class="px-5 pt-4 pb-32 max-w-md mx-auto space-y-8">
+<!-- Clinical Alert Section -->
+<section class="space-y-3">
+<div class="flex items-center justify-between">
+<h2 class="font-headline font-bold text-xl text-on-background tracking-tight">Clinical Alert</h2>
+<span class="text-[10px] font-mono text-outline uppercase tracking-tighter">LOINC: 71354-5</span>
+</div>
+<div class="bg-error-container/20 rounded-xl p-4 border-l-4 border-error shadow-sm flex gap-4">
+<div class="text-error mt-1">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">warning</span>
+</div>
+<div class="space-y-1">
+<p class="font-bold text-on-error-container text-sm">Elevated Risk: Social Withdrawal</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">Patient reports consecutive 48-hour isolation. HAM-D Psychomotor Retardation score suggests immediate review.</p>
+</div>
+</div>
+</section>
+<!-- Patient's Personal Note -->
+<section class="space-y-3">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-sm" data-icon="edit_note">edit_note</span>
+<h2 class="font-headline font-semibold text-lg text-on-background">Patient's Personal Note</h2>
+</div>
+<div class="bg-surface-container-lowest rounded-2xl p-6 shadow-[0_8px_24px_rgba(41,52,58,0.06)] relative overflow-hidden">
+<div class="absolute top-0 right-0 w-24 h-24 bg-primary-container/10 rounded-full -mr-8 -mt-8"></div>
+<p class="text-on-surface text-base italic leading-relaxed relative z-10">
+                    「最近總覺得身體很重，不想出門見任何人。連最喜歡的貓，我也覺得照顧起來很累...感覺自己像掉進深海，聽不到外面的聲音。」
+                </p>
+<div class="mt-4 flex justify-end">
+<span class="text-[11px] font-medium text-outline">Captured via Voice Journal • 2023.10.24</span>
+</div>
+</div>
+</section>
+<!-- HAM-D Dimension Analysis -->
+<section class="space-y-4">
+<h2 class="font-headline font-bold text-xl text-on-background tracking-tight">HAM-D Dimension Analysis</h2>
+<div class="grid grid-cols-1 gap-4">
+<!-- Dimension 1 -->
+<div class="bg-surface-container-low rounded-2xl p-5 space-y-4">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="font-semibold text-on-surface">憂鬱情緒 (Depressed Mood)</h3>
+<p class="text-[11px] text-on-surface-variant uppercase tracking-wider">Estimated Score: 3/4</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold">
+                            3
+                        </div>
+</div>
+<div class="bg-white/50 rounded-lg p-3 text-xs text-on-surface-variant border-l-2 border-primary-fixed">
+<span class="font-bold text-primary block mb-1 uppercase text-[9px]">Qualitative Evidence</span>
+                        "感覺自己像掉進深海...聽不到外面的聲音。"
+                    </div>
+</div>
+<!-- Dimension 2 -->
+<div class="bg-surface-container-low rounded-2xl p-5 space-y-4">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="font-semibold text-on-surface">有罪感 (Guilt)</h3>
+<p class="text-[11px] text-on-surface-variant uppercase tracking-wider">Estimated Score: 1/4</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant font-bold">
+                            1
+                        </div>
+</div>
+<div class="bg-white/50 rounded-lg p-3 text-xs text-on-surface-variant border-l-2 border-outline-variant">
+<span class="font-bold text-on-surface-variant block mb-1 uppercase text-[9px]">Qualitative Evidence</span>
+                        "連最喜歡的貓，我也覺得照顧起來很累..." (Implicit self-reproach)
+                    </div>
+</div>
+<!-- Dimension 3 -->
+<div class="bg-surface-container-low rounded-2xl p-5 space-y-4">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="font-semibold text-on-surface">睡眠障礙 (Insomnia)</h3>
+<p class="text-[11px] text-on-surface-variant uppercase tracking-wider">Estimated Score: 2/6</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-tertiary-container/30 flex items-center justify-center text-on-tertiary-container font-bold">
+                            2
+                        </div>
+</div>
+<div class="flex items-center gap-2">
+<div class="flex-1 h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="w-1/3 h-full bg-tertiary"></div>
+</div>
+<span class="text-[10px] font-medium text-on-surface-variant">Early onset reported</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Patient Journey Timeline -->
+<section class="space-y-6">
+<h2 class="font-headline font-bold text-xl text-on-background tracking-tight">Patient Journey</h2>
+<div class="relative ml-4 pl-8 border-l-2 border-surface-container-high space-y-8">
+<!-- Event 1 -->
+<div class="relative">
+<div class="absolute -left-[41px] top-0 w-5 h-5 rounded-full bg-error border-4 border-white shadow-sm"></div>
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm">
+<div class="flex justify-between items-center mb-1">
+<span class="text-[10px] font-bold text-error uppercase tracking-widest">Critical Event</span>
+<span class="text-[10px] text-outline">OCT 24, 14:20</span>
+</div>
+<h4 class="font-bold text-on-surface text-sm">Social Withdrawal</h4>
+<p class="text-xs text-on-surface-variant mt-1 leading-relaxed">System detected 48h lack of social app engagement and zero step counts.</p>
+</div>
+</div>
+<!-- Event 2 -->
+<div class="relative">
+<div class="absolute -left-[41px] top-0 w-5 h-5 rounded-full bg-primary border-4 border-white shadow-sm"></div>
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm">
+<div class="flex justify-between items-center mb-1">
+<span class="text-[10px] font-bold text-primary uppercase tracking-widest">Interaction</span>
+<span class="text-[10px] text-outline">OCT 22, 09:15</span>
+</div>
+<h4 class="font-bold text-on-surface text-sm">Therapeutic Dialogue</h4>
+<p class="text-xs text-on-surface-variant mt-1 leading-relaxed">Rou Rou engaged patient in "Deep Sea" visualization exercise. Patient mood slightly improved post-session.</p>
+</div>
+</div>
+<!-- Event 3 -->
+<div class="relative opacity-60">
+<div class="absolute -left-[41px] top-0 w-5 h-5 rounded-full bg-surface-container-highest border-4 border-white shadow-sm"></div>
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm">
+<div class="flex justify-between items-center mb-1">
+<span class="text-[10px] font-bold text-outline uppercase tracking-widest">Baseline</span>
+<span class="text-[10px] text-outline">OCT 20, 08:00</span>
+</div>
+<h4 class="font-bold text-on-surface text-sm">Weekly Summary Generated</h4>
+<p class="text-xs text-on-surface-variant mt-1 leading-relaxed">Stable mood patterns recorded over the last 5 days.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Bottom Actions -->
+<div class="flex gap-3 pt-4">
+<button class="flex-1 bg-surface-container-highest text-on-surface font-semibold py-4 rounded-full text-sm transition-all hover:opacity-90">
+                Generate Referral
+            </button>
+<button class="flex-[1.5] bg-gradient-to-r from-primary to-primary-dim text-white font-semibold py-4 rounded-full text-sm shadow-lg shadow-primary/20 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="clinical_notes">clinical_notes</span>
+                Add Clinical Note
+            </button>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-6 pb-8 pt-4 bg-white/80 backdrop-blur-2xl shadow-2xl rounded-t-[2rem]">
+<div class="flex flex-col items-center justify-center text-slate-400 px-5 py-2">
+<span class="material-symbols-outlined mb-1" data-icon="chat_bubble">chat_bubble</span>
+<span class="font-manrope text-[11px] font-medium tracking-wide">Chat</span>
+</div>
+<div class="flex flex-col items-center justify-center bg-emerald-100 text-emerald-900 rounded-full px-5 py-2 transition-all duration-500 ease-in-out">
+<span class="material-symbols-outlined mb-1" data-icon="analytics" style="font-variation-settings: 'FILL' 1;">analytics</span>
+<span class="font-manrope text-[11px] font-medium tracking-wide">Reports</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 px-5 py-2">
+<span class="material-symbols-outlined mb-1" data-icon="person_2">person_2</span>
+<span class="font-manrope text-[11px] font-medium tracking-wide">Settings</span>
+</div>
+</nav>
+</body></html>

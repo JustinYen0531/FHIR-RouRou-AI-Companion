@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-TW"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@600;700;800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "error": "#a83836",
+              "surface": "#f6fafe",
+              "surface-container-high": "#e0e9f0",
+              "inverse-on-surface": "#999da1",
+              "surface-bright": "#f6fafe",
+              "surface-dim": "#d0dce3",
+              "on-error": "#fff7f6",
+              "primary": "#446655",
+              "surface-container": "#e7eff5",
+              "on-tertiary-container": "#612e15",
+              "tertiary-fixed-dim": "#eda180",
+              "secondary-dim": "#3a5768",
+              "error-container": "#fa746f",
+              "primary-fixed": "#c6ebd5",
+              "primary-container": "#c6ebd5",
+              "tertiary-container": "#fdaf8c",
+              "outline-variant": "#a8b4bb",
+              "secondary-container": "#c8e7fb",
+              "on-surface-variant": "#566167",
+              "on-primary-fixed": "#254636",
+              "outline": "#717c83",
+              "surface-container-low": "#eef4f9",
+              "on-tertiary": "#fff7f5",
+              "background": "#f6fafe",
+              "surface-tint": "#446655",
+              "on-primary-fixed-variant": "#416351",
+              "primary-dim": "#395a49",
+              "on-secondary-container": "#385566",
+              "surface-container-lowest": "#ffffff",
+              "surface-container-highest": "#d9e4eb",
+              "on-tertiary-fixed-variant": "#6c371d",
+              "on-secondary-fixed-variant": "#425f70",
+              "on-primary-container": "#375948",
+              "primary-fixed-dim": "#b8ddc7",
+              "on-background": "#29343a",
+              "inverse-primary": "#d6fde6",
+              "secondary-fixed-dim": "#bad9ed",
+              "on-primary": "#e6ffef",
+              "tertiary-fixed": "#fdaf8c",
+              "inverse-surface": "#0a0f12",
+              "error-dim": "#67040d",
+              "on-error-container": "#6e0a12",
+              "on-surface": "#29343a",
+              "surface-variant": "#d9e4eb",
+              "tertiary": "#8b4f34",
+              "on-secondary": "#f4faff",
+              "tertiary-dim": "#7d4429",
+              "secondary-fixed": "#c8e7fb",
+              "on-secondary-fixed": "#254353",
+              "on-tertiary-fixed": "#471a03",
+              "secondary": "#466374"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body selection:bg-primary-container">
+<!-- TopAppBar -->
+<header class="bg-white/70 backdrop-blur-xl fixed top-0 w-full z-50 shadow-[0_8px_24px_rgba(41,52,58,0.06)] bg-gradient-to-b from-emerald-50/50 to-transparent">
+<div class="flex items-center justify-between px-6 py-4 w-full">
+<div class="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-primary-container">
+<img alt="Profile" class="w-full h-full object-cover" data-alt="Soft glowing orb representing Rou Rou AI companion with subtle emerald light leaks and ethereal texture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDT5SiSLz2-uiW0C14mqE_CMqmwGEzx_-Vn7g41D9HW2nbQwIkIhlacmXvRq-_jdK0dKWhgUGXKKpCuza5Pd5KHkkYKjIecvxr4ujbLSsmwldee2U2RUOzXOQ2dHP5ZQ5yzstBzj2z5FKCptOGTgbvJWH6VixAy9V9urcVii7To7KWxT-lbIhwDzlv-o1yWSUEfYVvwpN_G5NP5mFFjyriYmAMcHkVs9SSsu565PrJACv7-wdM6PgN1KDbaYVErfjzrQA3UE_GlQd4"/>
+</div>
+<h1 class="font-manrope font-bold text-lg tracking-tighter text-emerald-900">診前報告審閱</h1>
+<button class="text-slate-400 hover:opacity-80 transition-opacity">
+<span class="material-symbols-outlined" data-icon="settings_heart">settings_heart</span>
+</button>
+</div>
+</header>
+<main class="pt-24 pb-32 px-6 max-w-md mx-auto space-y-10">
+<!-- Welcome Editorial Section -->
+<section class="space-y-2">
+<h2 class="font-headline font-extrabold text-3xl text-on-background leading-tight">你好，曉明</h2>
+<p class="text-on-surface-variant text-lg leading-relaxed">這是 Rou Rou 為你整理的本週心情概覽，請確認資訊準確後再交由醫師審閱。</p>
+</section>
+<!-- AI-Assisted HAM-D Score Bento Card -->
+<section class="bg-surface-container-low rounded-3xl p-6 space-y-6 relative overflow-hidden">
+<div class="flex justify-between items-start">
+<div class="space-y-1">
+<span class="text-xs font-bold tracking-widest uppercase text-primary opacity-60">AI-Assisted Assessment</span>
+<h3 class="font-headline text-2xl font-bold">HAM-D 指數</h3>
+</div>
+<button class="p-2 bg-white rounded-full text-on-surface-variant">
+<span class="material-symbols-outlined text-sm" data-icon="info">info</span>
+</button>
+</div>
+<div class="flex items-center justify-center py-4">
+<div class="relative w-40 h-40 flex items-center justify-center">
+<!-- Progress Ring (SVG) -->
+<svg class="w-full h-full -rotate-90">
+<circle class="text-surface-container-high" cx="80" cy="80" fill="transparent" r="70" stroke="currentColor" stroke-width="12"></circle>
+<circle class="text-primary" cx="80" cy="80" fill="transparent" r="70" stroke="currentColor" stroke-dasharray="440" stroke-dashoffset="132" stroke-linecap="round" stroke-width="12"></circle>
+</svg>
+<div class="absolute flex flex-col items-center">
+<span class="font-headline text-5xl font-extrabold text-on-surface">18</span>
+<span class="text-xs font-medium text-on-surface-variant">中度情緒低落</span>
+</div>
+</div>
+</div>
+<div class="flex justify-around pt-2">
+<div class="text-center">
+<p class="text-xs text-on-surface-variant">上週</p>
+<p class="font-bold text-on-surface">22</p>
+</div>
+<div class="h-8 w-px bg-outline-variant/20"></div>
+<div class="text-center">
+<p class="text-xs text-on-surface-variant">變動</p>
+<p class="font-bold text-primary">-18%</p>
+</div>
+</div>
+</section>
+<!-- Mood Wave Chart (情绪波形圖) -->
+<section class="space-y-4">
+<div class="flex justify-between items-end">
+<h3 class="font-headline text-xl font-bold px-1">情緒波形圖 (7d)</h3>
+<span class="text-xs text-primary font-medium">趨勢趨向平穩</span>
+</div>
+<div class="bg-surface-container-lowest rounded-3xl p-6 shadow-[0_8px_24px_rgba(41,52,58,0.06)] aspect-[16/9] flex items-end justify-between space-x-2">
+<!-- Simple representative bars for "Wave" -->
+<div class="w-full bg-secondary-container h-1/2 rounded-full opacity-60"></div>
+<div class="w-full bg-secondary-container h-2/3 rounded-full opacity-80"></div>
+<div class="w-full bg-secondary-container h-3/4 rounded-full"></div>
+<div class="w-full bg-secondary-container h-1/2 rounded-full opacity-70"></div>
+<div class="w-full bg-secondary-container h-4/5 rounded-full"></div>
+<div class="w-full bg-secondary-container h-3/5 rounded-full opacity-90"></div>
+<div class="w-full bg-secondary-container h-2/3 rounded-full opacity-80"></div>
+</div>
+</section>
+<!-- Clinical Insights Section -->
+<section class="space-y-4">
+<h3 class="font-headline text-xl font-bold px-1">AI 關鍵分析</h3>
+<div class="space-y-3">
+<!-- Insight Card 1 -->
+<div class="bg-white p-5 rounded-2xl flex items-center justify-between group">
+<div class="flex items-center space-x-4">
+<div class="w-10 h-10 rounded-xl bg-tertiary-container flex items-center justify-center text-on-tertiary-container">
+<span class="material-symbols-outlined" data-icon="bedtime">bedtime</span>
+</div>
+<div>
+<p class="font-bold text-on-surface">睡眠障礙</p>
+<p class="text-sm text-on-surface-variant">過去 3 天提及入睡困難</p>
+</div>
+</div>
+<button class="text-outline hover:text-error transition-colors">
+<span class="material-symbols-outlined text-xl" data-icon="do_not_disturb_on">do_not_disturb_on</span>
+</button>
+</div>
+<!-- Insight Card 2 -->
+<div class="bg-white p-5 rounded-2xl flex items-center justify-between group">
+<div class="flex items-center space-x-4">
+<div class="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center text-on-primary-container">
+<span class="material-symbols-outlined" data-icon="sentiment_dissatisfied">sentiment_dissatisfied</span>
+</div>
+<div>
+<p class="font-bold text-on-surface">負罪感</p>
+<p class="text-sm text-on-surface-variant">對話中重複提及 2 次</p>
+</div>
+</div>
+<button class="text-outline hover:text-error transition-colors">
+<span class="material-symbols-outlined text-xl" data-icon="do_not_disturb_on">do_not_disturb_on</span>
+</button>
+</div>
+<!-- Insight Card 3 (Editable Privacy Note) -->
+<div class="bg-white p-5 rounded-2xl flex items-center justify-between group">
+<div class="flex items-center space-x-4">
+<div class="w-10 h-10 rounded-xl bg-secondary-container flex items-center justify-center text-on-secondary-container">
+<span class="material-symbols-outlined" data-icon="work">work</span>
+</div>
+<div>
+<p class="font-bold text-on-surface">職場壓力</p>
+<p class="text-sm text-on-surface-variant">提及週三會議壓力較大</p>
+</div>
+</div>
+<button class="text-outline hover:text-error transition-colors">
+<span class="material-symbols-outlined text-xl" data-icon="do_not_disturb_on">do_not_disturb_on</span>
+</button>
+</div>
+</div>
+<p class="text-[10px] text-on-surface-variant px-2 italic">點擊右側圖示可隱藏不願分享的隱私紀錄</p>
+</section>
+<!-- Personal Note Section -->
+<section class="space-y-4">
+<h3 class="font-headline text-xl font-bold px-1">給醫師的補充筆記</h3>
+<div class="relative">
+<textarea class="w-full h-32 bg-surface-container-low border-0 rounded-3xl p-5 text-on-surface placeholder:text-outline focus:ring-2 focus:ring-primary/20 transition-all resize-none" placeholder="還有什麼想告訴醫師的嗎？例如藥物副作用或是特殊的觸發事件..."></textarea>
+<div class="absolute right-4 bottom-4">
+<span class="material-symbols-outlined text-primary/40" data-icon="edit_note">edit_note</span>
+</div>
+</div>
+</section>
+<!-- Authorization Section -->
+<section class="pt-6 pb-4 text-center space-y-4">
+<div class="bg-emerald-50 p-4 rounded-2xl flex items-start space-x-3 text-left">
+<span class="material-symbols-outlined text-primary" data-icon="verified_user">verified_user</span>
+<p class="text-xs text-primary-dim leading-relaxed">
+                    我已確認以上報告內容，並授權 Rou Rou 將此摘要加密傳送至主治醫師診間系統，以作為本次診療輔助。
+                </p>
+</div>
+<button class="w-full py-5 bg-gradient-to-r from-primary to-primary-dim text-on-primary rounded-full font-headline font-bold text-lg shadow-xl shadow-primary/20 active:scale-95 transition-transform">
+                數位授權並送出報告
+            </button>
+<button class="text-on-surface-variant text-sm font-medium hover:underline">
+                暫存報告，稍後再傳送
+            </button>
+</section>
+</main>
+<!-- BottomNavBar (Hidden on main flow if following shell visibility rule, but provided per JSON) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-6 pb-8 pt-4 bg-white/80 backdrop-blur-2xl no-border shadow-[0_-4px_20px_rgba(0,0,0,0.03)] rounded-t-[2rem]">
+<a class="flex flex-col items-center justify-center text-slate-400 px-5 py-2" href="#">
+<span class="material-symbols-outlined" data-icon="chat_bubble">chat_bubble</span>
+<span class="font-manrope text-[11px] font-medium tracking-wide">Chat</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-emerald-100 text-emerald-900 rounded-full px-5 py-2 transition-all duration-500 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="analytics" style="font-variation-settings: 'FILL' 1;">analytics</span>
+<span class="font-manrope text-[11px] font-medium tracking-wide">Reports</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 px-5 py-2" href="#">
+<span class="material-symbols-outlined" data-icon="person_2">person_2</span>
+<span class="font-manrope text-[11px] font-medium tracking-wide">Settings</span>
+</a>
+</nav>
+</body></html>
