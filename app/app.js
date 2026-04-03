@@ -272,6 +272,8 @@ const APP_STATE = {
   moodPoints: [100, 100, 100, 100, 100, 100, 100], 
   selectedMoodTags: [],
   phq9Scores: Array(9).fill(0),
+  chatHistory: [],
+  lastChatMetadata: null,
   reportOutputs: {
     clinician_summary: null,
     patient_analysis: null,
@@ -279,6 +281,16 @@ const APP_STATE = {
     fhir_delivery: null,
     session_export: null,
     updatedAt: ''
+  },
+  microIntervention: {
+    currentCardId: '',
+    lastPresentedCardId: '',
+    cardHistory: [],
+    dismissCount: 0,
+    cooldownUntil: 0,
+    snoozedUntil: 0,
+    contentCache: {},
+    detailOpen: false
   }
 };
 
@@ -619,6 +631,7 @@ function renderReportOutputs() {
 function storeOutputResult(payload) {
   APP_STATE.reportOutputs[payload.output_type] = payload.output || null;
   APP_STATE.reportOutputs.session_export = payload.session_export || APP_STATE.reportOutputs.session_export;
+  APP_STATE.lastChatMetadata = payload.metadata || APP_STATE.lastChatMetadata;
   APP_STATE.reportOutputs.updatedAt = formatTimeLabel(new Date());
   renderReportOutputs();
 }
@@ -634,6 +647,10 @@ function showScreen(screenId) {
   });
 
   APP_STATE.currentScreen = screenId;
+  if (screenId !== 'screen-chat') {
+    clearMicroInterventionCard();
+    closeMicroInterventionDetail();
+  }
   
   if (screenId === 'screen-report') {
     renderMoodChart();
@@ -907,6 +924,18 @@ function renderMessageMarkdown(text) {
   const html = blocks.map((block) => {
     const lines = block.split('\n').filter(Boolean);
 
+    if (lines.length > 0 && lines.every((line) => /^###\s+/.test(line))) {
+      return lines.map((line) => `<h3>${renderInlineMarkdown(line.replace(/^###\s+/, ''))}</h3>`).join('');
+    }
+
+    if (lines.length > 0 && lines.every((line) => /^##\s+/.test(line))) {
+      return lines.map((line) => `<h2>${renderInlineMarkdown(line.replace(/^##\s+/, ''))}</h2>`).join('');
+    }
+
+    if (lines.length > 0 && lines.every((line) => /^>\s?/.test(line))) {
+      return `<blockquote>${lines.map((line) => renderInlineMarkdown(line.replace(/^>\s?/, ''))).join('<br/>')}</blockquote>`;
+    }
+
     if (lines.length > 0 && lines.every((line) => /^[-*]\s+/.test(line))) {
       const items = lines
         .map((line) => `<li>${renderInlineMarkdown(line.replace(/^[-*]\s+/, ''))}</li>`)
@@ -925,6 +954,219 @@ function renderMessageMarkdown(text) {
   }).join('');
 
   return html;
+}
+
+const MICRO_INTERVENTION_RULES = window.MicroInterventionRules || null;
+const MICRO_INTERVENTION_REGISTRY = MICRO_INTERVENTION_RULES?.createCardRegistry
+  ? MICRO_INTERVENTION_RULES.createCardRegistry()
+  : {};
+
+function getMicroInterventionState() {
+  return APP_STATE.microIntervention;
+}
+
+function getMicroInterventionContext(payload = {}, options = {}) {
+  const microState = getMicroInterventionState();
+  return {
+    metadata: payload.metadata || APP_STATE.lastChatMetadata || {},
+    session_export: payload.session_export || APP_STATE.reportOutputs.session_export || {},
+    history: APP_STATE.chatHistory,
+    currentScreen: APP_STATE.currentScreen,
+    fromOutput: Boolean(options.fromOutput),
+    cooldownUntil: microState.cooldownUntil,
+    snoozedUntil: microState.snoozedUntil,
+    dismissCount: microState.dismissCount,
+    lastPresentedCardId: microState.lastPresentedCardId,
+    cardHistory: microState.cardHistory,
+    lastUserMessage: options.lastUserMessage || ''
+  };
+}
+
+function parseInterventionMarkdown(markdown) {
+  const normalized = String(markdown || '').replace(/\r\n/g, '\n').trim();
+  const sections = normalized.split(/\n---\n/);
+  const header = sections[0] || '';
+  const body = sections.slice(1).join('\n---\n').trim();
+  const fields = {};
+
+  header.split('\n').forEach((line) => {
+    const match = line.match(/^([a-z_]+):\s*(.+)$/i);
+    if (match) {
+      fields[match[1].toLowerCase()] = match[2].trim();
+    }
+  });
+
+  return {
+    title: fields.title || '',
+    subtitle: fields.subtitle || '',
+    duration: fields.duration || '',
+    tone: fields.tone || '',
+    primaryActionLabel: fields.primary_action_label || '開始',
+    secondaryActionLabel: fields.secondary_action_label || '先不要',
+    body: body || normalized
+  };
+}
+
+async function loadMicroInterventionContent(card) {
+  const microState = getMicroInterventionState();
+  if (microState.contentCache[card.id]) {
+    return microState.contentCache[card.id];
+  }
+
+  const response = await fetch(card.docPath);
+  if (!response.ok) {
+    throw new Error(`載入引導內容失敗：${card.docPath}`);
+  }
+
+  const markdown = await response.text();
+  const parsed = parseInterventionMarkdown(markdown);
+  microState.contentCache[card.id] = parsed;
+  return parsed;
+}
+
+function renderMicroInterventionCard(card) {
+  const container = document.getElementById('micro-intervention-slot');
+  if (!container || !card) return;
+  const anchor = TherapeuticMemory.get().positiveAnchors?.[0]?.label || '';
+  const personalizedBody = anchor && card.id === 'tiny_choice_reset'
+    ? `${card.bodyPreview} 如果你比較想靠近熟悉的東西，也可以先想想「${anchor}」這件事。`
+    : card.bodyPreview;
+
+  container.innerHTML = `
+    <article class="micro-card ${card.accent}">
+      <div class="micro-card-head">
+        <div class="micro-card-icon">
+          <span class="mat-icon fill">${card.icon}</span>
+        </div>
+        <div>
+          <div class="micro-card-title">${escapeHtml(card.title)}</div>
+          <div class="micro-card-duration">${escapeHtml(card.durationLabel)}</div>
+        </div>
+        <button class="micro-card-close" type="button" aria-label="關閉建議" onclick="dismissMicroIntervention('dismiss')">
+          <span class="mat-icon">close</span>
+        </button>
+      </div>
+      <p class="micro-card-subtitle">${escapeHtml(card.subtitle)}</p>
+      <p class="micro-card-body">${escapeHtml(personalizedBody)}</p>
+      <div class="micro-card-actions">
+        <button class="micro-card-primary" type="button" onclick="openMicroIntervention('${card.id}')">
+          ${escapeHtml(card.ctaLabel)}
+          <span class="mat-icon">chevron_right</span>
+        </button>
+        <button class="micro-card-secondary" type="button" onclick="dismissMicroIntervention('snooze')">先不要</button>
+      </div>
+    </article>
+  `;
+  container.style.display = 'block';
+  scrollChatToBottom();
+}
+
+function clearMicroInterventionCard() {
+  const container = document.getElementById('micro-intervention-slot');
+  getMicroInterventionState().currentCardId = '';
+  if (!container) return;
+  container.innerHTML = '';
+  container.style.display = 'none';
+}
+
+function closeMicroInterventionDetail() {
+  const overlay = document.getElementById('micro-intervention-detail');
+  if (!overlay) return;
+  overlay.classList.remove('active');
+  overlay.setAttribute('aria-hidden', 'true');
+  getMicroInterventionState().detailOpen = false;
+}
+
+async function openMicroIntervention(cardId) {
+  const card = MICRO_INTERVENTION_REGISTRY[cardId];
+  const overlay = document.getElementById('micro-intervention-detail');
+  if (!card || !overlay) return;
+
+  const title = document.getElementById('micro-detail-title');
+  const subtitle = document.getElementById('micro-detail-subtitle');
+  const meta = document.getElementById('micro-detail-meta');
+  const body = document.getElementById('micro-detail-body');
+  const primary = document.getElementById('micro-detail-primary');
+  const secondary = document.getElementById('micro-detail-secondary');
+
+  if (!title || !subtitle || !meta || !body || !primary || !secondary) return;
+
+  title.textContent = card.title;
+  subtitle.textContent = card.subtitle;
+  meta.textContent = card.durationLabel;
+  body.innerHTML = '<p>正在打開這張引導卡片...</p>';
+  primary.textContent = '開始';
+  secondary.textContent = '稍後再說';
+
+  overlay.classList.add('active');
+  overlay.setAttribute('aria-hidden', 'false');
+  getMicroInterventionState().detailOpen = true;
+
+  try {
+    const content = await loadMicroInterventionContent(card);
+    title.textContent = content.title || card.title;
+    subtitle.textContent = content.subtitle || card.subtitle;
+    meta.textContent = [content.duration || card.durationLabel, content.tone || '陪伴式引導'].filter(Boolean).join(' ・ ');
+    body.innerHTML = renderMessageMarkdown(content.body || card.bodyPreview);
+    primary.textContent = content.primaryActionLabel || '我做完了';
+    secondary.textContent = content.secondaryActionLabel || '稍後再說';
+    primary.onclick = () => completeMicroIntervention(card.id);
+    secondary.onclick = () => dismissMicroIntervention('snooze');
+  } catch (error) {
+    body.innerHTML = `<p>${escapeHtml(error.message || '目前無法載入引導內容。')}</p>`;
+    primary.textContent = '知道了';
+    secondary.textContent = '關閉';
+    primary.onclick = () => completeMicroIntervention(card.id);
+    secondary.onclick = () => closeMicroInterventionDetail();
+  }
+}
+
+function completeMicroIntervention(cardId) {
+  appendSystemNotice('這張小卡片先陪你到這裡。如果還想要，我可以再給你一個更小的下一步。');
+  getMicroInterventionState().dismissCount = 0;
+  closeMicroInterventionDetail();
+  clearMicroInterventionCard();
+  getMicroInterventionState().currentCardId = '';
+  getMicroInterventionState().lastPresentedCardId = cardId || getMicroInterventionState().lastPresentedCardId;
+}
+
+function dismissMicroIntervention(mode = 'dismiss') {
+  const microState = getMicroInterventionState();
+  const now = Date.now();
+  if (mode === 'snooze') {
+    microState.snoozedUntil = now + (MICRO_INTERVENTION_RULES?.DEFAULT_SNOOZE_MS || 12 * 60 * 1000);
+    microState.dismissCount += 1;
+  } else {
+    microState.cooldownUntil = now + (MICRO_INTERVENTION_RULES?.DEFAULT_COOLDOWN_MS || 4 * 60 * 1000);
+    microState.dismissCount += 1;
+  }
+  microState.currentCardId = '';
+  clearMicroInterventionCard();
+  closeMicroInterventionDetail();
+}
+
+function evaluateMicroIntervention(payload = {}, options = {}) {
+  if (!MICRO_INTERVENTION_RULES?.chooseIntervention) return;
+  const microState = getMicroInterventionState();
+  const decision = MICRO_INTERVENTION_RULES.chooseIntervention(
+    getMicroInterventionContext(payload, options),
+    { registry: MICRO_INTERVENTION_REGISTRY }
+  );
+
+  if (decision.suppressed || !decision.card) {
+    if (decision.reason === 'safety_route' || decision.reason === 'risk_flag' || options.fromOutput) {
+      clearMicroInterventionCard();
+      closeMicroInterventionDetail();
+      microState.currentCardId = '';
+    }
+    return;
+  }
+
+  microState.currentCardId = decision.card.id;
+  microState.lastPresentedCardId = decision.card.id;
+  microState.cardHistory.unshift({ id: decision.card.id, shownAt: Date.now() });
+  microState.cardHistory = microState.cardHistory.slice(0, 12);
+  renderMicroInterventionCard(decision.card);
 }
 
 function createMessageBubble(role) {
@@ -1028,6 +1270,9 @@ function scrollChatToBottom() {
 async function appendMessage(role, text, options = {}) {
   const { bubble } = createMessageBubble(role);
   if (!bubble) return;
+
+  APP_STATE.chatHistory.push({ role, content: text, createdAt: new Date().toISOString() });
+  APP_STATE.chatHistory = APP_STATE.chatHistory.slice(-24);
 
   if (role === 'ai' && options.animate) {
     await animateAiMessage(bubble, text);
@@ -1154,6 +1399,8 @@ async function sendMessage() {
 
   const outputType = detectOutputCommand(message);
   if (outputType) {
+    clearMicroInterventionCard();
+    closeMicroInterventionDetail();
     await appendMessage('user', message);
     input.value = '';
     handleInput(input);
@@ -1199,9 +1446,12 @@ async function sendMessage() {
     }
 
     APP_STATE.conversationId = payload.conversation_id || APP_STATE.conversationId;
+    APP_STATE.lastChatMetadata = payload.metadata || null;
+    APP_STATE.reportOutputs.session_export = payload.session_export || APP_STATE.reportOutputs.session_export;
     APP_STATE.turnCount++;
     setTyping(false);
     await appendMessage('ai', payload.answer || '我有收到你的訊息，但這次沒有拿到完整回覆。', { animate: true });
+    evaluateMicroIntervention(payload, { lastUserMessage: message });
 
     // 每 3 輪觸發自動萃取
     if (APP_STATE.turnCount % 3 === 0) {
@@ -1383,6 +1633,8 @@ async function requestOutput(outputType, options = {}) {
   if (APP_STATE.isSending) return;
   const definition = OUTPUT_DEFINITIONS[outputType] || { label: outputType, instruction: outputType };
   APP_STATE.isSending = true;
+  clearMicroInterventionCard();
+  closeMicroInterventionDetail();
   appendSystemNotice(`正在產生 ${definition.label}...`);
   setTyping(true);
 
@@ -1409,6 +1661,7 @@ async function requestOutput(outputType, options = {}) {
     }
 
     APP_STATE.conversationId = payload.conversation_id || APP_STATE.conversationId;
+    APP_STATE.lastChatMetadata = payload.metadata || APP_STATE.lastChatMetadata;
 
     // Layer 4：FHIR Draft 附加心理畫像 Observations
     let finalPayload = payload;
@@ -1425,6 +1678,7 @@ async function requestOutput(outputType, options = {}) {
     }
 
     storeOutputResult(finalPayload);
+    evaluateMicroIntervention(finalPayload, { fromOutput: true });
     setTyping(false);
     appendSystemNotice(`${definition.label} 已更新，請到 Reports 查看。`);
     if (options.fromChatCommand) {
@@ -1537,6 +1791,8 @@ document.addEventListener('DOMContentLoaded', () => {
   renderReportOutputs();
   switchAutoAudience(APP_STATE.currentWeeklyAudience);
   TherapeuticMemory.renderProfileUI();
+  clearMicroInterventionCard();
+  closeMicroInterventionDetail();
 });
 
 window.showScreen = showScreen;
@@ -1551,6 +1807,9 @@ window.sendMessage = sendMessage;
 window.requestOutput = requestOutput;
 window.switchAutoAudience = switchAutoAudience;
 window.toggleModeExplainer = toggleModeExplainer;
+window.openMicroIntervention = openMicroIntervention;
+window.closeMicroInterventionDetail = closeMicroInterventionDetail;
+window.dismissMicroIntervention = dismissMicroIntervention;
 
 function toggleMemoryDrawer() {
   const drawer = document.getElementById('memory-drawer');

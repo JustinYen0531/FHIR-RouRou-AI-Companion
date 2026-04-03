@@ -149,6 +149,8 @@ async function testHighRiskRouting() {
   const result = await engine.handleMessage({ message: '我想死', user: 'demo', conversation_id: 'conv-2' });
   assert.strictEqual(result.state.active_mode, 'safety');
   assert.strictEqual(result.state.risk_flag, 'true');
+  assert.strictEqual(result.metadata.route, 'safety');
+  assert.strictEqual(result.metadata.risk_flag, 'true');
   assert.ok(result.answer.includes('請立刻聯絡'));
 }
 
@@ -156,7 +158,12 @@ async function testNaturalFlowBuildsSessionExport() {
   const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
   const result = await engine.handleMessage({ message: '最近很累', user: 'demo', conversation_id: 'conv-3' });
   assert.strictEqual(result.state.active_mode, 'mode_5_natural');
+  assert.strictEqual(result.metadata.risk_flag, 'false');
+  assert.strictEqual(result.metadata.burden_level_state.burden_level, 'medium');
+  assert.deepStrictEqual(result.metadata.latest_tag_payload.sentiment_tags, ['tired']);
   assert.ok(result.session_export);
+  assert.strictEqual(result.session_export.active_mode, 'mode_5_natural');
+  assert.strictEqual(result.session_export.burden_level_state.burden_level, 'medium');
   assert.deepStrictEqual(result.session_export.clinician_summary_draft, {});
   assert.deepStrictEqual(result.session_export.delivery_readiness_state, {});
 }

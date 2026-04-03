@@ -229,6 +229,10 @@ function defaultSessionExport(session) {
       endedAt: session.updatedAt
     },
     author: DEFAULT_AUTHOR,
+    active_mode: session.state.active_mode || 'auto',
+    risk_flag: session.state.risk_flag || 'false',
+    latest_tag_payload: normalizeObjectState(session.state, 'latest_tag_payload', {}),
+    burden_level_state: normalizeObjectState(session.state, 'burden_level_state', {}),
     clinician_summary_draft: normalizeObjectState(session.state, 'clinician_summary_draft', {}),
     patient_analysis: normalizeObjectState(session.state, 'patient_analysis', {}),
     hamd_progress_state: normalizeObjectState(session.state, 'hamd_progress_state', {}),
@@ -394,7 +398,12 @@ class AICompanionEngine {
         answer: '',
         state,
         session_export: defaultSessionExport(session),
-        metadata: { active_mode: state.active_mode }
+        metadata: {
+          active_mode: state.active_mode,
+          risk_flag: state.risk_flag,
+          latest_tag_payload: normalizeObjectState(state, 'latest_tag_payload', {}),
+          burden_level_state: normalizeObjectState(state, 'burden_level_state', {})
+        }
       };
     }
 
@@ -413,7 +422,13 @@ class AICompanionEngine {
         answer,
         state: deepClone(state),
         session_export: defaultSessionExport(session),
-        metadata: { active_mode: state.active_mode, route: 'command' }
+        metadata: {
+          active_mode: state.active_mode,
+          route: 'command',
+          risk_flag: state.risk_flag,
+          latest_tag_payload: normalizeObjectState(state, 'latest_tag_payload', {}),
+          burden_level_state: normalizeObjectState(state, 'burden_level_state', {})
+        }
       };
     }
 
@@ -445,7 +460,13 @@ class AICompanionEngine {
         answer,
         state: deepClone(state),
         session_export: defaultSessionExport(session),
-        metadata: { active_mode: state.active_mode, route: 'safety' }
+        metadata: {
+          active_mode: state.active_mode,
+          route: 'safety',
+          risk_flag: state.risk_flag,
+          latest_tag_payload: normalizeObjectState(state, 'latest_tag_payload', {}),
+          burden_level_state: normalizeObjectState(state, 'burden_level_state', {})
+        }
       };
     }
 
@@ -482,7 +503,13 @@ class AICompanionEngine {
         answer,
         state: deepClone(state),
         session_export: defaultSessionExport(session),
-        metadata: { active_mode: state.active_mode, route: 'followup' }
+        metadata: {
+          active_mode: state.active_mode,
+          route: 'followup',
+          risk_flag: state.risk_flag,
+          latest_tag_payload: normalizeObjectState(state, 'latest_tag_payload', {}),
+          burden_level_state: normalizeObjectState(state, 'burden_level_state', {})
+        }
       };
     }
 
@@ -513,7 +540,13 @@ class AICompanionEngine {
       answer,
       state: deepClone(state),
       session_export: defaultSessionExport(session),
-      metadata: { active_mode: state.active_mode, route: MODE_LABELS[state.active_mode] || state.active_mode }
+      metadata: {
+        active_mode: state.active_mode,
+        route: MODE_LABELS[state.active_mode] || state.active_mode,
+        risk_flag: state.risk_flag,
+        latest_tag_payload: normalizeObjectState(state, 'latest_tag_payload', {}),
+        burden_level_state: normalizeObjectState(state, 'burden_level_state', {})
+      }
     };
   }
 
@@ -832,7 +865,10 @@ class AICompanionEngine {
       session_export: defaultSessionExport(session),
       metadata: {
         output_type: outputType,
-        active_mode: session.state.active_mode
+        active_mode: session.state.active_mode,
+        risk_flag: session.state.risk_flag,
+        latest_tag_payload: normalizeObjectState(session.state, 'latest_tag_payload', {}),
+        burden_level_state: normalizeObjectState(session.state, 'burden_level_state', {})
       }
     };
 

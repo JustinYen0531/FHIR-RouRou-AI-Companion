@@ -6,6 +6,7 @@
 <title>Rou Rou - AI 陪伴系統</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="style.css"/>
+<script src="microInterventionRules.js"></script>
 </head>
 <body>
 <!-- APP SHELL -->
@@ -95,14 +96,7 @@
         </div>
       </div>
 
-      <div class="insight-card">
-        <div class="insight-header">
-          <span class="mat-icon fill" style="color:#8b4f34">eco</span>
-          <span class="insight-title">平靜時刻</span>
-        </div>
-        <p class="insight-body">「深呼吸三次，感覺空氣填滿胸膛的樣子。」</p>
-        <button class="insight-action">開啟引導呼吸 <span class="mat-icon" style="font-size:16px">chevron_right</span></button>
-      </div>
+      <div id="micro-intervention-slot" class="micro-intervention-slot" style="display:none"></div>
     </main>
 
     <section class="input-section glass">
@@ -694,6 +688,31 @@
       <button class="nav-item" onclick="showScreen('screen-report')"><span class="mat-icon fill">analytics</span><span>報表</span></button>
       <button class="nav-item active" onclick="showScreen('screen-settings')"><span class="mat-icon fill">person_2</span><span>設定</span></button>
     </nav>
+  </div>
+
+  <div id="micro-intervention-detail" class="micro-detail-overlay" aria-hidden="true">
+    <div class="micro-detail-shell">
+      <header class="micro-detail-topbar">
+        <button class="icon-btn" type="button" aria-label="返回聊天" onclick="closeMicroInterventionDetail()">
+          <span class="mat-icon">arrow_back</span>
+        </button>
+        <div class="micro-detail-topbar-copy">
+          <div class="micro-detail-kicker">微介入卡片</div>
+          <div class="micro-detail-meta" id="micro-detail-meta">約 30 秒</div>
+        </div>
+      </header>
+      <main class="micro-detail-main">
+        <section class="micro-detail-hero">
+          <h2 id="micro-detail-title">平靜時刻</h2>
+          <p id="micro-detail-subtitle">如果你願意，我們先把注意力放回呼吸 30 秒。</p>
+        </section>
+        <section class="micro-detail-content markdown-body" id="micro-detail-body"></section>
+      </main>
+      <footer class="micro-detail-actions">
+        <button id="micro-detail-primary" class="micro-detail-primary" type="button">我做完了</button>
+        <button id="micro-detail-secondary" class="micro-detail-secondary" type="button" onclick="dismissMicroIntervention('snooze')">稍後再說</button>
+      </footer>
+    </div>
   </div>
 
 </div><!-- /app -->

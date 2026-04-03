@@ -51,7 +51,13 @@ async function testChatProxyDelivery() {
         conversation_id: 'conv-123',
         answer: '你好，我有收到你的訊息。',
         message_id: 'msg-123',
-        metadata: { route: 'Natural' },
+        metadata: {
+          route: 'Natural',
+          active_mode: 'mode_5_natural',
+          risk_flag: 'false',
+          latest_tag_payload: { sentiment_tags: ['tired'] },
+          burden_level_state: { burden_level: 'high', response_style: 'option_first' }
+        },
         session_export: getSamplePayload()
       };
     }
@@ -69,6 +75,8 @@ async function testChatProxyDelivery() {
   assert.strictEqual(result.body.ok, true);
   assert.strictEqual(result.body.conversation_id, 'conv-123');
   assert.strictEqual(result.body.answer, '你好，我有收到你的訊息。');
+  assert.strictEqual(result.body.metadata.risk_flag, 'false');
+  assert.strictEqual(result.body.metadata.burden_level_state.burden_level, 'high');
   assert.ok(result.body.session_export);
 }
 

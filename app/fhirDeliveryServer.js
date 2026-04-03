@@ -15,6 +15,7 @@ const STATIC_FILES = {
   '/': { filePath: path.join(APP_DIR, 'index.html'), contentType: 'text/html; charset=utf-8' },
   '/index.html': { filePath: path.join(APP_DIR, 'index.html'), contentType: 'text/html; charset=utf-8' },
   '/app.js': { filePath: path.join(APP_DIR, 'app.js'), contentType: 'application/javascript; charset=utf-8' },
+  '/microInterventionRules.js': { filePath: path.join(APP_DIR, 'microInterventionRules.js'), contentType: 'application/javascript; charset=utf-8' },
   '/style.css': { filePath: path.join(APP_DIR, 'style.css'), contentType: 'text/css; charset=utf-8' }
 };
 
@@ -31,6 +32,22 @@ function sendJson(res, statusCode, body) {
 function sendStaticFile(res, pathname) {
   const match = STATIC_FILES[pathname];
   if (!match) {
+    if (pathname.startsWith('/docs/')) {
+      const relativePath = pathname.replace(/^\/+/, '');
+      const safePath = path.normalize(path.join(APP_DIR, '..', relativePath));
+      const docsRoot = path.join(APP_DIR, '..', 'docs');
+      if (!safePath.startsWith(docsRoot) || !fs.existsSync(safePath) || fs.statSync(safePath).isDirectory()) {
+        return false;
+      }
+      const ext = path.extname(safePath).toLowerCase();
+      const contentType = ext === '.md'
+        ? 'text/markdown; charset=utf-8'
+        : 'text/plain; charset=utf-8';
+      const content = fs.readFileSync(safePath);
+      res.writeHead(200, { 'Content-Type': contentType });
+      res.end(content);
+      return true;
+    }
     return false;
   }
 
