@@ -939,11 +939,7 @@ const DEFAULT_SHORTCUT_PAGE_ONE = [
 ];
 
 function formatShortcutLabel(label) {
-  const text = String(label || '').trim();
-  if (text.length <= 2) return text;
-  if (text.length <= 4) return `${text.slice(0, 2)}\n${text.slice(2)}`;
-  if (text.length <= 6) return `${text.slice(0, 2)}\n${text.slice(2, 4)}\n${text.slice(4)}`;
-  return `${text.slice(0, 2)}\n${text.slice(2, 4)}\n${text.slice(4, 6)}…`;
+  return String(label || '').trim();
 }
 
 function renderShortcutChip(item, options = {}) {
@@ -951,7 +947,7 @@ function renderShortcutChip(item, options = {}) {
   const className = options.className || 'shortcut-chip';
   const commandAttr = encodeURIComponent(String(item.command || ''));
   const attrs = `${options.attrs || ''} data-command="${commandAttr}"`;
-  return `<button class="${className}" type="button" ${attrs}><span class="shortcut-chip-label">${escapeHtml(display).replace(/\n/g, '<br/>')}</span></button>`;
+  return `<button class="${className}" type="button" ${attrs}><span class="shortcut-chip-label">${escapeHtml(display)}</span></button>`;
 }
 
 function renderShortcutPager() {
@@ -1075,6 +1071,16 @@ function updateShortcutPagerState() {
   if (!viewport || !dots.length) return;
   const page = viewport.scrollLeft >= viewport.clientWidth * 0.5 ? 1 : 0;
   dots.forEach((dot, index) => dot.classList.toggle('active', index === page));
+}
+
+function snapShortcutPager() {
+  const viewport = document.getElementById('shortcut-pages');
+  if (!viewport) return;
+  const targetPage = viewport.scrollLeft >= viewport.clientWidth * 0.5 ? 1 : 0;
+  viewport.scrollTo({
+    left: viewport.clientWidth * targetPage,
+    behavior: 'smooth'
+  });
 }
 
 function escapeHtml(value) {
@@ -1882,10 +1888,58 @@ function wireShortcutInteractions() {
     viewport.dataset.wired = 'true';
     viewport.addEventListener('scroll', updateShortcutPagerState, { passive: true });
     viewport.addEventListener('click', (event) => {
+      if (viewport.dataset.suppressClick === 'true') {
+        viewport.dataset.suppressClick = 'false';
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       const button = event.target.closest('.shortcut-chip');
       if (!button) return;
       activateShortcut(button.dataset.command || '');
     });
+
+    const dragState = {
+      active: false,
+      pointerId: null,
+      startX: 0,
+      startScrollLeft: 0,
+      moved: false
+    };
+
+    viewport.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      dragState.active = true;
+      dragState.pointerId = event.pointerId;
+      dragState.startX = event.clientX;
+      dragState.startScrollLeft = viewport.scrollLeft;
+      dragState.moved = false;
+      viewport.classList.add('is-dragging');
+      viewport.setPointerCapture?.(event.pointerId);
+    });
+
+    viewport.addEventListener('pointermove', (event) => {
+      if (!dragState.active || dragState.pointerId !== event.pointerId) return;
+      const deltaX = event.clientX - dragState.startX;
+      if (Math.abs(deltaX) > 6) {
+        dragState.moved = true;
+      }
+      viewport.scrollLeft = dragState.startScrollLeft - deltaX;
+    });
+
+    const endDrag = (event) => {
+      if (!dragState.active || dragState.pointerId !== event.pointerId) return;
+      dragState.active = false;
+      viewport.classList.remove('is-dragging');
+      viewport.releasePointerCapture?.(event.pointerId);
+      if (dragState.moved) {
+        viewport.dataset.suppressClick = 'true';
+        snapShortcutPager();
+      }
+    };
+
+    viewport.addEventListener('pointerup', endDrag);
+    viewport.addEventListener('pointercancel', endDrag);
   }
 
   const composer = document.getElementById('shortcut-composer');
