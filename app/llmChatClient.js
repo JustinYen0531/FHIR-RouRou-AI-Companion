@@ -3,6 +3,7 @@ const DEFAULT_GROQ_MODEL = 'llama-3.1-8b-instant';
 const DEFAULT_GOOGLE_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_GOOGLE_MODEL = 'gemini-2.0-flash';
 const DEFAULT_LLM_TIMEOUT_MS = 20000;
+const DEFAULT_RETRY_COUNT = 2;
 
 function buildJsonInstruction() {
   return '只輸出有效 JSON，不要使用 markdown code fence，不要加任何解釋文字。';
@@ -216,12 +217,34 @@ async function completeWithGoogle(payload, options = {}) {
   };
 }
 
+function shouldRetryLlmError(error) {
+  return Number(error?.status || 0) === 429;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function completeChat(payload, options = {}) {
   const provider = inferProvider(options);
-  if (provider === 'google') {
-    return completeWithGoogle(payload, options);
+  const retries = Number(options.retryCount == null ? DEFAULT_RETRY_COUNT : options.retryCount);
+  let attempt = 0;
+
+  while (true) {
+    try {
+      if (provider === 'google') {
+        return await completeWithGoogle(payload, options);
+      }
+      return await completeWithGroq(payload, options);
+    } catch (error) {
+      if (!shouldRetryLlmError(error) || attempt >= retries) {
+        throw error;
+      }
+      const delayMs = 800 * (attempt + 1);
+      await wait(delayMs);
+      attempt += 1;
+    }
   }
-  return completeWithGroq(payload, options);
 }
 
 module.exports = {

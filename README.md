@@ -93,7 +93,19 @@ node app\fhirDeliveryServer.js
 聊天介面會呼叫：
 
 - `POST /api/chat/message`
+- `POST /api/chat/output`
 - `POST /api/fhir/bundle`
+
+一般聊天現在只做輕量記憶更新；醫師摘要、病人審閱稿、FHIR Draft 改成按需生成。你可以：
+
+- 在聊天畫面直接點按鈕：
+  - `整理給醫師`
+  - `病人審閱稿`
+  - `FHIR Draft`
+- 或直接輸入指令：
+  - `幫我整理給醫生`
+  - `產生病人審閱稿`
+  - `產生FHIR draft`
 
 如果你不想把 key 放在環境變數，也可以在 Settings 頁面內填入：
 

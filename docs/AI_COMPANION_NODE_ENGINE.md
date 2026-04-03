@@ -10,6 +10,8 @@
   - six modes
   - Mission / Option RAG
   - summary / patient / FHIR draft chain
+- 一般聊天走輕量記憶路徑，不再每輪自動跑完整 clinician / patient / FHIR 長鏈。
+- 重型輸出改成按需生成，支援前端按鈕與聊天指令兩種觸發。
 
 ## Runtime
 - 主 server: [app/fhirDeliveryServer.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/fhirDeliveryServer.js)
@@ -80,6 +82,23 @@
     - `answer`
     - `metadata`
     - `session_export`
+- `POST /api/chat/output`
+  - input:
+    - `conversation_id`
+    - `user`
+    - `output_type`
+    - `instruction`
+    - `api_provider`
+    - `api_key`
+    - `api_base_url`
+    - `api_model`
+  - output:
+    - `conversation_id`
+    - `output_type`
+    - `output`
+    - `formatted_text`
+    - `metadata`
+    - `session_export`
 - `POST /api/fhir/bundle`
 
 ## FHIR Integration
@@ -99,3 +118,4 @@
 - [fhirDeliveryServer.test.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/fhirDeliveryServer.test.js)
 - [fhirBundleBuilder.test.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/fhirBundleBuilder.test.js)
 - [aiCompanionEngine.test.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/aiCompanionEngine.test.js)
+- [aiCompanionOutput.test.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/aiCompanionOutput.test.js)

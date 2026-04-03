@@ -157,7 +157,17 @@ async function testNaturalFlowBuildsSessionExport() {
   const result = await engine.handleMessage({ message: '最近很累', user: 'demo', conversation_id: 'conv-3' });
   assert.strictEqual(result.state.active_mode, 'mode_5_natural');
   assert.ok(result.session_export);
-  assert.ok(result.session_export.clinician_summary_draft);
+  assert.deepStrictEqual(result.session_export.clinician_summary_draft, {});
+  assert.deepStrictEqual(result.session_export.delivery_readiness_state, {});
+}
+
+async function testOutputCommandBuildsStructuredDrafts() {
+  const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
+  await engine.handleMessage({ message: '最近很累', user: 'demo', conversation_id: 'conv-4' });
+  const result = await engine.handleMessage({ message: '幫我整理給醫生', user: 'demo', conversation_id: 'conv-4' });
+  assert.strictEqual(result.metadata.route, 'output');
+  assert.strictEqual(result.metadata.output_type, 'clinician_summary');
+  assert.ok(result.answer.includes('醫師摘要'));
   assert.strictEqual(result.session_export.delivery_readiness_state.readiness_status, 'ready_for_backend_mapping');
 }
 
@@ -165,6 +175,7 @@ async function run() {
   await testCommandRouting();
   await testHighRiskRouting();
   await testNaturalFlowBuildsSessionExport();
+  await testOutputCommandBuildsStructuredDrafts();
   console.log('AI companion engine tests passed.');
 }
 

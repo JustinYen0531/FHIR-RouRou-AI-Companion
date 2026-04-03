@@ -23,6 +23,12 @@ const MODE_DEFINITIONS = {
   auto: { command: 'auto', label: '模式：自動分流', display: 'Auto 自動分流' }
 };
 
+const OUTPUT_DEFINITIONS = {
+  clinician_summary: { label: '整理給醫師', instruction: '幫我整理給醫生' },
+  patient_review: { label: '病人審閱稿', instruction: '產生病人審閱稿' },
+  fhir_delivery: { label: 'FHIR Draft', instruction: '產生FHIR draft' }
+};
+
 function showScreen(screenId) {
   document.querySelectorAll('.screen').forEach((screen) => {
     screen.classList.toggle('active', screen.id === screenId);
@@ -279,6 +285,65 @@ async function sendMessage() {
   }
 }
 
+function formatOutputPayload(outputType, output) {
+  const label = OUTPUT_DEFINITIONS[outputType]?.label || outputType;
+  return `${label}\n\n${JSON.stringify(output, null, 2)}`;
+}
+
+async function requestOutput(outputType) {
+  if (APP_STATE.isSending) return;
+  const definition = OUTPUT_DEFINITIONS[outputType] || { label: outputType, instruction: outputType };
+  APP_STATE.isSending = true;
+  appendSystemNotice(`正在產生 ${definition.label}...`);
+  setTyping(true);
+
+  try {
+    await ensureModeSynced();
+    const config = getRuntimeConfig();
+    const response = await fetch('/api/chat/output', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        conversation_id: APP_STATE.conversationId,
+        user: config.userId,
+        output_type: outputType,
+        instruction: definition.instruction,
+        api_provider: config.provider,
+        api_key: config.apiKey,
+        api_base_url: config.apiBaseUrl,
+        api_model: config.model
+      })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(formatChatError(payload));
+    }
+
+    APP_STATE.conversationId = payload.conversation_id || APP_STATE.conversationId;
+    appendMessage('ai', payload.formatted_text || formatOutputPayload(payload.output_type, payload.output));
+  } catch (error) {
+    appendMessage('ai', error.message || '目前無法產生輸出。');
+  } finally {
+    setTyping(false);
+    APP_STATE.isSending = false;
+  }
+}
+
+function injectOutputActions() {
+  const inputSection = document.querySelector('#screen-chat .input-section');
+  if (!inputSection || document.getElementById('structured-output-actions')) return;
+
+  const actionWrap = document.createElement('div');
+  actionWrap.id = 'structured-output-actions';
+  actionWrap.className = 'quick-replies';
+  actionWrap.innerHTML = `
+    <button class="qr-chip" type="button" onclick="requestOutput('clinician_summary')">整理給醫師</button>
+    <button class="qr-chip" type="button" onclick="requestOutput('patient_review')">病人審閱稿</button>
+    <button class="qr-chip" type="button" onclick="requestOutput('fhir_delivery')">FHIR Draft</button>
+  `;
+  inputSection.insertBefore(actionWrap, inputSection.firstChild);
+}
+
 function injectRuntimeSettings() {
   const settingsScreen = document.getElementById('screen-settings');
   if (!settingsScreen || document.getElementById('ai-engine-runtime-card')) return;
@@ -348,6 +413,7 @@ document.addEventListener('DOMContentLoaded', () => {
   showScreen('screen-chat');
   updateModeLabels();
   injectRuntimeSettings();
+  injectOutputActions();
   appendSystemNotice('前端目前走 Node 程式版 AI Companion。設定 Google Gemini 或 Groq 後可直接從聊天畫面測試。');
 });
 
@@ -356,3 +422,4 @@ window.selectMode = selectMode;
 window.startChat = startChat;
 window.sendQuickReply = sendQuickReply;
 window.sendMessage = sendMessage;
+window.requestOutput = requestOutput;

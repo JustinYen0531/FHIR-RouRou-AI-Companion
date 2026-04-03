@@ -125,6 +125,24 @@ const HIGH_RISK_PATTERNS = [
   /kill myself/i
 ];
 
+const OUTPUT_COMMAND_PATTERNS = [
+  { type: 'clinician_summary', patterns: [/幫我整理給醫生/, /整理給醫師/, /醫師摘要/, /clinician summary/i, /doctor summary/i] },
+  { type: 'patient_review', patterns: [/病人審閱稿/, /給我病人版本/, /patient review/i] },
+  { type: 'patient_authorization', patterns: [/授權狀態/, /病人授權稿/, /patient authorization/i] },
+  { type: 'fhir_delivery', patterns: [/fhir draft/i, /\bfhir\b/i, /產生fhir/i] },
+  { type: 'delivery_readiness', patterns: [/交付狀態/, /delivery readiness/i] },
+  { type: 'session_export', patterns: [/匯出 session/i, /session export/i] }
+];
+
+const OUTPUT_LABELS = {
+  clinician_summary: '醫師摘要',
+  patient_review: '病人審閱稿',
+  patient_authorization: '病人授權稿',
+  fhir_delivery: 'FHIR Draft',
+  delivery_readiness: '交付狀態',
+  session_export: 'Session Export'
+};
+
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -299,13 +317,24 @@ class AICompanionEngine {
   getOrCreateSession(id, user) {
     const sessionId = id || `conv-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
     if (!this.sessions.has(sessionId)) {
-      this.sessions.set(sessionId, {
+    this.sessions.set(sessionId, {
         id: sessionId,
         user: user || 'web-demo-user',
         startedAt: this.now(),
         updatedAt: this.now(),
         history: [],
-        state: createDefaultState()
+        state: createDefaultState(),
+        revision: 0,
+        memory_snapshot: {
+          note_history: [],
+          last_user_message: '',
+          last_assistant_message: '',
+          active_mode: 'auto',
+          risk_flag: 'false',
+          latest_tag_summary: '',
+          hamd_focus: ''
+        },
+        output_cache: {}
       });
     }
     const session = this.sessions.get(sessionId);
@@ -329,12 +358,15 @@ class AICompanionEngine {
     }
 
     session.history.push({ role: 'user', content: message });
+    session.revision += 1;
+    session.memory_snapshot.last_user_message = message;
 
     const command = this.detectCommand(message);
     if (command) {
       Object.assign(state, COMMAND_MAP[command]);
       const answer = state.command_feedback;
       session.history.push({ role: 'assistant', content: answer });
+      this.updateMemorySnapshot(session, answer);
       return {
         conversation_id: session.id,
         answer,
@@ -366,12 +398,32 @@ class AICompanionEngine {
       state.active_mode = 'safety';
       const answer = await this.runTextTask('safetyResponse', session, message);
       session.history.push({ role: 'assistant', content: answer });
+      this.updateMemorySnapshot(session, answer);
       return {
         conversation_id: session.id,
         answer,
         state: deepClone(state),
         session_export: defaultSessionExport(session),
         metadata: { active_mode: state.active_mode, route: 'safety' }
+      };
+    }
+
+    const outputType = this.detectOutputCommand(message);
+    if (outputType) {
+      const outputResult = await this.generateOutput({
+        conversation_id: session.id,
+        user: session.user,
+        output_type: outputType,
+        instruction: message
+      });
+      session.history.push({ role: 'assistant', content: outputResult.formatted_text });
+      this.updateMemorySnapshot(session, outputResult.formatted_text);
+      return {
+        conversation_id: session.id,
+        answer: outputResult.formatted_text,
+        state: deepClone(session.state),
+        session_export: outputResult.session_export,
+        metadata: Object.assign({}, outputResult.metadata, { route: 'output', output_type: outputType })
       };
     }
 
@@ -383,7 +435,7 @@ class AICompanionEngine {
     if (state.pending_question !== 'none' && state.pending_question) {
       const answer = await this.handleFollowup(session, message);
       session.history.push({ role: 'assistant', content: answer });
-      await this.updateSummaryChain(session, message);
+      this.updateMemorySnapshot(session, answer);
       return {
         conversation_id: session.id,
         answer,
@@ -410,13 +462,10 @@ class AICompanionEngine {
     } else {
       state.active_mode = 'mode_5_natural';
       answer = await this.runTextTask('smartHunter', session, message);
-    }
+      }
 
     session.history.push({ role: 'assistant', content: answer });
-
-    if (state.active_mode !== 'safety') {
-      await this.updateSummaryChain(session, message);
-    }
+    this.updateMemorySnapshot(session, answer);
 
     return {
       conversation_id: session.id,
@@ -430,6 +479,16 @@ class AICompanionEngine {
   detectCommand(message) {
     const normalized = message.trim().toLowerCase().replace(/^\//, '');
     return Object.prototype.hasOwnProperty.call(COMMAND_MAP, normalized) ? normalized : '';
+  }
+
+  detectOutputCommand(message) {
+    const text = String(message || '').trim();
+    for (const item of OUTPUT_COMMAND_PATTERNS) {
+      if (item.patterns.some((pattern) => pattern.test(text))) {
+        return item.type;
+      }
+    }
+    return '';
   }
 
   isHighRisk(message) {
@@ -574,6 +633,22 @@ class AICompanionEngine {
     return candidate;
   }
 
+  updateMemorySnapshot(session, assistantAnswer = '') {
+    const state = session.state;
+    const latestTags = normalizeObjectState(state, 'latest_tag_payload', {});
+    const hamd = normalizeObjectState(state, 'hamd_progress_state', {});
+    const note = String(latestTags.summary || '').trim();
+    if (note) {
+      session.memory_snapshot.note_history.push(note);
+      session.memory_snapshot.note_history = session.memory_snapshot.note_history.slice(-20);
+    }
+    session.memory_snapshot.last_assistant_message = assistantAnswer || session.memory_snapshot.last_assistant_message;
+    session.memory_snapshot.active_mode = state.active_mode || session.memory_snapshot.active_mode;
+    session.memory_snapshot.risk_flag = state.risk_flag || session.memory_snapshot.risk_flag;
+    session.memory_snapshot.latest_tag_summary = note;
+    session.memory_snapshot.hamd_focus = String(hamd.current_focus || '').trim();
+  }
+
   async updateSummaryChain(session, message) {
     const state = session.state;
     state.summary_draft_state = await this.runJsonTask('summaryDraftBuilder', session, message, {
@@ -643,6 +718,86 @@ class AICompanionEngine {
         handoff_note: 'Fallback delivery readiness state.'
       }
     });
+  }
+
+  async ensureStructuredOutputs(session, instruction = '') {
+    if (session.structured_revision === session.revision) {
+      return;
+    }
+    const triggerMessage =
+      String(instruction || '').trim() ||
+      session.memory_snapshot.last_user_message ||
+      session.history.slice().reverse().find((item) => item.role === 'user')?.content ||
+      '';
+    await this.updateSummaryChain(session, triggerMessage);
+    session.structured_revision = session.revision;
+  }
+
+  formatStructuredOutput(outputType, output) {
+    const label = OUTPUT_LABELS[outputType] || outputType;
+    if (outputType === 'session_export') {
+      return `${label}\n\n${JSON.stringify(output, null, 2)}`;
+    }
+    return `${label}\n\n${JSON.stringify(output, null, 2)}`;
+  }
+
+  async generateOutput(payload) {
+    const session = this.getOrCreateSession(payload.conversation_id, payload.user);
+    const outputType = String(payload.output_type || '').trim();
+    const instruction = String(payload.instruction || '').trim();
+    const cacheKey = outputType;
+    const cached = session.output_cache[cacheKey];
+    if (cached && cached.revision === session.revision) {
+      return cached.value;
+    }
+
+    if (!outputType) {
+      const error = new Error('output_type is required.');
+      error.status = 400;
+      error.code = 'missing_output_type';
+      throw error;
+    }
+
+    await this.ensureStructuredOutputs(session, instruction);
+
+    let output;
+    if (outputType === 'clinician_summary') {
+      output = normalizeObjectState(session.state, 'clinician_summary_draft', {});
+    } else if (outputType === 'patient_review') {
+      output = normalizeObjectState(session.state, 'patient_review_packet', {});
+    } else if (outputType === 'patient_authorization') {
+      output = normalizeObjectState(session.state, 'patient_authorization_state', {});
+    } else if (outputType === 'fhir_delivery') {
+      output = normalizeObjectState(session.state, 'fhir_delivery_draft', {});
+    } else if (outputType === 'delivery_readiness') {
+      output = normalizeObjectState(session.state, 'delivery_readiness_state', {});
+    } else if (outputType === 'session_export') {
+      output = defaultSessionExport(session);
+    } else {
+      const error = new Error(`Unsupported output_type: ${outputType}`);
+      error.status = 400;
+      error.code = 'unsupported_output_type';
+      throw error;
+    }
+
+    const response = {
+      conversation_id: session.id,
+      output_type: outputType,
+      output,
+      formatted_text: this.formatStructuredOutput(outputType, output),
+      session_export: defaultSessionExport(session),
+      metadata: {
+        output_type: outputType,
+        active_mode: session.state.active_mode
+      }
+    };
+
+    session.output_cache[cacheKey] = {
+      revision: session.revision,
+      value: response
+    };
+
+    return response;
   }
 
   buildPromptContext(session, message, extraContext = {}) {

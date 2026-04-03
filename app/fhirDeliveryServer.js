@@ -148,6 +148,7 @@ async function processChatPayload(payload, options = {}) {
   const apiModel = String(payload.api_model || options.llmModel || (provider === 'google' ? DEFAULT_GOOGLE_MODEL : '')).trim();
   const user = (payload.user || 'web-demo-user').trim();
   const message = (payload.message || '').trim();
+  const hasRequestModelConfig = Boolean(payload.api_key || payload.api_provider || payload.api_base_url || payload.api_model);
 
   if (!message) {
     return {
@@ -157,7 +158,7 @@ async function processChatPayload(payload, options = {}) {
   }
 
   try {
-    const engine = options.engine || new AICompanionEngine({
+    const engine = !hasRequestModelConfig && options.engine ? options.engine : new AICompanionEngine({
       provider,
       apiKey,
       baseUrl: apiBaseUrl,
@@ -197,6 +198,78 @@ async function processChatPayload(payload, options = {}) {
         code: error.code || 'ai_companion_proxy_error',
         status: error.status || 502,
         conversation_id: payload.conversation_id || ''
+      }
+    };
+  }
+}
+
+async function processOutputPayload(payload, options = {}) {
+  const provider = inferProvider({
+    provider: options.llmProvider || payload.api_provider || '',
+    baseUrl: options.googleBaseUrl || options.groqBaseUrl || payload.api_base_url || ''
+  }) || (options.googleApiKey || process.env.GOOGLE_API_KEY ? 'google' : 'groq');
+  const apiKey = (
+    provider === 'google'
+      ? (options.googleApiKey || payload.api_key || '')
+      : (options.groqApiKey || payload.api_key || '')
+  ).trim();
+  const apiBaseUrl = (
+    provider === 'google'
+      ? (options.googleBaseUrl || payload.api_base_url || DEFAULT_GOOGLE_BASE_URL)
+      : (options.groqBaseUrl || payload.api_base_url || DEFAULT_GROQ_BASE_URL)
+  ).trim();
+  const apiModel = String(payload.api_model || options.llmModel || (provider === 'google' ? DEFAULT_GOOGLE_MODEL : '')).trim();
+  const user = (payload.user || 'web-demo-user').trim();
+  const outputType = String(payload.output_type || '').trim();
+  const hasRequestModelConfig = Boolean(payload.api_key || payload.api_provider || payload.api_base_url || payload.api_model);
+
+  if (!outputType) {
+    return {
+      statusCode: 400,
+      body: { error: 'output_type is required.' }
+    };
+  }
+
+  try {
+    const engine = !hasRequestModelConfig && options.engine ? options.engine : new AICompanionEngine({
+      provider,
+      apiKey,
+      baseUrl: apiBaseUrl,
+      model: apiModel || undefined,
+      fetchImpl: options.fetchImpl,
+      sessions: options.sessions
+    });
+    const result = await engine.generateOutput({
+      conversation_id: payload.conversation_id || '',
+      user,
+      output_type: outputType,
+      instruction: payload.instruction || ''
+    });
+
+    return {
+      statusCode: 200,
+      body: Object.assign(
+        {
+          ok: true
+        },
+        result,
+        {
+          metadata: Object.assign({}, result.metadata, {
+            provider,
+            model: apiModel || (provider === 'google' ? DEFAULT_GOOGLE_MODEL : undefined)
+          })
+        }
+      )
+    };
+  } catch (error) {
+    return {
+      statusCode: error.status || 502,
+      body: {
+        error: error.message,
+        code: error.code || 'ai_companion_output_error',
+        status: error.status || 502,
+        conversation_id: payload.conversation_id || '',
+        output_type: outputType
       }
     };
   }
@@ -243,7 +316,7 @@ function createServer(options = {}) {
       return;
     }
 
-    if (req.method !== 'POST' || !['/api/fhir/bundle', '/api/chat/message'].includes(req.url)) {
+    if (req.method !== 'POST' || !['/api/fhir/bundle', '/api/chat/message', '/api/chat/output'].includes(req.url)) {
       sendJson(res, 404, { error: 'Not found' });
       return;
     }
@@ -265,7 +338,9 @@ function createServer(options = {}) {
       const result =
         req.url === '/api/chat/message'
           ? await processChatPayload(payload, Object.assign({}, options, { engine: sharedEngine, sessions: sharedSessions }))
-          : await processExportPayload(payload, options);
+          : req.url === '/api/chat/output'
+            ? await processOutputPayload(payload, Object.assign({}, options, { engine: sharedEngine, sessions: sharedSessions }))
+            : await processExportPayload(payload, options);
       sendJson(res, result.statusCode, result.body);
     });
   });
@@ -302,5 +377,6 @@ if (require.main === module) {
 module.exports = {
   processExportPayload,
   processChatPayload,
+  processOutputPayload,
   createServer
 };

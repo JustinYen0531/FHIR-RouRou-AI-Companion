@@ -1,7 +1,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { processExportPayload, processChatPayload } = require('./fhirDeliveryServer');
+const { processExportPayload, processChatPayload, processOutputPayload } = require('./fhirDeliveryServer');
 
 function getSamplePayload() {
   return JSON.parse(
@@ -60,9 +60,7 @@ async function testChatProxyDelivery() {
   const result = await processChatPayload(
     {
       message: '最近很累',
-      user: 'demo-user',
-      api_key: 'provider-secret',
-      api_provider: 'google'
+      user: 'demo-user'
     },
     { engine: fakeEngine }
   );
@@ -81,12 +79,42 @@ async function testChatProxyMissingApiKey() {
   assert.ok(result.body.error.includes('API key'));
 }
 
+async function testOutputProxyDelivery() {
+  const fakeEngine = {
+    generateOutput: async (payload) => {
+      assert.strictEqual(payload.output_type, 'clinician_summary');
+      return {
+        conversation_id: 'conv-456',
+        output_type: 'clinician_summary',
+        output: { summary_version: 'v1' },
+        formatted_text: '醫師摘要\n\n{"summary_version":"v1"}',
+        session_export: getSamplePayload(),
+        metadata: { output_type: 'clinician_summary' }
+      };
+    }
+  };
+
+  const result = await processOutputPayload(
+    {
+      user: 'demo-user',
+      output_type: 'clinician_summary'
+    },
+    { engine: fakeEngine }
+  );
+
+  assert.strictEqual(result.statusCode, 200);
+  assert.strictEqual(result.body.ok, true);
+  assert.strictEqual(result.body.output_type, 'clinician_summary');
+  assert.ok(result.body.output);
+}
+
 async function run() {
   await testDryRunDelivery();
   await testBlockedDelivery();
   await testTransactionDelivery();
   await testChatProxyDelivery();
   await testChatProxyMissingApiKey();
+  await testOutputProxyDelivery();
   console.log('FHIR delivery server tests passed.');
 }
 
