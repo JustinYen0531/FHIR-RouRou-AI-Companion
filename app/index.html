@@ -49,9 +49,14 @@
           </div>
         </div>
       </div>
-      <button class="icon-btn" onclick="showScreen('screen-settings')">
-        <span class="mat-icon">settings_heart</span>
-      </button>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button class="icon-btn" type="button" aria-label="模式" onclick="showScreen('screen-energy')">
+          <span class="mat-icon">favorite</span>
+        </button>
+        <button class="icon-btn" type="button" aria-label="設定" onclick="showScreen('screen-settings')">
+          <span class="mat-icon">settings</span>
+        </button>
+      </div>
     </header>
 
     <main class="chat-canvas" id="chat-messages">
@@ -88,15 +93,6 @@
     </main>
 
     <section class="input-section glass">
-        <div id="quick-replies-container">
-          <div class="quick-replies" id="quick-replies" style="display:none; opacity:0; transform:translateY(10px); transition: all 0.3s ease-in-out;">
-            <button class="qr-chip" type="button" onclick="sendQuickReply('void')">void</button>
-            <button class="qr-chip" type="button" onclick="sendQuickReply('soulmate')">soulmate</button>
-            <button class="qr-chip" type="button" onclick="sendQuickReply('mission')">mission</button>
-            <button class="qr-chip" type="button" onclick="sendQuickReply('option')">option</button>
-            <button class="qr-chip" type="button" onclick="sendQuickReply('natural')">natural</button>
-          </div>
-        </div>
       <div class="input-row">
         <div class="text-input-wrap">
           <span class="mat-icon" style="color:#a0aab0">sentiment_satisfied</span>
@@ -116,19 +112,15 @@
     <nav class="bottom-nav glass">
       <button class="nav-item active" onclick="showScreen('screen-chat')">
         <span class="mat-icon fill">chat_bubble</span>
-        <span>Chat</span>
-      </button>
-      <button class="nav-item" onclick="showScreen('screen-energy')">
-        <span class="mat-icon fill">bolt</span>
-        <span>模式</span>
+        <span>聊天</span>
       </button>
       <button class="nav-item" onclick="showScreen('screen-report')">
         <span class="mat-icon fill">analytics</span>
-        <span>Reports</span>
+        <span>報表</span>
       </button>
       <button class="nav-item" onclick="showScreen('screen-settings')">
         <span class="mat-icon">person_2</span>
-        <span>Settings</span>
+        <span>設定</span>
       </button>
     </nav>
   </div>
@@ -142,7 +134,10 @@
         </div>
         <h1 class="app-title">Rou Rou</h1>
       </div>
-      <button class="icon-btn"><span class="mat-icon">settings_heart</span></button>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button class="icon-btn" type="button" aria-label="聊天" onclick="showScreen('screen-chat')"><span class="mat-icon">chat_bubble</span></button>
+        <button class="icon-btn" type="button" aria-label="設定" onclick="showScreen('screen-settings')"><span class="mat-icon">settings</span></button>
+      </div>
     </header>
 
     <main class="page-scroll">
@@ -202,16 +197,13 @@
 
     <nav class="bottom-nav glass">
       <button class="nav-item" onclick="showScreen('screen-chat')">
-        <span class="mat-icon fill">chat_bubble</span><span>Chat</span>
-      </button>
-      <button class="nav-item active" onclick="showScreen('screen-energy')">
-        <span class="mat-icon fill">bolt</span><span>模式</span>
+        <span class="mat-icon fill">chat_bubble</span><span>聊天</span>
       </button>
       <button class="nav-item" onclick="showScreen('screen-report')">
-        <span class="mat-icon fill">analytics</span><span>Reports</span>
+        <span class="mat-icon fill">analytics</span><span>報表</span>
       </button>
       <button class="nav-item" onclick="showScreen('screen-settings')">
-        <span class="mat-icon">person_2</span><span>Settings</span>
+        <span class="mat-icon">person_2</span><span>設定</span>
       </button>
     </nav>
   </div>
@@ -223,7 +215,10 @@
         <span class="mat-icon fill" style="font-size:18px;color:#446655">person</span>
       </div>
       <h1 class="page-title">診前報告審閱</h1>
-      <button class="icon-btn"><span class="mat-icon">settings_heart</span></button>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button class="icon-btn" type="button" aria-label="模式" onclick="showScreen('screen-energy')"><span class="mat-icon">favorite</span></button>
+        <button class="icon-btn" type="button" aria-label="設定" onclick="showScreen('screen-settings')"><span class="mat-icon">settings</span></button>
+      </div>
     </header>
 
     <main class="page-scroll" style="padding-top:80px">
@@ -422,10 +417,9 @@
     </main>
 
     <nav class="bottom-nav glass">
-      <button class="nav-item" onclick="showScreen('screen-chat')"><span class="mat-icon fill">chat_bubble</span><span>Chat</span></button>
-      <button class="nav-item" onclick="showScreen('screen-energy')"><span class="mat-icon fill">bolt</span><span>模式</span></button>
-      <button class="nav-item active" onclick="showScreen('screen-report')"><span class="mat-icon fill">analytics</span><span>Reports</span></button>
-      <button class="nav-item" onclick="showScreen('screen-settings')"><span class="mat-icon">person_2</span><span>Settings</span></button>
+      <button class="nav-item" onclick="showScreen('screen-chat')"><span class="mat-icon fill">chat_bubble</span><span>聊天</span></button>
+      <button class="nav-item active" onclick="showScreen('screen-report')"><span class="mat-icon fill">analytics</span><span>報表</span></button>
+      <button class="nav-item" onclick="showScreen('screen-settings')"><span class="mat-icon">person_2</span><span>設定</span></button>
     </nav>
   </div>
 
@@ -436,7 +430,10 @@
         <div class="avatar-sm"><span class="mat-icon fill" style="font-size:18px;color:#446655">person</span></div>
         <div><h1 class="app-title">Rou Rou</h1><div class="sub-title">CLINICAL DASHBOARD</div></div>
       </div>
-      <button class="icon-btn"><span class="mat-icon">settings_heart</span></button>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button class="icon-btn" type="button" aria-label="模式" onclick="showScreen('screen-energy')"><span class="mat-icon">favorite</span></button>
+        <button class="icon-btn" type="button" aria-label="設定" onclick="showScreen('screen-settings')"><span class="mat-icon">settings</span></button>
+      </div>
     </header>
 
     <main class="page-scroll" style="padding-top:80px">
@@ -536,22 +533,22 @@
     </main>
 
     <nav class="bottom-nav glass">
-      <button class="nav-item" onclick="showScreen('screen-chat')"><span class="mat-icon fill">chat_bubble</span><span>Chat</span></button>
-      <button class="nav-item active" onclick="showScreen('screen-clinical')"><span class="mat-icon fill">analytics</span><span>Reports</span></button>
-      <button class="nav-item" onclick="showScreen('screen-settings')"><span class="mat-icon">person_2</span><span>Settings</span></button>
+      <button class="nav-item" onclick="showScreen('screen-chat')"><span class="mat-icon fill">chat_bubble</span><span>聊天</span></button>
+      <button class="nav-item active" onclick="showScreen('screen-clinical')"><span class="mat-icon fill">analytics</span><span>報表</span></button>
+      <button class="nav-item" onclick="showScreen('screen-settings')"><span class="mat-icon">person_2</span><span>設定</span></button>
     </nav>
   </div>
 
   <!-- ===== SCREEN: SETTINGS ===== -->
   <div class="screen" id="screen-settings">
     <header class="top-bar glass" style="background:transparent;box-shadow:none">
-      <button class="icon-btn" onclick="history.back()"><span class="mat-icon">arrow_back</span></button>
-      <h1 class="page-title">Settings</h1>
+      <button class="icon-btn" onclick="showScreen('screen-chat')"><span class="mat-icon">arrow_back</span></button>
+      <h1 class="page-title">設定</h1>
       <div style="width:40px"></div>
     </header>
 
     <main class="page-scroll" style="padding-top:72px">
-      <div class="settings-group-label">PROFILE</div>
+      <div class="settings-group-label">個人資料</div>
       <div class="settings-card">
         <div class="profile-row">
           <div class="avatar-profile"><span class="mat-icon fill" style="font-size:28px;color:#446655">person</span></div>
@@ -560,71 +557,71 @@
         </div>
       </div>
 
-      <div class="settings-group-label">AI INTERACTION</div>
+      <div class="settings-group-label">AI 互動</div>
       <div class="settings-card">
         <div class="settings-row">
           <span class="mat-icon" style="color:#446655">record_voice_over</span>
-          <span class="settings-label">Voice Selection</span>
+          <span class="settings-label">語音風格</span>
         </div>
         <div class="chip-group">
-          <button class="chip active">Gentle</button>
-          <button class="chip">Energetic</button>
-          <button class="chip">Calm</button>
+          <button class="chip active">溫柔</button>
+          <button class="chip">有活力</button>
+          <button class="chip">平靜</button>
         </div>
         <div class="settings-divider"></div>
-        <div class="settings-row"><span class="mat-icon" style="color:#446655">psychology</span><span class="settings-label">Default Mode</span></div>
+        <div class="settings-row"><span class="mat-icon" style="color:#446655">psychology</span><span class="settings-label">預設模式</span></div>
         <div class="mode-choices">
           <div class="mode-choice">
             <span class="mat-icon" style="font-size:20px">chat</span>
-            <span>NATURAL CHAT</span>
+            <span>自然聊天</span>
           </div>
           <div class="mode-choice active">
             <span class="mat-icon fill" style="font-size:20px">favorite</span>
-            <span>SOUL MATE</span>
+            <span>靈魂伴侶</span>
           </div>
         </div>
         <div class="settings-divider"></div>
         <div class="settings-toggle-row">
           <div>
-            <div class="settings-label">Activity Level Sensing</div>
-            <div class="settings-sub">Adjusts responses based on your biometric strain.</div>
+            <div class="settings-label">互動負擔感測</div>
+            <div class="settings-sub">依據你的狀態調整回應負擔與節奏。</div>
           </div>
           <label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label>
         </div>
       </div>
 
-      <div class="settings-group-label">PRIVACY &amp; MEDICAL (FHIR)</div>
+      <div class="settings-group-label">隱私與醫療（FHIR）</div>
       <div class="settings-card">
         <div class="settings-toggle-row">
           <div class="settings-row-left">
             <span class="mat-icon fill" style="color:#446655">database</span>
-            <div><div class="settings-label">Hospital Data Sync</div><div class="settings-sub">Real-time FHIR record updates</div></div>
+            <div><div class="settings-label">醫院資料同步</div><div class="settings-sub">即時同步 FHIR 記錄更新</div></div>
           </div>
           <label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label>
         </div>
         <div class="fhir-institution">
-          <div class="fhir-label">CONNECTED INSTITUTION</div>
+          <div class="fhir-label">已連線院所</div>
           <div class="fhir-name">Taipei General Hospital <span class="mat-icon fill" style="font-size:16px;color:#446655">verified</span></div>
         </div>
         <div class="settings-divider"></div>
         <div class="settings-toggle-row">
-          <div><div class="settings-label">Auto-Report Draft</div><div class="settings-sub">Draft health summaries for your doctor</div></div>
+          <div><div class="settings-label">自動報告草稿</div><div class="settings-sub">需要時替你準備醫師摘要草稿</div></div>
           <label class="toggle"><input type="checkbox"/><span class="toggle-track"></span></label>
         </div>
       </div>
 
-      <div class="settings-group-label">SECURITY</div>
+      <div class="settings-group-label">安全性</div>
       <div class="settings-card">
         <div class="security-item">
           <span class="mat-icon fill" style="color:#446655;font-size:32px">fingerprint</span>
-          <div><div class="settings-label">Biometric Lock</div><div class="settings-sub">FaceID or Fingerprint</div></div>
-          <button class="text-link">CONFIGURE</button>
+          <div><div class="settings-label">生物辨識鎖定</div><div class="settings-sub">Face ID 或指紋</div></div>
+          <button class="text-link">設定</button>
         </div>
         <div class="settings-divider"></div>
         <div class="security-item">
           <span class="mat-icon fill" style="color:#446655;font-size:32px">shield</span>
-          <div><div class="settings-label">Encrypted Backup</div><div class="settings-sub" style="color:#446655">Status: Enabled</div></div>
-          <button class="text-link">VIEW LOG</button>
+          <div><div class="settings-label">加密備份</div><div class="settings-sub" style="color:#446655">狀態：已啟用</div></div>
+          <button class="text-link">查看紀錄</button>
         </div>
       </div>
 
@@ -632,10 +629,9 @@
     </main>
 
     <nav class="bottom-nav glass">
-      <button class="nav-item" onclick="showScreen('screen-chat')"><span class="mat-icon fill">chat_bubble</span><span>Chat</span></button>
-      <button class="nav-item" onclick="showScreen('screen-energy')"><span class="mat-icon fill">bolt</span><span>模式</span></button>
-      <button class="nav-item" onclick="showScreen('screen-report')"><span class="mat-icon fill">analytics</span><span>Reports</span></button>
-      <button class="nav-item active" onclick="showScreen('screen-settings')"><span class="mat-icon fill">person_2</span><span>Settings</span></button>
+      <button class="nav-item" onclick="showScreen('screen-chat')"><span class="mat-icon fill">chat_bubble</span><span>聊天</span></button>
+      <button class="nav-item" onclick="showScreen('screen-report')"><span class="mat-icon fill">analytics</span><span>報表</span></button>
+      <button class="nav-item active" onclick="showScreen('screen-settings')"><span class="mat-icon fill">person_2</span><span>設定</span></button>
     </nav>
   </div>
 
