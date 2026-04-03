@@ -54,7 +54,7 @@
           <span class="mat-icon fill" style="font-size:16px">psychology</span>
           <span id="memory-badge-count">0</span> 件記憶
         </button>
-        <button class="icon-btn" onclick="showScreen('screen-settings')">
+        <button class="icon-btn" type="button" aria-label="手動切換模式" onclick="showScreen('screen-energy')">
           <span class="mat-icon">settings_heart</span>
         </button>
       </div>
@@ -228,10 +228,9 @@
         <span class="mat-icon fill" style="font-size:18px;color:#446655">person</span>
       </div>
       <h1 class="page-title">診前報告審閱</h1>
-      <div style="display:flex; gap:8px; align-items:center;">
-        <button class="icon-btn" type="button" aria-label="模式" onclick="showScreen('screen-energy')"><span class="mat-icon">favorite</span></button>
-        <button class="icon-btn" type="button" aria-label="設定" onclick="showScreen('screen-settings')"><span class="mat-icon">settings</span></button>
-      </div>
+      <button class="icon-btn" type="button" aria-label="手動切換模式" onclick="showScreen('screen-energy')">
+        <span class="mat-icon">settings_heart</span>
+      </button>
     </header>
 
     <main class="page-scroll" style="padding-top:80px">
@@ -346,6 +345,7 @@
             <p class="note-text" id="report-fhir-summary">尚未產生 FHIR 草稿。按下「FHIR 草稿」後，這裡會顯示可交付摘要。</p>
             <div class="note-footer"><span id="report-fhir-status">尚未生成</span> · <span id="report-fhir-resources">FHIR 資源數：0</span></div>
           </div>
+                  <div id="report-fhir-profile-obs"></div>
         </section>
 
         <section class="section auth-section">
@@ -480,10 +480,9 @@
         <div class="avatar-sm"><span class="mat-icon fill" style="font-size:18px;color:#446655">person</span></div>
         <div><h1 class="app-title">Rou Rou</h1><div class="sub-title">CLINICAL DASHBOARD</div></div>
       </div>
-      <div style="display:flex; gap:8px; align-items:center;">
-        <button class="icon-btn" type="button" aria-label="模式" onclick="showScreen('screen-energy')"><span class="mat-icon">favorite</span></button>
-        <button class="icon-btn" type="button" aria-label="設定" onclick="showScreen('screen-settings')"><span class="mat-icon">settings</span></button>
-      </div>
+      <button class="icon-btn" type="button" aria-label="手動切換模式" onclick="showScreen('screen-energy')">
+        <span class="mat-icon">settings_heart</span>
+      </button>
     </header>
 
     <main class="page-scroll" style="padding-top:80px">
