@@ -289,7 +289,7 @@ const MODE_DEFINITIONS = {
   option: { command: 'option', label: '模式：選項引導', display: '選項引導' },
   smart: { command: 'natural', label: '模式：自然聊天', display: '自然聊天' },
   natural: { command: 'natural', label: '模式：自然聊天', display: '自然聊天' },
-  auto: { command: 'auto', label: '模式：自動分流', display: 'Auto 自動分流' }
+  auto: { command: 'auto', label: '模式：自動分流', display: '自動分流' }
 };
 
 const OUTPUT_DEFINITIONS = {
@@ -489,7 +489,7 @@ function renderReportOutputs() {
 
   if (fhirResources) {
     const count = Array.isArray(fhirDelivery?.resources) ? fhirDelivery.resources.length : 0;
-    fhirResources.textContent = `FHIR resources：${count}`;
+    fhirResources.textContent = `FHIR 資源數：${count}`;
   }
 
   if (authNote) {
