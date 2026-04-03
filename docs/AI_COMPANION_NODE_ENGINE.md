@@ -23,6 +23,10 @@
 - 醫師摘要、病人審閱稿、FHIR draft 改成按需生成。
 - 白話版完整說明見：
   - [AI_COMPANION_FLOW_PLAIN_LANGUAGE.md](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/docs/AI_COMPANION_FLOW_PLAIN_LANGUAGE.md)
+- 其中已補充：
+  - `Auto` 分流機制
+  - 互動負擔如何影響 `Option / Soulmate / 其他模式`
+  - 六個模式實際偏向條件
 - 手動測試清單見：
   - [AI_COMPANION_TEST_CHECKLIST.md](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/docs/AI_COMPANION_TEST_CHECKLIST.md)
 
