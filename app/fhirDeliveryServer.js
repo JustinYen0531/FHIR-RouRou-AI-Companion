@@ -132,18 +132,18 @@ async function processExportPayload(payload, options = {}) {
 
 async function processChatPayload(payload, options = {}) {
   const provider = inferProvider({
-    provider: options.llmProvider || payload.api_provider || '',
-    baseUrl: options.googleBaseUrl || options.groqBaseUrl || payload.api_base_url || ''
-  }) || (options.googleApiKey || process.env.GOOGLE_API_KEY ? 'google' : 'groq');
+    provider: payload.api_provider || options.llmProvider || '',
+    baseUrl: payload.api_base_url || options.googleBaseUrl || options.groqBaseUrl || ''
+  }) || (payload.api_provider || options.llmProvider || (options.googleApiKey || process.env.GOOGLE_API_KEY ? 'google' : 'groq'));
   const apiKey = (
     provider === 'google'
-      ? (options.googleApiKey || payload.api_key || '')
-      : (options.groqApiKey || payload.api_key || '')
+      ? (payload.api_key || options.googleApiKey || '')
+      : (payload.api_key || options.groqApiKey || '')
   ).trim();
   const apiBaseUrl = (
     provider === 'google'
-      ? (options.googleBaseUrl || payload.api_base_url || DEFAULT_GOOGLE_BASE_URL)
-      : (options.groqBaseUrl || payload.api_base_url || DEFAULT_GROQ_BASE_URL)
+      ? (payload.api_base_url || options.googleBaseUrl || DEFAULT_GOOGLE_BASE_URL)
+      : (payload.api_base_url || options.groqBaseUrl || DEFAULT_GROQ_BASE_URL)
   ).trim();
   const apiModel = String(payload.api_model || options.llmModel || (provider === 'google' ? DEFAULT_GOOGLE_MODEL : '')).trim();
   const user = (payload.user || 'web-demo-user').trim();
@@ -205,18 +205,18 @@ async function processChatPayload(payload, options = {}) {
 
 async function processOutputPayload(payload, options = {}) {
   const provider = inferProvider({
-    provider: options.llmProvider || payload.api_provider || '',
-    baseUrl: options.googleBaseUrl || options.groqBaseUrl || payload.api_base_url || ''
-  }) || (options.googleApiKey || process.env.GOOGLE_API_KEY ? 'google' : 'groq');
+    provider: payload.api_provider || options.llmProvider || '',
+    baseUrl: payload.api_base_url || options.googleBaseUrl || options.groqBaseUrl || ''
+  }) || (payload.api_provider || options.llmProvider || (options.googleApiKey || process.env.GOOGLE_API_KEY ? 'google' : 'groq'));
   const apiKey = (
     provider === 'google'
-      ? (options.googleApiKey || payload.api_key || '')
-      : (options.groqApiKey || payload.api_key || '')
+      ? (payload.api_key || options.googleApiKey || '')
+      : (payload.api_key || options.groqApiKey || '')
   ).trim();
   const apiBaseUrl = (
     provider === 'google'
-      ? (options.googleBaseUrl || payload.api_base_url || DEFAULT_GOOGLE_BASE_URL)
-      : (options.groqBaseUrl || payload.api_base_url || DEFAULT_GROQ_BASE_URL)
+      ? (payload.api_base_url || options.googleBaseUrl || DEFAULT_GOOGLE_BASE_URL)
+      : (payload.api_base_url || options.groqBaseUrl || DEFAULT_GROQ_BASE_URL)
   ).trim();
   const apiModel = String(payload.api_model || options.llmModel || (provider === 'google' ? DEFAULT_GOOGLE_MODEL : '')).trim();
   const user = (payload.user || 'web-demo-user').trim();
