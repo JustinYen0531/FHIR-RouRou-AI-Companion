@@ -257,45 +257,43 @@ function escapeHtml(value) {
 }
 
 function handleInput(input) {
-  const quickReplies = document.getElementById('quick-replies');
-  if (quickReplies) {
-    if (input.value.trim().length > 0) {
-      quickReplies.style.opacity = '0';
-      quickReplies.style.transform = 'translateY(10px)';
-      quickReplies.style.pointerEvents = 'none';
+  const qrc = document.getElementById('quick-replies');
+  const soa = document.getElementById('structured-output-actions');
+  const hide = input.value.trim().length > 0;
+  
+  [qrc, soa].forEach(el => {
+    if (!el) return;
+    if (hide) {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(10px)';
+      el.style.pointerEvents = 'none';
       setTimeout(() => {
-        if (input.value.trim().length > 0) quickReplies.style.display = 'none';
+        if (input.value.trim().length > 0) el.style.display = 'none';
       }, 300);
     } else {
-      quickReplies.style.display = 'flex';
+      el.style.display = 'flex';
       setTimeout(() => {
-        quickReplies.style.opacity = '1';
-        quickReplies.style.transform = 'translateY(0)';
-        quickReplies.style.pointerEvents = 'all';
+        el.style.opacity = '1';
+        el.style.transform = 'translateY(0)';
+        el.style.pointerEvents = 'all';
       }, 50);
     }
-  }
+  });
 }
 
 function setThinkingState(visible, nodeName = '') {
-  const badge = document.getElementById('thinking-node-badge');
-  const label = document.getElementById('node-name');
-  if (badge && label) {
-    if (visible) {
-      badge.style.display = 'inline-flex';
-      label.textContent = nodeName;
-    } else {
-      badge.style.display = 'none';
-    }
+  const label = document.getElementById('thinking-node-label');
+  if (label) {
+    label.textContent = nodeName;
   }
 }
 
 function setTyping(visible) {
-  const indicator = document.querySelector('.typing-indicator');
+  const indicator = document.getElementById('typing-indicator');
   if (indicator) {
     indicator.style.display = visible ? 'flex' : 'none';
+    scrollChatToBottom();
   }
-  if (!visible) setThinkingState(false);
 }
 
 function scrollChatToBottom() {
@@ -528,6 +526,7 @@ function injectOutputActions() {
   const actionWrap = document.createElement('div');
   actionWrap.id = 'structured-output-actions';
   actionWrap.className = 'quick-replies';
+  actionWrap.style.transition = 'all 0.3s ease-in-out';
   actionWrap.innerHTML = `
     <button class="qr-chip" type="button" onclick="requestOutput('clinician_summary')">整理給醫師</button>
     <button class="qr-chip" type="button" onclick="requestOutput('patient_review')">病人審閱稿</button>
