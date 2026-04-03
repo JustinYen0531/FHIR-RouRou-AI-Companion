@@ -957,13 +957,10 @@ function renderShortcutPager() {
   if (!pageOne || !pageTwo) return;
 
   pageOne.innerHTML = `
-    <div class="shortcut-page-shell">
+    <div class="shortcut-page-shell shortcut-page-shell-system">
       <div class="shortcut-page-grid shortcut-page-grid-system">
         ${DEFAULT_SHORTCUT_PAGE_ONE.map((item) => renderShortcutChip(item)).join('')}
       </div>
-      <button class="shortcut-fab" type="button" onclick="openShortcutComposer()" aria-label="新增自訂快捷">
-        <span class="mat-icon">add</span>
-      </button>
     </div>
   `;
 
@@ -974,7 +971,7 @@ function renderShortcutPager() {
           ${APP_STATE.customShortcuts.map((item, index) =>
             `<div class="shortcut-custom-item">
               ${renderShortcutChip(item)}
-              <button class="shortcut-delete-btn" type="button" aria-label="刪除 ${escapeHtml(item.label)}" onclick="removeCustomShortcut(${index})"><span class="mat-icon">close</span></button>
+              <button class="shortcut-delete-btn" type="button" aria-label="刪除 ${escapeHtml(item.label)}" onclick="removeCustomShortcut(${index}, event)"><span class="mat-icon">close</span></button>
             </div>`
           ).join('')}
         </div>
@@ -1071,7 +1068,11 @@ function submitShortcutComposer() {
   }
 }
 
-function removeCustomShortcut(index) {
+function removeCustomShortcut(index, event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
   APP_STATE.customShortcuts.splice(index, 1);
   saveCustomShortcuts();
   renderShortcutPager();

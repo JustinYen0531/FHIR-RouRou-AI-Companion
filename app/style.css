@@ -2258,6 +2258,10 @@ body {
   padding-right: 92px;
 }
 
+.shortcut-page-shell-system {
+  padding-right: 0;
+}
+
 .shortcut-pages {
   display: flex;
   overflow-x: auto;
@@ -2356,6 +2360,7 @@ body {
 
 .shortcut-custom-item {
   position: relative;
+  isolation: isolate;
 }
 
 .shortcut-custom-item .shortcut-chip {
@@ -2374,6 +2379,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 3;
+  cursor: pointer;
 }
 
 .shortcut-delete-btn .mat-icon {
