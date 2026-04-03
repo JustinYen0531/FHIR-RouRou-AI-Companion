@@ -292,6 +292,98 @@ const MODE_DEFINITIONS = {
   auto: { command: 'auto', label: '模式：自動分流', display: '自動分流' }
 };
 
+const MODE_EXPLAINERS = {
+  auto: {
+    subtitle: 'Rou Rou 會先看風險，再看互動負擔，最後決定最適合的回應模式。',
+    markdown: [
+      '### 自動分流會依這個順序判斷',
+      '',
+      '1. **先看你有沒有直接下指令**',
+      '如果你明確輸入 `void`、`mission`、`option`、`natural`、`soulmate`，系統會先尊重你的指定。',
+      '',
+      '2. **再看有沒有高風險內容**',
+      '像是自傷、自殺、立即危險，會直接切到安全回應，不走一般聊天模式。',
+      '',
+      '3. **再看互動負擔是否偏高**',
+      '如果句子很短、很累、很不想說、明顯沒有力氣，會優先偏向比較低負擔的模式。',
+      '',
+      '4. **最後才在幾個模式裡選一個**',
+      '- `樹洞模式`：只想被接住，不想被追問',
+      '- `靈魂陪伴`：需要被理解、被安撫、被陪著',
+      '- `任務引導`：想整理問題、想往下一步走',
+      '- `選項引導`：想減少思考負擔，希望系統給選項',
+      '- `自然聊天`：一般對話，不特別偏向某個心理任務',
+      '',
+      '### Auto 不是每輪都做完整報告',
+      '現在只會先回話並保存重點。真的要產出醫師摘要或 FHIR 草稿時，才會另外生成。'
+    ].join('\n')
+  },
+  void: {
+    subtitle: '適合不想被追問、只想先把感受放下來的時候。',
+    markdown: [
+      '### 樹洞模式會怎麼回應',
+      '',
+      '- 優先接住你的話，不急著分析你',
+      '- 盡量少追問，減少互動壓力',
+      '- 適合「不想說太多，但想被接住」的狀態',
+      '',
+      '如果訊息裡出現高風險內容，仍然會先走安全回應。'
+    ].join('\n')
+  },
+  soul: {
+    subtitle: '適合想被理解、想有人溫柔陪著你的時候。',
+    markdown: [
+      '### 靈魂陪伴會怎麼回應',
+      '',
+      '- 優先共感，先陪你待在當下',
+      '- 回覆會比較柔和、比較像陪伴式對話',
+      '- 不會太快跳到任務或條列建議',
+      '',
+      '如果你明確想整理問題，也可以再切到任務引導。'
+    ].join('\n')
+  },
+  mission: {
+    subtitle: '適合想整理問題、想往下一步推進的時候。',
+    markdown: [
+      '### 任務引導會怎麼回應',
+      '',
+      '- 會幫你把問題拆成比較可處理的步驟',
+      '- 需要時才會啟動較重的整理與摘要邏輯',
+      '- 適合「我想整理給醫生」或「我想有方向」的情況'
+    ].join('\n')
+  },
+  option: {
+    subtitle: '適合覺得很累、不想自己想太多，希望直接看到幾個選項。',
+    markdown: [
+      '### 選項引導會怎麼回應',
+      '',
+      '- 會把回應壓成幾個可直接選的方向',
+      '- 降低思考負擔，不要求你一次說很多',
+      '- 適合「我沒有力氣整理，但想有人幫我縮小範圍」'
+    ].join('\n')
+  },
+  smart: {
+    subtitle: '適合一般聊天，系統不特別把你推向某一種結構。',
+    markdown: [
+      '### 自然聊天會怎麼回應',
+      '',
+      '- 以一般對話為主，不強制做心理任務',
+      '- 會保留重要線索，但不會每輪都生成完整報告',
+      '- 適合單純想聊聊、先讓 Rou Rou 理解近況'
+    ].join('\n')
+  },
+  natural: {
+    subtitle: '適合一般聊天，系統不特別把你推向某一種結構。',
+    markdown: [
+      '### 自然聊天會怎麼回應',
+      '',
+      '- 以一般對話為主，不強制做心理任務',
+      '- 會保留重要線索，但不會每輪都生成完整報告',
+      '- 適合單純想聊聊、先讓 Rou Rou 理解近況'
+    ].join('\n')
+  }
+};
+
 const OUTPUT_DEFINITIONS = {
   clinician_summary: { label: '整理給醫師', instruction: '幫我整理給醫生' },
   patient_analysis: { label: '請分析我', instruction: '請分析我' },
@@ -488,8 +580,33 @@ function renderReportOutputs() {
   }
 
   if (fhirResources) {
-    const count = Array.isArray(fhirDelivery?.resources) ? fhirDelivery.resources.length : 0;
-    fhirResources.textContent = `FHIR 資源數：${count}`;
+    const baseCount = Array.isArray(fhirDelivery?.resources) ? fhirDelivery.resources.length : 0;
+    const profileObs = Array.isArray(fhirDelivery?.therapeutic_memory_observations) ? fhirDelivery.therapeutic_memory_observations.length : 0;
+    const totalCount = baseCount;
+    fhirResources.textContent = `FHIR 資源數：${totalCount}`;
+
+    // 附加心理畫像 Observations 清單（如果有）
+    const profileObsList = document.getElementById('report-fhir-profile-obs');
+    if (profileObsList) {
+      if (profileObs > 0) {
+        const items = fhirDelivery.therapeutic_memory_observations.map(obs =>
+          `<div class="fhir-obs-item">
+            <span class="mat-icon" style="font-size:14px;color:var(--primary)">fiber_manual_record</span>
+            <span><b>${obs.code.text}</b>：${obs.valueString}</span>
+          </div>`
+        ).join('');
+        profileObsList.innerHTML = `
+          <div class="fhir-profile-section">
+            <div class="fhir-profile-title">
+              <span class="mat-icon fill" style="color:var(--primary)">psychology</span>
+              心理畫像 Observations（${profileObs} 筆，AI Companion Therapeutic Memory）
+            </div>
+            ${items}
+          </div>`;
+      } else {
+        profileObsList.innerHTML = '';
+      }
+    }
   }
 
   if (authNote) {
@@ -694,6 +811,8 @@ function updateModeLabels() {
   if (currentModeName) {
     currentModeName.textContent = mode.display;
   }
+
+  renderModeExplainer();
 }
 
 function selectMode(element, modeLabel, modeKey) {
@@ -726,6 +845,31 @@ function selectMode(element, modeLabel, modeKey) {
   }
 
   updateModeLabels();
+}
+
+function renderModeExplainer() {
+  const key = APP_STATE.selectedMode in MODE_EXPLAINERS ? APP_STATE.selectedMode : 'auto';
+  const explainer = MODE_EXPLAINERS[key] || MODE_EXPLAINERS.auto;
+  const subtitle = document.getElementById('mode-explainer-subtitle');
+  const body = document.getElementById('mode-explainer-body');
+
+  if (subtitle) {
+    subtitle.textContent = explainer.subtitle;
+  }
+
+  if (body) {
+    body.innerHTML = renderMessageMarkdown(explainer.markdown);
+  }
+}
+
+function toggleModeExplainer() {
+  const button = document.querySelector('.mode-explainer-toggle');
+  const body = document.getElementById('mode-explainer-body');
+  if (!button || !body) return;
+
+  const expanded = button.getAttribute('aria-expanded') === 'true';
+  button.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+  body.style.display = expanded ? 'none' : 'block';
 }
 
 function startChat() {
@@ -1120,6 +1264,121 @@ function formatOutputPayload(outputType, output) {
   return `${label}\n\n${JSON.stringify(output, null, 2)}`;
 }
 
+/* ══════════════════════════════════════════════
+   LAYER 4: FHIR Therapeutic Memory Integration
+   把心理畫像序列化為 FHIR Observation 資源
+   ══════════════════════════════════════════════ */
+function buildProfileFhirObservations(profile, patientRef) {
+  const ref = patientRef || `Patient/${profile.userId || 'unknown'}`;
+  const now = new Date().toISOString();
+  const entries = [];
+
+  const makeObs = (code, display, valueString, category) => ({
+    resourceType: 'Observation',
+    status: 'final',
+    meta: {
+      profile: ['https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Observation-screening-assessment-twcore']
+    },
+    category: [{
+      coding: [{
+        system: 'http://terminology.hl7.org/CodeSystem/observation-category',
+        code: category || 'social-history',
+        display: category === 'survey' ? 'Survey' : 'Social History'
+      }]
+    }],
+    code: {
+      coding: [{
+        system: 'https://example.org/fhir/CodeSystem/ai-companion-therapeutic-memory',
+        code,
+        display
+      }],
+      text: display
+    },
+    subject: { reference: ref },
+    effectiveDateTime: now,
+    valueString,
+    method: { text: 'AI Companion Therapeutic Memory - auto extracted from conversation' }
+  });
+
+  // 1. 壓力來源
+  if (profile.stressors && profile.stressors.length) {
+    const stressorValue = profile.stressors
+      .map(s => `${s.label}（信心度 ${Math.round((s.confidence || 0.6) * 100)}%）`)
+      .join('；');
+    entries.push(makeObs('psychosocial-stressor', '心理社會壓力來源', stressorValue, 'social-history'));
+  }
+
+  // 2. 情緒觸發點
+  if (profile.triggers && profile.triggers.length) {
+    const triggerValue = profile.triggers
+      .map(t => `「${t.keyword}」→ ${t.reaction || '情緒反應'}（${t.severity || 'medium'}）`)
+      .join('；');
+    entries.push(makeObs('emotional-trigger', '情緒觸發點', triggerValue, 'social-history'));
+  }
+
+  // 3. 溝通偏好
+  if (profile.copingProfile && profile.copingProfile.preferredStyle) {
+    entries.push(makeObs('comms-preference', '溝通偏好風格', profile.copingProfile.preferredStyle, 'social-history'));
+  }
+
+  // 4. 正向紓壓資源
+  if (profile.positiveAnchors && profile.positiveAnchors.length) {
+    const anchorValue = profile.positiveAnchors.map(a => a.label).join('、');
+    entries.push(makeObs('coping-resource', '正向紓壓資源', anchorValue, 'social-history'));
+  }
+
+  // 5. 核心主題
+  if (profile.keyThemes && profile.keyThemes.length) {
+    entries.push(makeObs('clinical-impression', '臨床印象主題', profile.keyThemes.join('；'), 'survey'));
+  }
+
+  // 6. AI 對話次數（可追蹤醫療連續性）
+  if (profile.sessionCount > 0) {
+    entries.push(makeObs('ai-session-count', 'AI 陪伴對話次數', `${profile.sessionCount} 次`, 'social-history'));
+  }
+
+  return entries;
+}
+
+function attachProfileToFhirResult(fhirPayload) {
+  const profile = TherapeuticMemory.get();
+  const totalItems = profile.stressors.length + profile.triggers.length + profile.positiveAnchors.length;
+  if (!totalItems) return fhirPayload; // 沒有記憶資料就不附加
+
+  const profileObservations = buildProfileFhirObservations(profile);
+  if (!profileObservations.length) return fhirPayload;
+
+  // 附加到 fhir_delivery 結果中（前端顯示用）
+  const enhanced = Object.assign({}, fhirPayload);
+  enhanced.therapeutic_memory_observations = profileObservations;
+  enhanced.therapeutic_memory_summary = {
+    stressors: profile.stressors.map(s => s.label),
+    triggers: profile.triggers.map(t => t.keyword),
+    positiveAnchors: profile.positiveAnchors.map(a => a.label),
+    commsPreference: profile.copingProfile.preferredStyle,
+    sessionCount: profile.sessionCount,
+    lastUpdated: profile.lastUpdatedAt
+  };
+  enhanced.narrative_summary = [
+    enhanced.narrative_summary || '',
+    '',
+    '【心理畫像摘要（Therapeutic Memory）】',
+    profile.stressors.length ? `壓力來源：${profile.stressors.map(s => s.label).join('、')}` : '',
+    profile.triggers.length ? `情緒觸發點：${profile.triggers.map(t => `「${t.keyword}」`).join(' ')}` : '',
+    profile.copingProfile.preferredStyle ? `溝通偏好：${profile.copingProfile.preferredStyle}` : '',
+    profile.positiveAnchors.length ? `正向錨點：${profile.positiveAnchors.map(a => a.label).join('、')}` : '',
+    `AI 陪伴次數：${profile.sessionCount} 次`
+  ].filter(Boolean).join('\n');
+
+  const obsCount = (Array.isArray(fhirPayload.resources) ? fhirPayload.resources.length : 0) + profileObservations.length;
+  enhanced.resources = (Array.isArray(fhirPayload.resources) ? fhirPayload.resources : []).concat(
+    profileObservations.map((obs, i) => ({ type: 'Observation', code: obs.code.coding[0].code, display: obs.code.text }))
+  );
+
+  return enhanced;
+}
+
+
 async function requestOutput(outputType, options = {}) {
   if (APP_STATE.isSending) return;
   const definition = OUTPUT_DEFINITIONS[outputType] || { label: outputType, instruction: outputType };
@@ -1150,7 +1409,22 @@ async function requestOutput(outputType, options = {}) {
     }
 
     APP_STATE.conversationId = payload.conversation_id || APP_STATE.conversationId;
-    storeOutputResult(payload);
+
+    // Layer 4：FHIR Draft 附加心理畫像 Observations
+    let finalPayload = payload;
+    if (outputType === 'fhir_delivery') {
+      finalPayload = Object.assign({}, payload);
+      const enhanced = attachProfileToFhirResult(finalPayload.output || finalPayload);
+      if (enhanced !== (finalPayload.output || finalPayload)) {
+        finalPayload.output = enhanced;
+        const profileObs = enhanced.therapeutic_memory_observations || [];
+        if (profileObs.length) {
+          appendSystemNotice(`心理畫像已附加至 FHIR Draft（${profileObs.length} 個 Observation）🧠`);
+        }
+      }
+    }
+
+    storeOutputResult(finalPayload);
     setTyping(false);
     appendSystemNotice(`${definition.label} 已更新，請到 Reports 查看。`);
     if (options.fromChatCommand) {
@@ -1276,6 +1550,7 @@ window.sendQuickReply = sendQuickReply;
 window.sendMessage = sendMessage;
 window.requestOutput = requestOutput;
 window.switchAutoAudience = switchAutoAudience;
+window.toggleModeExplainer = toggleModeExplainer;
 
 function toggleMemoryDrawer() {
   const drawer = document.getElementById('memory-drawer');

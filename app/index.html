@@ -167,6 +167,18 @@
         <span class="mat-icon" style="color:#bbb;margin-left:auto">radio_button_unchecked</span>
       </div>
 
+      <section class="mode-explainer-card">
+        <button class="mode-explainer-toggle" type="button" aria-expanded="false" onclick="toggleModeExplainer()">
+          <span class="mode-explainer-icon">i</span>
+          <div class="mode-explainer-copy">
+            <div class="mode-explainer-title">這個模式會怎麼分流？</div>
+            <div class="mode-explainer-subtitle" id="mode-explainer-subtitle">點開後可以看到 Rou Rou 目前會怎麼判斷回應方式。</div>
+          </div>
+          <span class="mat-icon mode-explainer-chevron">expand_more</span>
+        </button>
+        <div class="mode-explainer-body" id="mode-explainer-body" style="display:none"></div>
+      </section>
+
       <div class="mode-list">
         <div class="mode-card" onclick="selectMode(this,'樹洞模式','void')">
           <div class="mode-icon void-icon"></div>

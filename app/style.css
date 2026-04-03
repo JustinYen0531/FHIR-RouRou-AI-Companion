@@ -2085,6 +2085,104 @@ body {
   padding: 18px;
 }
 
+.mode-explainer-card {
+  margin: -8px 0 18px;
+  background: rgba(255, 255, 255, 0.88);
+  border-radius: 22px;
+  border: 1px solid rgba(168, 180, 187, 0.14);
+  box-shadow: 0 10px 28px rgba(43, 56, 61, 0.07);
+  overflow: hidden;
+}
+
+.mode-explainer-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  text-align: left;
+  color: #22313a;
+}
+
+.mode-explainer-icon {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(198, 235, 213, 0.9);
+  color: #315141;
+  font-size: 14px;
+  font-weight: 800;
+  font-family: 'Manrope', sans-serif;
+}
+
+.mode-explainer-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.mode-explainer-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #203038;
+}
+
+.mode-explainer-subtitle {
+  margin-top: 3px;
+  font-size: 0.82rem;
+  color: #63747d;
+  line-height: 1.5;
+}
+
+.mode-explainer-chevron {
+  color: #6d7d86;
+  transition: transform 0.22s ease;
+}
+
+.mode-explainer-toggle[aria-expanded="true"] .mode-explainer-chevron {
+  transform: rotate(180deg);
+}
+
+.mode-explainer-body {
+  padding: 0 18px 18px;
+  color: #31424a;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  border-top: 1px solid rgba(168, 180, 187, 0.12);
+  background: rgba(246, 250, 254, 0.55);
+}
+
+.mode-explainer-body h3 {
+  margin: 14px 0 8px;
+  font-size: 0.95rem;
+  color: #203038;
+}
+
+.mode-explainer-body p {
+  margin: 0;
+}
+
+.mode-explainer-body p + p,
+.mode-explainer-body ul + p,
+.mode-explainer-body ol + p,
+.mode-explainer-body p + ul,
+.mode-explainer-body p + ol {
+  margin-top: 10px;
+}
+
+.mode-explainer-body ul,
+.mode-explainer-body ol {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.mode-explainer-body li + li {
+  margin-top: 6px;
+}
+
 .insight-title,
 .mode-name,
 .section-heading,
@@ -2916,4 +3014,37 @@ body {
 /* Report tabs 三欄自適應 */
 .report-tabs { display: flex; gap: 4px; }
 .report-tab { flex: 1; min-width: 0; font-size: 11px; }
+
+/* FHIR Therapeutic Memory Observations */
+.fhir-profile-section {
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, rgba(198,235,213,0.15), rgba(200,231,251,0.1));
+  border-radius: 14px;
+  border: 1px solid rgba(68,102,85,0.12);
+}
+.fhir-profile-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 10px;
+}
+.fhir-obs-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 12px;
+  color: var(--on-surface);
+  border-bottom: 1px solid rgba(68,102,85,0.06);
+  line-height: 1.5;
+}
+.fhir-obs-item:last-child { border-bottom: none; }
+.fhir-obs-item b { color: var(--on-surface); }
+
 
