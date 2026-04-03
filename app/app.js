@@ -1,5 +1,8 @@
 const DEFAULT_GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
+const DEFAULT_GOOGLE_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_GROQ_API_KEY = '';
+const DEFAULT_GOOGLE_API_KEY = '';
+const DEFAULT_PROVIDER = localStorage.getItem('rourou.aiProvider') || 'google';
 
 const APP_STATE = {
   currentScreen: 'screen-chat',
@@ -156,28 +159,47 @@ function formatChatError(payload = {}) {
     return 'Groq 超時了，這次等待太久沒有回來。通常代表模型沒有回應或後端執行過慢。';
   }
 
-  if (message.includes('Missing Groq API key')) {
-    return '目前沒有可用的 Groq API key，請到 Settings 確認聊天引擎設定。';
+  if (payload.code === 'RESOURCE_EXHAUSTED' || payload.status === 429) {
+    return `模型供應商目前拒絕請求，通常是配額或速率限制。\n\n原始訊息：${message}`;
+  }
+
+  if (message.includes('Missing Groq API key') || message.includes('Missing Google API key')) {
+    return '目前沒有可用的模型 API key，請到 Settings 確認聊天引擎設定。';
   }
 
   return `目前無法連接聊天流：${message}`;
 }
 
 function getRuntimeConfig() {
+  const provider = localStorage.getItem('rourou.aiProvider') || DEFAULT_PROVIDER;
   return {
-    apiBaseUrl: localStorage.getItem('rourou.groqBaseUrl') || DEFAULT_GROQ_BASE_URL,
-    apiKey: localStorage.getItem('rourou.groqApiKey') || DEFAULT_GROQ_API_KEY,
+    provider,
+    apiBaseUrl:
+      localStorage.getItem('rourou.aiBaseUrl') ||
+      (provider === 'google' ? DEFAULT_GOOGLE_BASE_URL : DEFAULT_GROQ_BASE_URL),
+    apiKey:
+      localStorage.getItem('rourou.aiApiKey') ||
+      (provider === 'google' ? DEFAULT_GOOGLE_API_KEY : DEFAULT_GROQ_API_KEY),
+    model: localStorage.getItem('rourou.aiModel') || (provider === 'google' ? 'gemini-2.0-flash' : 'llama-3.1-8b-instant'),
     userId: APP_STATE.userId
   };
 }
 
 function initializeRuntimeConfig() {
-  if (!localStorage.getItem('rourou.groqBaseUrl')) {
-    localStorage.setItem('rourou.groqBaseUrl', DEFAULT_GROQ_BASE_URL);
+  if (!localStorage.getItem('rourou.aiProvider')) {
+    localStorage.setItem('rourou.aiProvider', DEFAULT_PROVIDER);
   }
 
-  if (!localStorage.getItem('rourou.groqApiKey')) {
-    localStorage.setItem('rourou.groqApiKey', DEFAULT_GROQ_API_KEY);
+  if (!localStorage.getItem('rourou.aiBaseUrl')) {
+    localStorage.setItem('rourou.aiBaseUrl', DEFAULT_PROVIDER === 'google' ? DEFAULT_GOOGLE_BASE_URL : DEFAULT_GROQ_BASE_URL);
+  }
+
+  if (!localStorage.getItem('rourou.aiApiKey')) {
+    localStorage.setItem('rourou.aiApiKey', DEFAULT_PROVIDER === 'google' ? DEFAULT_GOOGLE_API_KEY : DEFAULT_GROQ_API_KEY);
+  }
+
+  if (!localStorage.getItem('rourou.aiModel')) {
+    localStorage.setItem('rourou.aiModel', DEFAULT_PROVIDER === 'google' ? 'gemini-2.0-flash' : 'llama-3.1-8b-instant');
   }
 }
 
@@ -191,14 +213,16 @@ async function ensureModeSynced() {
   const response = await fetch('/api/chat/message', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      message: mode.command,
-      conversation_id: APP_STATE.conversationId,
-      user: config.userId,
-      api_key: config.apiKey,
-      api_base_url: config.apiBaseUrl,
-      hide_response: true
-    })
+      body: JSON.stringify({
+        message: mode.command,
+        conversation_id: APP_STATE.conversationId,
+        user: config.userId,
+        api_provider: config.provider,
+        api_key: config.apiKey,
+        api_base_url: config.apiBaseUrl,
+        api_model: config.model,
+        hide_response: true
+      })
   });
 
   const payload = await response.json();
@@ -233,8 +257,10 @@ async function sendMessage() {
         message,
         conversation_id: APP_STATE.conversationId,
         user: config.userId,
+        api_provider: config.provider,
         api_key: config.apiKey,
-        api_base_url: config.apiBaseUrl
+        api_base_url: config.apiBaseUrl,
+        api_model: config.model
       })
     });
 
@@ -272,13 +298,18 @@ function injectRuntimeSettings() {
           <span>聊天流連線設定</span>
         </div>
         <div style="display:flex;flex-direction:column;gap:12px">
-          <input id="groq-base-url" type="text" placeholder="https://api.groq.com/openai/v1" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
-          <input id="groq-api-key" type="password" placeholder="gsk_..." style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
-          <input id="groq-user-id" type="text" placeholder="user id" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
+          <select id="ai-provider" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7">
+            <option value="google">Google Gemini</option>
+            <option value="groq">Groq</option>
+          </select>
+          <input id="ai-base-url" type="text" placeholder="https://generativelanguage.googleapis.com/v1beta" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
+          <input id="ai-model" type="text" placeholder="gemini-2.0-flash" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
+          <input id="ai-api-key" type="password" placeholder="AIza... / gsk_..." style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
+          <input id="ai-user-id" type="text" placeholder="user id" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
           <button id="save-ai-engine-config" class="cta-primary with-icon" type="button">儲存聊天引擎設定</button>
         </div>
         <p style="font-size:12px;color:#64727a;line-height:1.6;margin-top:12px">
-          這裡設定 Groq base URL、API key 與 user id。前端會透過本地 Node proxy 轉發到程式版 AI Companion 引擎。
+          這裡設定模型 provider、base URL、model、API key 與 user id。前端會透過本地 Node proxy 轉發到程式版 AI Companion 引擎。
         </p>
       </div>
     </div>
@@ -287,14 +318,25 @@ function injectRuntimeSettings() {
   settingsMain.insertBefore(wrapper, settingsMain.firstChild);
 
   const config = getRuntimeConfig();
-  document.getElementById('groq-base-url').value = config.apiBaseUrl;
-  document.getElementById('groq-api-key').value = config.apiKey;
-  document.getElementById('groq-user-id').value = config.userId;
+  document.getElementById('ai-provider').value = config.provider;
+  document.getElementById('ai-base-url').value = config.apiBaseUrl;
+  document.getElementById('ai-model').value = config.model;
+  document.getElementById('ai-api-key').value = config.apiKey;
+  document.getElementById('ai-user-id').value = config.userId;
+
+  document.getElementById('ai-provider').addEventListener('change', (event) => {
+    const provider = event.target.value;
+    document.getElementById('ai-base-url').value = provider === 'google' ? DEFAULT_GOOGLE_BASE_URL : DEFAULT_GROQ_BASE_URL;
+    document.getElementById('ai-model').value = provider === 'google' ? 'gemini-2.0-flash' : 'llama-3.1-8b-instant';
+  });
 
   document.getElementById('save-ai-engine-config').addEventListener('click', () => {
-    localStorage.setItem('rourou.groqBaseUrl', document.getElementById('groq-base-url').value.trim() || DEFAULT_GROQ_BASE_URL);
-    localStorage.setItem('rourou.groqApiKey', document.getElementById('groq-api-key').value.trim() || DEFAULT_GROQ_API_KEY);
-    localStorage.setItem('rourou.userId', document.getElementById('groq-user-id').value.trim() || APP_STATE.userId);
+    const provider = document.getElementById('ai-provider').value.trim() || DEFAULT_PROVIDER;
+    localStorage.setItem('rourou.aiProvider', provider);
+    localStorage.setItem('rourou.aiBaseUrl', document.getElementById('ai-base-url').value.trim() || (provider === 'google' ? DEFAULT_GOOGLE_BASE_URL : DEFAULT_GROQ_BASE_URL));
+    localStorage.setItem('rourou.aiModel', document.getElementById('ai-model').value.trim() || (provider === 'google' ? 'gemini-2.0-flash' : 'llama-3.1-8b-instant'));
+    localStorage.setItem('rourou.aiApiKey', document.getElementById('ai-api-key').value.trim() || '');
+    localStorage.setItem('rourou.userId', document.getElementById('ai-user-id').value.trim() || APP_STATE.userId);
     APP_STATE.userId = localStorage.getItem('rourou.userId') || APP_STATE.userId;
     APP_STATE.syncedMode = '';
     appendSystemNotice('聊天引擎設定已更新。之後送出的訊息會走 Node 程式版 AI Companion。');
@@ -306,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
   showScreen('screen-chat');
   updateModeLabels();
   injectRuntimeSettings();
-  appendSystemNotice('前端目前走 Node 程式版 AI Companion + Groq。設定完成後可直接從聊天畫面測試。');
+  appendSystemNotice('前端目前走 Node 程式版 AI Companion。設定 Google Gemini 或 Groq 後可直接從聊天畫面測試。');
 });
 
 window.showScreen = showScreen;

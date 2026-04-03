@@ -61,7 +61,8 @@ async function testChatProxyDelivery() {
     {
       message: '最近很累',
       user: 'demo-user',
-      api_key: 'groq-secret'
+      api_key: 'provider-secret',
+      api_provider: 'google'
     },
     { engine: fakeEngine }
   );
@@ -76,7 +77,8 @@ async function testChatProxyDelivery() {
 async function testChatProxyMissingApiKey() {
   const result = await processChatPayload({ message: 'hello', user: 'demo-user' }, {});
   assert.strictEqual(result.statusCode, 500);
-  assert.ok(result.body.error.includes('Missing Groq API key'));
+  assert.ok(result.body.error.includes('Missing'));
+  assert.ok(result.body.error.includes('API key'));
 }
 
 async function run() {

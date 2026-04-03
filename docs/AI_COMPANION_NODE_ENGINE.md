@@ -14,7 +14,7 @@
 ## Runtime
 - 主 server: [app/fhirDeliveryServer.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/fhirDeliveryServer.js)
 - 主引擎: [app/aiCompanionEngine.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/aiCompanionEngine.js)
-- 模型 client: [app/groqChatClient.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/groqChatClient.js)
+- 模型 client: [app/llmChatClient.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/llmChatClient.js)
 
 ## State Schema
 - 來源: [FLOWISE_STATE_SCHEMA.json](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/flowise/FLOWISE_STATE_SCHEMA.json)
@@ -71,8 +71,10 @@
     - `message`
     - `conversation_id`
     - `user`
+    - `api_provider`
     - `api_key`
     - `api_base_url`
+    - `api_model`
   - output:
     - `conversation_id`
     - `answer`
@@ -85,8 +87,12 @@
 - [fhirBundleBuilder.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/fhirBundleBuilder.js) 不需要知道 Dify/Flowise 是否存在。
 
 ## Environment Variables
+- `LLM_PROVIDER`
+- `GOOGLE_API_KEY`
+- `GOOGLE_API_BASE_URL`
 - `GROQ_API_KEY`
 - `GROQ_API_BASE_URL`
+- `LLM_MODEL`
 - `FHIR_SERVER_URL`
 
 ## Tests

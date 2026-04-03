@@ -3,7 +3,12 @@ const fs = require('fs');
 const path = require('path');
 const { buildSessionExportBundle } = require('./fhirBundleBuilder');
 const { AICompanionEngine } = require('./aiCompanionEngine');
-const { DEFAULT_GROQ_BASE_URL } = require('./groqChatClient');
+const {
+  DEFAULT_GROQ_BASE_URL,
+  DEFAULT_GOOGLE_BASE_URL,
+  DEFAULT_GOOGLE_MODEL,
+  inferProvider
+} = require('./llmChatClient');
 
 const APP_DIR = __dirname;
 const STATIC_FILES = {
@@ -126,8 +131,21 @@ async function processExportPayload(payload, options = {}) {
 }
 
 async function processChatPayload(payload, options = {}) {
-  const apiKey = (options.groqApiKey || payload.api_key || '').trim();
-  const apiBaseUrl = (options.groqBaseUrl || payload.api_base_url || DEFAULT_GROQ_BASE_URL).trim();
+  const provider = inferProvider({
+    provider: options.llmProvider || payload.api_provider || '',
+    baseUrl: options.googleBaseUrl || options.groqBaseUrl || payload.api_base_url || ''
+  }) || (options.googleApiKey || process.env.GOOGLE_API_KEY ? 'google' : 'groq');
+  const apiKey = (
+    provider === 'google'
+      ? (options.googleApiKey || payload.api_key || '')
+      : (options.groqApiKey || payload.api_key || '')
+  ).trim();
+  const apiBaseUrl = (
+    provider === 'google'
+      ? (options.googleBaseUrl || payload.api_base_url || DEFAULT_GOOGLE_BASE_URL)
+      : (options.groqBaseUrl || payload.api_base_url || DEFAULT_GROQ_BASE_URL)
+  ).trim();
+  const apiModel = String(payload.api_model || options.llmModel || (provider === 'google' ? DEFAULT_GOOGLE_MODEL : '')).trim();
   const user = (payload.user || 'web-demo-user').trim();
   const message = (payload.message || '').trim();
 
@@ -140,8 +158,10 @@ async function processChatPayload(payload, options = {}) {
 
   try {
     const engine = options.engine || new AICompanionEngine({
+      provider,
       apiKey,
       baseUrl: apiBaseUrl,
+      model: apiModel || undefined,
       fetchImpl: options.fetchImpl,
       sessions: options.sessions
     });
@@ -162,7 +182,10 @@ async function processChatPayload(payload, options = {}) {
         conversation_id: result.conversation_id,
         answer: payload.hide_response ? '' : result.answer,
         message_id: result.message_id,
-        metadata: result.metadata,
+        metadata: Object.assign({}, result.metadata, {
+          provider,
+          model: apiModel || (provider === 'google' ? DEFAULT_GOOGLE_MODEL : undefined)
+        }),
         session_export: result.session_export || null
       }
     };
@@ -181,9 +204,15 @@ async function processChatPayload(payload, options = {}) {
 
 function createServer(options = {}) {
   const sharedSessions = options.sessions || new Map();
+  const sharedProvider = options.llmProvider || (options.googleApiKey || process.env.GOOGLE_API_KEY ? 'google' : 'groq');
   const sharedEngine = options.engine || new AICompanionEngine({
-    apiKey: options.groqApiKey || '',
-    baseUrl: options.groqBaseUrl || DEFAULT_GROQ_BASE_URL,
+    provider: sharedProvider,
+    apiKey: sharedProvider === 'google' ? (options.googleApiKey || '') : (options.groqApiKey || ''),
+    baseUrl:
+      sharedProvider === 'google'
+        ? (options.googleBaseUrl || DEFAULT_GOOGLE_BASE_URL)
+        : (options.groqBaseUrl || DEFAULT_GROQ_BASE_URL),
+    model: options.llmModel || (sharedProvider === 'google' ? DEFAULT_GOOGLE_MODEL : undefined),
     fetchImpl: options.fetchImpl,
     sessions: sharedSessions
   });
@@ -206,8 +235,10 @@ function createServer(options = {}) {
     if (req.method === 'GET' && req.url === '/health') {
       sendJson(res, 200, {
         ok: true,
+        ai_engine: 'node',
+        provider: sharedProvider,
         groq_configured: Boolean(options.groqApiKey || process.env.GROQ_API_KEY),
-        ai_engine: 'node'
+        google_configured: Boolean(options.googleApiKey || process.env.GOOGLE_API_KEY)
       });
       return;
     }
@@ -244,8 +275,12 @@ if (require.main === module) {
   const port = Number(process.env.PORT || 8787);
   const fhirBaseUrl = process.env.FHIR_SERVER_URL || '';
   const groqApiKey = process.env.GROQ_API_KEY || '';
+  const googleApiKey = process.env.GOOGLE_API_KEY || '';
   const groqBaseUrl = process.env.GROQ_API_BASE_URL || DEFAULT_GROQ_BASE_URL;
-  const server = createServer({ fhirBaseUrl, groqApiKey, groqBaseUrl });
+  const googleBaseUrl = process.env.GOOGLE_API_BASE_URL || DEFAULT_GOOGLE_BASE_URL;
+  const llmProvider = process.env.LLM_PROVIDER || (googleApiKey ? 'google' : 'groq');
+  const llmModel = process.env.LLM_MODEL || (llmProvider === 'google' ? DEFAULT_GOOGLE_MODEL : '');
+  const server = createServer({ fhirBaseUrl, groqApiKey, groqBaseUrl, googleApiKey, googleBaseUrl, llmProvider, llmModel });
   server.listen(port, () => {
     console.log('FHIR delivery server listening on http://localhost:' + port);
     console.log('Static app available at http://localhost:' + port + '/');
@@ -254,10 +289,12 @@ if (require.main === module) {
     } else {
       console.log('FHIR delivery server is running in dry-run mode.');
     }
-    if (groqApiKey) {
+    if (llmProvider === 'google' && googleApiKey) {
+      console.log('AI companion engine configured for Google Gemini at', googleBaseUrl);
+    } else if (groqApiKey) {
       console.log('AI companion engine configured for Groq at', groqBaseUrl);
     } else {
-      console.log('AI companion engine is waiting for GROQ_API_KEY or a client-provided api_key.');
+      console.log('AI companion engine is waiting for GOOGLE_API_KEY / GROQ_API_KEY or a client-provided api_key.');
     }
   });
 }

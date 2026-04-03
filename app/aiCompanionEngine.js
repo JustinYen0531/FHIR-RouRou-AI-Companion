@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { completeWithGroq, DEFAULT_GROQ_MODEL } = require('./groqChatClient');
+const { completeChat, DEFAULT_GROQ_MODEL, DEFAULT_GOOGLE_MODEL } = require('./llmChatClient');
 
 const ROOT_DIR = path.join(__dirname, '..');
 const STATE_SCHEMA_PATH = path.join(ROOT_DIR, 'flowise', 'FLOWISE_STATE_SCHEMA.json');
@@ -277,8 +277,9 @@ function createPromptRegistry() {
 
 class AICompanionEngine {
   constructor(options = {}) {
-    this.modelClient = options.modelClient || completeWithGroq;
-    this.model = options.model || DEFAULT_GROQ_MODEL;
+    this.modelClient = options.modelClient || completeChat;
+    this.provider = options.provider || '';
+    this.model = options.model || (this.provider === 'google' ? DEFAULT_GOOGLE_MODEL : DEFAULT_GROQ_MODEL);
     this.baseUrl = options.baseUrl;
     this.apiKey = options.apiKey || '';
     this.fetchImpl = options.fetchImpl;
@@ -674,6 +675,7 @@ class AICompanionEngine {
         temperature: 0.2
       },
       {
+        provider: options.provider || this.provider,
         apiKey: options.apiKey || this.apiKey,
         baseUrl: options.baseUrl || this.baseUrl,
         model: options.model || this.model,
@@ -709,6 +711,7 @@ class AICompanionEngine {
         temperature: 0
       },
       {
+        provider: options.provider || this.provider,
         apiKey: options.apiKey || this.apiKey,
         baseUrl: options.baseUrl || this.baseUrl,
         model: options.model || this.model,
