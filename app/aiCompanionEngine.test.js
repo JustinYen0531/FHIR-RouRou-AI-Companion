@@ -154,6 +154,16 @@ async function testHighRiskRouting() {
   assert.ok(result.answer.includes('請立刻聯絡'));
 }
 
+async function testSelfHarmStatementRoutesToSafety() {
+  const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
+  const result = await engine.handleMessage({ message: '我割了自己的手臂', user: 'demo', conversation_id: 'conv-2b' });
+  assert.strictEqual(result.state.active_mode, 'safety');
+  assert.strictEqual(result.state.risk_flag, 'true');
+  assert.strictEqual(result.metadata.route, 'safety');
+  assert.strictEqual(result.metadata.risk_flag, 'true');
+  assert.ok(result.answer.includes('請立刻聯絡') || result.answer.includes('立即'));
+}
+
 async function testNaturalFlowBuildsSessionExport() {
   const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
   const result = await engine.handleMessage({ message: '最近很累', user: 'demo', conversation_id: 'conv-3' });
@@ -181,6 +191,7 @@ async function testOutputCommandBuildsStructuredDrafts() {
 async function run() {
   await testCommandRouting();
   await testHighRiskRouting();
+  await testSelfHarmStatementRoutesToSafety();
   await testNaturalFlowBuildsSessionExport();
   await testOutputCommandBuildsStructuredDrafts();
   console.log('AI companion engine tests passed.');
