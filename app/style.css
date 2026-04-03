@@ -2556,3 +2556,25 @@ body {
   border-color: var(--primary);
   transform: translateY(-2px);
 }
+
+
+/* THINKING NODE BADGE STYLES */
+.thinking-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  margin-bottom: 10px;
+  animation: fadeInUp 0.4s ease-out;
+  border: 1px solid rgba(68, 102, 85, 0.1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+}
+
+.thinking-node span#node-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 0.02em;
+}

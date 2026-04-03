@@ -256,11 +256,46 @@ function escapeHtml(value) {
   return div.innerHTML;
 }
 
+function handleInput(input) {
+  const quickReplies = document.getElementById('quick-replies');
+  if (quickReplies) {
+    if (input.value.trim().length > 0) {
+      quickReplies.style.opacity = '0';
+      quickReplies.style.transform = 'translateY(10px)';
+      quickReplies.style.pointerEvents = 'none';
+      setTimeout(() => {
+        if (input.value.trim().length > 0) quickReplies.style.display = 'none';
+      }, 300);
+    } else {
+      quickReplies.style.display = 'flex';
+      setTimeout(() => {
+        quickReplies.style.opacity = '1';
+        quickReplies.style.transform = 'translateY(0)';
+        quickReplies.style.pointerEvents = 'all';
+      }, 50);
+    }
+  }
+}
+
+function setThinkingState(visible, nodeName = '') {
+  const badge = document.getElementById('thinking-node-badge');
+  const label = document.getElementById('node-name');
+  if (badge && label) {
+    if (visible) {
+      badge.style.display = 'inline-flex';
+      label.textContent = nodeName;
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+}
+
 function setTyping(visible) {
   const indicator = document.querySelector('.typing-indicator');
   if (indicator) {
     indicator.style.display = visible ? 'flex' : 'none';
   }
+  if (!visible) setThinkingState(false);
 }
 
 function scrollChatToBottom() {
@@ -400,11 +435,18 @@ async function sendMessage() {
   APP_STATE.isSending = true;
   appendMessage('user', message);
   input.value = '';
+  handleInput(input); // To restore quick replies UI state if needed
   setTyping(true);
 
   try {
+    setThinkingState(true, '正在分析對話脈絡...');
+    await new Promise(r => setTimeout(r, 1200));
+    setThinkingState(true, '同步臨床歷史紀錄...');
+    await new Promise(r => setTimeout(r, 800));
+
     await ensureModeSynced();
 
+    setThinkingState(true, '正在生成暖心回覆...');
     const config = getRuntimeConfig();
     const response = await fetch('/api/chat/message', {
       method: 'POST',
@@ -571,6 +613,7 @@ window.showScreen = showScreen;
 window.switchReportTab = switchReportTab;
 window.toggleMoodTag = toggleMoodTag;
 window.setPHQ = setPHQ;
+window.handleInput = handleInput;
 window.selectMode = selectMode;
 window.startChat = startChat;
 window.sendQuickReply = sendQuickReply;

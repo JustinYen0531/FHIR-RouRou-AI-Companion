@@ -64,15 +64,19 @@
     </main>
 
     <section class="input-section glass">
-      <div class="quick-replies" id="quick-replies">
+      <div class="quick-replies" id="quick-replies" style="transition: all 0.3s ease-in-out;">
         <button class="qr-chip" onclick="sendQuickReply('有一點累')">有一點累</button>
         <button class="qr-chip" onclick="sendQuickReply('想聽故事')">想聽故事</button>
         <button class="qr-chip" onclick="sendQuickReply('不想說話')">不想說話</button>
       </div>
+      <div id="thinking-node-badge" class="thinking-node glass" style="display:none;">
+        <span class="pulse-dot"></span>
+        <span id="node-name">正在分析對話脈絡...</span>
+      </div>
       <div class="input-row">
         <div class="text-input-wrap">
           <span class="mat-icon" style="color:#a0aab0">sentiment_satisfied</span>
-          <input id="chat-input" type="text" placeholder="跟 Rou Rou 說說心事..." onkeydown="if(event.key==='Enter')sendMessage()"/>
+          <input id="chat-input" type="text" placeholder="跟 Rou Rou 說說心事..." oninput="handleInput(this)" onkeydown="if(event.key==='Enter')sendMessage()"/>
           <button class="icon-btn" style="color:#395a49"><span class="mat-icon">mic</span></button>
         </div>
         <button class="send-btn" onclick="sendMessage()">
