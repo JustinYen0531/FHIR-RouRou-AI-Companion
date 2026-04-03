@@ -10,7 +10,9 @@ const APP_STATE = {
   userId: localStorage.getItem('rourou.userId') || `user-${crypto.randomUUID()}`,
   selectedMode: localStorage.getItem('rourou.selectedMode') || 'natural',
   syncedMode: '',
-  isSending: false
+  isSending: false,
+  currentReportTab: 'auto',
+  moodPoints: [100, 100, 100, 100, 100, 100, 100] // Initial "Neutral" state (0-200)
 };
 
 const MODE_DEFINITIONS = {
@@ -40,6 +42,135 @@ function showScreen(screenId) {
   });
 
   APP_STATE.currentScreen = screenId;
+  
+  if (screenId === 'screen-report') {
+    renderMoodChart();
+  }
+}
+
+function switchReportTab(tabId) {
+  APP_STATE.currentReportTab = tabId;
+  
+  document.querySelectorAll('.report-tab').forEach(btn => {
+    const isActive = btn.getAttribute('onclick').includes(tabId);
+    btn.classList.toggle('active', isActive);
+    
+    // Toggle mat-icon fill
+    const icon = btn.querySelector('.mat-icon');
+    if (icon) {
+      if (isActive) icon.classList.add('fill');
+      else icon.classList.remove('fill');
+    }
+  });
+
+  document.querySelectorAll('.report-tab-content').forEach(content => {
+    content.classList.toggle('active', content.id === `report-tab-${tabId}`);
+  });
+
+  if (tabId === 'manual') {
+    setTimeout(renderMoodChart, 50); // Small delay to ensure container is visible for sizing
+  }
+}
+
+const MOOD_LABELS = {
+  0: '非常開心',
+  50: '愉悅',
+  100: '平穩',
+  150: '低落',
+  200: '極端沮喪'
+};
+
+function getMoodLabel(y) {
+  if (y < 40) return '非常開心';
+  if (y < 80) return '愉悅';
+  if (y < 120) return '平穩';
+  if (y < 160) return '低落';
+  return '極端沮喪';
+}
+
+function updateMoodDisplay(y) {
+  const labelEl = document.getElementById('current-mood-val');
+  if (labelEl) {
+    labelEl.textContent = getMoodLabel(y);
+  }
+}
+
+function renderMoodChart() {
+  const svg = document.getElementById('mood-curve-svg');
+  if (!svg) return;
+  
+  const gPoints = document.getElementById('mood-points');
+  const pathLine = document.getElementById('mood-path-line');
+  const pathBg = document.getElementById('mood-path-bg');
+  
+  const width = 350;
+  const height = 200;
+  const points = APP_STATE.moodPoints;
+  const stepX = width / (points.length - 1);
+  
+  // Clear old points
+  gPoints.innerHTML = '';
+  
+  let d = `M 0,${points[0]}`;
+  
+  points.forEach((y, i) => {
+    const x = i * stepX;
+    
+    // Curve calculation (simple bezier)
+    if (i > 0) {
+      const prevX = (i - 1) * stepX;
+      const prevY = points[i-1];
+      const cp1x = prevX + (x - prevX) / 2;
+      d += ` C ${cp1x},${prevY} ${cp1x},${y} ${x},${y}`;
+    }
+    
+    // Draw point
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", x);
+    circle.setAttribute("cy", y);
+    circle.setAttribute("r", "6");
+    circle.setAttribute("fill", "white");
+    circle.setAttribute("stroke", "var(--primary)");
+    circle.setAttribute("stroke-width", "3");
+    circle.setAttribute("class", "mood-point");
+    
+    // Interaction
+    circle.onmousedown = (e) => startDrag(e, i);
+    circle.ontouchstart = (e) => startDrag(e, i);
+    
+    gPoints.appendChild(circle);
+  });
+  
+  pathLine.setAttribute("d", d);
+  pathBg.setAttribute("d", d + ` L ${width},${height} L 0,${height} Z`);
+  
+  function startDrag(e, index) {
+    e.preventDefault();
+    const moveHandler = (moveEvent) => {
+      const rect = svg.getBoundingClientRect();
+      const clientY = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
+      let newY = ((clientY - rect.top) / rect.height) * height;
+      
+      // Constraints
+      newY = Math.max(10, Math.min(190, newY));
+      
+      APP_STATE.moodPoints[index] = newY;
+      renderMoodChart();
+      updateMoodDisplay(newY);
+    };
+    
+    const upHandler = () => {
+      window.removeEventListener('mousemove', moveHandler);
+      window.removeEventListener('mouseup', upHandler);
+      window.removeEventListener('touchmove', moveHandler);
+      window.removeEventListener('touchend', upHandler);
+    };
+    
+    window.addEventListener('mousemove', moveHandler);
+    window.addEventListener('mouseup', upHandler);
+    window.addEventListener('touchmove', moveHandler);
+    window.addEventListener('touchend', upHandler);
+  }
 }
 
 function updateModeLabels() {
@@ -418,6 +549,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 window.showScreen = showScreen;
+window.switchReportTab = switchReportTab;
 window.selectMode = selectMode;
 window.startChat = startChat;
 window.sendQuickReply = sendQuickReply;

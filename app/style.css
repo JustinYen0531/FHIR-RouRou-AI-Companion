@@ -2376,3 +2376,110 @@ body {
     bottom: 8px;
   }
 }
+
+
+/* ═══════════════════════════════════════════
+   REPORT TABS & INTERACTIVE CHART
+   ═══════════════════════════════════════════ */
+
+.report-tabs {
+  display: flex;
+  padding: 4px;
+  background: rgba(168, 180, 187, 0.1);
+  border-radius: 16px;
+  margin: 16px 0 24px;
+}
+
+.report-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #6d7d86;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.report-tab.active {
+  background: white;
+  color: var(--primary);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.report-tab-content {
+  display: none;
+}
+
+.report-tab-content.active {
+  display: block;
+}
+
+.interactive-mood-chart {
+  position: relative;
+  padding: 20px 0;
+  display: flex;
+  gap: 12px;
+}
+
+.mood-chart-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 700;
+  color: #a0aab0;
+  padding: 10px 0 30px;
+  text-align: right;
+  width: 40px;
+}
+
+.mood-chart-canvas {
+  flex: 1;
+  position: relative;
+}
+
+#mood-curve-svg {
+  width: 100%;
+  height: 200px;
+  overflow: visible;
+  cursor: crosshair;
+}
+
+.days-label {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  margin-top: 4px;
+}
+
+.days-label span {
+  font-size: 11px;
+  font-weight: 700;
+  color: #a0aab0;
+  width: 24px;
+  text-align: center;
+}
+
+.mood-point {
+  cursor: pointer;
+  transition: r 0.2s ease, fill 0.2s ease;
+}
+
+.mood-point:hover {
+  r: 8;
+}
+
+.mood-value-display {
+  text-align: center;
+  margin: 16px 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--primary);
+  background: var(--primary-container);
+  padding: 12px;
+  border-radius: 14px;
+}
