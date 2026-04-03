@@ -264,6 +264,7 @@ const APP_STATE = {
   conversationId: '',
   userId: localStorage.getItem('rourou.userId') || `user-${crypto.randomUUID()}`,
   selectedMode: localStorage.getItem('rourou.selectedMode') || 'natural',
+  runtimeMode: '',
   syncedMode: '',
   isSending: false,
   currentReportTab: 'auto',
@@ -302,6 +303,18 @@ const MODE_DEFINITIONS = {
   smart: { command: 'natural', label: '模式：自然聊天', display: '自然聊天' },
   natural: { command: 'natural', label: '模式：自然聊天', display: '自然聊天' },
   auto: { command: 'auto', label: '模式：自動分流', display: '自動分流' }
+};
+
+const ENGINE_MODE_DISPLAY = {
+  auto: { label: '模式：自動分流', display: '自動分流' },
+  safety: { label: '模式：安全模式', display: '安全模式' },
+  followup: { label: '模式：追問整理', display: '追問整理' },
+  mode_1_void: { label: '模式：樹洞模式', display: '樹洞模式' },
+  mode_2_soulmate: { label: '模式：靈魂陪伴', display: '靈魂陪伴' },
+  mode_3_mission: { label: '模式：任務引導', display: '任務引導' },
+  mode_4_option: { label: '模式：選項引導', display: '選項引導' },
+  mode_5_natural: { label: '模式：自然聊天', display: '自然聊天' },
+  mode_6_clarify: { label: '模式：釐清補問', display: '釐清補問' }
 };
 
 const MODE_EXPLAINERS = {
@@ -632,8 +645,10 @@ function storeOutputResult(payload) {
   APP_STATE.reportOutputs[payload.output_type] = payload.output || null;
   APP_STATE.reportOutputs.session_export = payload.session_export || APP_STATE.reportOutputs.session_export;
   APP_STATE.lastChatMetadata = payload.metadata || APP_STATE.lastChatMetadata;
+  APP_STATE.runtimeMode = payload.metadata?.active_mode || APP_STATE.runtimeMode;
   APP_STATE.reportOutputs.updatedAt = formatTimeLabel(new Date());
   renderReportOutputs();
+  updateModeLabels();
 }
 
 function showScreen(screenId) {
@@ -817,7 +832,10 @@ function setPHQ(questionIndex, score) {
 }
 
 function updateModeLabels() {
-  const mode = MODE_DEFINITIONS[APP_STATE.selectedMode] || MODE_DEFINITIONS.natural;
+  const mode =
+    ENGINE_MODE_DISPLAY[APP_STATE.runtimeMode] ||
+    MODE_DEFINITIONS[APP_STATE.selectedMode] ||
+    MODE_DEFINITIONS.natural;
   const chatModeLabel = document.getElementById('chat-mode-label');
   const currentModeName = document.getElementById('current-mode-name');
 
@@ -834,6 +852,7 @@ function updateModeLabels() {
 
 function selectMode(element, modeLabel, modeKey) {
   APP_STATE.selectedMode = modeKey || 'natural';
+  APP_STATE.runtimeMode = '';
   localStorage.setItem('rourou.selectedMode', APP_STATE.selectedMode);
 
   document.querySelectorAll('.mode-card, .mode-card-sm').forEach((card) => {
@@ -1388,6 +1407,8 @@ async function ensureModeSynced() {
 
   APP_STATE.conversationId = payload.conversation_id || APP_STATE.conversationId;
   APP_STATE.syncedMode = mode.command;
+  APP_STATE.runtimeMode = payload.metadata?.active_mode || APP_STATE.runtimeMode;
+  updateModeLabels();
 }
 
 async function sendMessage() {
@@ -1448,7 +1469,9 @@ async function sendMessage() {
     APP_STATE.conversationId = payload.conversation_id || APP_STATE.conversationId;
     APP_STATE.lastChatMetadata = payload.metadata || null;
     APP_STATE.reportOutputs.session_export = payload.session_export || APP_STATE.reportOutputs.session_export;
+    APP_STATE.runtimeMode = payload.metadata?.active_mode || APP_STATE.runtimeMode;
     APP_STATE.turnCount++;
+    updateModeLabels();
     setTyping(false);
     await appendMessage('ai', payload.answer || '我有收到你的訊息，但這次沒有拿到完整回覆。', { animate: true });
     evaluateMicroIntervention(payload, { lastUserMessage: message });
