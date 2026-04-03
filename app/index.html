@@ -254,13 +254,13 @@
       </section>
 
       <section class="section">
-        <h3 class="section-heading">AI 關鍵分析</h3>
+        <h3 class="section-heading">臨床諮商建議 (Clinical Insights)</h3>
         <div class="insight-list">
-          <div class="insight-row"><div class="insight-ico tertiary"><span class="mat-icon">bedtime</span></div><div class="insight-text"><b>睡眠障礙</b><span>過去 3 天提及入睡困難</span></div><button class="remove-btn"><span class="mat-icon">do_not_disturb_on</span></button></div>
-          <div class="insight-row"><div class="insight-ico primary"><span class="mat-icon">sentiment_dissatisfied</span></div><div class="insight-text"><b>負罪感</b><span>對話中重複提及 2 次</span></div><button class="remove-btn"><span class="mat-icon">do_not_disturb_on</span></button></div>
-          <div class="insight-row"><div class="insight-ico secondary"><span class="mat-icon">work</span></div><div class="insight-text"><b>職場壓力</b><span>提及週三會議壓力較大</span></div><button class="remove-btn"><span class="mat-icon">do_not_disturb_on</span></button></div>
+          <div class="insight-row"><div class="insight-ico tertiary"><span class="mat-icon">bedtime</span></div><div class="insight-text"><b>生理節律觀察</b><span>過去 72 小時呈現入睡延遲軌跡，建議導入睡前正念引導。</span></div><button class="remove-btn"><span class="mat-icon">do_not_disturb_on</span></button></div>
+          <div class="insight-row"><div class="insight-ico primary"><span class="mat-icon">sentiment_dissatisfied</span></div><div class="insight-text"><b>自責認知模式</b><span>對話文本中觀察到顯著的自我貶低結構，需關注認知失調頻率。</span></div><button class="remove-btn"><span class="mat-icon">do_not_disturb_on</span></button></div>
+          <div class="insight-row"><div class="insight-ico secondary"><span class="mat-icon">work</span></div><div class="insight-text"><b>職業功能評估</b><span>提及週三會議壓力增加與應對機制失靈，暫時性社交迴避風險上升。</span></div><button class="remove-btn"><span class="mat-icon">do_not_disturb_on</span></button></div>
         </div>
-        <p class="hint-text">點擊右側圖示可隱藏不願分享的隱私紀錄</p>
+        <p class="hint-text">以上分析基於本週對話內容之語音情緒與文本結構，僅供臨床參考。</p>
       </section>
 
       <section class="section">
@@ -284,9 +284,22 @@
       <!-- TAB: MANUAL (New Content) -->
       <div id="report-tab-manual" class="report-tab-content">
         <section class="card-section">
+          <div class="section-label">MOOD TRACKING</div>
+          <h3 class="section-heading">今日心情標籤</h3>
+          <p class="greeting-sub">選擇最能代表你當下感受的標籤：</p>
+          <div class="mood-tag-cloud">
+            <button class="mood-tag" onclick="toggleMoodTag(this, '生氣')"><span class="mat-icon">mode_night</span> 生氣</button>
+            <button class="mood-tag" onclick="toggleMoodTag(this, '開心')"><span class="mat-icon">sunny</span> 開心</button>
+            <button class="mood-tag" onclick="toggleMoodTag(this, '有生產力')"><span class="mat-icon">bolt</span> 充滿動力</button>
+            <button class="mood-tag" onclick="toggleMoodTag(this, '難過')"><span class="mat-icon">water_drop</span> 難過</button>
+            <button class="mood-tag" onclick="toggleMoodTag(this, '平靜')"><span class="mat-icon">filter_vintage</span> 平靜</button>
+          </div>
+        </section>
+
+        <section class="card-section">
           <div class="section-label">MANUAL LOGGING</div>
           <h3 class="section-heading">情緒變化曲線</h3>
-          <p class="greeting-sub" style="margin-bottom: 24px;">點擊下方曲線來標記你過去七天的情緒波動。這能幫助我們更精準地分析你的狀態。</p>
+          <p class="greeting-sub" style="margin-bottom: 24px;">拖拽曲線點位標記過去七天的波動：</p>
           
           <div class="interactive-mood-chart">
             <div class="mood-chart-axis">
@@ -313,15 +326,44 @@
           </div>
           
           <div class="mood-value-display">
-            今日情緒標記：<span id="current-mood-val">平穩</span>
+            當前情緒傾向：<span id="current-mood-val">平穩</span>
+          </div>
+        </section>
+
+        <section class="card-section">
+          <div class="section-label">SELF-ASSESSMENT</div>
+          <h3 class="section-heading">PHQ-9 自評量表</h3>
+          <p class="greeting-sub">過去兩週內，你受以下問題困擾的頻率：</p>
+          
+          <div class="phq-list">
+            <div class="phq-item">
+              <p class="phq-q">1. 做事缺乏興趣或樂趣？</p>
+              <div class="phq-options">
+                <button class="phq-opt" onclick="setPHQ(0,0)">無</button>
+                <button class="phq-opt" onclick="setPHQ(0,1)">幾天</button>
+                <button class="phq-opt" onclick="setPHQ(0,2)">一半以上</button>
+                <button class="phq-opt" onclick="setPHQ(0,3)">幾乎每天</button>
+              </div>
+            </div>
+            <div class="phq-item">
+              <p class="phq-q">2. 感到情緒低落、抑鬱或絕望？</p>
+              <div class="phq-options">
+                <button class="phq-opt" onclick="setPHQ(1,0)">無</button>
+                <button class="phq-opt" onclick="setPHQ(1,1)">幾天</button>
+                <button class="phq-opt" onclick="setPHQ(1,2)">一半以上</button>
+                <button class="phq-opt" onclick="setPHQ(1,3)">幾乎每天</button>
+              </div>
+            </div>
+            <!-- More questions would go here in a real app, adding placeholder for brevity -->
+            <p class="hint-text">（量表測量中，系統將自動計算評分趨勢）</p>
           </div>
         </section>
 
         <section class="section">
-          <h3 class="section-heading">今日詳細紀錄</h3>
+          <h3 class="section-heading">心靈日誌 (Daily Journal)</h3>
           <div class="textarea-wrap">
-            <textarea placeholder="有些情緒是曲線無法表達的，寫下來吧..."></textarea>
-            <span class="mat-icon" style="color:#446655;opacity:.4;position:absolute;right:16px;bottom:16px">edit_note</span>
+            <textarea placeholder="寫下今天發生的任何小細節，或是那些讓你心碎/心動的時刻..."></textarea>
+            <span class="mat-icon" style="color:#446655;opacity:.4;position:absolute;right:16px;bottom:16px">book_2</span>
           </div>
         </section>
 

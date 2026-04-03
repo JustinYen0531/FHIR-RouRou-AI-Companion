@@ -12,7 +12,9 @@ const APP_STATE = {
   syncedMode: '',
   isSending: false,
   currentReportTab: 'auto',
-  moodPoints: [100, 100, 100, 100, 100, 100, 100] // Initial "Neutral" state (0-200)
+  moodPoints: [100, 100, 100, 100, 100, 100, 100], 
+  selectedMoodTags: [],
+  phq9Scores: Array(9).fill(0) 
 };
 
 const MODE_DEFINITIONS = {
@@ -170,6 +172,23 @@ function renderMoodChart() {
     window.addEventListener('mouseup', upHandler);
     window.addEventListener('touchmove', moveHandler);
     window.addEventListener('touchend', upHandler);
+  }
+}
+
+function toggleMoodTag(el, tag) {
+  el.classList.toggle('active');
+  const index = APP_STATE.selectedMoodTags.indexOf(tag);
+  if (index === -1) APP_STATE.selectedMoodTags.push(tag);
+  else APP_STATE.selectedMoodTags.splice(index, 1);
+}
+
+function setPHQ(questionIndex, score) {
+  APP_STATE.phq9Scores[questionIndex] = score;
+  const phqItem = document.querySelectorAll('.phq-item')[questionIndex];
+  if (phqItem) {
+    phqItem.querySelectorAll('.phq-opt').forEach((opt, i) => {
+      opt.classList.toggle('active', i === score);
+    });
   }
 }
 
@@ -550,6 +569,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 window.showScreen = showScreen;
 window.switchReportTab = switchReportTab;
+window.toggleMoodTag = toggleMoodTag;
+window.setPHQ = setPHQ;
 window.selectMode = selectMode;
 window.startChat = startChat;
 window.sendQuickReply = sendQuickReply;
