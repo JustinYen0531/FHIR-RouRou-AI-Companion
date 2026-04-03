@@ -601,11 +601,10 @@ function injectRuntimeSettings() {
 
 document.addEventListener('DOMContentLoaded', () => {
   initializeRuntimeConfig();
-  showScreen('screen-chat');
+  showScreen('screen-home');
   updateModeLabels();
   injectRuntimeSettings();
   injectOutputActions();
-  appendSystemNotice('前端目前走 Node 程式版 AI Companion。設定 Google Gemini 或 Groq 後可直接從聊天畫面測試。');
 });
 
 window.showScreen = showScreen;

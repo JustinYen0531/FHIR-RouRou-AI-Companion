@@ -11,8 +11,29 @@
 <!-- APP SHELL -->
 <div id="app">
 
+  <!-- ===== SCREEN: HOME (NEW) ===== -->
+  <div class="screen active" id="screen-home">
+    <main class="home-canvas">
+      <div class="home-avatar">
+        <span class="mat-icon fill">auto_awesome</span>
+      </div>
+      <h1 class="home-headline">今天想聊聊嗎？</h1>
+      <p class="home-sub">Rou Rou 準備好聽你說了</p>
+      
+      <div class="home-input-wrap" onclick="showScreen('screen-chat')">
+        <div class="home-plus-btn">
+          <span class="mat-icon">add</span>
+        </div>
+        <div class="home-placeholder">跟 Rou Rou 說說心事...</div>
+        <div class="home-send-indicator">
+          <span class="mat-icon fill">arrow_forward</span>
+        </div>
+      </div>
+    </main>
+  </div>
+
   <!-- ===== SCREEN: CHAT ===== -->
-  <div class="screen active" id="screen-chat">
+  <div class="screen" id="screen-chat">
     <header class="top-bar glass">
       <div class="top-bar-left">
         <div class="avatar-orb">
