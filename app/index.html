@@ -88,13 +88,15 @@
     </main>
 
     <section class="input-section glass">
-      <div id="quick-replies-container">
-        <div class="quick-replies" id="quick-replies" style="display:none; opacity:0; transform:translateY(10px); transition: all 0.3s ease-in-out;">
-          <button class="qr-chip" onclick="sendQuickReply('有一點累')">有一點累</button>
-          <button class="qr-chip" onclick="sendQuickReply('想聽故事')">想聽故事</button>
-          <button class="qr-chip" onclick="sendQuickReply('不想說話')">不想說話</button>
+        <div id="quick-replies-container">
+          <div class="quick-replies" id="quick-replies" style="display:none; opacity:0; transform:translateY(10px); transition: all 0.3s ease-in-out;">
+            <button class="qr-chip" type="button" onclick="sendQuickReply('void')">void</button>
+            <button class="qr-chip" type="button" onclick="sendQuickReply('soulmate')">soulmate</button>
+            <button class="qr-chip" type="button" onclick="sendQuickReply('mission')">mission</button>
+            <button class="qr-chip" type="button" onclick="sendQuickReply('option')">option</button>
+            <button class="qr-chip" type="button" onclick="sendQuickReply('natural')">natural</button>
+          </div>
         </div>
-      </div>
       <div class="input-row">
         <div class="text-input-wrap">
           <span class="mat-icon" style="color:#a0aab0">sentiment_satisfied</span>
