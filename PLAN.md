@@ -1,0 +1,159 @@
+# 將 AI Companion 改成「輕量記憶 + 按需輸出」架構
+
+## Summary
+- 目前 Node 引擎每輪都會執行 `updateSummaryChain()`，導致一般聊天也會跑 clinician / patient / FHIR 長鏈，直接放大 token 成本與限流風險。
+- 新架構改成兩層：
+  - `聊天層`：每輪只做必要分流、風險判斷、模式回覆、少量記憶更新
+  - `輸出層`：只有使用者明確要求時，才生成醫師摘要、病人審閱、FHIR draft 等重型輸出
+- 輸出觸發方式採你剛選的 **兩者都要**：
+  - 前端按鈕
+  - 聊天指令
+- 保留完整功能，不刪 capability，只改執行時機。
+
+## Implementation Changes
+### 1. 引擎改成分層執行
+- `app/aiCompanionEngine.js` 拆出兩組能力：
+  - `handleMessage()`：只處理 command、risk/safety、follow-up、mode routing、mode answer、輕量 state 更新
+  - `generateOutput()` 或等價接口：專門生成 `clinician_summary`、`patient_review`、`patient_authorization`、`fhir_delivery`、`delivery_readiness`
+- 移除一般聊天路徑裡的每輪 `updateSummaryChain()` 呼叫。
+- 保留 `Mission Retrieval` / `Option Retrieval`，但只在 `mission` / `option` 模式或相關輸出時執行，不在自然聊天硬跑。
+
+### 2. Session state 改成「重要記憶」而不是「每輪完整文件」
+- 每輪固定更新的 state 只保留：
+  - `active_mode`
+  - `routing_mode_override`
+  - `risk_flag`
+  - `red_flag_payload`
+  - `pending_question`
+  - `followup_turn_count`
+  - `followup_status`
+  - `latest_tag_payload`
+  - `hamd_progress_state`
+  - `burden_level_state`
+  - `mission_retrieval_audit` / `option_retrieval_audit`（僅在相關模式觸發）
+- 新增或明確化一個輕量 `memory_snapshot` / `conversation_notes` 概念，用來累積重要線索，讓後續重型輸出可直接用，不必每輪先生成完整 clinician draft。
+- `summary_draft_state`、`clinician_summary_draft`、`patient_review_packet`、`patient_authorization_state`、`fhir_delivery_draft`、`delivery_readiness_state` 改成「按需生成後更新」，不是每輪更新。
+
+### 3. 新增按需輸出接口與前端操作
+- `POST /api/chat/message` 保持現有聊天用途，不再偷偷生成重型輸出。
+- 新增一個明確輸出 API，建議：
+  - `POST /api/chat/output`
+- 這個 API 的輸入至少包含：
+  - `conversation_id`
+  - `user`
+  - `output_type`
+  - 可選 `instruction`
+- `output_type` 固定支援：
+  - `clinician_summary`
+  - `patient_review`
+  - `patient_authorization`
+  - `fhir_delivery`
+  - `delivery_readiness`
+  - `session_export`
+- 前端 [app.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/app.js) 新增兩種觸發：
+  - 明確按鈕：例如「整理給醫師」「病人審閱稿」「FHIR Draft」
+  - 聊天指令：例如 `幫我整理給醫生`、`產生病人審閱稿`、`產生FHIR draft`
+- 聊天指令在 server 端先轉成 `output_type`，再走按需輸出路徑，不與一般 mode routing 混在一起。
+
+### 4. 指令與輸出辨識規則
+- `command` 仍只處理模式切換：
+  - `auto / void / soulmate / mission / option / natural / clarify`
+- 新增 `output command detector`，專門辨識輸出指令，不和模式切換共享表。
+- 規則建議固定成可維護 mapping，不先用 LLM 分類：
+  - `幫我整理給醫生` -> `clinician_summary`
+  - `病人審閱稿` / `給我病人版本` -> `patient_review`
+  - `授權狀態` / `病人授權稿` -> `patient_authorization`
+  - `FHIR draft` / `FHIR` -> `fhir_delivery`
+  - `交付狀態` / `delivery readiness` -> `delivery_readiness`
+  - `匯出 session` / `session export` -> `session_export`
+- 若命中輸出指令，優先走輸出 API 邏輯，不進一般 mode answer。
+
+### 5. 成本控制與穩定性
+- 加入 provider 無關的 retry/backoff，至少處理 `429` / quota / TPM 類錯誤。
+- 對重型輸出加快取：
+  - 同一個 `conversation_id + output_type` 若最近沒有新訊息，可直接回上次結果
+- Mission / Option retrieval 保持本地 RAG，但只在相關模式與輸出生成時啟用。
+- FHIR bundle builder 保持不變，仍只吃 `session_export`。
+
+## Public Interfaces
+- 保留：
+  - `POST /api/chat/message`
+  - `POST /api/fhir/bundle`
+- 新增：
+  - `POST /api/chat/output`
+- `POST /api/chat/output` 回傳至少包含：
+  - `ok`
+  - `conversation_id`
+  - `output_type`
+  - `output`
+  - `session_export`（當 output_type 需要或可直接提供時）
+  - `metadata`
+- 前端新增輸出按鈕，但不改既有聊天 UX 與模式切換操作。
+
+## Test Plan
+- 一般聊天：
+  - `你好` 不再觸發 summary/FHIR 長鏈
+  - `auto`、`void`、`soulmate`、`mission`、`option`、`natural`、`clarify` 仍可正常切換
+- 風險：
+  - `我想死` 仍直接走 safety，不觸發重型輸出鏈
+- Follow-up：
+  - 有 `pending_question` 時仍能追問與收斂
+- 按需輸出：
+  - 按鈕觸發 `clinician_summary` 成功
+  - 聊天輸入 `幫我整理給醫生` 成功
+  - `FHIR draft` 成功產出並能餵進 `/api/fhir/bundle`
+- 成本控制：
+  - 一般聊天不再每輪更新 `clinician_summary_draft`、`patient_review_packet`、`fhir_delivery_draft`
+  - 同一 conversation 連續聊天的 token 消耗顯著下降
+- 回歸：
+  - `app/aiCompanionEngine.test.js`
+  - `app/fhirDeliveryServer.test.js`
+  - `app/fhirBundleBuilder.test.js`
+  - 新增 `app/aiCompanionOutput.test.js` 或等價輸出測試
+
+## Assumptions
+- 一般聊天的目標是保留陪伴與分流效果，不要求每輪都同步生成完整臨床文件。
+- 重型輸出由「按鈕 + 聊天指令」雙觸發，這是本次固定決策。
+- `session_export` 仍維持現有 shape，相容 `fhirBundleBuilder.js`。
+- Mission / Option 的本地 RAG 資料來源不變，第一版不更換資料源。
+
+---
+
+## 更新後的白話理解
+
+### 舊想像
+- 每一輪聊天都順手做：
+  - 情緒標記
+  - burden
+  - HAM-D
+  - 醫師摘要
+  - 病人審閱稿
+  - FHIR draft
+
+### 現在的實際做法
+- 每一輪聊天只做：
+  - 模式切換判斷
+  - 高風險判斷
+  - follow-up 狀態處理
+  - 一般回答
+  - 少量重要記憶更新
+
+- 只有在使用者明確要求時，才做：
+  - 醫師摘要
+  - 病人審閱稿
+  - 病人授權稿
+  - FHIR draft
+  - delivery readiness
+
+### 為什麼這樣改
+- 比較快
+- 比較省 token
+- 比較不容易撞 API 限流
+- 平常聊天和重型輸出各自分工，比較像真實產品
+
+### 你可以怎麼記
+- `聊天層`：先陪你說話、先記重點
+- `輸出層`：你真的要文件時才整理給你
+
+更完整的白話說明請看：
+- [AI_COMPANION_FLOW_PLAIN_LANGUAGE.md](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/docs/AI_COMPANION_FLOW_PLAIN_LANGUAGE.md)

@@ -13,6 +13,17 @@
 - 一般聊天走輕量記憶路徑，不再每輪自動跑完整 clinician / patient / FHIR 長鏈。
 - 重型輸出改成按需生成，支援前端按鈕與聊天指令兩種觸發。
 
+## Plain-Language Flow
+- 使用者輸入後，系統先依序判斷：
+  - 是不是模式指令
+  - 是不是高風險內容
+  - 是不是輸出指令
+  - 如果都不是，才走一般聊天模式
+- 一般聊天只更新少量重要記憶，不會每輪自動做完整摘要鏈。
+- 醫師摘要、病人審閱稿、FHIR draft 改成按需生成。
+- 白話版完整說明見：
+  - [AI_COMPANION_FLOW_PLAIN_LANGUAGE.md](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/docs/AI_COMPANION_FLOW_PLAIN_LANGUAGE.md)
+
 ## Runtime
 - 主 server: [app/fhirDeliveryServer.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/fhirDeliveryServer.js)
 - 主引擎: [app/aiCompanionEngine.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/aiCompanionEngine.js)
