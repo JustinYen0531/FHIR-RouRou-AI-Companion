@@ -341,24 +341,30 @@ async function animateAiMessage(bubble, text) {
 function handleInput(input) {
   const qrc = document.getElementById('quick-replies');
   const soa = document.getElementById('structured-output-actions');
-  const hide = input.value.trim().length > 0;
+  const hasFocus = document.activeElement === input;
+  const isEmpty = input.value.trim().length === 0;
+  const shouldShow = hasFocus && isEmpty;
   
   [qrc, soa].forEach(el => {
     if (!el) return;
-    if (hide) {
+    if (shouldShow) {
+      el.style.display = 'flex';
+      setTimeout(() => {
+        if (document.activeElement === input && input.value.trim().length === 0) {
+          el.style.opacity = '1';
+          el.style.transform = 'translateY(0)';
+          el.style.pointerEvents = 'all';
+        }
+      }, 50);
+    } else {
       el.style.opacity = '0';
       el.style.transform = 'translateY(10px)';
       el.style.pointerEvents = 'none';
       setTimeout(() => {
-        if (input.value.trim().length > 0) el.style.display = 'none';
+        if (!(document.activeElement === input && input.value.trim().length === 0)) {
+          el.style.display = 'none';
+        }
       }, 300);
-    } else {
-      el.style.display = 'flex';
-      setTimeout(() => {
-        el.style.opacity = '1';
-        el.style.transform = 'translateY(0)';
-        el.style.pointerEvents = 'all';
-      }, 50);
     }
   });
 }
@@ -611,6 +617,9 @@ function injectOutputActions() {
   actionWrap.id = 'structured-output-actions';
   actionWrap.className = 'quick-replies';
   actionWrap.style.transition = 'all 0.3s ease-in-out';
+  actionWrap.style.display = 'none';
+  actionWrap.style.opacity = '0';
+  actionWrap.style.transform = 'translateY(10px)';
   actionWrap.innerHTML = `
     <button class="qr-chip" type="button" onclick="requestOutput('clinician_summary')">整理給醫師</button>
     <button class="qr-chip" type="button" onclick="requestOutput('patient_review')">病人審閱稿</button>
