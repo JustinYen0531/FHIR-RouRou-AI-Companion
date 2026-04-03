@@ -2276,6 +2276,7 @@ body {
 }
 
 .shortcut-page {
+  flex: 0 0 100%;
   min-width: 100%;
   scroll-snap-align: start;
 }
@@ -2333,10 +2334,20 @@ body {
 
 .shortcut-page-grid-system .shortcut-add-btn {
   grid-column: 4;
+  grid-row: 3;
 }
 
 .shortcut-page-grid-custom {
   position: relative;
+}
+
+.shortcut-page-grid-empty {
+  grid-template-columns: minmax(0, 3fr) minmax(88px, 1fr);
+  align-items: stretch;
+}
+
+.shortcut-page-grid-empty .shortcut-add-btn {
+  min-height: 100%;
 }
 
 .shortcut-custom-item {
@@ -2366,24 +2377,32 @@ body {
 }
 
 .shortcut-empty-card {
-  min-height: 74px;
-  border-radius: 22px;
-  background: rgba(255,255,255,0.78);
+  min-height: 178px;
+  border-radius: 26px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(246,250,254,0.82));
   border: 1px dashed rgba(168, 180, 187, 0.4);
-  padding: 14px 16px;
+  padding: 18px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .shortcut-empty-title {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 800;
   color: #31434a;
 }
 
 .shortcut-empty-body {
-  margin-top: 6px;
-  font-size: 12px;
-  line-height: 1.55;
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.65;
   color: #66757d;
+}
+
+.shortcut-add-btn-secondary {
+  min-height: 178px;
+  align-self: stretch;
 }
 
 .shortcut-pager-dots {

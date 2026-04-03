@@ -976,13 +976,21 @@ function renderShortcutPager() {
             <button class="shortcut-delete-btn" type="button" aria-label="刪除 ${escapeHtml(item.label)}" onclick="removeCustomShortcut(${index})"><span class="mat-icon">close</span></button>
           </div>`
         ).join('')}
+        <button class="shortcut-add-btn shortcut-add-btn-secondary" type="button" onclick="openShortcutComposer()" aria-label="新增自訂快捷">
+          <span class="mat-icon">add</span>
+        </button>
       </div>
     `;
   } else {
     pageTwo.innerHTML = `
-      <div class="shortcut-empty-card">
-        <div class="shortcut-empty-title">這一頁留給你的自訂命令</div>
-        <p class="shortcut-empty-body">從第一頁右下角的＋新增後，往右滑就能看到，點一下會直接送出。</p>
+      <div class="shortcut-page-grid shortcut-page-grid-empty">
+        <div class="shortcut-empty-card">
+          <div class="shortcut-empty-title">現在沒有任何自定義指令</div>
+          <p class="shortcut-empty-body">按右邊的＋新增後，這一頁就會出現你自己的快捷命令。</p>
+        </div>
+        <button class="shortcut-add-btn shortcut-add-btn-secondary" type="button" onclick="openShortcutComposer()" aria-label="新增自訂快捷">
+          <span class="mat-icon">add</span>
+        </button>
       </div>
     `;
   }
