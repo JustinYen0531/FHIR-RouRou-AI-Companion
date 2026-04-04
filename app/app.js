@@ -2222,7 +2222,18 @@ function formatArrayForList(items = [], emptyText = '目前沒有可顯示內容
 
 function normalizeSessionExportForDelivery(sessionExport = {}) {
   const normalized = JSON.parse(JSON.stringify(sessionExport || {}));
-  const clinician = normalized.clinician_summary_draft || {};
+  normalized.clinician_summary_draft = normalized.clinician_summary_draft && typeof normalized.clinician_summary_draft === 'object'
+    ? normalized.clinician_summary_draft
+    : {};
+  const clinician = normalized.clinician_summary_draft;
+  const fallbackMessages = Array.isArray(APP_STATE?.chatHistory)
+    ? APP_STATE.chatHistory
+        .filter((item) => item && item.role === 'user' && item.content)
+        .map((item) => String(item.content).trim())
+        .filter(Boolean)
+    : [];
+  const fallbackNarrative = fallbackMessages[fallbackMessages.length - 1] || '本次對話內容較少，先保留最小交付摘要供後續醫療端確認。';
+
   const symptomObservations = Array.isArray(clinician.symptom_observations)
     ? clinician.symptom_observations.filter(Boolean)
     : [];
@@ -2250,12 +2261,38 @@ function normalizeSessionExportForDelivery(sessionExport = {}) {
   }, []);
   const resolvedSignals = hamdSignals.length ? hamdSignals : inferredSignals;
 
+  if (!Array.isArray(clinician.chief_concerns) || !clinician.chief_concerns.length) {
+    clinician.chief_concerns = [fallbackNarrative];
+  }
+
+  if (!Array.isArray(clinician.symptom_observations) || !clinician.symptom_observations.length) {
+    clinician.symptom_observations = symptomObservations.length
+      ? symptomObservations
+      : [fallbackNarrative];
+  }
+
+  if (!Array.isArray(clinician.followup_needs) || !clinician.followup_needs.length) {
+    clinician.followup_needs = ['建議於正式看診時補充本次情緒、睡眠與功能影響。'];
+  }
+
+  if (!Array.isArray(clinician.safety_flags) || !clinician.safety_flags.length) {
+    clinician.safety_flags = ['本次為最小送出資料，需由醫療端再確認風險與症狀細節。'];
+  }
+
+  if (!Array.isArray(clinician.hamd_signals) || !clinician.hamd_signals.length) {
+    clinician.hamd_signals = resolvedSignals.length ? resolvedSignals : ['depressed_mood'];
+  }
+
+  if (!String(clinician.draft_summary || '').trim()) {
+    clinician.draft_summary = fallbackNarrative;
+  }
+
   if (!normalized.hamd_progress_state || typeof normalized.hamd_progress_state !== 'object') {
     normalized.hamd_progress_state = {};
   }
 
   if (!Array.isArray(normalized.hamd_progress_state.covered_dimensions) || !normalized.hamd_progress_state.covered_dimensions.length) {
-    normalized.hamd_progress_state.covered_dimensions = resolvedSignals;
+    normalized.hamd_progress_state.covered_dimensions = resolvedSignals.length ? resolvedSignals : ['depressed_mood'];
   }
 
   if (!Array.isArray(normalized.hamd_progress_state.supported_dimensions) || !normalized.hamd_progress_state.supported_dimensions.length) {
@@ -2265,7 +2302,13 @@ function normalizeSessionExportForDelivery(sessionExport = {}) {
   }
 
   if (!Array.isArray(normalized.hamd_progress_state.recent_evidence) || !normalized.hamd_progress_state.recent_evidence.length) {
-    normalized.hamd_progress_state.recent_evidence = symptomObservations;
+    normalized.hamd_progress_state.recent_evidence = clinician.symptom_observations.length
+      ? [...clinician.symptom_observations]
+      : [fallbackNarrative];
+  }
+
+  if (!normalized.hamd_progress_state.next_recommended_dimension) {
+    normalized.hamd_progress_state.next_recommended_dimension = normalized.hamd_progress_state.covered_dimensions[0] || 'depressed_mood';
   }
 
   if (!normalized.delivery_readiness_state || typeof normalized.delivery_readiness_state !== 'object') {
