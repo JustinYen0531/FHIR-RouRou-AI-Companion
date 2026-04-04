@@ -15,7 +15,7 @@
   <!-- ===== SCREEN: HOME (NEW) ===== -->
   <div class="screen active" id="screen-home">
     <main class="home-canvas">
-      <div class="home-avatar">
+      <div class="home-avatar" onclick="showScreen('screen-home')" style="cursor:pointer">
         <span class="mat-icon fill">auto_awesome</span>
       </div>
       <h1 class="home-headline">今天想聊聊嗎？</h1>
@@ -30,6 +30,47 @@
           <span class="mat-icon fill">arrow_forward</span>
         </div>
       </div>
+
+      <div class="home-guide-section">
+        <div class="home-guide-label">Rou Rou 使用導引</div>
+        <div class="home-guide-grid">
+          <div class="guide-card" onclick="showScreen('screen-chat')">
+            <span class="mat-icon fill">chat_bubble</span>
+            <div class="guide-info">
+              <div class="guide-title">聊天介面</div>
+              <div class="guide-desc">核心互動與同理對話引擎</div>
+            </div>
+          </div>
+          <div class="guide-card" onclick="showScreen('screen-chat')">
+            <span class="mat-icon">bolt</span>
+            <div class="guide-info">
+              <div class="guide-title">快捷指令</div>
+              <div class="guide-desc">使用第二頁的 + 新增按鈕</div>
+            </div>
+          </div>
+          <div class="guide-card" onclick="showScreen('screen-report')">
+            <span class="mat-icon fill">analytics</span>
+            <div class="guide-info">
+              <div class="guide-title">數據報表</div>
+              <div class="guide-desc">即時追蹤 HAM-D 與情緒波形</div>
+            </div>
+          </div>
+          <div class="guide-card" onclick="showScreen('screen-report')">
+            <span class="mat-icon">psychology</span>
+            <div class="guide-info">
+              <div class="guide-title">認識你</div>
+              <div class="guide-desc">查看已累積的心理畫像</div>
+            </div>
+          </div>
+          <div class="guide-card" onclick="showScreen('screen-settings')">
+            <span class="mat-icon">settings</span>
+            <div class="guide-info">
+              <div class="guide-title">系統設定</div>
+              <div class="guide-desc">調整 AI 引擎與隱私連通</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 
@@ -37,7 +78,7 @@
   <div class="screen" id="screen-chat">
     <header class="top-bar glass">
       <div class="top-bar-left">
-        <div class="avatar-orb">
+        <div class="avatar-orb" onclick="showScreen('screen-home')" style="cursor:pointer">
           <span class="mat-icon fill">auto_awesome</span>
         </div>
         <div>
@@ -139,7 +180,7 @@
   <div class="screen" id="screen-energy">
     <header class="top-bar glass">
       <div class="top-bar-left">
-        <div class="avatar-orb">
+        <div class="avatar-orb" onclick="showScreen('screen-home')" style="cursor:pointer">
           <span class="mat-icon fill">auto_awesome</span>
         </div>
         <h1 class="app-title">Rou Rou</h1>
@@ -234,7 +275,7 @@
   <!-- ===== SCREEN: REPORT ===== -->
   <div class="screen" id="screen-report">
     <header class="top-bar glass">
-      <div class="avatar-sm">
+      <div class="avatar-sm" onclick="showScreen('screen-home')" style="cursor:pointer">
         <span class="mat-icon fill" style="font-size:18px;color:#446655">person</span>
       </div>
       <h1 class="page-title">診前報告審閱</h1>
@@ -487,7 +528,7 @@
   <div class="screen" id="screen-clinical">
     <header class="top-bar glass">
       <div class="top-bar-left">
-        <div class="avatar-sm"><span class="mat-icon fill" style="font-size:18px;color:#446655">person</span></div>
+        <div class="avatar-sm" onclick="showScreen('screen-home')" style="cursor:pointer"><span class="mat-icon fill" style="font-size:18px;color:#446655">person</span></div>
         <div><h1 class="app-title">Rou Rou</h1><div class="sub-title">CLINICAL DASHBOARD</div></div>
       </div>
       <button class="icon-btn" type="button" aria-label="手動切換模式" onclick="showScreen('screen-energy')">

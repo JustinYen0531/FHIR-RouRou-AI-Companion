@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "savedAt": "2026-04-04T05:26:07.903Z",
+  "sessions": [
+    {
+      "id": "conv-1775280321963-6bf3df",
+      "user": "persistence-smoke-user",
+      "startedAt": "2026-04-04T05:25:21.963Z",
+      "updatedAt": "2026-04-04T05:26:07.903Z",
+      "history": [
+        {
+          "role": "user",
+          "content": "auto"
+        },
+        {
+          "role": "assistant",
+          "content": "已切回 auto 模式，之後會重新依照使用者語氣與內容自動分流。"
+        },
+        {
+          "role": "user",
+          "content": "auto"
+        },
+        {
+          "role": "assistant",
+          "content": "已切回 auto 模式，之後會重新依照使用者語氣與內容自動分流。"
+        }
+      ],
+      "state": {
+        "pending_question": "none",
+        "risk_flag": "false",
+        "red_flag_payload": "none",
+        "followup_turn_count": "0",
+        "followup_status": "resolved",
+        "active_mode": "auto",
+        "latest_tag_payload": "none",
+        "hamd_progress_state": "none",
+        "summary_draft_state": "none",
+        "clinician_summary_draft": "none",
+        "routing_mode_override": "auto",
+        "command_feedback": "已切回 auto 模式，之後會重新依照使用者語氣與內容自動分流。",
+        "patient_review_packet": "none",
+        "fhir_delivery_draft": "none",
+        "mission_retrieval_audit": "none",
+        "option_retrieval_audit": "none",
+        "burden_level_state": "none",
+        "patient_authorization_state": "none",
+        "delivery_readiness_state": "none"
+      },
+      "revision": 2,
+      "memory_snapshot": {
+        "note_history": [],
+        "last_user_message": "auto",
+        "last_assistant_message": "已切回 auto 模式，之後會重新依照使用者語氣與內容自動分流。",
+        "active_mode": "auto",
+        "risk_flag": "false",
+        "latest_tag_summary": "",
+        "hamd_focus": ""
+      },
+      "output_cache": {}
+    }
+  ]
+}

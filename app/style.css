@@ -3613,4 +3613,82 @@ body {
 .fhir-obs-item:last-child { border-bottom: none; }
 .fhir-obs-item b { color: var(--on-surface); }
 
+.home-guide-section {
+  width: 100%;
+  max-width: 420px;
+  margin-top: 48px;
+  padding: 0 20px;
+  animation: fadeIn 0.8s ease-out forwards;
+}
+
+.home-guide-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #8fa1ab;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 20px;
+  padding-left: 4px;
+}
+
+.home-guide-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.guide-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: white;
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(168, 180, 187, 0.1);
+  box-shadow: 0 6px 18px rgba(41, 52, 58, 0.04);
+  transition: all 0.3s var(--ease-natural);
+  cursor: pointer;
+}
+
+.guide-card:hover {
+  transform: translateX(6px);
+  border-color: var(--primary);
+  box-shadow: 0 10px 24px rgba(68, 102, 85, 0.08);
+}
+
+.guide-card .mat-icon {
+  width: 44px;
+  height: 44px;
+  background: #f0f4f7;
+  color: var(--primary);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  transition: all 0.3s ease;
+}
+
+.guide-card:hover .mat-icon {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+}
+
+.guide-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.guide-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #25353d;
+}
+
+.guide-desc {
+  font-size: 12px;
+  color: #72828a;
+}
+
 
