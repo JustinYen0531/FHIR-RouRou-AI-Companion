@@ -362,6 +362,12 @@ const APP_STATE = {
     progressLabel: '',
     progressValue: 0
   },
+  reportConsentProgress: {
+    visible: false,
+    value: 0,
+    label: '',
+    note: ''
+  },
   privacySettings: {
     fhirRealtimeSync: localStorage.getItem('rourou.fhirRealtimeSync') === 'true',
     autoReportDraft: localStorage.getItem('rourou.autoReportDraft') === 'true'
@@ -2158,12 +2164,69 @@ function setConsentPreviewProgress(value, label) {
   if (barEl) barEl.style.width = `${APP_STATE.pendingConsent.progressValue}%`;
 }
 
+function setReportConsentProgress({ visible = true, value = 0, label = '', note = '' } = {}) {
+  APP_STATE.reportConsentProgress = {
+    visible: Boolean(visible),
+    value: Math.max(0, Math.min(100, Number(value) || 0)),
+    label: String(label || ''),
+    note: String(note || '')
+  };
+
+  const container = document.getElementById('report-consent-progress');
+  const labelEl = document.getElementById('report-consent-progress-label');
+  const valueEl = document.getElementById('report-consent-progress-value');
+  const barEl = document.getElementById('report-consent-progress-bar');
+  const noteEl = document.getElementById('report-consent-progress-note');
+
+  if (container) {
+    container.hidden = !APP_STATE.reportConsentProgress.visible;
+  }
+  if (labelEl) {
+    labelEl.textContent = APP_STATE.reportConsentProgress.label || '正在準備授權預覽...';
+  }
+  if (valueEl) {
+    valueEl.textContent = `${APP_STATE.reportConsentProgress.value}%`;
+  }
+  if (barEl) {
+    barEl.style.width = `${APP_STATE.reportConsentProgress.value}%`;
+  }
+  if (noteEl) {
+    noteEl.textContent = APP_STATE.reportConsentProgress.note || '這通常需要幾秒鐘，請稍候。';
+  }
+}
+
+function resetReportConsentProgress() {
+  setReportConsentProgress({
+    visible: false,
+    value: 0,
+    label: '',
+    note: ''
+  });
+}
+
+function setReportConsentButtonsLoading(loading, primaryText = '數位授權並送出報告') {
+  const authorizeButton = document.getElementById('report-authorize-submit');
+  const saveLaterButton = document.getElementById('report-save-later');
+
+  if (authorizeButton) {
+    authorizeButton.disabled = Boolean(loading);
+    authorizeButton.classList.toggle('is-loading', Boolean(loading));
+    authorizeButton.textContent = loading ? primaryText : '數位授權並送出報告';
+  }
+
+  if (saveLaterButton) {
+    saveLaterButton.disabled = Boolean(loading);
+    saveLaterButton.classList.toggle('is-loading', Boolean(loading));
+  }
+}
+
 function closeConsentPreview() {
   const overlay = document.getElementById('consent-preview-overlay');
   if (!overlay) return;
   overlay.classList.remove('active');
   overlay.setAttribute('aria-hidden', 'true');
   resetConsentPreviewState();
+  resetReportConsentProgress();
 }
 
 function handleConsentPreviewScroll() {
@@ -2185,12 +2248,31 @@ async function openConsentPreview() {
   clearMicroInterventionCard();
   closeMicroInterventionDetail();
   setTyping(true);
+  setReportConsentButtonsLoading(true, '正在準備中...');
+  setReportConsentProgress({
+    visible: true,
+    value: 10,
+    label: '正在同步目前對話狀態...',
+    note: '系統正在整理這次要給你確認的內容。'
+  });
   appendSystemNotice('正在準備授權預覽...');
   setConsentPreviewProgress(10, '正在同步目前對話狀態...');
 
   try {
+    setReportConsentProgress({
+      visible: true,
+      value: 28,
+      label: '正在整理可授權的 session export...',
+      note: '先抓取這次對話的摘要與病人授權內容。'
+    });
     setConsentPreviewProgress(28, '正在整理可授權的 session export...');
     const sessionPayload = await fetchOutputPayload('session_export', '準備授權預覽所需的 session export');
+    setReportConsentProgress({
+      visible: true,
+      value: 58,
+      label: '正在建立 FHIR 草稿預覽...',
+      note: 'FHIR 草稿需要額外生成，通常會再多花幾秒。'
+    });
     setConsentPreviewProgress(58, '正在建立 FHIR 草稿預覽...');
     const fhirPayload = await fetchOutputPayload('fhir_delivery', '準備授權預覽所需的 FHIR draft');
     const sessionExport = JSON.parse(JSON.stringify(sessionPayload.session_export || {}));
@@ -2225,13 +2307,26 @@ async function openConsentPreview() {
       overlay.classList.add('active');
       overlay.setAttribute('aria-hidden', 'false');
     }
+    setReportConsentProgress({
+      visible: false,
+      value: 100,
+      label: '授權預覽已就緒',
+      note: ''
+    });
     setConsentPreviewProgress(100, '授權預覽已就緒，可以直接送出');
   } catch (error) {
+    setReportConsentProgress({
+      visible: true,
+      value: 100,
+      label: '授權預覽準備失敗',
+      note: '請稍後再試一次，或先確認目前已有對話內容可送出。'
+    });
     setConsentPreviewProgress(100, '授權預覽準備失敗');
     await appendMessage('ai', error.message || '目前無法打開授權預覽。', { animate: true });
   } finally {
     setTyping(false);
     APP_STATE.isSending = false;
+    setReportConsentButtonsLoading(false);
   }
 }
 
