@@ -971,7 +971,7 @@ function renderShortcutPager() {
           ${APP_STATE.customShortcuts.map((item, index) =>
             `<div class="shortcut-custom-item">
               ${renderShortcutChip(item)}
-              <button class="shortcut-delete-btn" type="button" data-index="${index}" aria-label="刪除 ${escapeHtml(item.label)}"><span class="mat-icon">close</span></button>
+              <button class="shortcut-delete-btn" type="button" onclick="removeCustomShortcut(${index})" aria-label="刪除 ${escapeHtml(item.label)}"><span class="mat-icon">close</span></button>
             </div>`
           ).join('')}
         </div>
