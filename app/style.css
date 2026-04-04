@@ -3796,74 +3796,177 @@ body {
   animation: fadeIn 0.8s ease-out forwards;
 }
 
-.home-guide-label {
-  font-size: 13px;
-  font-weight: 700;
-  color: #8fa1ab;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  margin-bottom: 20px;
-  padding-left: 4px;
-}
-
-.home-guide-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.guide-card {
+.home-guide-toggle {
+  width: 100%;
   display: flex;
   align-items: center;
-  gap: 16px;
-  background: white;
-  padding: 16px;
-  border-radius: 20px;
-  border: 1px solid rgba(168, 180, 187, 0.1);
-  box-shadow: 0 6px 18px rgba(41, 52, 58, 0.04);
-  transition: all 0.3s var(--ease-natural);
-  cursor: pointer;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(255,255,255,0.78);
+  border-radius: 18px;
+  border: 1px solid rgba(168, 180, 187, 0.12);
+  box-shadow: 0 8px 20px rgba(41, 52, 58, 0.05);
+  color: #22323a;
+  transition: transform 0.24s var(--ease-natural), box-shadow 0.24s var(--ease-natural);
 }
 
-.guide-card:hover {
-  transform: translateX(6px);
-  border-color: var(--primary);
-  box-shadow: 0 10px 24px rgba(68, 102, 85, 0.08);
+.home-guide-toggle:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px rgba(41, 52, 58, 0.08);
 }
 
-.guide-card .mat-icon {
-  width: 44px;
-  height: 44px;
-  background: #f0f4f7;
+.home-guide-toggle .mat-icon {
+  font-size: 22px;
   color: var(--primary);
-  border-radius: 14px;
+  transition: transform 0.24s ease;
+}
+
+.home-guide-toggle[aria-expanded="true"] .mat-icon {
+  transform: rotate(180deg);
+}
+
+.home-guide-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
+}
+
+.home-guide-kicker {
+  font-size: 12px;
+  font-weight: 800;
+  color: #7e93a0;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.home-guide-summary {
+  font-size: 13px;
+  color: #60727b;
+  line-height: 1.5;
+}
+
+.home-guide-viewer {
+  margin-top: 14px;
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity 0.24s ease, max-height 0.34s var(--ease-natural);
+}
+
+.home-guide-viewer.active {
+  opacity: 1;
+  max-height: 560px;
+}
+
+.home-guide-pages {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 100%;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding-bottom: 6px;
+}
+
+.home-guide-pages::-webkit-scrollbar {
+  display: none;
+}
+
+.home-guide-page {
+  scroll-snap-align: start;
+  background: rgba(255,255,255,0.88);
+  border-radius: 24px;
+  border: 1px solid rgba(168, 180, 187, 0.12);
+  box-shadow: 0 10px 28px rgba(43, 56, 61, 0.06);
+  padding: 18px 18px 20px;
+}
+
+.home-guide-page-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.home-guide-page-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  background: #eef4f7;
+  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 23px;
+  flex: 0 0 auto;
+}
+
+.home-guide-page-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.home-guide-page-step {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #88a0ad;
+}
+
+.home-guide-page-title {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #203038;
+}
+
+.home-guide-page-content {
+  color: #536770;
+}
+
+.home-guide-page-content p,
+.home-guide-page-content li,
+.home-guide-page-content blockquote {
+  font-size: 0.95rem;
+  line-height: 1.8;
+}
+
+.home-guide-page-content ul {
+  padding-left: 18px;
+}
+
+.home-guide-page-content p + p,
+.home-guide-page-content ul + p,
+.home-guide-page-content p + ul {
+  margin-top: 10px;
+}
+
+.home-guide-dots {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  transition: all 0.3s ease;
+  gap: 8px;
+  margin-top: 14px;
 }
 
-.guide-card:hover .mat-icon {
-  background: var(--primary-container);
-  color: var(--on-primary-container);
+.home-guide-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(122, 143, 154, 0.34);
+  transition: transform 0.22s ease, background 0.22s ease, width 0.22s ease;
 }
 
-.guide-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.guide-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: #25353d;
-}
-
-.guide-desc {
-  font-size: 12px;
-  color: #72828a;
+.home-guide-dot.active {
+  width: 22px;
+  background: var(--primary);
 }
 
 

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
 <meta charset="utf-8"/>
@@ -32,43 +32,16 @@
       </div>
 
       <div class="home-guide-section">
-        <div class="home-guide-label">Rou Rou 使用導引</div>
-        <div class="home-guide-grid">
-          <div class="guide-card" onclick="showScreen('screen-chat')">
-            <span class="mat-icon fill">chat_bubble</span>
-            <div class="guide-info">
-              <div class="guide-title">聊天介面</div>
-              <div class="guide-desc">核心互動與同理對話引擎</div>
-            </div>
-          </div>
-          <div class="guide-card" onclick="showScreen('screen-chat')">
-            <span class="mat-icon">bolt</span>
-            <div class="guide-info">
-              <div class="guide-title">快捷指令</div>
-              <div class="guide-desc">使用第二頁的 + 新增按鈕</div>
-            </div>
-          </div>
-          <div class="guide-card" onclick="showScreen('screen-report')">
-            <span class="mat-icon fill">analytics</span>
-            <div class="guide-info">
-              <div class="guide-title">數據報表</div>
-              <div class="guide-desc">即時追蹤 HAM-D 與情緒波形</div>
-            </div>
-          </div>
-          <div class="guide-card" onclick="showScreen('screen-report')">
-            <span class="mat-icon">psychology</span>
-            <div class="guide-info">
-              <div class="guide-title">認識你</div>
-              <div class="guide-desc">查看已累積的心理畫像</div>
-            </div>
-          </div>
-          <div class="guide-card" onclick="showScreen('screen-settings')">
-            <span class="mat-icon">settings</span>
-            <div class="guide-info">
-              <div class="guide-title">系統設定</div>
-              <div class="guide-desc">調整 AI 引擎與隱私連通</div>
-            </div>
-          </div>
+        <button id="home-guide-toggle" class="home-guide-toggle" type="button" aria-expanded="false">
+          <span class="home-guide-toggle-copy">
+            <span class="home-guide-kicker">Rou Rou 使用導引</span>
+            <span class="home-guide-summary">點開後可以左右滑動，看每個頁面的介紹</span>
+          </span>
+          <span class="mat-icon">expand_more</span>
+        </button>
+        <div id="home-guide-viewer" class="home-guide-viewer" aria-hidden="true">
+          <div id="home-guide-pages" class="home-guide-pages"></div>
+          <div id="home-guide-dots" class="home-guide-dots" aria-label="使用導引頁碼"></div>
         </div>
       </div>
     </main>
@@ -663,22 +636,19 @@
           <span class="mat-icon" style="color:#446655">record_voice_over</span>
           <span class="settings-label">語音風格</span>
         </div>
-        <div class="chip-group">
-          <button class="chip active">溫柔</button>
-          <button class="chip">有活力</button>
-          <button class="chip">平靜</button>
+        <div class="chip-group" id="settings-voice-style">
+          <button class="chip" data-style="gentle" onclick="selectVoiceStyle('gentle', this)">溫柔</button>
+          <button class="chip" data-style="vibrant" onclick="selectVoiceStyle('vibrant', this)">有活力</button>
+          <button class="chip" data-style="calm" onclick="selectVoiceStyle('calm', this)">平靜</button>
         </div>
         <div class="settings-divider"></div>
         <div class="settings-row"><span class="mat-icon" style="color:#446655">psychology</span><span class="settings-label">預設模式</span></div>
-        <div class="mode-choices">
-          <div class="mode-choice">
-            <span class="mat-icon" style="font-size:20px">chat</span>
-            <span>自然聊天</span>
+        <div class="mode-choices" id="settings-default-mode" onclick="showScreen('screen-energy')" style="cursor:pointer">
+          <div class="mode-choice active" style="flex:1">
+            <span class="mat-icon fill" id="settings-mode-icon" style="font-size:20px">favorite</span>
+            <span id="settings-mode-name">靈魂陪伴</span>
           </div>
-          <div class="mode-choice active">
-            <span class="mat-icon fill" style="font-size:20px">favorite</span>
-            <span>靈魂伴侶</span>
-          </div>
+          <button class="icon-btn"><span class="mat-icon">edit</span></button>
         </div>
         <div class="settings-divider"></div>
         <div class="settings-toggle-row">
@@ -686,7 +656,7 @@
             <div class="settings-label">互動負擔感測</div>
             <div class="settings-sub">依據你的狀態調整回應負擔與節奏。</div>
           </div>
-          <label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label>
+          <label class="toggle"><input id="settings-interaction-sensing" type="checkbox" onchange="toggleInteractionSensing(this)" checked/><span class="toggle-track"></span></label>
         </div>
       </div>
 

@@ -3,6 +3,74 @@ const DEFAULT_GOOGLE_BASE_URL = 'https://generativelanguage.googleapis.com/v1bet
 const DEFAULT_GROQ_API_KEY = '';
 const DEFAULT_GOOGLE_API_KEY = '';
 const DEFAULT_PROVIDER = localStorage.getItem('rourou.aiProvider') || 'google';
+const HOME_GUIDE_PAGES = [
+  {
+    icon: 'chat_bubble',
+    title: '聊天介面',
+    markdown: [
+      '## 從這裡開始',
+      '',
+      '- 點首頁的輸入框，就會進到聊天頁。',
+      '- Rou Rou 會先接住情緒，再根據內容決定互動模式。',
+      '',
+      '> 如果你只想先說一點點，也可以只打短句。'
+    ].join('\n')
+  },
+  {
+    icon: 'bolt',
+    title: '快捷指令',
+    markdown: [
+      '## 快速做事',
+      '',
+      '- 聊天頁底部有快捷列。',
+      '- 第二頁可以用 `+` 新增自己的常用命令。',
+      '- 適合放像是 `幫我整理給醫生`、`先陪我慢慢說` 這種固定句子。'
+    ].join('\n')
+  },
+  {
+    icon: 'analytics',
+    title: '數據報表',
+    markdown: [
+      '## 看整理後的內容',
+      '',
+      '- Reports 會顯示醫師摘要、病人審閱稿與 FHIR 草稿。',
+      '- 這裡也會看到目前整理出的症狀線索與資源數量。',
+      '',
+      '> 它不是每次聊天都自動送出，而是先整理給你看。'
+    ].join('\n')
+  },
+  {
+    icon: 'psychology',
+    title: '認識你',
+    markdown: [
+      '## 累積你的心理畫像',
+      '',
+      '- 系統會把壓力來源、觸發點、正向錨點慢慢整理起來。',
+      '- 這些內容主要用來讓對話更連續，不是直接當成醫療結論。'
+    ].join('\n')
+  },
+  {
+    icon: 'verified_user',
+    title: '授權送出',
+    markdown: [
+      '## 手動確認後才上傳',
+      '',
+      '- 點 `數位授權並送出報告` 後，會先看到完整預覽。',
+      '- 你必須滑到最下面，`同意送出` 才會解鎖。',
+      '- 真正上傳只會在你最後按下同意之後才發生。'
+    ].join('\n')
+  },
+  {
+    icon: 'settings',
+    title: '系統設定',
+    markdown: [
+      '## 調整連線與隱私',
+      '',
+      '- Settings 可以設定 AI provider、API key、User ID。',
+      '- FHIR 即時同步目前只會記住偏好，不會自動上傳。'
+    ].join('\n')
+  }
+];
 
 /* ══════════════════════════════════════════════
    THERAPEUTIC MEMORY MODULE
@@ -1192,6 +1260,84 @@ function renderMessageMarkdown(text) {
   }).join('');
 
   return html;
+}
+
+function renderHomeGuidePages() {
+  const pagesEl = document.getElementById('home-guide-pages');
+  const dotsEl = document.getElementById('home-guide-dots');
+  if (!pagesEl || !dotsEl) return;
+
+  pagesEl.innerHTML = HOME_GUIDE_PAGES.map((page, index) => `
+    <article class="home-guide-page" data-guide-index="${index}">
+      <div class="home-guide-page-header">
+        <span class="home-guide-page-icon mat-icon ${page.icon === 'chat_bubble' || page.icon === 'analytics' ? 'fill' : ''}">${page.icon}</span>
+        <div class="home-guide-page-meta">
+          <div class="home-guide-page-step">Step ${index + 1}</div>
+          <div class="home-guide-page-title">${escapeHtml(page.title)}</div>
+        </div>
+      </div>
+      <div class="home-guide-page-content markdown-body">${renderMessageMarkdown(page.markdown)}</div>
+    </article>
+  `).join('');
+
+  dotsEl.innerHTML = HOME_GUIDE_PAGES.map((_, index) => `
+    <button class="home-guide-dot ${index === 0 ? 'active' : ''}" type="button" data-guide-dot="${index}" aria-label="切換到導引第 ${index + 1} 頁"></button>
+  `).join('');
+}
+
+function updateHomeGuideDots() {
+  const pagesEl = document.getElementById('home-guide-pages');
+  const dots = Array.from(document.querySelectorAll('.home-guide-dot'));
+  if (!pagesEl || !dots.length) return;
+  const pageWidth = pagesEl.clientWidth || 1;
+  const index = Math.max(0, Math.min(dots.length - 1, Math.round(pagesEl.scrollLeft / pageWidth)));
+  dots.forEach((dot, dotIndex) => {
+    dot.classList.toggle('active', dotIndex === index);
+  });
+}
+
+function toggleHomeGuide() {
+  const toggle = document.getElementById('home-guide-toggle');
+  const viewer = document.getElementById('home-guide-viewer');
+  if (!toggle || !viewer) return;
+  const nextExpanded = toggle.getAttribute('aria-expanded') !== 'true';
+  toggle.setAttribute('aria-expanded', nextExpanded ? 'true' : 'false');
+  viewer.classList.toggle('active', nextExpanded);
+  viewer.setAttribute('aria-hidden', nextExpanded ? 'false' : 'true');
+  if (nextExpanded) {
+    updateHomeGuideDots();
+  }
+}
+
+function wireHomeGuide() {
+  const toggle = document.getElementById('home-guide-toggle');
+  const pagesEl = document.getElementById('home-guide-pages');
+  const dotsEl = document.getElementById('home-guide-dots');
+
+  renderHomeGuidePages();
+
+  if (toggle && !toggle.dataset.wired) {
+    toggle.dataset.wired = 'true';
+    toggle.addEventListener('click', toggleHomeGuide);
+  }
+
+  if (pagesEl && !pagesEl.dataset.wired) {
+    pagesEl.dataset.wired = 'true';
+    pagesEl.addEventListener('scroll', updateHomeGuideDots, { passive: true });
+  }
+
+  if (dotsEl && !dotsEl.dataset.wired) {
+    dotsEl.dataset.wired = 'true';
+    dotsEl.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-guide-dot]');
+      if (!button || !pagesEl) return;
+      const index = Number(button.dataset.guideDot || '0');
+      pagesEl.scrollTo({
+        left: pagesEl.clientWidth * index,
+        behavior: 'smooth'
+      });
+    });
+  }
 }
 
 const MICRO_INTERVENTION_RULES = window.MicroInterventionRules || null;
@@ -2451,6 +2597,7 @@ function injectRuntimeSettings() {
 document.addEventListener('DOMContentLoaded', () => {
   initializeRuntimeConfig();
   showScreen('screen-home');
+  wireHomeGuide();
   updateModeLabels();
   injectRuntimeSettings();
   renderShortcutPager();
