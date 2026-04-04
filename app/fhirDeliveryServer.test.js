@@ -14,6 +14,7 @@ async function testDryRunDelivery() {
   const result = await processExportPayload(getSamplePayload(), {});
   assert.strictEqual(result.statusCode, 200);
   assert.strictEqual(result.body.delivery_status, 'dry_run_ready');
+  assert.strictEqual(result.body.fhir_base_url, '');
   assert.ok(result.body.bundle_result.bundle_json);
 }
 
@@ -40,6 +41,7 @@ async function testTransactionDelivery() {
 
   assert.strictEqual(result.statusCode, 200);
   assert.strictEqual(result.body.delivery_status, 'delivered');
+  assert.strictEqual(result.body.fhir_base_url, 'https://example.org/fhir');
   assert.strictEqual(result.body.transaction_response.ok, true);
 }
 

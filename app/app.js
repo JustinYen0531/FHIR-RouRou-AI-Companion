@@ -349,6 +349,7 @@ const APP_STATE = {
     patient_analysis: null,
     patient_review: null,
     fhir_delivery: null,
+    fhir_delivery_result: null,
     session_export: null,
     updatedAt: ''
   },
@@ -647,11 +648,43 @@ function renderPatientAnalysisMarkdown(analysis) {
   return renderMessageMarkdown(markdown);
 }
 
+function normalizeFhirBaseUrl(baseUrl) {
+  const normalized = String(baseUrl || '').trim();
+  return normalized ? normalized.replace(/\/+$/, '') : '';
+}
+
+function buildFhirResourceLinks(deliveryResult) {
+  const baseUrl = normalizeFhirBaseUrl(deliveryResult?.fhir_base_url);
+  const entries = Array.isArray(deliveryResult?.transaction_response?.body?.entry)
+    ? deliveryResult.transaction_response.body.entry
+    : [];
+
+  if (!baseUrl || !entries.length) return [];
+
+  return entries
+    .map((entry) => {
+      const location = String(entry?.response?.location || '').trim();
+      if (!location) return null;
+
+      const resourcePath = location.replace(/^https?:\/\/[^/]+/i, '').replace(/^\/+/, '');
+      const canonicalPath = resourcePath.replace(/\/_history\/[^/]+$/i, '');
+      const [resourceType = 'Resource', resourceId = ''] = canonicalPath.split('/');
+
+      return {
+        label: resourceId ? `${resourceType}/${resourceId}` : resourceType,
+        path: canonicalPath || resourcePath,
+        url: `${baseUrl}/${canonicalPath || resourcePath}`
+      };
+    })
+    .filter(Boolean);
+}
+
 function renderReportOutputs() {
   const clinician = APP_STATE.reportOutputs.clinician_summary || {};
   const patientAnalysis = APP_STATE.reportOutputs.patient_analysis || {};
   const patientReview = APP_STATE.reportOutputs.patient_review || {};
   const fhirDelivery = APP_STATE.reportOutputs.fhir_delivery || {};
+  const fhirDeliveryResult = APP_STATE.reportOutputs.fhir_delivery_result || APP_STATE.pendingConsent.deliveryResult || null;
   const updatedAt = APP_STATE.reportOutputs.updatedAt;
   const hamd = getHamdSummary(clinician);
 
@@ -672,6 +705,7 @@ function renderReportOutputs() {
   const fhirStatus = document.getElementById('report-fhir-status');
   const fhirSummary = document.getElementById('report-fhir-summary');
   const fhirResources = document.getElementById('report-fhir-resources');
+  const fhirLinks = document.getElementById('report-fhir-links');
   const authNote = document.getElementById('report-auth-note');
 
   if (intro) {
@@ -711,7 +745,7 @@ function renderReportOutputs() {
   }
 
   if (fhirStatus) {
-    fhirStatus.textContent = fhirDelivery?.delivery_status || '尚未生成';
+    fhirStatus.textContent = fhirDeliveryResult?.delivery_status || fhirDelivery?.delivery_status || '尚未生成';
   }
 
   if (fhirSummary) {
@@ -720,12 +754,14 @@ function renderReportOutputs() {
 
   if (fhirResources) {
     const baseCount = Array.isArray(fhirDelivery?.resources) ? fhirDelivery.resources.length : 0;
-  if (screenId === 'screen-settings') { updateSettingsUI(); }
     const totalCount = baseCount;
     fhirResources.textContent = `FHIR 資源數：${totalCount}`;
 
     // 附加心理畫像 Observations 清單（如果有）
     const profileObsList = document.getElementById('report-fhir-profile-obs');
+    const profileObs = Array.isArray(fhirDelivery?.therapeutic_memory_observations)
+      ? fhirDelivery.therapeutic_memory_observations.length
+      : 0;
     if (profileObsList) {
       if (profileObs > 0) {
         const items = fhirDelivery.therapeutic_memory_observations.map(obs =>
@@ -745,6 +781,35 @@ function renderReportOutputs() {
       } else {
         profileObsList.innerHTML = '';
       }
+    }
+  }
+
+  if (fhirLinks) {
+    const targetUrl = normalizeFhirBaseUrl(fhirDeliveryResult?.fhir_base_url);
+    const linkItems = buildFhirResourceLinks(fhirDeliveryResult);
+    if (fhirDeliveryResult?.delivery_status === 'delivered' && targetUrl && linkItems.length) {
+      fhirLinks.innerHTML = `
+        <div class="fhir-link-section">
+          <div class="fhir-link-title">
+            <span class="mat-icon">link</span>
+            已成功寫入 HAPI FHIR
+          </div>
+          <div class="fhir-link-target">FHIR Server：<a href="${escapeHtml(targetUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(targetUrl)}</a></div>
+          <div class="fhir-link-list">
+            ${linkItems.map((item) => `
+              <div class="fhir-link-item">
+                <span class="mat-icon" style="font-size:16px;color:var(--primary)">open_in_new</span>
+                <div class="fhir-link-copy">
+                  <div class="fhir-link-label">${escapeHtml(item.label)}</div>
+                  <div class="fhir-link-path"><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.path)}</a></div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    } else {
+      fhirLinks.innerHTML = '';
     }
   }
 
@@ -1864,6 +1929,7 @@ function resetConversationState() {
     patient_analysis: null,
     patient_review: null,
     fhir_delivery: null,
+    fhir_delivery_result: null,
     session_export: null,
     updatedAt: ''
   };
@@ -2097,6 +2163,7 @@ async function openConsentPreview() {
 
     APP_STATE.pendingConsent.sessionExport = sessionExport;
     APP_STATE.pendingConsent.fhirDraft = fhirDraft;
+    APP_STATE.pendingConsent.deliveryResult = null;
     APP_STATE.pendingConsent.canConfirm = false;
 
     const previewBody = document.getElementById('consent-preview-body');
@@ -2549,6 +2616,10 @@ async function authorizeAndSendReport() {
     }
 
     const deliveryStatus = payload.delivery_status || 'unknown';
+    APP_STATE.pendingConsent.deliveryResult = payload;
+    APP_STATE.reportOutputs.fhir_delivery_result = payload;
+    APP_STATE.reportOutputs.updatedAt = formatTimeLabel(new Date());
+    renderReportOutputs();
     if (deliveryStatus === 'dry_run_ready') {
       appendSystemNotice('已完成手動授權，但目前後端尚未設定 FHIR_SERVER_URL，所以這次只是 dry-run，尚未真正送到醫院端。');
     } else if (deliveryStatus === 'delivered') {

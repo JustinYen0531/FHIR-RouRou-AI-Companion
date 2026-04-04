@@ -63,6 +63,7 @@ async function processExportPayload(payload, options = {}) {
   const response = {
     delivery_status: 'blocked',
     mode: options.fhirBaseUrl ? 'transaction' : 'dry_run',
+    fhir_base_url: options.fhirBaseUrl || '',
     bundle_result: bundleResult,
     transaction_response: null
   };
