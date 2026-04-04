@@ -1,7 +1,8 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { processExportPayload, processChatPayload, processOutputPayload } = require('./fhirDeliveryServer');
+const http = require('http');
+const { processExportPayload, processChatPayload, processOutputPayload, createServer } = require('./fhirDeliveryServer');
 
 function getSamplePayload() {
   return JSON.parse(
@@ -116,6 +117,55 @@ async function testOutputProxyDelivery() {
   assert.ok(result.body.output);
 }
 
+async function testSessionListEndpoint() {
+  const sessions = new Map();
+  sessions.set('conv-a', {
+    id: 'conv-a',
+    user: 'demo-user',
+    startedAt: '2026-04-04T00:00:00.000Z',
+    updatedAt: '2026-04-04T00:05:00.000Z',
+    history: [
+      { role: 'user', content: '最近很累' },
+      { role: 'assistant', content: '我有聽到。' }
+    ],
+    state: {
+      active_mode: 'mode_5_natural',
+      risk_flag: 'false',
+      clinician_summary_draft: { draft_summary: 'stub' },
+      fhir_delivery_draft: { delivery_status: 'ready_for_mapping' }
+    },
+    revision: 1,
+    memory_snapshot: {
+      note_history: ['最近很累'],
+      last_user_message: '最近很累',
+      last_assistant_message: '我有聽到。',
+      active_mode: 'mode_5_natural',
+      risk_flag: 'false',
+      latest_tag_summary: '最近很累',
+      hamd_focus: 'depressed_mood'
+    },
+    output_cache: {}
+  });
+
+  const server = createServer({ sessions });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const payload = await new Promise((resolve, reject) => {
+    http.get(`http://127.0.0.1:${port}/api/chat/sessions?user=demo-user&limit=5`, (res) => {
+      let raw = '';
+      res.on('data', (chunk) => { raw += chunk; });
+      res.on('end', () => resolve(JSON.parse(raw)));
+    }).on('error', reject);
+  });
+
+  server.close();
+  assert.strictEqual(payload.ok, true);
+  assert.strictEqual(payload.sessions.length, 1);
+  assert.strictEqual(payload.sessions[0].id, 'conv-a');
+  assert.strictEqual(payload.sessions[0].has_fhir_draft, true);
+}
+
 async function run() {
   await testDryRunDelivery();
   await testBlockedDelivery();
@@ -123,6 +173,7 @@ async function run() {
   await testChatProxyDelivery();
   await testChatProxyMissingApiKey();
   await testOutputProxyDelivery();
+  await testSessionListEndpoint();
   console.log('FHIR delivery server tests passed.');
 }
 

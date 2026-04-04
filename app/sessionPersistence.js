@@ -95,9 +95,55 @@ function createSessionPersistence(options = {}) {
   };
 }
 
+function summarizeSession(session) {
+  const history = Array.isArray(session.history) ? session.history : [];
+  const lastUserMessage = session.memory_snapshot?.last_user_message ||
+    history.slice().reverse().find((item) => item && item.role === 'user')?.content ||
+    '';
+  const lastAssistantMessage = session.memory_snapshot?.last_assistant_message ||
+    history.slice().reverse().find((item) => item && item.role === 'assistant')?.content ||
+    '';
+  const latestTags = session.state?.latest_tag_payload && typeof session.state.latest_tag_payload === 'object'
+    ? session.state.latest_tag_payload
+    : {};
+  const clinicianSummary = session.state?.clinician_summary_draft && typeof session.state.clinician_summary_draft === 'object'
+    ? session.state.clinician_summary_draft
+    : {};
+
+  return {
+    id: session.id,
+    user: session.user || 'web-demo-user',
+    startedAt: session.startedAt || '',
+    updatedAt: session.updatedAt || '',
+    active_mode: session.state?.active_mode || session.memory_snapshot?.active_mode || 'auto',
+    risk_flag: session.state?.risk_flag || session.memory_snapshot?.risk_flag || 'false',
+    latest_tag_summary: session.memory_snapshot?.latest_tag_summary || latestTags.summary || '',
+    last_user_message: String(lastUserMessage || '').trim(),
+    last_assistant_message: String(lastAssistantMessage || '').trim(),
+    note_history_count: Array.isArray(session.memory_snapshot?.note_history) ? session.memory_snapshot.note_history.length : 0,
+    has_clinician_summary: Boolean(clinicianSummary && Object.keys(clinicianSummary).length),
+    has_fhir_draft: Boolean(session.state?.fhir_delivery_draft && typeof session.state.fhir_delivery_draft === 'object' && Object.keys(session.state.fhir_delivery_draft).length),
+    message_count: history.length
+  };
+}
+
+function listSessionSummaries(sessions, options = {}) {
+  const user = String(options.user || '').trim();
+  const limit = Math.max(1, Math.min(20, Number(options.limit) || 5));
+  const results = [];
+  for (const session of sessions.values()) {
+    if (user && String(session.user || '').trim() !== user) continue;
+    results.push(summarizeSession(session));
+  }
+  results.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+  return results.slice(0, limit);
+}
+
 module.exports = {
   DEFAULT_SESSION_STORE_PATH,
   createSessionPersistence,
+  listSessionSummaries,
   loadSessionsFromFile,
-  saveSessionsToFile
+  saveSessionsToFile,
+  summarizeSession
 };

@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { buildSessionExportBundle } = require('./fhirBundleBuilder');
 const { AICompanionEngine } = require('./aiCompanionEngine');
-const { createSessionPersistence, DEFAULT_SESSION_STORE_PATH } = require('./sessionPersistence');
+const { createSessionPersistence, DEFAULT_SESSION_STORE_PATH, listSessionSummaries } = require('./sessionPersistence');
 const {
   DEFAULT_GROQ_BASE_URL,
   DEFAULT_GOOGLE_BASE_URL,
@@ -313,6 +313,7 @@ function createServer(options = {}) {
   });
 
   return http.createServer(async (req, res) => {
+    const parsedUrl = new URL(req.url, 'http://localhost');
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
         'Access-Control-Allow-Origin': '*',
@@ -323,11 +324,11 @@ function createServer(options = {}) {
       return;
     }
 
-    if (req.method === 'GET' && sendStaticFile(res, req.url)) {
+    if (req.method === 'GET' && sendStaticFile(res, parsedUrl.pathname)) {
       return;
     }
 
-    if (req.method === 'GET' && req.url === '/health') {
+    if (req.method === 'GET' && parsedUrl.pathname === '/health') {
       sendJson(res, 200, {
         ok: true,
         ai_engine: 'node',
@@ -338,7 +339,17 @@ function createServer(options = {}) {
       return;
     }
 
-    if (req.method !== 'POST' || !['/api/fhir/bundle', '/api/chat/message', '/api/chat/output'].includes(req.url)) {
+    if (req.method === 'GET' && parsedUrl.pathname === '/api/chat/sessions') {
+      const user = String(parsedUrl.searchParams.get('user') || '').trim();
+      const limit = Number(parsedUrl.searchParams.get('limit') || 5);
+      sendJson(res, 200, {
+        ok: true,
+        sessions: listSessionSummaries(sharedSessions, { user, limit })
+      });
+      return;
+    }
+
+    if (req.method !== 'POST' || !['/api/fhir/bundle', '/api/chat/message', '/api/chat/output'].includes(parsedUrl.pathname)) {
       sendJson(res, 404, { error: 'Not found' });
       return;
     }
@@ -358,9 +369,9 @@ function createServer(options = {}) {
       }
 
       const result =
-        req.url === '/api/chat/message'
+        parsedUrl.pathname === '/api/chat/message'
           ? await processChatPayload(payload, Object.assign({}, options, { engine: sharedEngine, sessions: sharedSessions }))
-          : req.url === '/api/chat/output'
+          : parsedUrl.pathname === '/api/chat/output'
             ? await processOutputPayload(payload, Object.assign({}, options, { engine: sharedEngine, sessions: sharedSessions }))
             : await processExportPayload(payload, options);
       sendJson(res, result.statusCode, result.body);

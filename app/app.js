@@ -352,6 +352,7 @@ const APP_STATE = {
     session_export: null,
     updatedAt: ''
   },
+  recentSessions: [],
   pendingConsent: {
     sessionExport: null,
     fhirDraft: null,
@@ -785,6 +786,10 @@ function showScreen(screenId) {
   
   if (screenId === 'screen-energy') {
     refreshModeListUI();
+  }
+
+  if (screenId === 'screen-home') {
+    loadRecentSessions();
   }
 }
 
@@ -1377,6 +1382,31 @@ function wireHomeGuide() {
   }
 }
 
+function wireHomeSessionControls() {
+  const continueButton = document.getElementById('home-continue-last-chat');
+  const newChatButton = document.getElementById('home-start-new-chat');
+  const list = document.getElementById('home-session-list');
+
+  if (continueButton && !continueButton.dataset.wired) {
+    continueButton.dataset.wired = 'true';
+    continueButton.addEventListener('click', continueLatestSession);
+  }
+
+  if (newChatButton && !newChatButton.dataset.wired) {
+    newChatButton.dataset.wired = 'true';
+    newChatButton.addEventListener('click', startNewConversation);
+  }
+
+  if (list && !list.dataset.wired) {
+    list.dataset.wired = 'true';
+    list.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-session-id]');
+      if (!button) return;
+      continueSpecificSession(button.dataset.sessionId);
+    });
+  }
+}
+
 const MICRO_INTERVENTION_RULES = window.MicroInterventionRules || null;
 const MICRO_INTERVENTION_REGISTRY = MICRO_INTERVENTION_RULES?.createCardRegistry
   ? MICRO_INTERVENTION_RULES.createCardRegistry()
@@ -1769,6 +1799,140 @@ function savePrivacySettings(nextSettings = {}) {
   APP_STATE.privacySettings = Object.assign({}, APP_STATE.privacySettings, nextSettings);
   localStorage.setItem('rourou.fhirRealtimeSync', APP_STATE.privacySettings.fhirRealtimeSync ? 'true' : 'false');
   localStorage.setItem('rourou.autoReportDraft', APP_STATE.privacySettings.autoReportDraft ? 'true' : 'false');
+}
+
+function formatSessionTimestamp(value) {
+  if (!value) return '未知時間';
+  try {
+    return new Date(value).toLocaleString('zh-TW', {
+      month: 'numeric',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch {
+    return String(value);
+  }
+}
+
+function formatModeLabel(value) {
+  const raw = String(value || 'auto');
+  return raw
+    .replace(/^mode_\d+_/, '')
+    .replace(/^mode_/, '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function resetConversationState() {
+  APP_STATE.conversationId = '';
+  APP_STATE.syncedMode = '';
+  APP_STATE.runtimeMode = '';
+  APP_STATE.lastChatMetadata = null;
+  APP_STATE.reportOutputs = {
+    clinician_summary: null,
+    patient_analysis: null,
+    patient_review: null,
+    fhir_delivery: null,
+    session_export: null,
+    updatedAt: ''
+  };
+  APP_STATE.pendingConsent = {
+    sessionExport: null,
+    fhirDraft: null,
+    deliveryResult: null,
+    canConfirm: false
+  };
+}
+
+function renderRecentSessions() {
+  const container = document.getElementById('home-session-list');
+  const continueButton = document.getElementById('home-continue-last-chat');
+  if (!container) return;
+
+  const sessions = Array.isArray(APP_STATE.recentSessions) ? APP_STATE.recentSessions : [];
+  if (continueButton) {
+    continueButton.disabled = !sessions.length;
+  }
+
+  if (!sessions.length) {
+    container.innerHTML = `<div class="home-session-empty">目前還沒有已保存的對話。你可以先開始一段新的聊天，之後這裡就會顯示最近的對話。</div>`;
+    return;
+  }
+
+  container.innerHTML = sessions.map((session) => {
+    const summary = session.latest_tag_summary || session.last_user_message || '這段對話目前還沒有摘要。';
+    const sub = session.last_assistant_message || '點進去可以繼續這段對話。';
+    const flags = [
+      session.risk_flag === 'true' ? '<span class="home-session-flag risk">高風險標記</span>' : '',
+      session.has_clinician_summary ? '<span class="home-session-flag">有醫師摘要</span>' : '',
+      session.has_fhir_draft ? '<span class="home-session-flag">有 FHIR 草稿</span>' : ''
+    ].filter(Boolean).join('');
+
+    return `
+      <button class="home-session-card" type="button" data-session-id="${escapeHtml(session.id)}">
+        <div class="home-session-top">
+          <div class="home-session-time">${escapeHtml(formatSessionTimestamp(session.updatedAt))}</div>
+          <div class="home-session-mode">${escapeHtml(formatModeLabel(session.active_mode))}</div>
+        </div>
+        <div class="home-session-summary">${escapeHtml(summary)}</div>
+        <div class="home-session-sub">${escapeHtml(sub)}</div>
+        ${flags ? `<div class="home-session-flags">${flags}</div>` : ''}
+      </button>
+    `;
+  }).join('');
+}
+
+async function loadRecentSessions() {
+  const container = document.getElementById('home-session-list');
+  if (container) {
+    container.innerHTML = `<div class="home-session-empty">正在讀取最近對話...</div>`;
+  }
+
+  try {
+    const config = getRuntimeConfig();
+    const response = await fetch(`/api/chat/sessions?user=${encodeURIComponent(config.userId)}&limit=5`);
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.error || '讀取最近對話失敗');
+    }
+    APP_STATE.recentSessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+    renderRecentSessions();
+  } catch (error) {
+    APP_STATE.recentSessions = [];
+    if (container) {
+      container.innerHTML = `<div class="home-session-empty">${escapeHtml(error.message || '目前無法讀取最近對話。')}</div>`;
+    }
+  }
+}
+
+function continueLatestSession() {
+  const latest = APP_STATE.recentSessions[0];
+  if (!latest) {
+    appendSystemNotice('目前還沒有可繼續的舊對話。');
+    return;
+  }
+  APP_STATE.conversationId = latest.id;
+  APP_STATE.runtimeMode = latest.active_mode || '';
+  APP_STATE.syncedMode = '';
+  showScreen('screen-chat');
+  appendSystemNotice(`已切換到 ${formatSessionTimestamp(latest.updatedAt)} 的對話。`);
+}
+
+function continueSpecificSession(sessionId) {
+  const target = APP_STATE.recentSessions.find((item) => item.id === sessionId);
+  if (!target) return;
+  APP_STATE.conversationId = target.id;
+  APP_STATE.runtimeMode = target.active_mode || '';
+  APP_STATE.syncedMode = '';
+  showScreen('screen-chat');
+  appendSystemNotice(`已切換到 ${formatSessionTimestamp(target.updatedAt)} 的對話。`);
+}
+
+function startNewConversation() {
+  resetConversationState();
+  showScreen('screen-chat');
+  appendSystemNotice('已開始新的對話。這次不會接續之前的會話。');
 }
 
 function formatArrayForList(items = [], emptyText = '目前沒有可顯示內容。') {
@@ -2642,6 +2806,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initializeRuntimeConfig();
   showScreen('screen-home');
   wireHomeGuide();
+  wireHomeSessionControls();
   updateModeLabels();
   injectRuntimeSettings();
   renderShortcutPager();
