@@ -3,6 +3,7 @@ const DEFAULT_GOOGLE_BASE_URL = 'https://generativelanguage.googleapis.com/v1bet
 const DEFAULT_GROQ_API_KEY = '';
 const DEFAULT_GOOGLE_API_KEY = '';
 const DEFAULT_PROVIDER = localStorage.getItem('rourou.aiProvider') || 'google';
+const FHIR_REPORT_HISTORY_KEY = 'rourou.fhirReportHistory';
 const HOME_GUIDE_PAGES = [
   {
     icon: 'chat_bubble',
@@ -353,6 +354,7 @@ const APP_STATE = {
     session_export: null,
     updatedAt: ''
   },
+  fhirReportHistory: loadFhirReportHistory(),
   recentSessions: [],
   pendingConsent: {
     sessionExport: null,
@@ -562,6 +564,18 @@ function formatTimeLabel(date = new Date()) {
   });
 }
 
+function formatDateTimeLabel(dateLike) {
+  const date = dateLike instanceof Date ? dateLike : new Date(dateLike);
+  if (Number.isNaN(date.getTime())) return '時間未知';
+  return date.toLocaleString('zh-TW', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
 function getDynamicDateLabel() {
   const now = new Date();
   const hours = now.getHours();
@@ -714,6 +728,169 @@ function findFhirResourceLink(deliveryResult, resourceType) {
   return buildFhirResourceLinks(deliveryResult).find((item) => item.label.startsWith(`${resourceType}/`)) || null;
 }
 
+function loadFhirReportHistory() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(FHIR_REPORT_HISTORY_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveFhirReportHistory() {
+  localStorage.setItem(FHIR_REPORT_HISTORY_KEY, JSON.stringify(APP_STATE.fhirReportHistory || []));
+}
+
+function buildFhirHistoryEntry({ type, draft = null, deliveryResult = null, sessionExport = null }) {
+  const entryType = type === 'delivery' ? 'delivery' : 'draft';
+  const resourceLinks = buildFhirResourceLinks(deliveryResult);
+  const fixedPatientValues = getFixedPatientValues(deliveryResult, sessionExport);
+  const targetUrl = normalizeFhirBaseUrl(deliveryResult?.fhir_base_url || sessionExport?.__deliveryTargetUrl || '');
+  const summary = String(draft?.narrative_summary || '').trim() || (entryType === 'delivery' ? 'FHIR 交付結果' : 'FHIR 草稿');
+  const deliveryStatus = deliveryResult?.delivery_status || draft?.delivery_status || (entryType === 'draft' ? 'draft' : 'unknown');
+  const fingerprint = JSON.stringify({
+    entryType,
+    summary,
+    deliveryStatus,
+    targetUrl,
+    resources: resourceLinks.map((item) => item.path)
+  });
+
+  return {
+    id: `fhir-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type: entryType,
+    createdAt: new Date().toISOString(),
+    summary,
+    deliveryStatus,
+    targetUrl,
+    fixedPatientValues,
+    resourceLinks,
+    resourceCount: resourceLinks.length || (Array.isArray(draft?.resources) ? draft.resources.length : 0),
+    fingerprint
+  };
+}
+
+function upsertFhirHistoryEntry(entry) {
+  if (!entry) return;
+  const history = Array.isArray(APP_STATE.fhirReportHistory) ? [...APP_STATE.fhirReportHistory] : [];
+  const existingIndex = history.findIndex((item) => item.fingerprint === entry.fingerprint);
+
+  if (existingIndex >= 0) {
+    history[existingIndex] = {
+      ...history[existingIndex],
+      ...entry,
+      id: history[existingIndex].id,
+      createdAt: history[existingIndex].createdAt || entry.createdAt
+    };
+  } else {
+    history.unshift(entry);
+  }
+
+  APP_STATE.fhirReportHistory = history.slice(0, 20);
+  saveFhirReportHistory();
+}
+
+function recordFhirDraftHistory(draft, sessionExport = null) {
+  if (!draft || typeof draft !== 'object') return;
+  upsertFhirHistoryEntry(buildFhirHistoryEntry({
+    type: 'draft',
+    draft,
+    sessionExport
+  }));
+}
+
+function recordFhirDeliveryHistory(deliveryResult, draft = null, sessionExport = null) {
+  if (!deliveryResult || typeof deliveryResult !== 'object') return;
+  upsertFhirHistoryEntry(buildFhirHistoryEntry({
+    type: 'delivery',
+    draft,
+    deliveryResult,
+    sessionExport
+  }));
+}
+
+function removeFhirHistoryEntry(entryId) {
+  APP_STATE.fhirReportHistory = (APP_STATE.fhirReportHistory || []).filter((item) => item.id !== entryId);
+  saveFhirReportHistory();
+  renderReportOutputs();
+  appendSystemNotice('已刪除這筆 FHIR 記錄。');
+}
+
+function removeFhirHistoryResource(entryId, resourcePath) {
+  let changed = false;
+  APP_STATE.fhirReportHistory = (APP_STATE.fhirReportHistory || []).map((item) => {
+    if (item.id !== entryId) return item;
+    const resourceLinks = (item.resourceLinks || []).filter((link) => link.path !== resourcePath);
+    if (resourceLinks.length === (item.resourceLinks || []).length) return item;
+    changed = true;
+    return {
+      ...item,
+      resourceLinks,
+      resourceCount: resourceLinks.length
+    };
+  });
+
+  if (!changed) return;
+  saveFhirReportHistory();
+  renderReportOutputs();
+  appendSystemNotice('已刪除這筆記錄中的指定資源。');
+}
+
+function renderFhirHistorySection() {
+  const history = Array.isArray(APP_STATE.fhirReportHistory) ? APP_STATE.fhirReportHistory : [];
+  if (!history.length) return '';
+
+  return `
+    <div class="fhir-history-section">
+      <div class="fhir-history-title-row">
+        <div class="fhir-history-title"><span class="mat-icon">history</span>FHIR 歷史記錄</div>
+        <div class="fhir-history-subtitle">草稿與交付結果都會保留時間，並可單筆刪除</div>
+      </div>
+      <div class="fhir-history-list">
+        ${history.map((item) => `
+          <div class="fhir-history-card">
+            <div class="fhir-history-card-top">
+              <div>
+                <div class="fhir-history-badges">
+                  <span class="fhir-history-badge ${item.type === 'delivery' ? 'delivery' : 'draft'}">${item.type === 'delivery' ? '已交付' : '草稿'}</span>
+                  <span class="fhir-history-badge neutral">${escapeHtml(item.deliveryStatus || 'unknown')}</span>
+                </div>
+                <div class="fhir-history-time">建立時間：${escapeHtml(formatDateTimeLabel(item.createdAt))}</div>
+              </div>
+              <button class="fhir-history-delete-btn" type="button" onclick="removeFhirHistoryEntry('${escapeHtml(item.id)}')">刪除這筆</button>
+            </div>
+            <div class="fhir-history-summary">${escapeHtml(item.summary || '無摘要')}</div>
+            <div class="fhir-history-meta">
+              <div class="fhir-history-meta-item">
+                <div class="fhir-history-meta-label">Patient identifier</div>
+                <div class="fhir-history-meta-value">${escapeHtml(item.fixedPatientValues?.identifier || '尚未準備')}</div>
+              </div>
+              <div class="fhir-history-meta-item">
+                <div class="fhir-history-meta-label">Patient 資源 ID</div>
+                <div class="fhir-history-meta-value">${escapeHtml(item.fixedPatientValues?.resourceId || '尚未建立')}</div>
+              </div>
+            </div>
+            ${item.targetUrl ? `<div class="fhir-history-target">FHIR Server：<a href="${escapeHtml(item.targetUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.targetUrl)}</a></div>` : ''}
+            ${Array.isArray(item.resourceLinks) && item.resourceLinks.length ? `
+              <div class="fhir-history-resource-list">
+                ${item.resourceLinks.map((link) => `
+                  <div class="fhir-history-resource-item">
+                    <div class="fhir-history-resource-copy">
+                      <div class="fhir-history-resource-label">${escapeHtml(link.label)}</div>
+                      <div class="fhir-history-resource-path">${link.url ? `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.path)}</a>` : escapeHtml(link.path)}</div>
+                    </div>
+                    <button class="fhir-history-resource-delete" type="button" onclick="removeFhirHistoryResource('${escapeHtml(item.id)}', '${escapeHtml(link.path)}')">刪除</button>
+                  </div>
+                `).join('')}
+              </div>
+            ` : '<div class="fhir-history-empty">這筆記錄目前沒有保留資源連結。</div>'}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
 function getFixedPatientValues(fhirDeliveryResult, fallbackSessionExport) {
   const targetUrl = normalizeFhirBaseUrl(
     fhirDeliveryResult?.fhir_base_url || fallbackSessionExport?.__deliveryTargetUrl || ''
@@ -808,6 +985,7 @@ function renderReportOutputs() {
   const fhirLinks = document.getElementById('report-fhir-links');
   const authNote = document.getElementById('report-auth-note');
   const deleteDraftButton = document.getElementById('report-delete-fhir-draft');
+  const latestFhirHistory = APP_STATE.fhirReportHistory?.[0] || null;
 
   if (intro) {
     intro.textContent = updatedAt
@@ -925,10 +1103,12 @@ function renderReportOutputs() {
       fhirDeliveryResult,
       APP_STATE.pendingConsent.sessionExport || APP_STATE.reportOutputs.session_export || null
     );
-    if (fixedPatientValues.identifier !== '尚未準備' || fixedPatientValues.resourceId !== '尚未建立' || (fhirDeliveryResult?.delivery_status === 'delivered' && targetUrl && linkItems.length)) {
+    const historyMarkup = renderFhirHistorySection();
+    if (fixedPatientValues.identifier !== '尚未準備' || fixedPatientValues.resourceId !== '尚未建立' || latestFhirHistory || (fhirDeliveryResult?.delivery_status === 'delivered' && targetUrl && linkItems.length)) {
       const summaryLabel = linkItems.length
         ? `已建立 ${linkItems.length} 個 FHIR 資源`
         : '查看 FHIR 交付資訊';
+      const currentTimestamp = fhirDeliveryResult?.recorded_at || latestFhirHistory?.createdAt || '';
       fhirLinks.innerHTML = `
         <div class="fhir-link-section">
           <button class="fhir-link-toggle" type="button" onclick="toggleFhirResourceLinks(this)" aria-expanded="false">
@@ -941,6 +1121,7 @@ function renderReportOutputs() {
             </span>
             <span class="mat-icon fhir-link-toggle-icon">expand_more</span>
           </button>
+          ${currentTimestamp ? `<div class="fhir-link-current-time">這筆目前顯示內容建立於：${escapeHtml(formatDateTimeLabel(currentTimestamp))}</div>` : ''}
           <div class="fhir-fixed-meta">
             <div class="fhir-fixed-meta-item">
               <div class="fhir-fixed-meta-label">送出的 Patient identifier</div>
@@ -968,6 +1149,7 @@ function renderReportOutputs() {
             ` : '<div class="fhir-link-empty">這次送出還沒有可直接打開的 HAPI 資源連結。</div>'}
           </div>
         </div>
+        ${historyMarkup}
       `;
     } else {
       fhirLinks.innerHTML = '';
@@ -989,6 +1171,10 @@ function storeOutputResult(payload) {
       error: '',
       emptyReason: ''
     };
+    if (payload.output && typeof payload.output === 'object') {
+      payload.output.recorded_at = payload.output.recorded_at || new Date().toISOString();
+      recordFhirDraftHistory(payload.output, payload.session_export || APP_STATE.reportOutputs.session_export || null);
+    }
   }
   APP_STATE.reportOutputs.session_export = payload.session_export || APP_STATE.reportOutputs.session_export;
   APP_STATE.lastChatMetadata = payload.metadata || APP_STATE.lastChatMetadata;
@@ -3518,9 +3704,15 @@ async function authorizeAndSendReport() {
     setConsentPreviewProgress(78, '正在接收伺服器回應...', '接收中');
     setConsentPreviewProgress(90, '正在整理送出結果...', '整理中');
     const deliveryStatus = payload.delivery_status || 'unknown';
+    payload.recorded_at = payload.recorded_at || new Date().toISOString();
     APP_STATE.pendingConsent.deliveryResult = payload;
     APP_STATE.reportOutputs.fhir_delivery_result = payload;
     APP_STATE.reportOutputs.updatedAt = formatTimeLabel(new Date());
+    recordFhirDeliveryHistory(
+      payload,
+      APP_STATE.reportOutputs.fhir_delivery || APP_STATE.pendingConsent.fhirDraft || null,
+      APP_STATE.pendingConsent.sessionExport || APP_STATE.reportOutputs.session_export || null
+    );
     needsPostDeliveryRefresh = deliveryStatus === 'delivered' || deliveryStatus === 'dry_run_ready';
     if (deliveryStatus === 'dry_run_ready') {
       setConsentPreviewProgress(100, '已完成授權，但目前為 dry-run', '完成');
@@ -3962,6 +4154,8 @@ window.openConsentPreview = openConsentPreview;
 window.authorizeAndSendReport = authorizeAndSendReport;
 window.saveReportForLater = saveReportForLater;
 window.deleteFhirDraft = deleteFhirDraft;
+window.removeFhirHistoryEntry = removeFhirHistoryEntry;
+window.removeFhirHistoryResource = removeFhirHistoryResource;
 window.toggleFhirResourceLinks = toggleFhirResourceLinks;
 window.closeConsentPreview = closeConsentPreview;
 window.saveUserPrompt = saveUserPrompt;
