@@ -948,6 +948,8 @@ function showScreen(screenId) {
   if (screenId === 'screen-home') {
     loadRecentSessions();
   }
+
+  updateScrollSafeArea();
 }
 
 function switchAutoAudience(audience) {
@@ -1912,6 +1914,32 @@ function scrollChatToBottom() {
   if (container) {
     container.scrollTop = container.scrollHeight;
   }
+}
+
+function updateScrollSafeArea() {
+  const app = document.getElementById('app');
+  if (!app) return;
+
+  const activeScreen = document.querySelector('.screen.active');
+  const inputSection = activeScreen?.querySelector('.input-section');
+  const bottomNav = activeScreen?.querySelector('.bottom-nav');
+  const topBar = activeScreen?.querySelector('.top-bar');
+
+  const inputHeight = inputSection ? inputSection.offsetHeight : 0;
+  const navHeight = bottomNav ? bottomNav.offsetHeight : 0;
+  const topBarHeight = topBar ? topBar.offsetHeight : 0;
+  const bottomGap = inputSection && bottomNav ? 28 : 36;
+  const safeBottom = Math.max(140, inputHeight + navHeight + bottomGap);
+
+  app.style.setProperty('--scroll-safe-bottom', `${safeBottom}px`);
+
+  const scrollAreas = activeScreen
+    ? activeScreen.querySelectorAll('.chat-canvas, .page-scroll')
+    : document.querySelectorAll('.chat-canvas, .page-scroll');
+
+  scrollAreas.forEach((area) => {
+    area.style.scrollPaddingTop = `${topBarHeight + 12}px`;
+  });
 }
 
 async function appendMessage(role, text, options = {}) {
@@ -3611,6 +3639,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Keep time updated
   setInterval(syncRealTimeLabels, 30000);
+  updateScrollSafeArea();
+
+  if (window.ResizeObserver) {
+    const resizeObserver = new ResizeObserver(() => updateScrollSafeArea());
+    document.querySelectorAll('.input-section, .bottom-nav, .top-bar').forEach((node) => {
+      resizeObserver.observe(node);
+    });
+  }
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', updateScrollSafeArea);
+  }
+
+  window.addEventListener('resize', updateScrollSafeArea);
 });
 
 window.showScreen = showScreen;

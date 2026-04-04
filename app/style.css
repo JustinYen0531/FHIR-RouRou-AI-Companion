@@ -1885,6 +1885,10 @@ body {
     linear-gradient(180deg, #eef4f7 0%, #e9eff4 24%, #dfe7ed 100%);
 }
 
+:root {
+  --scroll-safe-bottom: 220px;
+}
+
 #app {
   width: min(420px, 100vw);
   height: min(880px, 100dvh);
@@ -1964,11 +1968,8 @@ body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 18px 18px 110px;
-}
-
-#screen-chat .chat-canvas {
-  padding-bottom: 196px;
+  padding: 18px 18px var(--scroll-safe-bottom);
+  scroll-padding-bottom: var(--scroll-safe-bottom);
 }
 
 .chat-canvas::-webkit-scrollbar,
