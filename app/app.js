@@ -978,6 +978,7 @@ function updateModeLabels() {
 }
 
 let tempSelectedMode = '';
+let shortcutBarDismissed = false;
 
 function selectMode(element, modeLabel, modeKey) {
   tempSelectedMode = modeKey || 'natural';
@@ -1097,7 +1098,7 @@ function renderShortcutPager() {
           ${APP_STATE.customShortcuts.map((item, index) =>
             `<div class="shortcut-custom-item">
               ${renderShortcutChip(item)}
-              <button class="shortcut-delete-btn" type="button" onclick="removeCustomShortcut(${index})" aria-label="刪除 ${escapeHtml(item.label)}"><span class="mat-icon">close</span></button>
+              <button class="shortcut-delete-btn" type="button" data-index="${index}" aria-label="刪除 ${escapeHtml(item.label)}"><span class="mat-icon">close</span></button>
             </div>`
           ).join('')}
         </div>
@@ -1170,6 +1171,20 @@ function closeShortcutComposer() {
   modal.setAttribute('aria-hidden', 'true');
 }
 
+function closeShortcutBar() {
+  const shortcutBar = document.getElementById('shortcut-bar');
+  if (!shortcutBar) return;
+  shortcutBarDismissed = true;
+  shortcutBar.style.opacity = '0';
+  shortcutBar.style.transform = 'translateY(10px)';
+  shortcutBar.style.pointerEvents = 'none';
+  setTimeout(() => {
+    if (shortcutBarDismissed) {
+      shortcutBar.style.display = 'none';
+    }
+  }, 300);
+}
+
 function submitShortcutComposer() {
   const labelInput = document.getElementById('shortcut-label-input');
   const commandInput = document.getElementById('shortcut-command-input');
@@ -1196,6 +1211,7 @@ function submitShortcutComposer() {
 }
 
 function removeCustomShortcut(index) {
+  if (!Number.isInteger(index) || index < 0 || index >= APP_STATE.customShortcuts.length) return;
   APP_STATE.customShortcuts.splice(index, 1);
   saveCustomShortcuts();
   renderShortcutPager();
@@ -1679,7 +1695,10 @@ async function animateAiMessage(bubble, text) {
 function handleInput(input) {
   const shortcutBar = document.getElementById('shortcut-bar');
   const isEmpty = input.value.trim().length === 0;
-  const shouldShow = isEmpty;
+  if (!isEmpty) {
+    shortcutBarDismissed = false;
+  }
+  const shouldShow = isEmpty && !shortcutBarDismissed;
   
   if (!shortcutBar) return;
   if (shouldShow) {
@@ -2702,6 +2721,7 @@ function wireShortcutInteractions() {
 
     viewport.addEventListener('pointerdown', (event) => {
       if (event.pointerType === 'mouse' && event.button !== 0) return;
+      if (event.target.closest('.shortcut-delete-btn') || event.target.closest('.shortcut-collapse-btn')) return;
       dragState.active = true;
       dragState.pointerId = event.pointerId;
       dragState.startX = event.clientX;
@@ -2860,6 +2880,7 @@ window.saveModeSettings = saveModeSettings;
 window.refreshModeListUI = refreshModeListUI;
 window.closeConsentPreview = closeConsentPreview;
 window.saveUserPrompt = saveUserPrompt;
+window.closeShortcutBar = closeShortcutBar;
 
 function toggleMemoryDrawer() {
   const drawer = document.getElementById('memory-drawer');

@@ -2248,8 +2248,36 @@ body {
 }
 
 .shortcut-bar {
+  position: relative;
   margin-bottom: 4px;
   transition: all 0.3s ease;
+}
+
+.shortcut-collapse-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(18, 26, 31, 0.16);
+  color: #5f7078;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.shortcut-collapse-btn:hover {
+  background: rgba(18, 26, 31, 0.24);
+  color: #33464f;
+  transform: scale(1.03);
+}
+
+.shortcut-collapse-btn .mat-icon {
+  font-size: 18px;
 }
 
 .shortcut-page-shell {
@@ -2273,7 +2301,7 @@ body {
   scrollbar-width: none;
   cursor: grab;
   touch-action: pan-x;
-  padding: 2px 2px 4px;
+  padding: 18px 2px 4px;
 }
 
 .shortcut-pages::-webkit-scrollbar {
@@ -2382,6 +2410,7 @@ body {
   justify-content: center;
   z-index: 3;
   cursor: pointer;
+  border: 0;
 }
 
 .shortcut-delete-btn .mat-icon {
