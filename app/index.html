@@ -399,8 +399,8 @@
             <span class="mat-icon fill" style="color:#446655">verified_user</span>
             <p id="report-auth-note">我已確認以上報告內容，並授權 Rou Rou 將此摘要加密傳送至主治醫師診間系統，以作為本次診療輔助。</p>
           </div>
-          <button id="report-authorize-submit" class="primary-btn" type="button">數位授權並送出報告</button>
-          <button id="report-save-later" class="ghost-btn" type="button">暫存報告，稍後再傳送</button>
+          <button id="report-authorize-submit" class="primary-btn" type="button" onclick="openConsentPreview()">數位授權並送出報告</button>
+          <button id="report-save-later" class="ghost-btn" type="button" onclick="saveReportForLater()">暫存報告，稍後再傳送</button>
         </section>
         </div>
       </div>
@@ -803,7 +803,7 @@
       </div>
       <div class="consent-preview-actions">
         <button class="ghost-btn" type="button" onclick="closeConsentPreview()">返回修改</button>
-        <button id="consent-preview-confirm" class="primary-btn" type="button" disabled>同意送出</button>
+        <button id="consent-preview-confirm" class="primary-btn" type="button" onclick="authorizeAndSendReport()" disabled>同意送出</button>
       </div>
     </div>
   </div>
