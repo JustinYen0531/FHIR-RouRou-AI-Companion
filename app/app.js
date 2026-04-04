@@ -1,4 +1,4 @@
-const DEFAULT_GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
+﻿const DEFAULT_GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 const DEFAULT_GOOGLE_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_GROQ_API_KEY = '';
 const DEFAULT_GOOGLE_API_KEY = '';
@@ -718,7 +718,7 @@ function renderReportOutputs() {
 
   if (fhirResources) {
     const baseCount = Array.isArray(fhirDelivery?.resources) ? fhirDelivery.resources.length : 0;
-    const profileObs = Array.isArray(fhirDelivery?.therapeutic_memory_observations) ? fhirDelivery.therapeutic_memory_observations.length : 0;
+  if (screenId === 'screen-settings') { updateSettingsUI(); }
     const totalCount = baseCount;
     fhirResources.textContent = `FHIR 資源數：${totalCount}`;
 
@@ -1288,11 +1288,25 @@ function renderHomeGuidePages() {
 function updateHomeGuideDots() {
   const pagesEl = document.getElementById('home-guide-pages');
   const dots = Array.from(document.querySelectorAll('.home-guide-dot'));
+  const prevButton = document.getElementById('home-guide-prev');
+  const nextButton = document.getElementById('home-guide-next');
   if (!pagesEl || !dots.length) return;
   const pageWidth = pagesEl.clientWidth || 1;
   const index = Math.max(0, Math.min(dots.length - 1, Math.round(pagesEl.scrollLeft / pageWidth)));
   dots.forEach((dot, dotIndex) => {
     dot.classList.toggle('active', dotIndex === index);
+  });
+  if (prevButton) prevButton.disabled = index <= 0;
+  if (nextButton) nextButton.disabled = index >= dots.length - 1;
+}
+
+function goToHomeGuidePage(index) {
+  const pagesEl = document.getElementById('home-guide-pages');
+  if (!pagesEl) return;
+  const clamped = Math.max(0, Math.min(HOME_GUIDE_PAGES.length - 1, index));
+  pagesEl.scrollTo({
+    left: pagesEl.clientWidth * clamped,
+    behavior: 'smooth'
   });
 }
 
@@ -1324,6 +1338,13 @@ function wireHomeGuide() {
   if (pagesEl && !pagesEl.dataset.wired) {
     pagesEl.dataset.wired = 'true';
     pagesEl.addEventListener('scroll', updateHomeGuideDots, { passive: true });
+    pagesEl.addEventListener('wheel', (event) => {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      event.preventDefault();
+      const currentIndex = Math.round(pagesEl.scrollLeft / (pagesEl.clientWidth || 1));
+      const nextIndex = event.deltaY > 0 ? currentIndex + 1 : currentIndex - 1;
+      goToHomeGuidePage(nextIndex);
+    }, { passive: false });
   }
 
   if (dotsEl && !dotsEl.dataset.wired) {
@@ -1332,10 +1353,26 @@ function wireHomeGuide() {
       const button = event.target.closest('[data-guide-dot]');
       if (!button || !pagesEl) return;
       const index = Number(button.dataset.guideDot || '0');
-      pagesEl.scrollTo({
-        left: pagesEl.clientWidth * index,
-        behavior: 'smooth'
-      });
+      goToHomeGuidePage(index);
+    });
+  }
+
+  const prevButton = document.getElementById('home-guide-prev');
+  const nextButton = document.getElementById('home-guide-next');
+
+  if (prevButton && !prevButton.dataset.wired) {
+    prevButton.dataset.wired = 'true';
+    prevButton.addEventListener('click', () => {
+      const currentIndex = Math.round((pagesEl?.scrollLeft || 0) / ((pagesEl?.clientWidth || 1)));
+      goToHomeGuidePage(currentIndex - 1);
+    });
+  }
+
+  if (nextButton && !nextButton.dataset.wired) {
+    nextButton.dataset.wired = 'true';
+    nextButton.addEventListener('click', () => {
+      const currentIndex = Math.round((pagesEl?.scrollLeft || 0) / ((pagesEl?.clientWidth || 1)));
+      goToHomeGuidePage(currentIndex + 1);
     });
   }
 }
@@ -1857,6 +1894,13 @@ async function openConsentPreview() {
   try {
     const sessionPayload = await fetchOutputPayload('session_export', '準備授權預覽所需的 session export');
     const fhirPayload = await fetchOutputPayload('fhir_delivery', '準備授權預覽所需的 FHIR draft');
+  if (checkSensitiveContent(message)) {
+    appendSystemNotice('偵測到較高情緒強度，Rou Rou 已轉由核心對話保護模式輔助你。');
+    APP_STATE.selectedMode = 'void';
+    localStorage.setItem('rourou.selectedMode', 'void');
+    updateModeLabels();
+    evaluateMicroIntervention({ answer: '風險預警' }, { lastUserMessage: message, riskFlag: true });
+  }
     const sessionExport = JSON.parse(JSON.stringify(sessionPayload.session_export || {}));
     const fhirDraft = attachProfileToFhirResult(JSON.parse(JSON.stringify(fhirPayload.output || {})));
 

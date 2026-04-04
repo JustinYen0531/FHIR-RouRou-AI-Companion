@@ -3956,6 +3956,35 @@ body {
   margin-top: 14px;
 }
 
+.home-guide-controls {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.home-guide-nav {
+  flex: 1;
+  min-height: 42px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.84);
+  border: 1px solid rgba(168, 180, 187, 0.14);
+  color: #39505a;
+  font-weight: 700;
+  box-shadow: 0 8px 20px rgba(41, 52, 58, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.home-guide-nav:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(41, 52, 58, 0.08);
+}
+
+.home-guide-nav:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .home-guide-dot {
   width: 8px;
   height: 8px;
