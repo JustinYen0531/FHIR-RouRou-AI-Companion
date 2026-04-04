@@ -2465,12 +2465,36 @@ function normalizeSessionExportForDelivery(sessionExport = {}) {
   return normalized;
 }
 
+function mergeReportOutputsIntoSessionExport(sessionExport = {}, options = {}) {
+  const merged = JSON.parse(JSON.stringify(sessionExport || {}));
+  const reportOutputs = APP_STATE.reportOutputs || {};
+  const pendingFhirDraft = options.fhirDraft || APP_STATE.pendingConsent?.fhirDraft || null;
+
+  if (reportOutputs.patient_analysis && typeof reportOutputs.patient_analysis === 'object') {
+    merged.patient_analysis = JSON.parse(JSON.stringify(reportOutputs.patient_analysis));
+  }
+
+  if (reportOutputs.patient_review && typeof reportOutputs.patient_review === 'object') {
+    merged.patient_review_packet = JSON.parse(JSON.stringify(reportOutputs.patient_review));
+  }
+
+  const resolvedFhirDraft = pendingFhirDraft || reportOutputs.fhir_delivery;
+  if (resolvedFhirDraft && typeof resolvedFhirDraft === 'object') {
+    merged.fhir_delivery_draft = JSON.parse(JSON.stringify(resolvedFhirDraft));
+  }
+
+  return merged;
+}
+
 function createDeliveryPreviewSuffix() {
   return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
 }
 
 function prepareSessionExportForDelivery(sessionExport = {}, deliveryTargetUrl = '') {
-  const normalized = normalizeSessionExportForDelivery(sessionExport);
+  const enriched = mergeReportOutputsIntoSessionExport(sessionExport, {
+    fhirDraft: APP_STATE.pendingConsent?.fhirDraft || null
+  });
+  const normalized = normalizeSessionExportForDelivery(enriched);
   const normalizedTarget = normalizeFhirBaseUrl(deliveryTargetUrl);
   if (normalizedTarget === 'https://hapi.fhir.org/baseR4') {
     const suffix = String(normalized.__deliverySuffix || '').trim() || createDeliveryPreviewSuffix();
@@ -2510,6 +2534,13 @@ function buildConsentPreviewHtml(sessionExport, fhirDraft) {
   const previewPatientIdentifier = getPreviewPatientIdentifier(sessionExport, deliveryTargetUrl);
   const resourceList = Array.isArray(fhirDraft?.resources) ? fhirDraft.resources : [];
   const resourceLabels = resourceList.map((item) => item.display || item.type || item.resourceType || 'Unknown');
+  const payloadBlocks = [
+    sessionExport?.clinician_summary_draft ? 'clinician_summary_draft' : '',
+    sessionExport?.patient_analysis ? 'patient_analysis' : '',
+    sessionExport?.patient_review_packet ? 'patient_review_packet' : '',
+    sessionExport?.fhir_delivery_draft ? 'fhir_delivery_draft' : '',
+    sessionExport?.hamd_formal_assessment ? 'hamd_formal_assessment' : ''
+  ].filter(Boolean);
 
   return `
     <section class="consent-preview-section">
@@ -2561,6 +2592,10 @@ function buildConsentPreviewHtml(sessionExport, fhirDraft) {
     <section class="consent-preview-section">
       <h4>即將送出的資源</h4>
       ${formatArrayForList(resourceLabels, '目前沒有可送出的 FHIR 資源。')}
+    </section>
+    <section class="consent-preview-section">
+      <h4>已合併進送出 payload 的草稿區塊</h4>
+      ${formatArrayForList(payloadBlocks, '目前只有最小必要欄位。')}
     </section>
     <section class="consent-preview-section">
       <h4>Session Export JSON</h4>
