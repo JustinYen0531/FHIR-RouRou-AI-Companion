@@ -3029,10 +3029,17 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 40px;
+  justify-content: flex-start;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 40px 20px calc(40px + env(safe-area-inset-bottom, 0px));
   text-align: center;
   background: radial-gradient(circle at center, rgba(198, 235, 213, 0.45) 0%, transparent 70%);
+}
+
+.home-canvas::-webkit-scrollbar {
+  display: none;
 }
 
 .home-avatar {
