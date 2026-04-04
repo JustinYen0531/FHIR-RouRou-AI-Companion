@@ -931,11 +931,7 @@ const DEFAULT_SHORTCUT_PAGE_ONE = [
   { label: '整理給醫師', command: 'OUTPUT:clinician_summary' },
   { label: '請分析我', command: 'OUTPUT:patient_analysis' },
   { label: 'FHIR 草稿', command: 'OUTPUT:fhir_delivery' },
-  { label: '樹洞模式', command: 'void' },
-  { label: '靈魂陪伴', command: 'soulmate' },
-  { label: '任務引導', command: 'mission' },
-  { label: '選項引導', command: 'option' },
-  { label: '自然聊天', command: 'natural' }
+  { label: '樹洞模式', command: 'void' }
 ];
 
 function formatShortcutLabel(label) {
@@ -985,13 +981,14 @@ function renderShortcutPager() {
       <div class="shortcut-page-shell">
         <div class="shortcut-page-grid shortcut-page-grid-empty">
           <div class="shortcut-empty-card">
-            <div class="shortcut-empty-title">現在沒有任何自定義指令</div>
-            <p class="shortcut-empty-body">按右下角的＋新增後，這一頁就會出現你自己的快捷命令。</p>
+            <div class="shortcut-empty-title">目前沒有任何自定義指令</div>
+            <p class="shortcut-empty-body">按下方按鈕新增後，這一頁就會出現你自己的快捷命令。</p>
+            <button class="shortcut-empty-add-btn" onclick="openShortcutComposer()">
+              <span class="mat-icon">add_circle</span>
+              加入指令
+            </button>
           </div>
         </div>
-        <button class="shortcut-fab" type="button" onclick="openShortcutComposer()" aria-label="新增自訂快捷">
-          <span class="mat-icon">add</span>
-        </button>
       </div>
     `;
   }

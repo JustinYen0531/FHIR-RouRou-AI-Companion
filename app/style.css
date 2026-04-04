@@ -2409,9 +2409,34 @@ body {
 
 .shortcut-empty-body {
   margin-top: 8px;
+  margin-bottom: 20px;
   font-size: 13px;
   line-height: 1.65;
   color: #66757d;
+}
+
+.shortcut-empty-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 14px;
+  transition: all 0.22s var(--ease-natural);
+  box-shadow: 0 4px 12px rgba(68, 102, 85, 0.15);
+}
+
+.shortcut-empty-add-btn:active {
+  transform: scale(0.96);
+  opacity: 0.8;
+}
+
+.shortcut-empty-add-btn .mat-icon {
+  font-size: 20px;
 }
 
 .shortcut-pager-dots {
@@ -2942,7 +2967,7 @@ body {
 }
 
 .home-headline {
-  font-family: " Manrope\, sans-serif;
+  font-family: 'Manrope', sans-serif;
  font-size: 2rem;
  font-weight: 800;
  color: #1a2a33;
