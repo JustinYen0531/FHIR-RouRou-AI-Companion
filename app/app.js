@@ -950,6 +950,13 @@ function showScreen(screenId) {
   }
 
   updateScrollSafeArea();
+
+  if (screenId === 'screen-chat') {
+    window.requestAnimationFrame(() => {
+      syncShortcutBarState();
+      scrollChatToBottom();
+    });
+  }
 }
 
 function switchAutoAudience(audience) {
@@ -1132,6 +1139,37 @@ function updateModeLabels() {
 
 let tempSelectedMode = '';
 let shortcutBarDismissed = false;
+
+function syncShortcutBarState() {
+  const shortcutBar = document.getElementById('shortcut-bar');
+  const input = document.getElementById('chat-input');
+  const isChatScreen = APP_STATE.currentScreen === 'screen-chat';
+  if (!shortcutBar || !input) return;
+
+  const shouldShow = isChatScreen && input.value.trim().length === 0 && !shortcutBarDismissed;
+  if (shouldShow) {
+    shortcutBar.style.display = 'block';
+    window.requestAnimationFrame(() => {
+      shortcutBar.style.opacity = '1';
+      shortcutBar.style.transform = 'translateY(0)';
+      shortcutBar.style.pointerEvents = 'all';
+      updateScrollSafeArea();
+      scrollChatToBottom();
+    });
+    return;
+  }
+
+  shortcutBar.style.opacity = '0';
+  shortcutBar.style.transform = 'translateY(10px)';
+  shortcutBar.style.pointerEvents = 'none';
+  window.setTimeout(() => {
+    const stillShouldShow = APP_STATE.currentScreen === 'screen-chat' && input.value.trim().length === 0 && !shortcutBarDismissed;
+    if (!stillShouldShow) {
+      shortcutBar.style.display = 'none';
+      updateScrollSafeArea();
+    }
+  }, 300);
+}
 
 function selectMode(element, modeLabel, modeKey) {
   tempSelectedMode = modeKey || 'natural';
@@ -1328,14 +1366,7 @@ function closeShortcutBar() {
   const shortcutBar = document.getElementById('shortcut-bar');
   if (!shortcutBar) return;
   shortcutBarDismissed = true;
-  shortcutBar.style.opacity = '0';
-  shortcutBar.style.transform = 'translateY(10px)';
-  shortcutBar.style.pointerEvents = 'none';
-  setTimeout(() => {
-    if (shortcutBarDismissed) {
-      shortcutBar.style.display = 'none';
-    }
-  }, 300);
+  syncShortcutBarState();
 }
 
 function submitShortcutComposer() {
@@ -1957,33 +1988,14 @@ async function animateAiMessage(bubble, text) {
 }
 
 function handleInput(input) {
-  const shortcutBar = document.getElementById('shortcut-bar');
   const isEmpty = input.value.trim().length === 0;
+  if (isEmpty && document.activeElement === input) {
+    shortcutBarDismissed = false;
+  }
   if (!isEmpty) {
     shortcutBarDismissed = false;
   }
-  const shouldShow = isEmpty && !shortcutBarDismissed;
-  
-  if (!shortcutBar) return;
-  if (shouldShow) {
-    shortcutBar.style.display = 'block';
-    setTimeout(() => {
-      if (input.value.trim().length === 0) {
-        shortcutBar.style.opacity = '1';
-        shortcutBar.style.transform = 'translateY(0)';
-        shortcutBar.style.pointerEvents = 'all';
-      }
-    }, 50);
-  } else {
-    shortcutBar.style.opacity = '0';
-    shortcutBar.style.transform = 'translateY(10px)';
-    shortcutBar.style.pointerEvents = 'none';
-    setTimeout(() => {
-      if (input.value.trim().length !== 0) {
-        shortcutBar.style.display = 'none';
-      }
-    }, 300);
-  }
+  syncShortcutBarState();
 }
 
 function setThinkingState(visible, nodeName = '') {
@@ -2020,8 +2032,11 @@ function updateScrollSafeArea() {
   const inputHeight = inputSection ? inputSection.offsetHeight : 0;
   const navHeight = bottomNav ? bottomNav.offsetHeight : 0;
   const topBarHeight = topBar ? topBar.offsetHeight : 0;
-  const bottomGap = inputSection && bottomNav ? 28 : 36;
-  const safeBottom = Math.max(140, inputHeight + navHeight + bottomGap);
+  const viewportHeight = window.visualViewport?.height || window.innerHeight || app.clientHeight || 0;
+  const appHeight = app.clientHeight || 0;
+  const keyboardInset = Math.max(0, appHeight - viewportHeight);
+  const bottomGap = inputSection && bottomNav ? 36 : 36;
+  const safeBottom = Math.max(160, inputHeight + navHeight + bottomGap + keyboardInset);
 
   app.style.setProperty('--scroll-safe-bottom', `${safeBottom}px`);
 

@@ -1906,6 +1906,7 @@ body {
   position: absolute;
   inset: 0;
   flex-direction: column;
+  min-height: 0;
   background:
     radial-gradient(circle at top right, rgba(200, 231, 251, 0.38), transparent 28%),
     linear-gradient(180deg, #f7fbfe 0%, #edf3f7 100%);
@@ -1966,6 +1967,7 @@ body {
 .chat-canvas,
 .page-scroll {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 18px 18px var(--scroll-safe-bottom);
@@ -2281,6 +2283,7 @@ body {
   z-index: 5;
   padding: 8px 16px 14px;
   border-top: 1px solid rgba(168, 180, 187, 0.12);
+  padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
 }
 
 .quick-replies,
