@@ -1638,15 +1638,101 @@ function parseInterventionMarkdown(markdown) {
   };
 }
 
+const MICRO_INTERVENTION_FALLBACK_MARKDOWN = {
+  calm_breathing: `title: 平靜時刻
+subtitle: 如果你願意，我們先把注意力放回呼吸 30 秒。
+duration: 約 30 秒
+tone: 陪伴式引導
+primary_action_label: 我做完了
+secondary_action_label: 稍後再說
+---
+## 先不用急著整理全部
+
+現在只要先陪自己待一下就好。
+
+### 你可以這樣做
+
+1. 先把肩膀放鬆一點。
+2. 慢慢吸氣，心裡數到三。
+3. 再慢慢吐氣，心裡也數到三。
+4. 重複三次就可以了。
+
+> 不用做到很標準，只要把注意力借給呼吸一下下。
+
+如果做完後還想聊，我會繼續陪你。`,
+  drink_water: `title: 喝一口水
+subtitle: 如果現在什麼都不想做，那我們先做最小的一件事。
+duration: 約 10 秒
+tone: 溫和提醒
+primary_action_label: 我喝了一口
+secondary_action_label: 先不要
+---
+## 先照顧身體一下
+
+你不用立刻振作，也不用馬上說更多。
+
+### 現在只做這件事就好
+
+1. 拿起手邊的水。
+2. 喝一小口就可以。
+3. 喝完先停一下，感覺水進到身體裡。
+
+> 這不是要你立刻變好，只是先讓自己回來一點點。
+
+如果還是很累，也沒關係，我們可以再慢一點。`,
+  stretch_reset: `title: 站起來伸展
+subtitle: 如果身體願意，我們先把緊繃的地方放鬆一點點。
+duration: 約 20 秒
+tone: 身體放鬆
+primary_action_label: 我伸展完了
+secondary_action_label: 稍後再說
+---
+## 先不要急著想清楚
+
+有時候不是心裡不想動，是身體先卡住了。
+
+### 可以試這樣
+
+1. 先慢慢站起來。
+2. 把兩邊肩膀往上提，再慢慢放下。
+3. 手臂往前伸，輕輕轉一圈。
+4. 最後把下巴微微往下，讓脖子鬆一點。
+
+> 做到哪裡都可以，不需要完整做完。
+
+只要有一點點鬆開，就已經很好了。`,
+  tiny_choice_reset: `title: 先不用想很多
+subtitle: 如果現在很亂，我們先只選一個最不費力的方向。
+duration: 約 15 秒
+tone: 低負擔選擇
+primary_action_label: 我選好了
+secondary_action_label: 等等再說
+---
+## 現在不用把全部說清楚
+
+只要先選一個比較接近你的狀態就好。
+
+### 你可以先挑一個
+
+1. 閉上眼睛 10 秒，什麼都先不用想。
+2. 抬頭看一個固定的地方 10 秒，讓腦袋先停一下。
+
+> 沒有比較好的選項，哪一個比較不累，就選哪一個。
+
+如果選完後想繼續聊，我再陪你往下走。`
+};
+
 async function loadMicroInterventionContent(card) {
   const microState = getMicroInterventionState();
   if (microState.contentCache[card.id]) {
     return microState.contentCache[card.id];
   }
 
+  const fileName = String(card.docPath || '').split('/').pop();
   const candidatePaths = [
     card.docPath,
-    String(card.docPath || '').replace('/docs/micro_interventions/', '/docs/計畫文件/')
+    fileName ? `/docs/micro_interventions/${fileName}` : '',
+    fileName ? `/docs/計畫文件/${fileName}` : ''
   ]
     .filter(Boolean)
     .filter((value, index, list) => list.indexOf(value) === index);
@@ -1663,6 +1749,12 @@ async function loadMicroInterventionContent(card) {
   }
 
   if (!response || !response.ok) {
+    const fallbackMarkdown = MICRO_INTERVENTION_FALLBACK_MARKDOWN[card.id];
+    if (fallbackMarkdown) {
+      const parsedFallback = parseInterventionMarkdown(fallbackMarkdown);
+      microState.contentCache[card.id] = parsedFallback;
+      return parsedFallback;
+    }
     throw new Error(`載入引導內容失敗：${lastFailedPath}`);
   }
 
