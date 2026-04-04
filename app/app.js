@@ -370,6 +370,11 @@ const APP_STATE = {
     note: '',
     valueText: ''
   },
+  reportFhirDraft: {
+    isLoading: false,
+    error: '',
+    emptyReason: ''
+  },
   privacySettings: {
     fhirRealtimeSync: localStorage.getItem('rourou.fhirRealtimeSync') === 'true',
     autoReportDraft: localStorage.getItem('rourou.autoReportDraft') === 'true'
@@ -755,17 +760,39 @@ function renderReportOutputs() {
   }
 
   if (fhirStatus) {
-    fhirStatus.textContent = fhirDeliveryResult?.delivery_status || fhirDelivery?.delivery_status || '尚未生成';
+    if (APP_STATE.reportFhirDraft.isLoading && !fhirDelivery?.narrative_summary) {
+      fhirStatus.textContent = '生成中';
+    } else if (APP_STATE.reportFhirDraft.error && !fhirDelivery?.narrative_summary) {
+      fhirStatus.textContent = '生成失敗';
+    } else if (APP_STATE.reportFhirDraft.emptyReason && !fhirDelivery?.narrative_summary) {
+      fhirStatus.textContent = '尚無資料';
+    } else {
+      fhirStatus.textContent = fhirDeliveryResult?.delivery_status || fhirDelivery?.delivery_status || '尚未生成';
+    }
   }
 
   if (fhirSummary) {
-    fhirSummary.textContent = fhirDelivery?.narrative_summary || '尚未產生 FHIR Draft。按下「FHIR Draft」後，這裡會顯示可交付摘要。';
+    if (fhirDelivery?.narrative_summary) {
+      fhirSummary.textContent = fhirDelivery.narrative_summary;
+    } else if (APP_STATE.reportFhirDraft.isLoading) {
+      fhirSummary.textContent = '正在依據目前對話建立 FHIR 草稿，完成後這裡會顯示可交付摘要。';
+    } else if (APP_STATE.reportFhirDraft.error) {
+      fhirSummary.textContent = `FHIR 草稿建立失敗：${APP_STATE.reportFhirDraft.error}`;
+    } else if (APP_STATE.reportFhirDraft.emptyReason) {
+      fhirSummary.textContent = APP_STATE.reportFhirDraft.emptyReason;
+    } else {
+      fhirSummary.textContent = '正在等待產生 FHIR 草稿。';
+    }
   }
 
   if (fhirResources) {
     const baseCount = Array.isArray(fhirDelivery?.resources) ? fhirDelivery.resources.length : 0;
     const totalCount = baseCount;
-    fhirResources.textContent = `FHIR 資源數：${totalCount}`;
+    if (APP_STATE.reportFhirDraft.isLoading && !baseCount) {
+      fhirResources.textContent = 'FHIR 資源數：整理中';
+    } else {
+      fhirResources.textContent = `FHIR 資源數：${totalCount}`;
+    }
 
     // 附加心理畫像 Observations 清單（如果有）
     const profileObsList = document.getElementById('report-fhir-profile-obs');
@@ -832,6 +859,13 @@ function renderReportOutputs() {
 
 function storeOutputResult(payload) {
   APP_STATE.reportOutputs[payload.output_type] = payload.output || null;
+  if (payload.output_type === 'fhir_delivery') {
+    APP_STATE.reportFhirDraft = {
+      isLoading: false,
+      error: '',
+      emptyReason: ''
+    };
+  }
   APP_STATE.reportOutputs.session_export = payload.session_export || APP_STATE.reportOutputs.session_export;
   APP_STATE.lastChatMetadata = payload.metadata || APP_STATE.lastChatMetadata;
   APP_STATE.runtimeMode = payload.metadata?.active_mode || APP_STATE.runtimeMode;
@@ -858,6 +892,7 @@ function showScreen(screenId) {
   
   if (screenId === 'screen-report') {
     renderMoodChart();
+    ensureReportFhirDraft();
   }
   
   if (screenId === 'screen-energy') {
@@ -1969,6 +2004,62 @@ function resetConversationState() {
     deliveryResult: null,
     canConfirm: false
   };
+  APP_STATE.reportFhirDraft = {
+    isLoading: false,
+    error: '',
+    emptyReason: ''
+  };
+}
+
+function normalizeFhirDraftPayload(payload) {
+  const finalPayload = Object.assign({}, payload);
+  const enhanced = attachProfileToFhirResult(finalPayload.output || finalPayload);
+  if (enhanced !== (finalPayload.output || finalPayload)) {
+    finalPayload.output = enhanced;
+  }
+  return finalPayload;
+}
+
+async function ensureReportFhirDraft() {
+  const hasDraft = Boolean(APP_STATE.reportOutputs.fhir_delivery?.narrative_summary);
+  if (hasDraft || APP_STATE.reportFhirDraft.isLoading || APP_STATE.isSending) {
+    return;
+  }
+
+  if (!APP_STATE.conversationId && !APP_STATE.chatHistory.length) {
+    APP_STATE.reportFhirDraft = {
+      isLoading: false,
+      error: '',
+      emptyReason: '目前還沒有可生成的 FHIR 草稿。先完成至少一輪對話，這裡才會出現真的摘要。'
+    };
+    renderReportOutputs();
+    return;
+  }
+
+  APP_STATE.reportFhirDraft = {
+    isLoading: true,
+    error: '',
+    emptyReason: ''
+  };
+  renderReportOutputs();
+
+  try {
+    const payload = await fetchOutputPayload('fhir_delivery', OUTPUT_DEFINITIONS.fhir_delivery.instruction);
+    const finalPayload = normalizeFhirDraftPayload(payload);
+    APP_STATE.reportFhirDraft = {
+      isLoading: false,
+      error: '',
+      emptyReason: ''
+    };
+    storeOutputResult(finalPayload);
+  } catch (error) {
+    APP_STATE.reportFhirDraft = {
+      isLoading: false,
+      error: error.message || '目前無法建立 FHIR 草稿。',
+      emptyReason: ''
+    };
+    renderReportOutputs();
+  }
 }
 
 function renderRecentSessions() {
@@ -2285,7 +2376,9 @@ async function openConsentPreview() {
     setConsentPreviewProgress(58, '正在建立 FHIR 草稿預覽...', '步驟 3/3');
     const fhirPayload = await fetchOutputPayload('fhir_delivery', '準備授權預覽所需的 FHIR draft');
     const sessionExport = JSON.parse(JSON.stringify(sessionPayload.session_export || {}));
-    const fhirDraft = attachProfileToFhirResult(JSON.parse(JSON.stringify(fhirPayload.output || {})));
+    const fhirDraft = normalizeFhirDraftPayload({
+      output: JSON.parse(JSON.stringify(fhirPayload.output || {}))
+    }).output;
 
     if (!sessionExport.session?.encounterKey) {
       throw new Error('目前還沒有可送出的對話資料，請先完成至少一輪對話。');
@@ -2686,14 +2779,15 @@ async function requestOutput(outputType, options = {}) {
     // Layer 4：FHIR Draft 附加心理畫像 Observations
     let finalPayload = payload;
     if (outputType === 'fhir_delivery') {
-      finalPayload = Object.assign({}, payload);
-      const enhanced = attachProfileToFhirResult(finalPayload.output || finalPayload);
-      if (enhanced !== (finalPayload.output || finalPayload)) {
-        finalPayload.output = enhanced;
-        const profileObs = enhanced.therapeutic_memory_observations || [];
-        if (profileObs.length) {
-          appendSystemNotice(`心理畫像已附加至 FHIR Draft（${profileObs.length} 個 Observation）🧠`);
-        }
+      finalPayload = normalizeFhirDraftPayload(payload);
+      APP_STATE.reportFhirDraft = {
+        isLoading: false,
+        error: '',
+        emptyReason: ''
+      };
+      const profileObs = finalPayload.output?.therapeutic_memory_observations || [];
+      if (profileObs.length) {
+        appendSystemNotice(`心理畫像已附加至 FHIR Draft（${profileObs.length} 個 Observation）🧠`);
       }
     }
 
