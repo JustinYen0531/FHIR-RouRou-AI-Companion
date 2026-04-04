@@ -2742,6 +2742,8 @@ async function authorizeAndSendReport() {
     confirmButton.textContent = '送出中...';
   }
 
+  let deliveryPayload = null;
+  let needsPostDeliveryRefresh = false;
   try {
     const sessionExport = JSON.parse(JSON.stringify(APP_STATE.pendingConsent.sessionExport || {}));
     if (!sessionExport.session?.encounterKey) {
@@ -2765,6 +2767,7 @@ async function authorizeAndSendReport() {
       body: JSON.stringify(sessionExport)
     });
     const payload = await response.json();
+    deliveryPayload = payload;
 
     if (!response.ok) {
       throw new Error(extractFhirDeliveryError(payload));
@@ -2775,7 +2778,7 @@ async function authorizeAndSendReport() {
     APP_STATE.pendingConsent.deliveryResult = payload;
     APP_STATE.reportOutputs.fhir_delivery_result = payload;
     APP_STATE.reportOutputs.updatedAt = formatTimeLabel(new Date());
-    renderReportOutputs();
+    needsPostDeliveryRefresh = deliveryStatus === 'delivered' || deliveryStatus === 'dry_run_ready';
     if (deliveryStatus === 'dry_run_ready') {
       setConsentPreviewProgress(100, '已完成授權，但目前為 dry-run', '完成');
       appendSystemNotice('已完成手動授權，但目前後端尚未設定 FHIR_SERVER_URL，所以這次只是 dry-run，尚未真正送到醫院端。');
@@ -2786,12 +2789,15 @@ async function authorizeAndSendReport() {
       setConsentPreviewProgress(100, `送出完成，目前狀態：${deliveryStatus}`, '完成');
       appendSystemNotice(`手動授權流程已完成，目前狀態：${deliveryStatus}`);
     }
-
-    showScreen('screen-report');
-    switchReportTab('auto');
-    switchAutoAudience('doctor');
-    closeConsentPreview();
   } catch (error) {
+    const deliveredStatus = deliveryPayload?.delivery_status;
+    if (deliveredStatus === 'delivered' || deliveredStatus === 'dry_run_ready') {
+      needsPostDeliveryRefresh = true;
+      console.error('FHIR delivery succeeded, but post-send UI sync failed.', error);
+      appendSystemNotice(`FHIR 已完成送出，但畫面同步時發生錯誤：${error.message || '未知錯誤'}`);
+      return;
+    }
+
     setConsentPreviewProgress(100, '送出失敗，請再試一次', '失敗');
     if (confirmButton) {
       confirmButton.disabled = false;
@@ -2799,6 +2805,18 @@ async function authorizeAndSendReport() {
     }
     await appendMessage('ai', error.message || '目前無法送出 FHIR 報告。', { animate: true });
   } finally {
+    if (needsPostDeliveryRefresh) {
+      try {
+        renderReportOutputs();
+        showScreen('screen-report');
+        switchReportTab('auto');
+        switchAutoAudience('doctor');
+        closeConsentPreview();
+      } catch (uiError) {
+        console.error('Report UI refresh failed after successful delivery.', uiError);
+        appendSystemNotice(`FHIR 已送出，但報表畫面更新失敗：${uiError.message || '未知錯誤'}`);
+      }
+    }
     setTyping(false);
     APP_STATE.isSending = false;
   }
