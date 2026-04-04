@@ -52,6 +52,28 @@ function createValidInput() {
         'insomnia'
       ]
     },
+    patient_analysis: {
+      plain_summary: '最近疲憊與睡眠不佳，需要進一步評估。',
+      key_points: ['疲憊', '睡眠不佳'],
+      reminder: '這不是醫療診斷。'
+    },
+    patient_review_packet: {
+      patient_facing_summary: '請確認最近疲憊與睡眠不佳是否正確。',
+      confirm_items: ['你感到疲憊', '你有睡眠不佳的情況'],
+      editable_items: ['疲憊的具體感受'],
+      authorization_prompt: '請在審閱後授權我們將這些資訊提供給醫師。'
+    },
+    fhir_delivery_draft: {
+      composition_sections: [
+        { section: '患者近期感到疲憊並且睡眠不佳。', focus: '臨床摘要' }
+      ],
+      clinical_alerts: ['患者表達疲憊與睡眠不佳，需醫師注意'],
+      questionnaire_targets: ['HAM-D量表'],
+      hamd_formal_targets: [
+        { item_code: 'guilt', evidence_type: 'indirect_observation', status: 'preliminary' }
+      ],
+      export_blockers: ['等待病人進一步確認症狀細節']
+    },
     hamd_progress_state: {
       covered_dimensions: [
         'depressed_mood',
@@ -197,12 +219,18 @@ function testClinicalContentIsEnriched() {
 
   assert.strictEqual(questionnaire.resource.questionnaire, 'https://example.org/fhir/Questionnaire/ai-companion-previsit-hamd17-draft-v1');
   assert.ok(Array.isArray(questionnaire.resource.extension) && questionnaire.resource.extension.length >= 2);
+  assert.ok(questionnaire.resource.item.some((item) => item.linkId === 'patient_confirm_0'));
+  assert.ok(questionnaire.resource.item.some((item) => item.linkId === 'questionnaire_target_0'));
   assert.strictEqual(composition.resource.confidentiality, 'R');
   assert.ok(composition.resource.section.some((section) => section.code && section.code.text === 'chief-concerns'));
   assert.ok(composition.resource.section.some((section) => section.code && section.code.text === 'hamd-evidence-table'));
+  assert.ok(composition.resource.section.some((section) => section.code && section.code.text === 'patient-analysis'));
+  assert.ok(composition.resource.section.some((section) => section.code && section.code.text === 'patient-review-packet'));
+  assert.ok(composition.resource.section.some((section) => section.code && section.code.text === 'clinical-alerts'));
   assert.ok(observation.resource.extension.some((extension) => extension.url.indexOf('patient-review-status') !== -1));
   assert.strictEqual(documentReference.resource.docStatus, 'preliminary');
   assert.ok(documentReference.resource.content[0].attachment.data);
+  assert.ok(documentReference.resource.content[1].attachment.data);
   assert.ok(!documentReference.resource.relatesTo, 'DocumentReference.relatesTo should be omitted for HAPI R4 compatibility');
 }
 

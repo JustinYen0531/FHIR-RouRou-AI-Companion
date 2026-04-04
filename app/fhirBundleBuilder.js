@@ -113,6 +113,137 @@
     }).filter(Boolean);
   }
 
+  function collectQuestionnaireItems(input, hamdProgress, formalAssessment, clinicianSummary, patientReviewPacket, fhirDeliveryDraft) {
+    const items = [];
+    const formalItems = asArray(formalAssessment.items).filter(function (item) {
+      return typeof item.ai_suggested_score === 'number' || typeof item.clinician_final_score === 'number' || asArray(item.evidence_summary).length;
+    });
+    const summaryItemScores = asArray(clinicianSummary.hamd_item_scores);
+
+    if (formalItems.length) {
+      formalItems.forEach(function (item) {
+        const answerParts = [];
+        if (typeof item.direct_answer_value === 'number') answerParts.push('direct=' + item.direct_answer_value);
+        if (typeof item.ai_suggested_score === 'number') answerParts.push('ai=' + item.ai_suggested_score);
+        if (typeof item.clinician_final_score === 'number') answerParts.push('clinician=' + item.clinician_final_score);
+        if (item.evidence_type) answerParts.push('evidence=' + item.evidence_type);
+        items.push({
+          linkId: item.item_code,
+          text: item.item_label,
+          answer: [
+            {
+              valueString: answerParts.join('; ') || 'Formal HAM-D draft item'
+            }
+          ],
+          item: asArray(item.evidence_summary).length
+            ? [{
+                linkId: item.item_code + '_evidence',
+                text: 'Evidence summary',
+                answer: asArray(item.evidence_summary).map(function (value) {
+                  return { valueString: String(value) };
+                })
+              }]
+            : undefined
+        });
+      });
+    } else if (summaryItemScores.length) {
+      summaryItemScores.forEach(function (item) {
+        items.push({
+          linkId: item.item_code || 'hamd_summary_item',
+          text: item.item_label || item.item_code || 'HAM-D draft item',
+          answer: [
+            {
+              valueString: [
+                typeof item.ai_suggested_score === 'number' ? 'ai=' + item.ai_suggested_score : '',
+                typeof item.clinician_final_score === 'number' ? 'clinician=' + item.clinician_final_score : ''
+              ].filter(Boolean).join('; ') || 'Clinician summary draft item'
+            }
+          ]
+        });
+      });
+    } else {
+      normalizeSummaryArray(hamdProgress.covered_dimensions).forEach(function (dimension) {
+        items.push({
+          linkId: dimension,
+          text: DIMENSION_LABELS[dimension] || dimension,
+          answer: [
+            {
+              valueString: 'Observed via AI companion conversation.'
+            }
+          ]
+        });
+      });
+    }
+
+    if (asArray(hamdProgress.recent_evidence).length > 0) {
+      items.push({
+        linkId: 'recent_evidence',
+        text: 'Recent evidence',
+        answer: asArray(hamdProgress.recent_evidence).map(function (value) {
+          return { valueString: String(value) };
+        })
+      });
+    }
+
+    if (hamdProgress.next_recommended_dimension) {
+      items.push({
+        linkId: 'next_recommended_dimension',
+        text: 'Next recommended dimension',
+        answer: [{ valueString: String(hamdProgress.next_recommended_dimension) }]
+      });
+    }
+
+    if (typeof formalAssessment.ai_total_score === 'number') {
+      items.push({
+        linkId: 'hamd17_total_ai',
+        text: 'HAM-D17 AI total score',
+        answer: [{ valueInteger: formalAssessment.ai_total_score }]
+      });
+    }
+
+    normalizeSummaryArray(patientReviewPacket.confirm_items).forEach(function (item, index) {
+      items.push({
+        linkId: 'patient_confirm_' + index,
+        text: 'Patient review confirm item',
+        answer: [{ valueString: item }]
+      });
+    });
+
+    normalizeSummaryArray(patientReviewPacket.editable_items).forEach(function (item, index) {
+      items.push({
+        linkId: 'patient_editable_' + index,
+        text: 'Patient editable item',
+        answer: [{ valueString: item }]
+      });
+    });
+
+    normalizeSummaryArray(fhirDeliveryDraft.questionnaire_targets).forEach(function (item, index) {
+      items.push({
+        linkId: 'questionnaire_target_' + index,
+        text: 'Questionnaire target',
+        answer: [{ valueString: item }]
+      });
+    });
+
+    asArray(fhirDeliveryDraft.hamd_formal_targets).forEach(function (item, index) {
+      items.push({
+        linkId: 'formal_target_' + index,
+        text: item.item_code || 'formal_target',
+        answer: [{ valueString: [item.evidence_type, item.status].filter(Boolean).join('; ') || 'preliminary' }]
+      });
+    });
+
+    if (patientReviewPacket.authorization_prompt) {
+      items.push({
+        linkId: 'authorization_prompt',
+        text: 'Authorization prompt',
+        answer: [{ valueString: String(patientReviewPacket.authorization_prompt) }]
+      });
+    }
+
+    return items;
+  }
+
   function gatherObservationCandidates(clinicianSummary, hamdProgress, redFlag) {
     const candidates = [];
     const dimensions = asArray(hamdProgress.covered_dimensions);
@@ -239,77 +370,8 @@
     };
   }
 
-  function buildQuestionnaireResponseResource(input, patientFullUrl, encounterFullUrl, hamdProgress, formalAssessment) {
-    const items = [];
-    const formalItems = asArray(formalAssessment.items).filter(function (item) {
-      return typeof item.ai_suggested_score === 'number' || typeof item.clinician_final_score === 'number' || asArray(item.evidence_summary).length;
-    });
-
-    if (formalItems.length) {
-      formalItems.forEach(function (item) {
-        const answerParts = [];
-        if (typeof item.direct_answer_value === 'number') answerParts.push('direct=' + item.direct_answer_value);
-        if (typeof item.ai_suggested_score === 'number') answerParts.push('ai=' + item.ai_suggested_score);
-        if (typeof item.clinician_final_score === 'number') answerParts.push('clinician=' + item.clinician_final_score);
-        if (item.evidence_type) answerParts.push('evidence=' + item.evidence_type);
-        items.push({
-          linkId: item.item_code,
-          text: item.item_label,
-          answer: [
-            {
-              valueString: answerParts.join('; ') || 'Formal HAM-D draft item'
-            }
-          ],
-          item: asArray(item.evidence_summary).length
-            ? [{
-                linkId: item.item_code + '_evidence',
-                text: 'Evidence summary',
-                answer: asArray(item.evidence_summary).map(function (value) {
-                  return { valueString: String(value) };
-                })
-              }]
-            : undefined
-        });
-      });
-    } else {
-      normalizeSummaryArray(hamdProgress.covered_dimensions).forEach(function (dimension) {
-        items.push({
-          linkId: dimension,
-          text: DIMENSION_LABELS[dimension] || dimension,
-          answer: [
-            {
-              valueString: 'Observed via AI companion conversation.'
-            }
-          ]
-        });
-      });
-    }
-
-    if (asArray(hamdProgress.recent_evidence).length > 0) {
-      items.push({
-        linkId: 'recent_evidence',
-        text: 'Recent evidence',
-        answer: asArray(hamdProgress.recent_evidence).map(function (value) {
-          return { valueString: String(value) };
-        })
-      });
-    }
-
-    if (hamdProgress.next_recommended_dimension) {
-      items.push({
-        linkId: 'next_recommended_dimension',
-        text: 'Next recommended dimension',
-        answer: [{ valueString: String(hamdProgress.next_recommended_dimension) }]
-      });
-    }
-
-    if (typeof formalAssessment.ai_total_score === 'number') {
-      items.push({
-        linkId: 'hamd17_total_ai',
-        text: 'HAM-D17 AI total score',
-        answer: [{ valueInteger: formalAssessment.ai_total_score }]
-      });
-    }
+  function buildQuestionnaireResponseResource(input, patientFullUrl, encounterFullUrl, hamdProgress, formalAssessment, clinicianSummary, patientReviewPacket, fhirDeliveryDraft) {
+    const items = collectQuestionnaireItems(input, hamdProgress, formalAssessment, clinicianSummary, patientReviewPacket, fhirDeliveryDraft);
 
     return {
       resourceType: 'QuestionnaireResponse',
@@ -389,15 +451,32 @@
     });
   }
 
-  function buildCompositionResource(input, patientFullUrl, encounterFullUrl, questionnaireFullUrl, observationEntries, clinicianSummary) {
+  function buildCompositionResource(input, patientFullUrl, encounterFullUrl, questionnaireFullUrl, observationEntries, clinicianSummary, patientAnalysis, patientReviewPacket, fhirDeliveryDraft) {
     const chiefConcerns = normalizeSummaryArray(clinicianSummary.chief_concerns);
     const symptomObservations = normalizeSummaryArray(clinicianSummary.symptom_observations);
     const safetyFlags = normalizeSummaryArray(clinicianSummary.safety_flags);
     const followupNeeds = normalizeSummaryArray(clinicianSummary.followup_needs);
     const hamdEvidenceTable = asArray(clinicianSummary.hamd_evidence_table);
     const hamdReviewRequired = normalizeSummaryArray(clinicianSummary.hamd_review_required_items);
+    const compositionSections = asArray(fhirDeliveryDraft.composition_sections);
+    const clinicalAlerts = normalizeSummaryArray(fhirDeliveryDraft.clinical_alerts);
+    const exportBlockers = normalizeSummaryArray(fhirDeliveryDraft.export_blockers);
+    const patientKeyPoints = normalizeSummaryArray(patientAnalysis.key_points);
+    const patientConfirmItems = normalizeSummaryArray(patientReviewPacket.confirm_items);
+    const patientEditableItems = normalizeSummaryArray(patientReviewPacket.editable_items);
 
     const sections = [];
+
+    if (clinicianSummary.draft_summary) {
+      sections.push({
+        code: { text: 'clinician-draft-summary' },
+        title: 'Clinician Draft Summary',
+        text: {
+          status: 'generated',
+          div: '<div xmlns="http://www.w3.org/1999/xhtml"><p>' + htmlEscape(clinicianSummary.draft_summary) + '</p></div>'
+        }
+      });
+    }
 
     if (chiefConcerns.length) {
       sections.push({
@@ -492,6 +571,75 @@
       });
     }
 
+    if (compositionSections.length) {
+      sections.push({
+        code: { text: 'delivery-draft-sections' },
+        title: 'FHIR Delivery Draft Sections',
+        text: {
+          status: 'generated',
+          div: '<div xmlns="http://www.w3.org/1999/xhtml"><ul>' + compositionSections.map(function (item) {
+            return '<li><b>' + htmlEscape(item.focus || 'section') + ':</b> ' + htmlEscape(item.section || '') + '</li>';
+          }).join('') + '</ul></div>'
+        }
+      });
+    }
+
+    if (clinicalAlerts.length) {
+      sections.push({
+        code: { text: 'clinical-alerts' },
+        title: 'Clinical Alerts',
+        text: {
+          status: 'generated',
+          div: '<div xmlns="http://www.w3.org/1999/xhtml"><ul>' + clinicalAlerts.map(function (item) {
+            return '<li>' + htmlEscape(item) + '</li>';
+          }).join('') + '</ul></div>'
+        }
+      });
+    }
+
+    if (patientAnalysis.plain_summary || patientKeyPoints.length) {
+      sections.push({
+        code: { text: 'patient-analysis' },
+        title: 'Patient Analysis',
+        text: {
+          status: 'generated',
+          div: '<div xmlns="http://www.w3.org/1999/xhtml"><p>' + htmlEscape(patientAnalysis.plain_summary || '') + '</p>' +
+            (patientKeyPoints.length
+              ? '<ul>' + patientKeyPoints.map(function (item) { return '<li>' + htmlEscape(item) + '</li>'; }).join('') + '</ul>'
+              : '') +
+            '</div>'
+        }
+      });
+    }
+
+    if (patientReviewPacket.patient_facing_summary || patientConfirmItems.length || patientEditableItems.length) {
+      sections.push({
+        code: { text: 'patient-review-packet' },
+        title: 'Patient Review Packet',
+        text: {
+          status: 'generated',
+          div: '<div xmlns="http://www.w3.org/1999/xhtml">' +
+            (patientReviewPacket.patient_facing_summary ? '<p>' + htmlEscape(patientReviewPacket.patient_facing_summary) + '</p>' : '') +
+            (patientConfirmItems.length ? '<p><b>Confirm items</b></p><ul>' + patientConfirmItems.map(function (item) { return '<li>' + htmlEscape(item) + '</li>'; }).join('') + '</ul>' : '') +
+            (patientEditableItems.length ? '<p><b>Editable items</b></p><ul>' + patientEditableItems.map(function (item) { return '<li>' + htmlEscape(item) + '</li>'; }).join('') + '</ul>' : '') +
+            '</div>'
+        }
+      });
+    }
+
+    if (exportBlockers.length) {
+      sections.push({
+        code: { text: 'export-blockers' },
+        title: 'Export Blockers',
+        text: {
+          status: 'generated',
+          div: '<div xmlns="http://www.w3.org/1999/xhtml"><ul>' + exportBlockers.map(function (item) {
+            return '<li>' + htmlEscape(item) + '</li>';
+          }).join('') + '</ul></div>'
+        }
+      });
+    }
+
     return {
       resourceType: 'Composition',
       meta: { profile: [TW_CORE_PROFILES.composition] },
@@ -538,7 +686,18 @@
     };
   }
 
-  function buildDocumentReferenceResource(input, patientFullUrl, encounterFullUrl, compositionFullUrl, clinicianSummary) {
+  function buildDocumentReferenceResource(input, patientFullUrl, encounterFullUrl, compositionFullUrl, clinicianSummary, patientAnalysis, patientReviewPacket, fhirDeliveryDraft, formalAssessment) {
+    const exportPayload = {
+      clinician_summary_draft: clinicianSummary,
+      patient_analysis: patientAnalysis,
+      patient_review_packet: patientReviewPacket,
+      fhir_delivery_draft: fhirDeliveryDraft,
+      hamd_formal_assessment: formalAssessment,
+      active_mode: input.active_mode,
+      risk_flag: input.risk_flag,
+      latest_tag_payload: input.latest_tag_payload,
+      burden_level_state: input.burden_level_state
+    };
     return {
       resourceType: 'DocumentReference',
       meta: { profile: [TW_CORE_PROFILES.documentReference] },
@@ -560,6 +719,13 @@
             contentType: 'application/json',
             title: 'AI Companion clinician summary draft',
             data: Buffer.from(JSON.stringify(clinicianSummary, null, 2), 'utf8').toString('base64')
+          }
+        },
+        {
+          attachment: {
+            contentType: 'application/json',
+            title: 'AI Companion full export payload',
+            data: Buffer.from(JSON.stringify(exportPayload, null, 2), 'utf8').toString('base64')
           }
         }
       ]
@@ -668,11 +834,18 @@
       session: rawInput && rawInput.session ? rawInput.session : {},
       author: rawInput && rawInput.author ? rawInput.author : 'AI Companion',
       clinician_summary_draft: toObject(rawInput && rawInput.clinician_summary_draft, 'clinician_summary_draft', validationErrors),
+      patient_analysis: toObject(rawInput && rawInput.patient_analysis, 'patient_analysis', validationErrors),
+      patient_review_packet: toObject(rawInput && rawInput.patient_review_packet, 'patient_review_packet', validationErrors),
+      fhir_delivery_draft: toObject(rawInput && rawInput.fhir_delivery_draft, 'fhir_delivery_draft', validationErrors),
       hamd_progress_state: toObject(rawInput && rawInput.hamd_progress_state, 'hamd_progress_state', validationErrors),
       hamd_formal_assessment: toObject(rawInput && rawInput.hamd_formal_assessment, 'hamd_formal_assessment', validationErrors),
       red_flag_payload: toObject(rawInput && rawInput.red_flag_payload, 'red_flag_payload', validationErrors),
       patient_authorization_state: toObject(rawInput && rawInput.patient_authorization_state, 'patient_authorization_state', validationErrors),
-      delivery_readiness_state: toObject(rawInput && rawInput.delivery_readiness_state, 'delivery_readiness_state', validationErrors)
+      delivery_readiness_state: toObject(rawInput && rawInput.delivery_readiness_state, 'delivery_readiness_state', validationErrors),
+      active_mode: rawInput && rawInput.active_mode ? rawInput.active_mode : '',
+      risk_flag: rawInput && rawInput.risk_flag ? rawInput.risk_flag : '',
+      latest_tag_payload: toObject(rawInput && rawInput.latest_tag_payload, 'latest_tag_payload', validationErrors),
+      burden_level_state: toObject(rawInput && rawInput.burden_level_state, 'burden_level_state', validationErrors)
     };
 
     addValidationErrorIfMissing(input.patient.key, 'patient.key', validationErrors);
@@ -741,7 +914,10 @@
         patientFullUrl,
         encounterFullUrl,
         input.hamd_progress_state,
-        input.hamd_formal_assessment
+        input.hamd_formal_assessment,
+        input.clinician_summary_draft,
+        input.patient_review_packet,
+        input.fhir_delivery_draft
       )
     };
 
@@ -753,7 +929,10 @@
         encounterFullUrl,
         questionnaireFullUrl,
         observationEntries,
-        input.clinician_summary_draft
+        input.clinician_summary_draft,
+        input.patient_analysis,
+        input.patient_review_packet,
+        input.fhir_delivery_draft
       )
     };
 
@@ -764,7 +943,11 @@
         patientFullUrl,
         encounterFullUrl,
         compositionFullUrl,
-        input.clinician_summary_draft
+        input.clinician_summary_draft,
+        input.patient_analysis,
+        input.patient_review_packet,
+        input.fhir_delivery_draft,
+        input.hamd_formal_assessment
       )
     };
 
