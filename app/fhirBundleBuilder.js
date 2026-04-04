@@ -453,12 +453,6 @@
             data: Buffer.from(JSON.stringify(clinicianSummary, null, 2), 'utf8').toString('base64')
           }
         }
-      ],
-      relatesTo: [
-        {
-          code: 'appends',
-          target: { reference: compositionFullUrl }
-        }
       ]
     };
   }

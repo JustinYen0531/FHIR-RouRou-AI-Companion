@@ -152,6 +152,7 @@ function testClinicalContentIsEnriched() {
   assert.ok(observation.resource.extension.some((extension) => extension.url.indexOf('patient-review-status') !== -1));
   assert.strictEqual(documentReference.resource.docStatus, 'preliminary');
   assert.ok(documentReference.resource.content[0].attachment.data);
+  assert.ok(!documentReference.resource.relatesTo, 'DocumentReference.relatesTo should be omitted for HAPI R4 compatibility');
 }
 
 function testValidationReportHasExpectedShape() {
