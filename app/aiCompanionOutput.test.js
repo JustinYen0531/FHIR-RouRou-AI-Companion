@@ -88,6 +88,7 @@ async function testOutputCaching() {
   const after = modelClient.getCalls();
   assert.ok(first.formatted_text.includes('醫師摘要'));
   assert.deepStrictEqual(first.output, second.output);
+  assert.ok(Array.isArray(first.output.hamd_item_scores));
   assert.ok(middle > before);
   assert.strictEqual(after, middle);
 }

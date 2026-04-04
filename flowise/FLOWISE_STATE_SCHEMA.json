@@ -80,6 +80,16 @@
     "description": "Structured HAM-D progress snapshot for mission mode"
   },
   {
+    "name": "hamd_formal_assessment",
+    "selector": [
+      "conversation",
+      "hamd_formal_assessment"
+    ],
+    "default_value": "none",
+    "value_type": "string",
+    "description": "Structured formal HAM-D item-level assessment draft with direct and indirect evidence typing"
+  },
+  {
     "name": "summary_draft_state",
     "selector": [
       "conversation",

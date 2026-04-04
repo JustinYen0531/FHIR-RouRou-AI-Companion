@@ -159,6 +159,41 @@
     return candidates;
   }
 
+  function gatherFormalObservationCandidates(formalAssessment) {
+    const candidates = [];
+    const items = asArray(formalAssessment.items).filter(function (item) {
+      return typeof item.ai_suggested_score === 'number';
+    });
+
+    items.forEach(function (item) {
+      candidates.push({
+        kind: 'formal_item',
+        focus: item.item_code,
+        label: item.item_label,
+        category: 'survey',
+        evidence: asArray(item.evidence_summary).concat(item.rating_rationale ? [item.rating_rationale] : []),
+        supported: true,
+        score: item.ai_suggested_score,
+        evidenceType: item.evidence_type || 'mixed'
+      });
+    });
+
+    if (typeof formalAssessment.ai_total_score === 'number') {
+      candidates.push({
+        kind: 'formal_total',
+        focus: 'hamd17_total',
+        label: 'HAM-D17 total score',
+        category: 'survey',
+        evidence: formalAssessment.severity_band ? ['severity_band: ' + formalAssessment.severity_band] : [],
+        supported: true,
+        score: formalAssessment.ai_total_score,
+        evidenceType: 'mixed'
+      });
+    }
+
+    return candidates;
+  }
+
   function buildPatientResource(input, fullUrl) {
     return {
       resourceType: 'Patient',
@@ -204,19 +239,51 @@
     };
   }
 
-  function buildQuestionnaireResponseResource(input, patientFullUrl, encounterFullUrl, hamdProgress) {
+  function buildQuestionnaireResponseResource(input, patientFullUrl, encounterFullUrl, hamdProgress, formalAssessment) {
     const items = [];
-    normalizeSummaryArray(hamdProgress.covered_dimensions).forEach(function (dimension) {
-      items.push({
-        linkId: dimension,
-        text: DIMENSION_LABELS[dimension] || dimension,
-        answer: [
-          {
-            valueString: 'Observed via AI companion conversation.'
-          }
-        ]
-      });
+    const formalItems = asArray(formalAssessment.items).filter(function (item) {
+      return typeof item.ai_suggested_score === 'number' || typeof item.clinician_final_score === 'number' || asArray(item.evidence_summary).length;
     });
+
+    if (formalItems.length) {
+      formalItems.forEach(function (item) {
+        const answerParts = [];
+        if (typeof item.direct_answer_value === 'number') answerParts.push('direct=' + item.direct_answer_value);
+        if (typeof item.ai_suggested_score === 'number') answerParts.push('ai=' + item.ai_suggested_score);
+        if (typeof item.clinician_final_score === 'number') answerParts.push('clinician=' + item.clinician_final_score);
+        if (item.evidence_type) answerParts.push('evidence=' + item.evidence_type);
+        items.push({
+          linkId: item.item_code,
+          text: item.item_label,
+          answer: [
+            {
+              valueString: answerParts.join('; ') || 'Formal HAM-D draft item'
+            }
+          ],
+          item: asArray(item.evidence_summary).length
+            ? [{
+                linkId: item.item_code + '_evidence',
+                text: 'Evidence summary',
+                answer: asArray(item.evidence_summary).map(function (value) {
+                  return { valueString: String(value) };
+                })
+              }]
+            : undefined
+        });
+      });
+    } else {
+      normalizeSummaryArray(hamdProgress.covered_dimensions).forEach(function (dimension) {
+        items.push({
+          linkId: dimension,
+          text: DIMENSION_LABELS[dimension] || dimension,
+          answer: [
+            {
+              valueString: 'Observed via AI companion conversation.'
+            }
+          ]
+        });
+      });
+    }
 
     if (asArray(hamdProgress.recent_evidence).length > 0) {
       items.push({
@@ -236,11 +303,19 @@
       });
     }
 
+    if (typeof formalAssessment.ai_total_score === 'number') {
+      items.push({
+        linkId: 'hamd17_total_ai',
+        text: 'HAM-D17 AI total score',
+        answer: [{ valueInteger: formalAssessment.ai_total_score }]
+      });
+    }
+
     return {
       resourceType: 'QuestionnaireResponse',
       meta: { profile: [TW_CORE_PROFILES.questionnaireResponse] },
       extension: createReviewExtensions(input),
-      questionnaire: 'https://example.org/fhir/Questionnaire/ai-companion-previsit-hamd-lite-v1',
+      questionnaire: 'https://example.org/fhir/Questionnaire/ai-companion-previsit-hamd17-draft-v1',
       identifier: [
         {
           system: 'https://example.org/fhir/NamingSystem/ai-companion-questionnaire-response',
@@ -260,6 +335,7 @@
 
   function buildObservationResources(input, patientFullUrl, encounterFullUrl, questionnaireFullUrl, candidates) {
     return candidates.map(function (candidate, index) {
+      const valueInteger = typeof candidate.score === 'number' ? candidate.score : undefined;
       return {
         fullUrl: createUrn('observation', input.session.encounterKey + ':' + candidate.focus + ':' + index),
         resource: {
@@ -301,7 +377,8 @@
           method: {
             text: 'AI companion conversation extraction'
           },
-          valueString: candidate.supported ? 'supported signal' : 'observed signal',
+          valueString: valueInteger == null ? (candidate.supported ? 'supported signal' : 'observed signal') : undefined,
+          valueInteger: valueInteger,
           note: asArray(candidate.evidence).length
             ? asArray(candidate.evidence).map(function (entry) {
                 return { text: String(entry) };
@@ -317,6 +394,8 @@
     const symptomObservations = normalizeSummaryArray(clinicianSummary.symptom_observations);
     const safetyFlags = normalizeSummaryArray(clinicianSummary.safety_flags);
     const followupNeeds = normalizeSummaryArray(clinicianSummary.followup_needs);
+    const hamdEvidenceTable = asArray(clinicianSummary.hamd_evidence_table);
+    const hamdReviewRequired = normalizeSummaryArray(clinicianSummary.hamd_review_required_items);
 
     const sections = [];
 
@@ -377,6 +456,36 @@
         text: {
           status: 'generated',
           div: '<div xmlns="http://www.w3.org/1999/xhtml"><ul>' + followupNeeds.map(function (item) {
+            return '<li>' + htmlEscape(item) + '</li>';
+          }).join('') + '</ul></div>'
+        }
+      });
+    }
+
+    if (hamdEvidenceTable.length) {
+      sections.push({
+        code: {
+          text: 'hamd-evidence-table'
+        },
+        title: 'HAM-D Evidence Table',
+        text: {
+          status: 'generated',
+          div: '<div xmlns="http://www.w3.org/1999/xhtml"><table><thead><tr><th>Item</th><th>Evidence Type</th><th>Evidence</th><th>Rationale</th></tr></thead><tbody>' + hamdEvidenceTable.map(function (row) {
+            return '<tr><td>' + htmlEscape(row.item_label || '') + '</td><td>' + htmlEscape(row.evidence_type || '') + '</td><td>' + htmlEscape(asArray(row.evidence_summary).join(' | ')) + '</td><td>' + htmlEscape(row.rating_rationale || '') + '</td></tr>';
+          }).join('') + '</tbody></table></div>'
+        }
+      });
+    }
+
+    if (hamdReviewRequired.length) {
+      sections.push({
+        code: {
+          text: 'hamd-review-required'
+        },
+        title: 'HAM-D Review Required',
+        text: {
+          status: 'generated',
+          div: '<div xmlns="http://www.w3.org/1999/xhtml"><ul>' + hamdReviewRequired.map(function (item) {
             return '<li>' + htmlEscape(item) + '</li>';
           }).join('') + '</ul></div>'
         }
@@ -560,6 +669,7 @@
       author: rawInput && rawInput.author ? rawInput.author : 'AI Companion',
       clinician_summary_draft: toObject(rawInput && rawInput.clinician_summary_draft, 'clinician_summary_draft', validationErrors),
       hamd_progress_state: toObject(rawInput && rawInput.hamd_progress_state, 'hamd_progress_state', validationErrors),
+      hamd_formal_assessment: toObject(rawInput && rawInput.hamd_formal_assessment, 'hamd_formal_assessment', validationErrors),
       red_flag_payload: toObject(rawInput && rawInput.red_flag_payload, 'red_flag_payload', validationErrors),
       patient_authorization_state: toObject(rawInput && rawInput.patient_authorization_state, 'patient_authorization_state', validationErrors),
       delivery_readiness_state: toObject(rawInput && rawInput.delivery_readiness_state, 'delivery_readiness_state', validationErrors)
@@ -611,7 +721,7 @@
         input.clinician_summary_draft,
         input.hamd_progress_state,
         input.red_flag_payload
-      )
+      ).concat(gatherFormalObservationCandidates(input.hamd_formal_assessment))
     );
 
     const patientEntry = {
@@ -630,7 +740,8 @@
         input,
         patientFullUrl,
         encounterFullUrl,
-        input.hamd_progress_state
+        input.hamd_progress_state,
+        input.hamd_formal_assessment
       )
     };
 

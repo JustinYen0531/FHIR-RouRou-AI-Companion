@@ -31,10 +31,48 @@ const PROMPT_FILES = {
   optionRetrievalAudit: '選項檢索稽核.md',
   optionSelector: '選項選擇器.md',
   smartHunter: '智慧獵手.md',
+  hamdFormalProbeSelector: 'HAM-D正式探針選擇器.md',
+  hamdEvidenceClassifier: 'HAM-D證據分類器.md',
+  hamdFormalItemScorer: 'HAM-D正式題項評分器.md',
   followupOutputClassifier: '追問輸出分類器.md',
   followupResolver: '追問解析器.md',
   followupFinalizer: '追問收斂器.md',
   clarifyQuestion: '釐清問題.md'
+};
+
+const HAMD_FORMAL_ITEMS = [
+  { item_code: 'depressed_mood', item_label: '憂鬱情緒', scale_range: '0_to_4', dimension: 'depressed_mood', preferred_evidence: 'direct_answer', probe_question: '如果用這一週來看，低落或提不起勁的感覺，比較像是偶爾、常常，還是幾乎每天都在？' },
+  { item_code: 'guilt', item_label: '有罪感', scale_range: '0_to_4', dimension: 'guilt', preferred_evidence: 'direct_answer', probe_question: '最近有沒有哪件事讓你一直覺得很自責，甚至會反覆怪自己？' },
+  { item_code: 'suicide', item_label: '自殺意念', scale_range: '0_to_4', dimension: 'depressed_mood', preferred_evidence: 'direct_answer', probe_question: '這一週有沒有出現過不想活、想消失，或覺得活著沒有意義的念頭？' },
+  { item_code: 'insomnia_early', item_label: '入睡困難', scale_range: '0_to_2', dimension: 'insomnia', preferred_evidence: 'direct_answer', probe_question: '最近睡前比較像是一下就睡著，還是常常要躺很久才睡得著？' },
+  { item_code: 'insomnia_middle', item_label: '睡眠中斷', scale_range: '0_to_2', dimension: 'insomnia', preferred_evidence: 'direct_answer', probe_question: '最近半夜醒來的情況大概是偶爾，還是已經變得很常發生？' },
+  { item_code: 'insomnia_late', item_label: '早醒', scale_range: '0_to_2', dimension: 'insomnia', preferred_evidence: 'direct_answer', probe_question: '最近有沒有常常比預計早醒，而且醒來後就睡不回去？' },
+  { item_code: 'work_activities', item_label: '工作與活動', scale_range: '0_to_4', dimension: 'work_interest', preferred_evidence: 'mixed', probe_question: '這一週做事的動力和以前比起來，是差不多、明顯下降，還是幾乎提不起來？' },
+  { item_code: 'retardation', item_label: '精神運動遲滯', scale_range: '0_to_4', dimension: 'retardation', preferred_evidence: 'indirect_observation', probe_question: '最近有沒有覺得自己整體變慢，像是回話、思考或做事都拖住了？' },
+  { item_code: 'agitation', item_label: '激越', scale_range: '0_to_4', dimension: 'agitation', preferred_evidence: 'indirect_observation', probe_question: '最近身體會不會有一種坐不住、很難放鬆、想一直動來動去的感覺？' },
+  { item_code: 'psychic_anxiety', item_label: '精神性焦慮', scale_range: '0_to_4', dimension: 'somatic_anxiety', preferred_evidence: 'direct_answer', probe_question: '最近心裡的緊張感比較像偶爾一下，還是已經常常壓著你？' },
+  { item_code: 'somatic_anxiety', item_label: '軀體性焦慮', scale_range: '0_to_4', dimension: 'somatic_anxiety', preferred_evidence: 'mixed', probe_question: '最近除了心情，身體會不會常出現緊繃、胃不舒服、心悸或頭痛這類反應？' },
+  { item_code: 'gastrointestinal_somatic', item_label: '胃腸症狀', scale_range: '0_to_2', dimension: 'somatic_anxiety', preferred_evidence: 'direct_answer', probe_question: '最近食慾、腸胃或吃東西這件事，有沒有因為情緒受到影響？' },
+  { item_code: 'general_somatic', item_label: '一般身體症狀', scale_range: '0_to_2', dimension: 'somatic_anxiety', preferred_evidence: 'mixed', probe_question: '最近整體身體狀態有沒有特別疲累、痠痛，或像被情緒拖住那種感覺？' },
+  { item_code: 'genital_symptoms', item_label: '生理功能症狀', scale_range: '0_to_2', dimension: 'somatic_anxiety', preferred_evidence: 'direct_answer', probe_question: '如果可以接受回答，最近性慾或生理功能有沒有比平常明顯下降？' },
+  { item_code: 'hypochondriasis', item_label: '疑病傾向', scale_range: '0_to_4', dimension: 'somatic_anxiety', preferred_evidence: 'mixed', probe_question: '最近會不會很常擔心自己是不是身體哪裡出問題，而且很難放下這個念頭？' },
+  { item_code: 'weight_loss', item_label: '體重下降', scale_range: '0_to_2', dimension: 'work_interest', preferred_evidence: 'direct_answer', probe_question: '最近食量或體重有沒有明顯變少，像是連自己都感覺得到？' },
+  { item_code: 'insight', item_label: '病識感', scale_range: '0_to_2', dimension: 'guilt', preferred_evidence: 'indirect_observation', probe_question: '你會怎麼看待自己最近這些變化？比較覺得是壓力反應、情緒困擾，還是其實沒什麼問題？' }
+];
+
+const HAMD_FORMAL_ITEM_MAP = HAMD_FORMAL_ITEMS.reduce((acc, item) => {
+  acc[item.item_code] = item;
+  return acc;
+}, {});
+
+const HAMD_DIMENSION_TO_ITEM_CODES = {
+  depressed_mood: ['depressed_mood', 'suicide'],
+  guilt: ['guilt', 'insight'],
+  work_interest: ['work_activities', 'weight_loss'],
+  retardation: ['retardation'],
+  agitation: ['agitation'],
+  somatic_anxiety: ['psychic_anxiety', 'somatic_anxiety', 'gastrointestinal_somatic', 'general_somatic', 'genital_symptoms', 'hypochondriasis'],
+  insomnia: ['insomnia_early', 'insomnia_middle', 'insomnia_late']
 };
 
 const COMMAND_MAP = {
@@ -243,6 +281,7 @@ function defaultSessionExport(session) {
     clinician_summary_draft: normalizeObjectState(session.state, 'clinician_summary_draft', {}),
     patient_analysis: normalizeObjectState(session.state, 'patient_analysis', {}),
     hamd_progress_state: normalizeObjectState(session.state, 'hamd_progress_state', {}),
+    hamd_formal_assessment: normalizeObjectState(session.state, 'hamd_formal_assessment', {}),
     red_flag_payload: normalizeObjectState(session.state, 'red_flag_payload', {}),
     patient_authorization_state: normalizeObjectState(session.state, 'patient_authorization_state', {}),
     delivery_readiness_state: normalizeObjectState(session.state, 'delivery_readiness_state', {}),
@@ -250,6 +289,297 @@ function defaultSessionExport(session) {
     fhir_delivery_draft: normalizeObjectState(session.state, 'fhir_delivery_draft', {}),
     summary_draft_state: normalizeObjectState(session.state, 'summary_draft_state', {})
   };
+}
+
+function createDefaultFormalAssessment() {
+  return {
+    scale_version: 'HAM-D17',
+    status: 'draft',
+    assessment_mode: 'mixed',
+    recall_window: 'past_7_days',
+    pending_probe_item_code: '',
+    pending_probe_question: '',
+    items: HAMD_FORMAL_ITEMS.map((item) => ({
+      item_code: item.item_code,
+      item_label: item.item_label,
+      scale_range: item.scale_range,
+      evidence_type: 'none',
+      direct_answer_value: null,
+      ai_suggested_score: null,
+      clinician_final_score: null,
+      evidence_summary: [],
+      rating_rationale: '',
+      confidence: 'low',
+      review_required: item.preferred_evidence === 'indirect_observation'
+    })),
+    ai_total_score: 0,
+    clinician_total_score: null,
+    severity_band: 'unrated',
+    review_flags: [],
+    rated_by: '',
+    reviewed_at: ''
+  };
+}
+
+function hydrateFormalAssessment(value) {
+  const base = createDefaultFormalAssessment();
+  const current = tryParseJson(value, {}) || {};
+  const currentItems = Array.isArray(current.items) ? current.items : [];
+  const itemMap = currentItems.reduce((acc, item) => {
+    if (item && item.item_code) acc[item.item_code] = item;
+    return acc;
+  }, {});
+  base.scale_version = current.scale_version || base.scale_version;
+  base.status = current.status || base.status;
+  base.assessment_mode = current.assessment_mode || base.assessment_mode;
+  base.recall_window = current.recall_window || base.recall_window;
+  base.pending_probe_item_code = current.pending_probe_item_code || '';
+  base.pending_probe_question = current.pending_probe_question || '';
+  base.ai_total_score = typeof current.ai_total_score === 'number' ? current.ai_total_score : 0;
+  base.clinician_total_score = typeof current.clinician_total_score === 'number' ? current.clinician_total_score : null;
+  base.severity_band = current.severity_band || base.severity_band;
+  base.review_flags = normalizeArray(current.review_flags);
+  base.rated_by = current.rated_by || '';
+  base.reviewed_at = current.reviewed_at || '';
+  base.items = HAMD_FORMAL_ITEMS.map((item) => Object.assign({}, base.items.find((entry) => entry.item_code === item.item_code), itemMap[item.item_code] || {}));
+  return base;
+}
+
+function calculateHamdSeverity(score) {
+  if (typeof score !== 'number' || Number.isNaN(score)) return 'unrated';
+  if (score <= 7) return 'normal_or_remission';
+  if (score <= 13) return 'mild';
+  if (score <= 18) return 'moderate';
+  if (score <= 22) return 'severe';
+  return 'very_severe';
+}
+
+function scoreRangeMax(scaleRange) {
+  return scaleRange === '0_to_2' ? 2 : 4;
+}
+
+function clampScore(value, scaleRange) {
+  if (value == null || value === '') return null;
+  const max = scoreRangeMax(scaleRange);
+  const num = Number(value);
+  if (Number.isNaN(num)) return null;
+  return Math.max(0, Math.min(max, Math.round(num)));
+}
+
+function inferDirectAnswerValue(text, scaleRange) {
+  const input = String(text || '').trim();
+  if (!input) return null;
+  const numeric = input.match(/-?\d+/);
+  if (numeric) {
+    return clampScore(Number(numeric[0]), scaleRange);
+  }
+  const lower = input.toLowerCase();
+  if (/(沒有|完全沒有|none|no)/.test(lower)) return 0;
+  if (/(偶爾|一點|有點|輕微|偶而)/.test(lower)) return 1;
+  if (scaleRange === '0_to_2') {
+    if (/(常常|很多|嚴重|幾乎每天|每天|明顯)/.test(lower)) return 2;
+    return null;
+  }
+  if (/(常常|明顯|中度|很多)/.test(lower)) return 2;
+  if (/(很常|幾乎每天|每天|嚴重|很重|很明顯)/.test(lower)) return 3;
+  if (/(極度|非常嚴重|整天|幾乎整天)/.test(lower)) return 4;
+  return null;
+}
+
+function buildFormalAssessmentProbeFallback(state) {
+  const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
+  if (assessment.pending_probe_item_code) {
+    return {
+      should_ask: 'no',
+      item_code: '',
+      item_label: '',
+      probe_question: '',
+      reason: 'pending_probe_exists'
+    };
+  }
+  const nextDimension = normalizeObjectState(state, 'hamd_progress_state', {}).next_recommended_dimension || 'depressed_mood';
+  const candidateCode = (HAMD_DIMENSION_TO_ITEM_CODES[nextDimension] || []).find((itemCode) => {
+    const item = assessment.items.find((entry) => entry.item_code === itemCode);
+    return item && (!item.evidence_summary.length || item.review_required);
+  });
+  if (!candidateCode) {
+    return {
+      should_ask: 'no',
+      item_code: '',
+      item_label: '',
+      probe_question: '',
+      reason: 'no_gap'
+    };
+  }
+  const definition = HAMD_FORMAL_ITEM_MAP[candidateCode];
+  return {
+    should_ask: 'yes',
+    item_code: definition.item_code,
+    item_label: definition.item_label,
+    probe_question: definition.probe_question,
+    reason: `gap_in_${nextDimension}`
+  };
+}
+
+function buildEvidenceClassifierFallback(targetItems, pendingProbe, message) {
+  const text = String(message || '').trim();
+  if (!text || !targetItems.length) {
+    return { assessment_mode: 'mixed', items: [] };
+  }
+  const updates = targetItems.slice(0, 2).map((item) => {
+    const directValue = inferDirectAnswerValue(text, item.scale_range);
+    const evidenceType = pendingProbe && pendingProbe.item_code === item.item_code
+      ? (directValue != null ? 'direct_answer' : (item.preferred_evidence === 'indirect_observation' ? 'indirect_observation' : 'mixed'))
+      : (item.preferred_evidence === 'indirect_observation' ? 'indirect_observation' : (directValue != null ? 'direct_answer' : 'mixed'));
+    return {
+      item_code: item.item_code,
+      evidence_type: evidenceType,
+      direct_answer_value: directValue,
+      evidence_summary: [text],
+      confidence: directValue != null ? 'high' : (evidenceType === 'indirect_observation' ? 'medium' : 'medium'),
+      review_required: evidenceType !== 'direct_answer'
+    };
+  });
+  return {
+    assessment_mode: pendingProbe ? 'smart_hunter_probe' : 'mixed',
+    items: updates
+  };
+}
+
+function buildFormalScoringFallback(targetItems, evidenceResult) {
+  const evidenceMap = (Array.isArray(evidenceResult.items) ? evidenceResult.items : []).reduce((acc, item) => {
+    acc[item.item_code] = item;
+    return acc;
+  }, {});
+  return {
+    items: targetItems.map((item) => {
+      const evidence = evidenceMap[item.item_code] || {};
+      let suggested = evidence.direct_answer_value;
+      if (suggested == null && Array.isArray(evidence.evidence_summary) && evidence.evidence_summary.length) {
+        suggested = evidence.evidence_type === 'indirect_observation' ? 1 : Math.min(1, scoreRangeMax(item.scale_range));
+      }
+      suggested = clampScore(suggested, item.scale_range);
+      if (suggested == null) return null;
+      return {
+        item_code: item.item_code,
+        ai_suggested_score: suggested,
+        rating_rationale: evidence.evidence_type === 'direct_answer'
+          ? '依病人直接回答映射正式 HAM-D 分值。'
+          : (evidence.evidence_type === 'indirect_observation'
+            ? '依互動觀察與症狀線索形成 AI 建議分數，需臨床覆核。'
+            : '同時參考病人回答與互動觀察形成 AI 建議分數。'),
+        confidence: evidence.confidence || 'medium'
+      };
+    }).filter(Boolean)
+  };
+}
+
+function mergeFormalAssessmentUpdates(assessment, evidenceResult, scoreResult) {
+  const evidenceMap = (Array.isArray(evidenceResult.items) ? evidenceResult.items : []).reduce((acc, item) => {
+    acc[item.item_code] = item;
+    return acc;
+  }, {});
+  const scoreMap = (Array.isArray(scoreResult.items) ? scoreResult.items : []).reduce((acc, item) => {
+    acc[item.item_code] = item;
+    return acc;
+  }, {});
+
+  assessment.items = assessment.items.map((item) => {
+    const evidence = evidenceMap[item.item_code];
+    const score = scoreMap[item.item_code];
+    if (!evidence && !score) return item;
+    return Object.assign({}, item, {
+      evidence_type: evidence ? evidence.evidence_type || item.evidence_type : item.evidence_type,
+      direct_answer_value: evidence && Object.prototype.hasOwnProperty.call(evidence, 'direct_answer_value')
+        ? clampScore(evidence.direct_answer_value, item.scale_range)
+        : item.direct_answer_value,
+      evidence_summary: evidence ? normalizeArray(evidence.evidence_summary) : item.evidence_summary,
+      confidence: score ? score.confidence || item.confidence : (evidence ? evidence.confidence || item.confidence : item.confidence),
+      review_required: evidence ? Boolean(evidence.review_required) : item.review_required,
+      ai_suggested_score: score && Object.prototype.hasOwnProperty.call(score, 'ai_suggested_score')
+        ? clampScore(score.ai_suggested_score, item.scale_range)
+        : item.ai_suggested_score,
+      rating_rationale: score ? score.rating_rationale || item.rating_rationale : item.rating_rationale
+    });
+  });
+
+  const aiScores = assessment.items
+    .map((item) => item.ai_suggested_score)
+    .filter((value) => typeof value === 'number');
+  const clinicianScores = assessment.items
+    .map((item) => item.clinician_final_score)
+    .filter((value) => typeof value === 'number');
+  const reviewFlags = assessment.items
+    .filter((item) => item.review_required || item.evidence_type === 'indirect_observation')
+    .map((item) => item.item_code);
+  assessment.assessment_mode = evidenceResult.assessment_mode || assessment.assessment_mode;
+  assessment.ai_total_score = aiScores.reduce((sum, value) => sum + value, 0);
+  assessment.clinician_total_score = clinicianScores.length ? clinicianScores.reduce((sum, value) => sum + value, 0) : null;
+  assessment.severity_band = calculateHamdSeverity(assessment.clinician_total_score != null ? assessment.clinician_total_score : assessment.ai_total_score);
+  assessment.review_flags = reviewFlags;
+  assessment.status = reviewFlags.length ? 'review_required' : 'draft';
+  return assessment;
+}
+
+function getFormalTargetItems(state, limit = 2) {
+  const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
+  if (assessment.pending_probe_item_code && HAMD_FORMAL_ITEM_MAP[assessment.pending_probe_item_code]) {
+    return [HAMD_FORMAL_ITEM_MAP[assessment.pending_probe_item_code]];
+  }
+  const progress = normalizeObjectState(state, 'hamd_progress_state', {});
+  const dimensions = [];
+  if (progress.next_recommended_dimension) dimensions.push(progress.next_recommended_dimension);
+  normalizeArray(progress.supported_dimensions).forEach((item) => {
+    if (dimensions.indexOf(item) === -1) dimensions.push(item);
+  });
+  if (!dimensions.length) dimensions.push('depressed_mood');
+  const targetCodes = [];
+  dimensions.forEach((dimension) => {
+    (HAMD_DIMENSION_TO_ITEM_CODES[dimension] || []).forEach((itemCode) => {
+      if (targetCodes.length >= limit) return;
+      const current = assessment.items.find((item) => item.item_code === itemCode);
+      if (!current) return;
+      if (!current.evidence_summary.length || current.review_required) {
+        if (targetCodes.indexOf(itemCode) === -1) targetCodes.push(itemCode);
+      }
+    });
+  });
+  return targetCodes.map((itemCode) => HAMD_FORMAL_ITEM_MAP[itemCode]).filter(Boolean);
+}
+
+function buildFormalClinicianFields(formalAssessment) {
+  return {
+    hamd_item_scores: formalAssessment.items
+      .filter((item) => item.ai_suggested_score != null || item.clinician_final_score != null)
+      .map((item) => ({
+        item_code: item.item_code,
+        item_label: item.item_label,
+        ai_suggested_score: item.ai_suggested_score,
+        clinician_final_score: item.clinician_final_score
+      })),
+    hamd_total_score_ai: formalAssessment.ai_total_score,
+    hamd_total_score_clinician: formalAssessment.clinician_total_score,
+    hamd_severity_band: formalAssessment.severity_band,
+    hamd_evidence_table: formalAssessment.items
+      .filter((item) => normalizeArray(item.evidence_summary).length)
+      .map((item) => ({
+        item_label: item.item_label,
+        evidence_type: item.evidence_type,
+        evidence_summary: normalizeArray(item.evidence_summary),
+        rating_rationale: item.rating_rationale || ''
+      })),
+    hamd_review_required_items: normalizeArray(formalAssessment.review_flags)
+  };
+}
+
+function buildFormalFhirTargets(formalAssessment) {
+  return formalAssessment.items
+    .filter((item) => item.ai_suggested_score != null || item.clinician_final_score != null)
+    .map((item) => ({
+      item_code: item.item_code,
+      evidence_type: item.evidence_type,
+      status: 'preliminary'
+    }));
 }
 
 function buildPatientAnalysis(state, fallbackMessage = '') {
@@ -562,8 +892,8 @@ class AICompanionEngine {
       answer = await this.handleClarify(session, message);
     } else {
       state.active_mode = 'mode_5_natural';
-      answer = await this.runTextTask('smartHunter', session, message);
-      }
+      answer = await this.buildNaturalResponse(session, message);
+    }
 
     session.history.push({ role: 'assistant', content: answer });
     this.updateMemorySnapshot(session, answer);
@@ -643,6 +973,7 @@ class AICompanionEngine {
       }
     });
     state.hamd_progress_state = hamd;
+    await this.updateFormalAssessment(session, message);
   }
 
   async resolveActiveMode(session, message) {
@@ -757,6 +1088,76 @@ class AICompanionEngine {
     session.memory_snapshot.hamd_focus = String(hamd.current_focus || '').trim();
   }
 
+  async updateFormalAssessment(session, message) {
+    const state = session.state;
+    const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
+    const targetItems = getFormalTargetItems(state, 2);
+    const pendingProbe = assessment.pending_probe_item_code
+      ? {
+          item_code: assessment.pending_probe_item_code,
+          probe_question: assessment.pending_probe_question
+        }
+      : {};
+    const evidenceResult = await this.runJsonTask('hamdEvidenceClassifier', session, message, {
+      extraContext: {
+        formal_assessment: {
+          target_items: targetItems,
+          pending_probe: pendingProbe
+        }
+      },
+      fallback: buildEvidenceClassifierFallback(targetItems, pendingProbe, message)
+    });
+    const scoreResult = await this.runJsonTask('hamdFormalItemScorer', session, message, {
+      extraContext: {
+        formal_assessment: {
+          target_items: targetItems,
+          evidence_result: evidenceResult
+        }
+      },
+      fallback: buildFormalScoringFallback(targetItems, evidenceResult)
+    });
+    state.hamd_formal_assessment = mergeFormalAssessmentUpdates(assessment, evidenceResult, scoreResult);
+    if (assessment.pending_probe_item_code) {
+      const answeredPending = state.hamd_formal_assessment.items.find((item) =>
+        item.item_code === assessment.pending_probe_item_code && normalizeArray(item.evidence_summary).length
+      );
+      if (answeredPending) {
+        state.hamd_formal_assessment.pending_probe_item_code = '';
+        state.hamd_formal_assessment.pending_probe_question = '';
+      }
+    }
+  }
+
+  async buildNaturalResponse(session, message) {
+    const state = session.state;
+    const formalProbe = await this.runJsonTask('hamdFormalProbeSelector', session, message, {
+      extraContext: {
+        formal_probe: {
+          items: getFormalTargetItems(state, 4)
+        }
+      },
+      fallback: buildFormalAssessmentProbeFallback(state)
+    });
+    const answer = await this.runTextTask('smartHunter', session, message, {
+      extraContext: {
+        formal_probe: formalProbe
+      }
+    });
+    const normalizedProbeQuestion = String(formalProbe.probe_question || '').trim();
+    if (formalProbe.should_ask === 'yes' && formalProbe.item_code && normalizedProbeQuestion) {
+      const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
+      assessment.pending_probe_item_code = formalProbe.item_code;
+      assessment.pending_probe_question = normalizedProbeQuestion;
+      assessment.assessment_mode = 'smart_hunter_probe';
+      state.hamd_formal_assessment = assessment;
+      if (answer.includes(normalizedProbeQuestion)) {
+        return answer;
+      }
+      return `${answer}\n\n${normalizedProbeQuestion}`;
+    }
+    return answer;
+  }
+
   async updateSummaryChain(session, message) {
     const state = session.state;
     state.summary_draft_state = await this.runJsonTask('summaryDraftBuilder', session, message, {
@@ -767,9 +1168,11 @@ class AICompanionEngine {
         latest_tags: state.latest_tag_payload,
         red_flags: state.red_flag_payload,
         hamd_progress: state.hamd_progress_state,
+        hamd_formal_assessment: state.hamd_formal_assessment,
         draft_summary: message
       }
     });
+    const formalAssessment = hydrateFormalAssessment(state.hamd_formal_assessment);
     state.clinician_summary_draft = await this.runJsonTask('clinicianSummaryBuilder', session, message, {
       fallback: {
         summary_version: 'p1_clinician_draft_v1',
@@ -778,12 +1181,18 @@ class AICompanionEngine {
         chief_concerns: [message],
         symptom_observations: normalizeArray(normalizeObjectState(state, 'hamd_progress_state', {}).recent_evidence),
         hamd_signals: normalizeArray(normalizeObjectState(state, 'hamd_progress_state', {}).covered_dimensions),
+        ...buildFormalClinicianFields(formalAssessment),
         followup_needs: [],
         safety_flags: normalizeArray(normalizeObjectState(state, 'red_flag_payload', {}).warning_tags),
         patient_tone: 'unknown',
         draft_summary: typeof state.summary_draft_state === 'object' ? state.summary_draft_state.draft_summary || message : message
       }
     });
+    state.clinician_summary_draft = Object.assign(
+      {},
+      state.clinician_summary_draft,
+      buildFormalClinicianFields(formalAssessment)
+    );
     state.patient_review_packet = await this.runJsonTask('patientReviewBuilder', session, message, {
       fallback: {
         packet_version: 'p3_patient_review_v1',
@@ -814,8 +1223,12 @@ class AICompanionEngine {
         delivery_status: 'ready_for_mapping',
         consent_gate: 'ready_for_consent',
         resources: [],
+        hamd_formal_targets: buildFormalFhirTargets(formalAssessment),
         narrative_summary: typeof state.clinician_summary_draft === 'object' ? state.clinician_summary_draft.draft_summary || message : message
       }
+    });
+    state.fhir_delivery_draft = Object.assign({}, state.fhir_delivery_draft, {
+      hamd_formal_targets: buildFormalFhirTargets(formalAssessment)
     });
     state.delivery_readiness_state = await this.runJsonTask('deliveryReadinessBuilder', session, message, {
       fallback: {
@@ -902,7 +1315,8 @@ class AICompanionEngine {
         active_mode: session.state.active_mode,
         risk_flag: session.state.risk_flag,
         latest_tag_payload: normalizeObjectState(session.state, 'latest_tag_payload', {}),
-        burden_level_state: normalizeObjectState(session.state, 'burden_level_state', {})
+        burden_level_state: normalizeObjectState(session.state, 'burden_level_state', {}),
+        hamd_formal_assessment: normalizeObjectState(session.state, 'hamd_formal_assessment', {})
       }
     };
 

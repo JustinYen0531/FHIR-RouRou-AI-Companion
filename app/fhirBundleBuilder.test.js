@@ -34,6 +34,18 @@ function createValidInput() {
         '被動消失想法',
         '目前否認立即自傷計畫'
       ],
+      hamd_item_scores: [
+        { item_code: 'depressed_mood', item_label: '憂鬱情緒', ai_suggested_score: 2, clinician_final_score: null },
+        { item_code: 'retardation', item_label: '精神運動遲滯', ai_suggested_score: 1, clinician_final_score: null }
+      ],
+      hamd_total_score_ai: 7,
+      hamd_total_score_clinician: null,
+      hamd_severity_band: 'mild',
+      hamd_evidence_table: [
+        { item_label: '憂鬱情緒', evidence_type: 'direct_answer', evidence_summary: ['病人表示這週常常覺得心裡很重'], rating_rationale: '依病人直接回答映射正式 HAM-D 分值。' },
+        { item_label: '精神運動遲滯', evidence_type: 'indirect_observation', evidence_summary: ['對話反應變慢', '語句縮短'], rating_rationale: '依互動觀察形成 AI 建議分數。' }
+      ],
+      hamd_review_required_items: ['retardation'],
       hamd_signals: [
         'depressed_mood',
         'work_interest',
@@ -57,6 +69,44 @@ function createValidInput() {
         '工作效率下降'
       ],
       next_recommended_dimension: 'somatic_anxiety'
+    },
+    hamd_formal_assessment: {
+      scale_version: 'HAM-D17',
+      status: 'review_required',
+      assessment_mode: 'mixed',
+      recall_window: 'past_7_days',
+      ai_total_score: 7,
+      clinician_total_score: null,
+      severity_band: 'mild',
+      review_flags: ['retardation'],
+      items: [
+        {
+          item_code: 'depressed_mood',
+          item_label: '憂鬱情緒',
+          scale_range: '0_to_4',
+          evidence_type: 'direct_answer',
+          direct_answer_value: 2,
+          ai_suggested_score: 2,
+          clinician_final_score: null,
+          evidence_summary: ['病人表示這週常常覺得心裡很重'],
+          rating_rationale: '依病人直接回答映射正式 HAM-D 分值。',
+          confidence: 'high',
+          review_required: false
+        },
+        {
+          item_code: 'retardation',
+          item_label: '精神運動遲滯',
+          scale_range: '0_to_4',
+          evidence_type: 'indirect_observation',
+          direct_answer_value: null,
+          ai_suggested_score: 1,
+          clinician_final_score: null,
+          evidence_summary: ['對話反應變慢', '語句縮短'],
+          rating_rationale: '依互動觀察形成 AI 建議分數。',
+          confidence: 'medium',
+          review_required: true
+        }
+      ]
     },
     red_flag_payload: {
       warning_tags: ['passive_disappearance_ideation'],
@@ -145,10 +195,11 @@ function testClinicalContentIsEnriched() {
   const observation = entries.find((entry) => entry.resource.resourceType === 'Observation');
   const documentReference = entries.find((entry) => entry.resource.resourceType === 'DocumentReference');
 
-  assert.strictEqual(questionnaire.resource.questionnaire, 'https://example.org/fhir/Questionnaire/ai-companion-previsit-hamd-lite-v1');
+  assert.strictEqual(questionnaire.resource.questionnaire, 'https://example.org/fhir/Questionnaire/ai-companion-previsit-hamd17-draft-v1');
   assert.ok(Array.isArray(questionnaire.resource.extension) && questionnaire.resource.extension.length >= 2);
   assert.strictEqual(composition.resource.confidentiality, 'R');
   assert.ok(composition.resource.section.some((section) => section.code && section.code.text === 'chief-concerns'));
+  assert.ok(composition.resource.section.some((section) => section.code && section.code.text === 'hamd-evidence-table'));
   assert.ok(observation.resource.extension.some((extension) => extension.url.indexOf('patient-review-status') !== -1));
   assert.strictEqual(documentReference.resource.docStatus, 'preliminary');
   assert.ok(documentReference.resource.content[0].attachment.data);

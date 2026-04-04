@@ -178,6 +178,8 @@ async function testNaturalFlowBuildsSessionExport() {
   assert.ok(result.session_export);
   assert.strictEqual(result.session_export.active_mode, 'mode_5_natural');
   assert.strictEqual(result.session_export.burden_level_state.burden_level, 'medium');
+  assert.strictEqual(result.session_export.hamd_formal_assessment.scale_version, 'HAM-D17');
+  assert.ok(result.session_export.hamd_formal_assessment.items.some((item) => typeof item.ai_suggested_score === 'number'));
   assert.deepStrictEqual(result.session_export.clinician_summary_draft, {});
   assert.deepStrictEqual(result.session_export.delivery_readiness_state, {});
 }
@@ -189,6 +191,8 @@ async function testOutputCommandBuildsStructuredDrafts() {
   assert.strictEqual(result.metadata.route, 'output');
   assert.strictEqual(result.metadata.output_type, 'clinician_summary');
   assert.ok(result.answer.includes('醫師摘要'));
+  assert.ok(Array.isArray(result.session_export.clinician_summary_draft.hamd_item_scores));
+  assert.ok(Array.isArray(result.session_export.clinician_summary_draft.hamd_evidence_table));
   assert.strictEqual(result.session_export.delivery_readiness_state.readiness_status, 'ready_for_backend_mapping');
 }
 
