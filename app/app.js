@@ -358,7 +358,9 @@ const APP_STATE = {
     sessionExport: null,
     fhirDraft: null,
     deliveryResult: null,
-    canConfirm: false
+    canConfirm: false,
+    progressLabel: '',
+    progressValue: 0
   },
   privacySettings: {
     fhirRealtimeSync: localStorage.getItem('rourou.fhirRealtimeSync') === 'true',
@@ -2105,7 +2107,9 @@ function resetConsentPreviewState() {
     sessionExport: null,
     fhirDraft: null,
     deliveryResult: null,
-    canConfirm: false
+    canConfirm: false,
+    progressLabel: '',
+    progressValue: 0
   };
   const confirmButton = document.getElementById('consent-preview-confirm');
   const scrollBody = document.getElementById('consent-preview-scroll');
@@ -2120,6 +2124,18 @@ function resetConsentPreviewState() {
   if (previewBody) {
     previewBody.innerHTML = '';
   }
+  setConsentPreviewProgress(0, '等待操作');
+}
+
+function setConsentPreviewProgress(value, label) {
+  APP_STATE.pendingConsent.progressValue = Math.max(0, Math.min(100, Number(value) || 0));
+  APP_STATE.pendingConsent.progressLabel = String(label || '');
+  const labelEl = document.getElementById('consent-preview-progress-label');
+  const valueEl = document.getElementById('consent-preview-progress-value');
+  const barEl = document.getElementById('consent-preview-progress-bar');
+  if (labelEl) labelEl.textContent = APP_STATE.pendingConsent.progressLabel || '等待操作';
+  if (valueEl) valueEl.textContent = `${APP_STATE.pendingConsent.progressValue}%`;
+  if (barEl) barEl.style.width = `${APP_STATE.pendingConsent.progressValue}%`;
 }
 
 function closeConsentPreview() {
@@ -2150,9 +2166,12 @@ async function openConsentPreview() {
   closeMicroInterventionDetail();
   setTyping(true);
   appendSystemNotice('正在準備授權預覽...');
+  setConsentPreviewProgress(10, '正在同步目前對話狀態...');
 
   try {
+    setConsentPreviewProgress(28, '正在整理可授權的 session export...');
     const sessionPayload = await fetchOutputPayload('session_export', '準備授權預覽所需的 session export');
+    setConsentPreviewProgress(58, '正在建立 FHIR 草稿預覽...');
     const fhirPayload = await fetchOutputPayload('fhir_delivery', '準備授權預覽所需的 FHIR draft');
     const sessionExport = JSON.parse(JSON.stringify(sessionPayload.session_export || {}));
     const fhirDraft = attachProfileToFhirResult(JSON.parse(JSON.stringify(fhirPayload.output || {})));
@@ -2185,7 +2204,9 @@ async function openConsentPreview() {
       overlay.classList.add('active');
       overlay.setAttribute('aria-hidden', 'false');
     }
+    setConsentPreviewProgress(100, '授權預覽已就緒，請滑到最下方後送出');
   } catch (error) {
+    setConsentPreviewProgress(100, '授權預覽準備失敗');
     await appendMessage('ai', error.message || '目前無法打開授權預覽。', { animate: true });
   } finally {
     setTyping(false);
@@ -2587,6 +2608,12 @@ async function authorizeAndSendReport() {
   closeMicroInterventionDetail();
   setTyping(true);
   appendSystemNotice('正在送出你已確認的 FHIR 內容...');
+  setConsentPreviewProgress(12, '正在鎖定送出內容...');
+  const confirmButton = document.getElementById('consent-preview-confirm');
+  if (confirmButton) {
+    confirmButton.disabled = true;
+    confirmButton.textContent = '送出中...';
+  }
 
   try {
     const sessionExport = JSON.parse(JSON.stringify(APP_STATE.pendingConsent.sessionExport || {}));
@@ -2604,6 +2631,7 @@ async function authorizeAndSendReport() {
       }
     );
 
+    setConsentPreviewProgress(46, '正在呼叫 FHIR 送出端點...');
     const response = await fetch('/api/fhir/bundle', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2615,16 +2643,20 @@ async function authorizeAndSendReport() {
       throw new Error(payload?.bundle_result?.blocking_reasons?.join('；') || payload?.error || 'FHIR 上傳失敗');
     }
 
+    setConsentPreviewProgress(82, '正在整理送出結果...');
     const deliveryStatus = payload.delivery_status || 'unknown';
     APP_STATE.pendingConsent.deliveryResult = payload;
     APP_STATE.reportOutputs.fhir_delivery_result = payload;
     APP_STATE.reportOutputs.updatedAt = formatTimeLabel(new Date());
     renderReportOutputs();
     if (deliveryStatus === 'dry_run_ready') {
+      setConsentPreviewProgress(100, '已完成授權，但目前為 dry-run');
       appendSystemNotice('已完成手動授權，但目前後端尚未設定 FHIR_SERVER_URL，所以這次只是 dry-run，尚未真正送到醫院端。');
     } else if (deliveryStatus === 'delivered') {
+      setConsentPreviewProgress(100, 'FHIR 報告已成功送出');
       appendSystemNotice('已手動授權並成功送出 FHIR 報告。');
     } else {
+      setConsentPreviewProgress(100, `送出完成，目前狀態：${deliveryStatus}`);
       appendSystemNotice(`手動授權流程已完成，目前狀態：${deliveryStatus}`);
     }
 
@@ -2633,6 +2665,11 @@ async function authorizeAndSendReport() {
     switchAutoAudience('doctor');
     closeConsentPreview();
   } catch (error) {
+    setConsentPreviewProgress(100, '送出失敗，請再試一次');
+    if (confirmButton) {
+      confirmButton.disabled = false;
+      confirmButton.textContent = '重新送出';
+    }
     await appendMessage('ai', error.message || '目前無法送出 FHIR 報告。', { animate: true });
   } finally {
     setTyping(false);

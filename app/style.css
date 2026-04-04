@@ -3675,6 +3675,40 @@ body {
   padding: 20px 20px 10px;
 }
 
+.consent-preview-progress {
+  margin: 0 20px 14px;
+  padding: 12px 14px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.76);
+  border: 1px solid rgba(168, 180, 187, 0.18);
+  box-shadow: 0 8px 24px rgba(41, 52, 58, 0.04);
+}
+
+.consent-preview-progress-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #4a5c64;
+}
+
+.consent-preview-progress-track {
+  margin-top: 10px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(209, 220, 227, 0.75);
+  overflow: hidden;
+}
+
+.consent-preview-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary), #6ea387);
+  transition: width 0.28s var(--ease-natural);
+}
+
 .consent-preview-kicker {
   font-size: 11px;
   letter-spacing: 0.08em;
