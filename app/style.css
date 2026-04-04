@@ -2555,56 +2555,61 @@ body {
   color: #25353d;
 }
 
+.mode-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 .mode-card,
-.mode-card-sm,
 .hamd-dim,
 .insight-row,
 .tl-card {
   background: rgba(255, 255, 255, 0.86);
   border-radius: 22px;
   border: 1px solid rgba(168, 180, 187, 0.14);
-  box-shadow: 0 8px 24px rgba(43, 56, 61, 0.05);
+  box-shadow: 0 8px 16px rgba(43, 56, 61, 0.04);
 }
 
 .mode-card {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 16px;
+  gap: 16px;
+  padding: 18px;
   position: relative;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
 }
 
-.mode-card.active,
-.mode-card.mode-active,
-.mode-card-sm.active {
-  outline: 2px solid rgba(68, 102, 85, 0.28);
-  background: rgba(198, 235, 213, 0.66);
+.mode-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(43, 56, 61, 0.07);
 }
 
-.mode-card-sm {
-  flex: 1;
-  padding: 16px 14px;
-  text-align: center;
+.mode-card.selected {
+  outline: 2px solid var(--primary);
+  background: rgba(255, 255, 255, 1);
+}
+
+.mode-card.active {
+  background: rgba(198, 235, 213, 0.5);
+  border-color: rgba(68, 102, 85, 0.2);
 }
 
 .mode-icon,
-.mode-icon-sm,
 .insight-ico,
 .hamd-badge,
 .tl-dot {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: rgba(198, 235, 213, 0.75);
+  background: rgba(198, 235, 213, 0.7);
   color: #315141;
-}
-
-.mode-row {
-  align-items: stretch;
+  font-size: 22px;
 }
 
 .ring-svg {

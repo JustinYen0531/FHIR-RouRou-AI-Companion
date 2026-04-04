@@ -176,44 +176,45 @@
         <div class="mode-explainer-body" id="mode-explainer-body" style="display:none"></div>
       </section>
 
-      <div class="mode-list">
-        <div class="mode-card" onclick="selectMode(this,'樹洞模式','void')">
-          <div class="mode-icon void-icon"></div>
+      <div class="mode-list" style="margin-top:24px">
+        <div class="mode-card" data-mode-key="void" onclick="selectMode(this,'樹洞模式','void')">
+          <div class="mode-icon"><span class="mat-icon">self_care</span></div>
           <div class="mode-info">
             <div class="mode-name">樹洞模式</div>
             <div class="mode-desc">只聽不說，讓我安靜地承接你所有的情緒與秘密。</div>
           </div>
         </div>
-        <div class="mode-card active" onclick="selectMode(this,'靈魂陪伴','soul')">
-          <div class="active-badge">使用中</div>
-          <div class="mode-icon soul-icon">♥</div>
+        <div class="mode-card" data-mode-key="soul" onclick="selectMode(this,'靈魂陪伴','soul')">
+          <div class="mode-icon"><span class="mat-icon fill">favorite</span></div>
           <div class="mode-info">
             <div class="mode-name">靈魂陪伴</div>
             <div class="mode-desc">充滿溫度的深度共感，像老朋友般溫暖你的心靈。</div>
           </div>
         </div>
-        <div class="mode-card" onclick="selectMode(this,'任務引導','mission')">
-          <div class="mode-icon mission-icon">◎</div>
+        <div class="mode-card" data-mode-key="mission" onclick="selectMode(this,'任務引導','mission')">
+          <div class="mode-icon"><span class="mat-icon">task_alt</span></div>
           <div class="mode-info">
             <div class="mode-name">任務引導</div>
             <div class="mode-desc">如果你感到迷茫，我將帶領你完成今日的心理復健練習。</div>
           </div>
         </div>
-        <div class="mode-row">
-          <div class="mode-card-sm" onclick="selectMode(null,'選項引導','option')">
-            <div class="mode-icon-sm">⊞</div>
-            <div class="mode-sm-name">選項引導</div>
-            <div class="mode-sm-desc">結構化對話，減少思考負擔</div>
+        <div class="mode-card" data-mode-key="option" onclick="selectMode(this,'選項引導','option')">
+          <div class="mode-icon"><span class="mat-icon">list_alt</span></div>
+          <div class="mode-info">
+            <div class="mode-name">選項引導</div>
+            <div class="mode-desc">結構化對話，減少思考負擔。</div>
           </div>
-          <div class="mode-card-sm" onclick="selectMode(null,'自然聊天','smart')">
-            <div class="mode-icon-sm">◉</div>
-            <div class="mode-sm-name">自然聊天</div>
-            <div class="mode-sm-desc">精準捕捉核心問題，高效解決困擾</div>
+        </div>
+        <div class="mode-card" data-mode-key="natural" onclick="selectMode(this,'自然聊天','natural')">
+          <div class="mode-icon"><span class="mat-icon">auto_awesome</span></div>
+          <div class="mode-info">
+            <div class="mode-name">自然聊天</div>
+            <div class="mode-desc">精準捕捉核心問題，高效解決困擾。</div>
           </div>
         </div>
       </div>
 
-      <button class="primary-btn" onclick="startChat()">開始今天的對話</button>
+      <button class="primary-btn" onclick="saveModeSettings()" style="margin-top:32px">儲存目前設定</button>
       <p class="hint-text">隨時可以在聊天中切換模式</p>
     </main>
 

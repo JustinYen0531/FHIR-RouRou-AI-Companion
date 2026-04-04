@@ -700,6 +700,10 @@ function showScreen(screenId) {
   if (screenId === 'screen-report') {
     renderMoodChart();
   }
+  
+  if (screenId === 'screen-energy') {
+    refreshModeListUI();
+  }
 }
 
 function switchAutoAudience(audience) {
@@ -880,37 +884,49 @@ function updateModeLabels() {
   renderModeExplainer();
 }
 
-function selectMode(element, modeLabel, modeKey) {
-  APP_STATE.selectedMode = modeKey || 'natural';
-  APP_STATE.runtimeMode = '';
-  localStorage.setItem('rourou.selectedMode', APP_STATE.selectedMode);
+let tempSelectedMode = '';
 
-  document.querySelectorAll('.mode-card, .mode-card-sm').forEach((card) => {
-    card.classList.remove('active');
-    const badge = card.querySelector('.active-badge');
-    if (badge && !card.contains(element)) {
-      badge.remove();
-    }
+function selectMode(element, modeLabel, modeKey) {
+  tempSelectedMode = modeKey || 'natural';
+
+  document.querySelectorAll('.mode-card').forEach((card) => {
+    card.classList.remove('selected');
   });
 
   if (element) {
-    element.classList.add('active');
-    if (!element.querySelector('.active-badge')) {
-      const badge = document.createElement('div');
-      badge.className = 'active-badge';
-      badge.textContent = 'ACTIVE';
-      element.appendChild(badge);
-    }
+    element.classList.add('selected');
   }
+}
 
-  if (modeLabel) {
-    const currentModeName = document.getElementById('current-mode-name');
-    if (currentModeName) {
-      currentModeName.textContent = modeLabel;
-    }
+function saveModeSettings() {
+  if (!tempSelectedMode) {
+    showScreen('screen-chat');
+    return;
   }
-
+  APP_STATE.selectedMode = tempSelectedMode;
+  localStorage.setItem('rourou.selectedMode', APP_STATE.selectedMode);
   updateModeLabels();
+  refreshModeListUI();
+  showScreen('screen-chat');
+}
+
+function refreshModeListUI() {
+  const currentModeKey = APP_STATE.selectedMode;
+  document.querySelectorAll('.mode-card').forEach(card => {
+    card.classList.remove('active');
+    card.classList.remove('selected');
+    const badge = card.querySelector('.active-badge');
+    if (badge) badge.remove();
+
+    const modeKey = card.getAttribute('data-mode-key');
+    if (modeKey === currentModeKey) {
+      card.classList.add('active');
+      const newBadge = document.createElement('div');
+      newBadge.className = 'active-badge';
+      newBadge.textContent = '使用中';
+      card.prepend(newBadge);
+    }
+  });
 }
 
 function renderModeExplainer() {
@@ -2088,6 +2104,8 @@ window.openShortcutComposer = openShortcutComposer;
 window.closeShortcutComposer = closeShortcutComposer;
 window.submitShortcutComposer = submitShortcutComposer;
 window.removeCustomShortcut = removeCustomShortcut;
+window.saveModeSettings = saveModeSettings;
+window.refreshModeListUI = refreshModeListUI;
 
 function toggleMemoryDrawer() {
   const drawer = document.getElementById('memory-drawer');
