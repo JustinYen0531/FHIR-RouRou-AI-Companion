@@ -1139,6 +1139,7 @@ function updateModeLabels() {
 
 let tempSelectedMode = '';
 let shortcutBarDismissed = false;
+let shortcutInputFocused = false;
 
 function syncShortcutBarState() {
   const shortcutBar = document.getElementById('shortcut-bar');
@@ -1146,7 +1147,7 @@ function syncShortcutBarState() {
   const isChatScreen = APP_STATE.currentScreen === 'screen-chat';
   if (!shortcutBar || !input) return;
 
-  const shouldShow = isChatScreen && input.value.trim().length === 0 && !shortcutBarDismissed;
+  const shouldShow = isChatScreen && shortcutInputFocused && input.value.trim().length === 0 && !shortcutBarDismissed;
   if (shouldShow) {
     shortcutBar.style.display = 'block';
     window.requestAnimationFrame(() => {
@@ -1163,7 +1164,7 @@ function syncShortcutBarState() {
   shortcutBar.style.transform = 'translateY(10px)';
   shortcutBar.style.pointerEvents = 'none';
   window.setTimeout(() => {
-    const stillShouldShow = APP_STATE.currentScreen === 'screen-chat' && input.value.trim().length === 0 && !shortcutBarDismissed;
+    const stillShouldShow = APP_STATE.currentScreen === 'screen-chat' && shortcutInputFocused && input.value.trim().length === 0 && !shortcutBarDismissed;
     if (!stillShouldShow) {
       shortcutBar.style.display = 'none';
       updateScrollSafeArea();
@@ -1987,14 +1988,19 @@ async function animateAiMessage(bubble, text) {
   scrollChatToBottom();
 }
 
-function handleInput(input) {
+function handleInput(input, reason = 'input') {
   const isEmpty = input.value.trim().length === 0;
-  if (isEmpty && document.activeElement === input) {
+
+  if (reason === 'focus') {
+    shortcutInputFocused = true;
     shortcutBarDismissed = false;
-  }
-  if (!isEmpty) {
+  } else if (reason === 'blur') {
+    shortcutInputFocused = false;
     shortcutBarDismissed = false;
+  } else if (!isEmpty) {
+    shortcutBarDismissed = true;
   }
+
   syncShortcutBarState();
 }
 

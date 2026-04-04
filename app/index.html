@@ -142,9 +142,9 @@
         <div class="text-input-wrap">
           <span class="mat-icon" style="color:#a0aab0">sentiment_satisfied</span>
           <input id="chat-input" type="text" placeholder="跟 Rou Rou 說說心事..." 
-            oninput="handleInput(this)" 
-            onfocus="handleInput(this)" 
-            onblur="setTimeout(() => handleInput(this), 200)"
+            oninput="handleInput(this, 'input')" 
+            onfocus="handleInput(this, 'focus')" 
+            onblur="setTimeout(() => handleInput(this, 'blur'), 200)"
             onkeydown="if(event.key==='Enter')sendMessage()"/>
           <button class="icon-btn" style="color:#395a49"><span class="mat-icon">mic</span></button>
         </div>
