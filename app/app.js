@@ -371,6 +371,10 @@ const APP_STATE = {
     note: '',
     valueText: ''
   },
+  progressAnimation: {
+    consentTimer: null,
+    reportTimer: null
+  },
   reportFhirDraft: {
     isLoading: false,
     error: '',
@@ -2375,13 +2379,19 @@ function resetConsentPreviewState() {
   if (previewBody) {
     previewBody.innerHTML = '';
   }
-  setConsentPreviewProgress(0, '等待操作', '待命');
+  stopProgressAnimation('consent');
+  setConsentPreviewProgress(0, '等待操作', '待命', { immediate: true });
 }
 
-function setConsentPreviewProgress(value, label, valueText = '') {
-  APP_STATE.pendingConsent.progressValue = Math.max(0, Math.min(100, Number(value) || 0));
-  APP_STATE.pendingConsent.progressLabel = String(label || '');
-  APP_STATE.pendingConsent.progressText = String(valueText || '');
+function stopProgressAnimation(type) {
+  const timerKey = type === 'report' ? 'reportTimer' : 'consentTimer';
+  if (APP_STATE.progressAnimation[timerKey]) {
+    clearInterval(APP_STATE.progressAnimation[timerKey]);
+    APP_STATE.progressAnimation[timerKey] = null;
+  }
+}
+
+function syncConsentPreviewProgress() {
   const labelEl = document.getElementById('consent-preview-progress-label');
   const valueEl = document.getElementById('consent-preview-progress-value');
   const barEl = document.getElementById('consent-preview-progress-bar');
@@ -2390,15 +2400,7 @@ function setConsentPreviewProgress(value, label, valueText = '') {
   if (barEl) barEl.style.width = `${APP_STATE.pendingConsent.progressValue}%`;
 }
 
-function setReportConsentProgress({ visible = true, value = 0, label = '', note = '', valueText = '' } = {}) {
-  APP_STATE.reportConsentProgress = {
-    visible: Boolean(visible),
-    value: Math.max(0, Math.min(100, Number(value) || 0)),
-    label: String(label || ''),
-    note: String(note || ''),
-    valueText: String(valueText || '')
-  };
-
+function syncReportConsentProgress() {
   const container = document.getElementById('report-consent-progress');
   const labelEl = document.getElementById('report-consent-progress-label');
   const valueEl = document.getElementById('report-consent-progress-value');
@@ -2422,14 +2424,79 @@ function setReportConsentProgress({ visible = true, value = 0, label = '', note 
   }
 }
 
+function animateProgressValue(type, targetValue) {
+  const timerKey = type === 'report' ? 'reportTimer' : 'consentTimer';
+  const stateKey = type === 'report' ? 'reportConsentProgress' : 'pendingConsent';
+  stopProgressAnimation(type);
+
+  APP_STATE.progressAnimation[timerKey] = setInterval(() => {
+    const currentValue = Number(APP_STATE[stateKey].value ?? APP_STATE[stateKey].progressValue ?? 0);
+    const delta = targetValue - currentValue;
+
+    if (Math.abs(delta) <= 0.8) {
+      if (type === 'report') {
+        APP_STATE.reportConsentProgress.value = targetValue;
+        syncReportConsentProgress();
+      } else {
+        APP_STATE.pendingConsent.progressValue = targetValue;
+        syncConsentPreviewProgress();
+      }
+      stopProgressAnimation(type);
+      return;
+    }
+
+    const step = Math.max(0.9, Math.min(4.2, Math.abs(delta) * 0.18));
+    const nextValue = Math.max(0, Math.min(100, currentValue + Math.sign(delta) * step));
+
+    if (type === 'report') {
+      APP_STATE.reportConsentProgress.value = nextValue;
+      syncReportConsentProgress();
+    } else {
+      APP_STATE.pendingConsent.progressValue = nextValue;
+      syncConsentPreviewProgress();
+    }
+  }, 120);
+}
+
+function setConsentPreviewProgress(value, label, valueText = '', options = {}) {
+  const nextValue = Math.max(0, Math.min(100, Number(value) || 0));
+  APP_STATE.pendingConsent.progressLabel = String(label || '');
+  APP_STATE.pendingConsent.progressText = String(valueText || '');
+  if (options.immediate) {
+    APP_STATE.pendingConsent.progressValue = nextValue;
+    stopProgressAnimation('consent');
+    syncConsentPreviewProgress();
+    return;
+  }
+  syncConsentPreviewProgress();
+  animateProgressValue('consent', nextValue);
+}
+
+function setReportConsentProgress({ visible = true, value = 0, label = '', note = '', valueText = '' } = {}, options = {}) {
+  APP_STATE.reportConsentProgress = {
+    visible: Boolean(visible),
+    value: options.immediate ? Math.max(0, Math.min(100, Number(value) || 0)) : APP_STATE.reportConsentProgress.value,
+    label: String(label || ''),
+    note: String(note || ''),
+    valueText: String(valueText || '')
+  };
+  syncReportConsentProgress();
+  if (options.immediate) {
+    stopProgressAnimation('report');
+    return;
+  }
+  animateProgressValue('report', Math.max(0, Math.min(100, Number(value) || 0)));
+}
+
 function resetReportConsentProgress() {
+  stopProgressAnimation('report');
   setReportConsentProgress({
     visible: false,
     value: 0,
     label: '',
     note: '',
     valueText: ''
-  });
+  }, { immediate: true });
 }
 
 function setReportConsentButtonsLoading(loading, primaryText = '數位授權並送出報告') {
@@ -2479,25 +2546,41 @@ async function openConsentPreview() {
   setReportConsentButtonsLoading(true, '正在準備中...');
   setReportConsentProgress({
     visible: true,
-    value: 10,
-    label: '正在同步目前對話狀態...',
-    note: '系統正在整理這次要給你確認的內容。',
-    valueText: '同步中'
+    value: 8,
+    label: '正在初始化授權預覽...',
+    note: '先建立這次授權預覽的工作狀態。',
+    valueText: '初始化中'
   });
   appendSystemNotice('正在準備授權預覽...');
-  setConsentPreviewProgress(10, '正在同步目前對話狀態...', '同步中');
+  setConsentPreviewProgress(8, '正在初始化授權預覽...', '初始化中');
 
   try {
     const existingFhirDraft = getExistingFhirDraft();
     setReportConsentProgress({
       visible: true,
-      value: 28,
+      value: 18,
+      label: '正在同步目前對話狀態...',
+      note: '先確認最新的對話內容與模式狀態。',
+      valueText: '同步中'
+    });
+    setConsentPreviewProgress(18, '正在同步目前對話狀態...', '同步中');
+    setReportConsentProgress({
+      visible: true,
+      value: 34,
       label: '正在整理可授權的 session export...',
-      note: '先抓取這次對話的摘要與病人授權內容。',
+      note: '抓取這次對話的摘要與病人授權內容。',
       valueText: '整理中'
     });
-    setConsentPreviewProgress(28, '正在整理可授權的 session export...', '整理中');
+    setConsentPreviewProgress(34, '正在整理可授權的 session export...', '整理中');
     const sessionPayload = await fetchOutputPayload('session_export', '準備授權預覽所需的 session export');
+    setReportConsentProgress({
+      visible: true,
+      value: 48,
+      label: '正在確認 FHIR 送出端點...',
+      note: '確認這次預覽預計送往哪個 FHIR 端點。',
+      valueText: '確認中'
+    });
+    setConsentPreviewProgress(48, '正在確認 FHIR 送出端點...', '確認中');
     const deliveryTargetUrl = await fetchDeliveryTargetUrl();
     const sessionExport = prepareSessionExportForDelivery(sessionPayload.session_export || {}, deliveryTargetUrl);
     sessionExport.__deliveryTargetUrl = deliveryTargetUrl;
@@ -2506,27 +2589,36 @@ async function openConsentPreview() {
     if (existingFhirDraft) {
       setReportConsentProgress({
         visible: true,
-        value: 72,
+        value: 66,
         label: '正在載入已生成的 FHIR 草稿...',
         note: '這次直接重用目前報表頁上的 FHIR 草稿，不再重新生成。',
         valueText: '載入中'
       });
-      setConsentPreviewProgress(72, '正在載入已生成的 FHIR 草稿...', '載入中');
+      setConsentPreviewProgress(66, '正在載入已生成的 FHIR 草稿...', '載入中');
       fhirDraft = existingFhirDraft;
     } else {
       setReportConsentProgress({
         visible: true,
-        value: 58,
+        value: 64,
         label: '正在建立 FHIR 草稿預覽...',
         note: 'FHIR 草稿需要額外生成，通常會再多花幾秒。',
         valueText: '生成中'
       });
-      setConsentPreviewProgress(58, '正在建立 FHIR 草稿預覽...', '生成中');
+      setConsentPreviewProgress(64, '正在建立 FHIR 草稿預覽...', '生成中');
       const fhirPayload = await fetchOutputPayload('fhir_delivery', '準備授權預覽所需的 FHIR draft');
       fhirDraft = normalizeFhirDraftPayload({
         output: JSON.parse(JSON.stringify(fhirPayload.output || {}))
       }).output;
     }
+
+    setReportConsentProgress({
+      visible: true,
+      value: 82,
+      label: '正在整理預覽內容...',
+      note: '把 session export 與 FHIR 草稿整合成你即將看到的預覽。',
+      valueText: '整合中'
+    });
+    setConsentPreviewProgress(82, '正在整理預覽內容...', '整合中');
 
     if (!sessionExport.session?.encounterKey) {
       throw new Error('目前還沒有可送出的對話資料，請先完成至少一輪對話。');
@@ -2978,7 +3070,7 @@ async function authorizeAndSendReport() {
   closeMicroInterventionDetail();
   setTyping(true);
   appendSystemNotice('正在送出你已確認的 FHIR 內容...');
-  setConsentPreviewProgress(12, '正在鎖定送出內容...', '準備中');
+  setConsentPreviewProgress(10, '正在鎖定送出內容...', '準備中');
   const confirmButton = document.getElementById('consent-preview-confirm');
   if (confirmButton) {
     confirmButton.disabled = true;
@@ -3006,7 +3098,8 @@ async function authorizeAndSendReport() {
       }
     );
 
-    setConsentPreviewProgress(46, '正在呼叫 FHIR 送出端點...', '送出中');
+    setConsentPreviewProgress(26, '正在檢查送出內容...', '檢查中');
+    setConsentPreviewProgress(54, '正在呼叫 FHIR 送出端點...', '送出中');
     const response = await fetch('/api/fhir/bundle', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -3029,7 +3122,8 @@ async function authorizeAndSendReport() {
       throw new Error(extractFhirDeliveryError(payload));
     }
 
-    setConsentPreviewProgress(82, '正在整理送出結果...', '整理中');
+    setConsentPreviewProgress(78, '正在接收伺服器回應...', '接收中');
+    setConsentPreviewProgress(90, '正在整理送出結果...', '整理中');
     const deliveryStatus = payload.delivery_status || 'unknown';
     APP_STATE.pendingConsent.deliveryResult = payload;
     APP_STATE.reportOutputs.fhir_delivery_result = payload;
