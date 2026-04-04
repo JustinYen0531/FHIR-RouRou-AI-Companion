@@ -2035,6 +2035,14 @@ function normalizeFhirDraftPayload(payload) {
   return finalPayload;
 }
 
+function getExistingFhirDraft() {
+  const current = APP_STATE.reportOutputs.fhir_delivery;
+  if (!current) return null;
+  const hasSummary = Boolean(current.narrative_summary);
+  const hasResources = Array.isArray(current.resources) && current.resources.length > 0;
+  return hasSummary || hasResources ? JSON.parse(JSON.stringify(current)) : null;
+}
+
 async function ensureReportFhirDraft() {
   const hasDraft = Boolean(APP_STATE.reportOutputs.fhir_delivery?.narrative_summary);
   if (hasDraft || APP_STATE.reportFhirDraft.isLoading || APP_STATE.isSending) {
@@ -2366,34 +2374,49 @@ async function openConsentPreview() {
     value: 10,
     label: '正在同步目前對話狀態...',
     note: '系統正在整理這次要給你確認的內容。',
-    valueText: '步驟 1/3'
+    valueText: '同步中'
   });
   appendSystemNotice('正在準備授權預覽...');
-  setConsentPreviewProgress(10, '正在同步目前對話狀態...', '步驟 1/3');
+  setConsentPreviewProgress(10, '正在同步目前對話狀態...', '同步中');
 
   try {
+    const existingFhirDraft = getExistingFhirDraft();
     setReportConsentProgress({
       visible: true,
       value: 28,
       label: '正在整理可授權的 session export...',
       note: '先抓取這次對話的摘要與病人授權內容。',
-      valueText: '步驟 2/3'
+      valueText: '整理中'
     });
-    setConsentPreviewProgress(28, '正在整理可授權的 session export...', '步驟 2/3');
+    setConsentPreviewProgress(28, '正在整理可授權的 session export...', '整理中');
     const sessionPayload = await fetchOutputPayload('session_export', '準備授權預覽所需的 session export');
-    setReportConsentProgress({
-      visible: true,
-      value: 58,
-      label: '正在建立 FHIR 草稿預覽...',
-      note: 'FHIR 草稿需要額外生成，通常會再多花幾秒。',
-      valueText: '步驟 3/3'
-    });
-    setConsentPreviewProgress(58, '正在建立 FHIR 草稿預覽...', '步驟 3/3');
-    const fhirPayload = await fetchOutputPayload('fhir_delivery', '準備授權預覽所需的 FHIR draft');
     const sessionExport = JSON.parse(JSON.stringify(sessionPayload.session_export || {}));
-    const fhirDraft = normalizeFhirDraftPayload({
-      output: JSON.parse(JSON.stringify(fhirPayload.output || {}))
-    }).output;
+    let fhirDraft;
+
+    if (existingFhirDraft) {
+      setReportConsentProgress({
+        visible: true,
+        value: 72,
+        label: '正在載入已生成的 FHIR 草稿...',
+        note: '這次直接重用目前報表頁上的 FHIR 草稿，不再重新生成。',
+        valueText: '載入中'
+      });
+      setConsentPreviewProgress(72, '正在載入已生成的 FHIR 草稿...', '載入中');
+      fhirDraft = existingFhirDraft;
+    } else {
+      setReportConsentProgress({
+        visible: true,
+        value: 58,
+        label: '正在建立 FHIR 草稿預覽...',
+        note: 'FHIR 草稿需要額外生成，通常會再多花幾秒。',
+        valueText: '生成中'
+      });
+      setConsentPreviewProgress(58, '正在建立 FHIR 草稿預覽...', '生成中');
+      const fhirPayload = await fetchOutputPayload('fhir_delivery', '準備授權預覽所需的 FHIR draft');
+      fhirDraft = normalizeFhirDraftPayload({
+        output: JSON.parse(JSON.stringify(fhirPayload.output || {}))
+      }).output;
+    }
 
     if (!sessionExport.session?.encounterKey) {
       throw new Error('目前還沒有可送出的對話資料，請先完成至少一輪對話。');
@@ -2844,7 +2867,7 @@ async function authorizeAndSendReport() {
   closeMicroInterventionDetail();
   setTyping(true);
   appendSystemNotice('正在送出你已確認的 FHIR 內容...');
-  setConsentPreviewProgress(12, '正在鎖定送出內容...', '步驟 1/3');
+  setConsentPreviewProgress(12, '正在鎖定送出內容...', '準備中');
   const confirmButton = document.getElementById('consent-preview-confirm');
   if (confirmButton) {
     confirmButton.disabled = true;
@@ -2869,7 +2892,7 @@ async function authorizeAndSendReport() {
       }
     );
 
-    setConsentPreviewProgress(46, '正在呼叫 FHIR 送出端點...', '步驟 2/3');
+    setConsentPreviewProgress(46, '正在呼叫 FHIR 送出端點...', '送出中');
     const response = await fetch('/api/fhir/bundle', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2892,7 +2915,7 @@ async function authorizeAndSendReport() {
       throw new Error(extractFhirDeliveryError(payload));
     }
 
-    setConsentPreviewProgress(82, '正在整理送出結果...', '步驟 3/3');
+    setConsentPreviewProgress(82, '正在整理送出結果...', '整理中');
     const deliveryStatus = payload.delivery_status || 'unknown';
     APP_STATE.pendingConsent.deliveryResult = payload;
     APP_STATE.reportOutputs.fhir_delivery_result = payload;
