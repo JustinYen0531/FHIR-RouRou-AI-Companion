@@ -786,7 +786,12 @@ function showScreen(screenId) {
   }
   
   if (screenId === 'screen-energy') {
+    tempSelectedMode = APP_STATE.selectedMode;
     refreshModeListUI();
+  }
+
+  if (screenId === 'screen-settings') {
+    updateSettingsUI();
   }
 
   if (screenId === 'screen-home') {
@@ -994,6 +999,7 @@ function saveModeSettings() {
   APP_STATE.selectedMode = tempSelectedMode;
   localStorage.setItem('rourou.selectedMode', APP_STATE.selectedMode);
   updateModeLabels();
+  updateSettingsUI();
   refreshModeListUI();
   showScreen('screen-chat');
 }
