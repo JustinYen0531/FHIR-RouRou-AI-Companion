@@ -456,6 +456,22 @@ function formatTimeLabel(date = new Date()) {
   });
 }
 
+function getDynamicDateLabel() {
+  const now = new Date();
+  const hours = now.getHours();
+  const period = hours < 12 ? '上午' : '下午';
+  const displayHours = hours % 12 || 12;
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  return `今天，${period} ${displayHours}:${minutes}`;
+}
+
+function syncRealTimeLabels() {
+  const label = getDynamicDateLabel();
+  document.querySelectorAll('.date-chip').forEach(el => {
+    el.textContent = label;
+  });
+}
+
 function getHamdSummary(summary) {
   const signalCount = Array.isArray(summary?.hamd_signals) ? summary.hamd_signals.length : 0;
   const concerns = Array.isArray(summary?.chief_concerns) ? summary.chief_concerns : [];
@@ -2045,7 +2061,11 @@ document.addEventListener('DOMContentLoaded', () => {
   TherapeuticMemory.renderProfileUI();
   clearMicroInterventionCard();
   closeMicroInterventionDetail();
+  syncRealTimeLabels();
   updateShortcutPagerState();
+
+  // Keep time updated
+  setInterval(syncRealTimeLabels, 30000);
 });
 
 window.showScreen = showScreen;
