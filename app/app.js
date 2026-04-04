@@ -358,6 +358,7 @@ const APP_STATE = {
     sessionExport: null,
     fhirDraft: null,
     deliveryResult: null,
+    deliveryTargetUrl: '',
     canConfirm: false,
     progressLabel: '',
     progressValue: 0,
@@ -2246,11 +2247,49 @@ function normalizeSessionExportForDelivery(sessionExport = {}) {
   return normalized;
 }
 
+function createDeliveryPreviewSuffix() {
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+}
+
+function prepareSessionExportForDelivery(sessionExport = {}, deliveryTargetUrl = '') {
+  const normalized = normalizeSessionExportForDelivery(sessionExport);
+  const normalizedTarget = normalizeFhirBaseUrl(deliveryTargetUrl);
+  if (normalizedTarget === 'https://hapi.fhir.org/baseR4') {
+    const suffix = String(normalized.__deliverySuffix || '').trim() || createDeliveryPreviewSuffix();
+    normalized.__deliverySuffix = suffix;
+  }
+  return normalized;
+}
+
+function getPreviewPatientIdentifier(sessionExport = {}, deliveryTargetUrl = '') {
+  const baseKey = String(sessionExport?.patient?.key || '').trim();
+  const normalizedTarget = normalizeFhirBaseUrl(deliveryTargetUrl);
+  const suffix = String(sessionExport?.__deliverySuffix || '').trim();
+  if (normalizedTarget === 'https://hapi.fhir.org/baseR4' && baseKey && suffix && !baseKey.endsWith(`-${suffix}`)) {
+    return `${baseKey}-${suffix}`;
+  }
+  return baseKey;
+}
+
+async function fetchDeliveryTargetUrl() {
+  try {
+    const response = await fetch('/health');
+    if (!response.ok) return '';
+    const payload = await response.json();
+    return normalizeFhirBaseUrl(payload?.fhir_server_url || '');
+  } catch (error) {
+    console.error('Unable to fetch FHIR delivery target.', error);
+    return '';
+  }
+}
+
 function buildConsentPreviewHtml(sessionExport, fhirDraft) {
   const clinician = sessionExport?.clinician_summary_draft || {};
   const patient = sessionExport?.patient || {};
   const session = sessionExport?.session || {};
   const hamd = sessionExport?.hamd_progress_state || {};
+  const deliveryTargetUrl = sessionExport?.__deliveryTargetUrl || '';
+  const previewPatientIdentifier = getPreviewPatientIdentifier(sessionExport, deliveryTargetUrl);
   const resourceList = Array.isArray(fhirDraft?.resources) ? fhirDraft.resources : [];
   const resourceLabels = resourceList.map((item) => item.display || item.type || item.resourceType || 'Unknown');
 
@@ -2259,8 +2298,12 @@ function buildConsentPreviewHtml(sessionExport, fhirDraft) {
       <h4>送出資訊摘要</h4>
       <div class="consent-preview-meta">
         <div class="consent-preview-meta-item">
-          <div class="consent-preview-meta-label">病人 ID</div>
+          <div class="consent-preview-meta-label">Patient 識別值</div>
           <div class="consent-preview-meta-value">${escapeHtml(patient.key || 'unknown')}</div>
+        </div>
+        <div class="consent-preview-meta-item">
+          <div class="consent-preview-meta-label">這次送出會使用</div>
+          <div class="consent-preview-meta-value">${escapeHtml(previewPatientIdentifier || 'unknown')}</div>
         </div>
         <div class="consent-preview-meta-item">
           <div class="consent-preview-meta-label">Encounter</div>
@@ -2275,6 +2318,7 @@ function buildConsentPreviewHtml(sessionExport, fhirDraft) {
           <div class="consent-preview-meta-value">${escapeHtml(String(resourceList.length))}</div>
         </div>
       </div>
+      <p>${escapeHtml(deliveryTargetUrl ? `FHIR 端點：${deliveryTargetUrl}` : 'FHIR 端點尚未確認')}</p>
     </section>
     <section class="consent-preview-section">
       <h4>醫師摘要草稿</h4>
@@ -2312,6 +2356,7 @@ function resetConsentPreviewState() {
     sessionExport: null,
     fhirDraft: null,
     deliveryResult: null,
+    deliveryTargetUrl: '',
     canConfirm: false,
     progressLabel: '',
     progressValue: 0,
@@ -2453,7 +2498,9 @@ async function openConsentPreview() {
     });
     setConsentPreviewProgress(28, '正在整理可授權的 session export...', '整理中');
     const sessionPayload = await fetchOutputPayload('session_export', '準備授權預覽所需的 session export');
-    const sessionExport = normalizeSessionExportForDelivery(sessionPayload.session_export || {});
+    const deliveryTargetUrl = await fetchDeliveryTargetUrl();
+    const sessionExport = prepareSessionExportForDelivery(sessionPayload.session_export || {}, deliveryTargetUrl);
+    sessionExport.__deliveryTargetUrl = deliveryTargetUrl;
     let fhirDraft;
 
     if (existingFhirDraft) {
@@ -2488,6 +2535,7 @@ async function openConsentPreview() {
     APP_STATE.pendingConsent.sessionExport = sessionExport;
     APP_STATE.pendingConsent.fhirDraft = fhirDraft;
     APP_STATE.pendingConsent.deliveryResult = null;
+    APP_STATE.pendingConsent.deliveryTargetUrl = deliveryTargetUrl;
     APP_STATE.pendingConsent.canConfirm = false;
 
     const previewBody = document.getElementById('consent-preview-body');
@@ -2940,7 +2988,10 @@ async function authorizeAndSendReport() {
   let deliveryPayload = null;
   let needsPostDeliveryRefresh = false;
   try {
-    const sessionExport = normalizeSessionExportForDelivery(APP_STATE.pendingConsent.sessionExport || {});
+    const sessionExport = prepareSessionExportForDelivery(
+      APP_STATE.pendingConsent.sessionExport || {},
+      APP_STATE.pendingConsent.deliveryTargetUrl || ''
+    );
     if (!sessionExport.session?.encounterKey) {
       throw new Error('目前還沒有可送出的對話資料，請先完成至少一輪對話。');
     }

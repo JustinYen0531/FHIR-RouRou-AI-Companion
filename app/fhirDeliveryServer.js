@@ -74,20 +74,26 @@ function createDemoDeliverySuffix() {
   return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
 }
 
+function resolveDeliverySuffix(payload) {
+  const suffix = String(payload?.__deliverySuffix || '').trim();
+  return suffix || createDemoDeliverySuffix();
+}
+
 function preparePayloadForDeliveryTarget(payload, fhirBaseUrl) {
   if (!shouldUseUniqueDemoKeys(fhirBaseUrl)) {
     return payload;
   }
 
   const cloned = JSON.parse(JSON.stringify(payload || {}));
-  const suffix = createDemoDeliverySuffix();
+  const suffix = resolveDeliverySuffix(cloned);
+  cloned.__deliverySuffix = suffix;
 
   if (cloned.patient && cloned.patient.key) {
-    cloned.patient.key = `${cloned.patient.key}-${suffix}`;
+    cloned.patient.key = cloned.patient.key.endsWith(`-${suffix}`) ? cloned.patient.key : `${cloned.patient.key}-${suffix}`;
   }
 
   if (cloned.session && cloned.session.encounterKey) {
-    cloned.session.encounterKey = `${cloned.session.encounterKey}-${suffix}`;
+    cloned.session.encounterKey = cloned.session.encounterKey.endsWith(`-${suffix}`) ? cloned.session.encounterKey : `${cloned.session.encounterKey}-${suffix}`;
   }
 
   return cloned;
