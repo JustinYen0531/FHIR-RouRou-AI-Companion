@@ -418,7 +418,7 @@ Auto = 先尊重明確指令
 
 ## 13. 如果你要實際測
 請直接看：
-- [AI_COMPANION_TEST_CHECKLIST.md](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/docs/AI_COMPANION_TEST_CHECKLIST.md)
+- [AI陪伴系統_測試檢查清單.md](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/docs/AI陪伴系統_測試檢查清單.md)
 
 ## 14. 高風險詞庫現在應該怎麼設計
 如果要讓安全模式更穩，最好的方式不是每次都靠 AI 猜，而是先有一層可維護的高風險詞庫。
@@ -562,3 +562,4 @@ Auto = 先尊重明確指令
 - 更省 token
 - 可預測性更高
 - 安全模式不會因為模型一句沒判對就漏掉
+

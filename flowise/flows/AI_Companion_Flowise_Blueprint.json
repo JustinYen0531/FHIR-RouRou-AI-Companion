@@ -556,163 +556,163 @@
       "id": "command-detector",
       "title": "Command Detector",
       "type": "question-classifier",
-      "prompt_file": "flowise/prompts/command-detector.md"
+      "prompt_file": "flowise/prompts/指令偵測器.md"
     },
     {
       "id": "risk-detector",
       "title": "Risk Detector",
       "type": "question-classifier",
-      "prompt_file": "flowise/prompts/risk-detector.md"
+      "prompt_file": "flowise/prompts/風險偵測器.md"
     },
     {
       "id": "mission-retrieval-audit",
       "title": "Mission Retrieval Audit",
       "type": "llm",
-      "prompt_file": "flowise/prompts/mission-retrieval-audit.md"
+      "prompt_file": "flowise/prompts/任務檢索稽核.md"
     },
     {
       "id": "risk-structurer",
       "title": "Risk Structurer",
       "type": "llm",
-      "prompt_file": "flowise/prompts/risk-structurer.md"
+      "prompt_file": "flowise/prompts/風險結構化器.md"
     },
     {
       "id": "safety-response",
       "title": "Safety Response",
       "type": "llm",
-      "prompt_file": "flowise/prompts/safety-response.md"
+      "prompt_file": "flowise/prompts/安全回應器.md"
     },
     {
       "id": "summary-draft-builder",
       "title": "Summary Draft Builder",
       "type": "llm",
-      "prompt_file": "flowise/prompts/summary-draft-builder.md"
+      "prompt_file": "flowise/prompts/摘要草稿建構器.md"
     },
     {
       "id": "clinician-summary-builder",
       "title": "Clinician Summary Builder",
       "type": "llm",
-      "prompt_file": "flowise/prompts/clinician-summary-builder.md"
+      "prompt_file": "flowise/prompts/醫師摘要建構器.md"
     },
     {
       "id": "patient-review-builder",
       "title": "Patient Review Builder",
       "type": "llm",
-      "prompt_file": "flowise/prompts/patient-review-builder.md"
+      "prompt_file": "flowise/prompts/病人審閱建構器.md"
     },
     {
       "id": "patient-authorization-builder",
       "title": "Patient Authorization Builder",
       "type": "llm",
-      "prompt_file": "flowise/prompts/patient-authorization-builder.md"
+      "prompt_file": "flowise/prompts/病人授權建構器.md"
     },
     {
       "id": "fhir-delivery-builder",
       "title": "FHIR Delivery Builder",
       "type": "llm",
-      "prompt_file": "flowise/prompts/fhir-delivery-builder.md"
+      "prompt_file": "flowise/prompts/FHIR交付建構器.md"
     },
     {
       "id": "delivery-readiness-builder",
       "title": "Delivery Readiness Builder",
       "type": "llm",
-      "prompt_file": "flowise/prompts/delivery-readiness-builder.md"
+      "prompt_file": "flowise/prompts/交付就緒狀態建構器.md"
     },
     {
       "id": "tag-structurer",
       "title": "Tag Structurer",
       "type": "llm",
-      "prompt_file": "flowise/prompts/tag-structurer.md"
+      "prompt_file": "flowise/prompts/標籤結構化器.md"
     },
     {
       "id": "burden-level-builder",
       "title": "Burden Level Builder",
       "type": "llm",
-      "prompt_file": "flowise/prompts/burden-level-builder.md"
+      "prompt_file": "flowise/prompts/負擔程度建構器.md"
     },
     {
       "id": "classifier",
       "title": "Intent Classifier",
       "type": "question-classifier",
-      "prompt_file": "flowise/prompts/intent-classifier.md"
+      "prompt_file": "flowise/prompts/意圖分類器.md"
     },
     {
       "id": "low-energy-detector",
       "title": "Low Energy Detector",
       "type": "question-classifier",
-      "prompt_file": "flowise/prompts/low-energy-detector.md"
+      "prompt_file": "flowise/prompts/低能量偵測器.md"
     },
     {
       "id": "override-router",
       "title": "Override Router",
       "type": "question-classifier",
-      "prompt_file": "flowise/prompts/override-router.md"
+      "prompt_file": "flowise/prompts/覆寫路由器.md"
     },
     {
       "id": "llm-void",
       "title": "Void Box",
       "type": "llm",
-      "prompt_file": "flowise/prompts/void-box.md"
+      "prompt_file": "flowise/prompts/樹洞模式.md"
     },
     {
       "id": "llm-soulmate",
       "title": "Soul Mate",
       "type": "llm",
-      "prompt_file": "flowise/prompts/soul-mate.md"
+      "prompt_file": "flowise/prompts/靈魂陪伴.md"
     },
     {
       "id": "hamd-progress-tracker",
       "title": "HAM-D Progress Tracker",
       "type": "llm",
-      "prompt_file": "flowise/prompts/ham-d-progress-tracker.md"
+      "prompt_file": "flowise/prompts/HAM-D進度追蹤器.md"
     },
     {
       "id": "llm-mission",
       "title": "Mission Guide",
       "type": "llm",
-      "prompt_file": "flowise/prompts/mission-guide.md"
+      "prompt_file": "flowise/prompts/任務引導器.md"
     },
     {
       "id": "option-retrieval-audit",
       "title": "Option Retrieval Audit",
       "type": "llm",
-      "prompt_file": "flowise/prompts/option-retrieval-audit.md"
+      "prompt_file": "flowise/prompts/選項檢索稽核.md"
     },
     {
       "id": "llm-option",
       "title": "Option Selector",
       "type": "llm",
-      "prompt_file": "flowise/prompts/option-selector.md"
+      "prompt_file": "flowise/prompts/選項選擇器.md"
     },
     {
       "id": "llm-natural",
       "title": "Smart Hunter",
       "type": "llm",
-      "prompt_file": "flowise/prompts/smart-hunter.md"
+      "prompt_file": "flowise/prompts/智慧獵手.md"
     },
     {
       "id": "followup-output-classifier",
       "title": "Follow-up Output Classifier",
       "type": "question-classifier",
-      "prompt_file": "flowise/prompts/follow-up-output-classifier.md"
+      "prompt_file": "flowise/prompts/追問輸出分類器.md"
     },
     {
       "id": "llm-followup",
       "title": "Follow-up Resolver",
       "type": "llm",
-      "prompt_file": "flowise/prompts/follow-up-resolver.md"
+      "prompt_file": "flowise/prompts/追問解析器.md"
     },
     {
       "id": "llm-followup-final",
       "title": "Follow-up Finalizer",
       "type": "llm",
-      "prompt_file": "flowise/prompts/follow-up-finalizer.md"
+      "prompt_file": "flowise/prompts/追問收斂器.md"
     },
     {
       "id": "llm-clarify",
       "title": "Clarify Question",
       "type": "llm",
-      "prompt_file": "flowise/prompts/clarify-question.md"
+      "prompt_file": "flowise/prompts/釐清問題.md"
     }
   ],
   "assigners": [

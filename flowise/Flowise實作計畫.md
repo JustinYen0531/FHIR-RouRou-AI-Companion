@@ -12,7 +12,7 @@
 - 節點 prompt 資產：[prompts](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/flowise/prompts)
 - Dify 抽取來源：[source](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/flowise/source)
 - Flowise 環境變數範本：[flowise.env.example](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/flowise/flowise.env.example)
-- RAG 說明：[rag/README.md](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/flowise/rag/README.md)
+- RAG 說明：[rag/RAG說明.md](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/flowise/rag/RAG說明.md)
 
 ## 3. 架構
 ### 3.1 執行路徑
@@ -124,3 +124,4 @@
 - 把 Flowise worker flow 和 RAG flow 各自固定成一組正式 chatflow id
 - 為 Mission / Option 建立獨立的 document ingestion script
 - 讓 summary / FHIR draft 直接輸出到現有 sample session export 格式
+

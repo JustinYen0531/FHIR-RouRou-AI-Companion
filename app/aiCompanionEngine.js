@@ -10,31 +10,31 @@ const RAG_TEXT_PATH = path.join(RAG_DIR, 'CompanionAI_RAG資料.txt');
 const DEFAULT_AUTHOR = 'AI Companion Node Engine';
 
 const PROMPT_FILES = {
-  missionRetrievalAudit: 'mission-retrieval-audit.md',
-  riskStructurer: 'risk-structurer.md',
-  safetyResponse: 'safety-response.md',
-  summaryDraftBuilder: 'summary-draft-builder.md',
-  clinicianSummaryBuilder: 'clinician-summary-builder.md',
-  patientReviewBuilder: 'patient-review-builder.md',
-  patientAuthorizationBuilder: 'patient-authorization-builder.md',
-  fhirDeliveryBuilder: 'fhir-delivery-builder.md',
-  deliveryReadinessBuilder: 'delivery-readiness-builder.md',
-  tagStructurer: 'tag-structurer.md',
-  burdenLevelBuilder: 'burden-level-builder.md',
-  intentClassifier: 'intent-classifier.md',
-  lowEnergyDetector: 'low-energy-detector.md',
-  overrideRouter: 'override-router.md',
-  voidBox: 'void-box.md',
-  soulMate: 'soul-mate.md',
-  hamdProgressTracker: 'ham-d-progress-tracker.md',
-  missionGuide: 'mission-guide.md',
-  optionRetrievalAudit: 'option-retrieval-audit.md',
-  optionSelector: 'option-selector.md',
-  smartHunter: 'smart-hunter.md',
-  followupOutputClassifier: 'follow-up-output-classifier.md',
-  followupResolver: 'follow-up-resolver.md',
-  followupFinalizer: 'follow-up-finalizer.md',
-  clarifyQuestion: 'clarify-question.md'
+  missionRetrievalAudit: '任務檢索稽核.md',
+  riskStructurer: '風險結構化器.md',
+  safetyResponse: '安全回應器.md',
+  summaryDraftBuilder: '摘要草稿建構器.md',
+  clinicianSummaryBuilder: '醫師摘要建構器.md',
+  patientReviewBuilder: '病人審閱建構器.md',
+  patientAuthorizationBuilder: '病人授權建構器.md',
+  fhirDeliveryBuilder: 'FHIR交付建構器.md',
+  deliveryReadinessBuilder: '交付就緒狀態建構器.md',
+  tagStructurer: '標籤結構化器.md',
+  burdenLevelBuilder: '負擔程度建構器.md',
+  intentClassifier: '意圖分類器.md',
+  lowEnergyDetector: '低能量偵測器.md',
+  overrideRouter: '覆寫路由器.md',
+  voidBox: '樹洞模式.md',
+  soulMate: '靈魂陪伴.md',
+  hamdProgressTracker: 'HAM-D進度追蹤器.md',
+  missionGuide: '任務引導器.md',
+  optionRetrievalAudit: '選項檢索稽核.md',
+  optionSelector: '選項選擇器.md',
+  smartHunter: '智慧獵手.md',
+  followupOutputClassifier: '追問輸出分類器.md',
+  followupResolver: '追問解析器.md',
+  followupFinalizer: '追問收斂器.md',
+  clarifyQuestion: '釐清問題.md'
 };
 
 const COMMAND_MAP = {
@@ -1001,3 +1001,4 @@ module.exports = {
   defaultSessionExport,
   tryParseJson
 };
+

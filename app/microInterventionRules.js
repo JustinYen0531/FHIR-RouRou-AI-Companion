@@ -29,7 +29,7 @@
         icon: 'air',
         accent: 'breath',
         priority: 2,
-        docPath: '/docs/micro_interventions/calm-breathing.md',
+        docPath: '/docs/micro_interventions/平靜呼吸.md',
         triggerTags: ['low_energy', 'anxious', 'overloaded'],
         suppressTags: ['safety', 'high_risk']
       },
@@ -43,7 +43,7 @@
         icon: 'water_drop',
         accent: 'water',
         priority: 0,
-        docPath: '/docs/micro_interventions/drink-water.md',
+        docPath: '/docs/micro_interventions/喝水提醒.md',
         triggerTags: ['low_energy', 'frozen', 'short_reply'],
         suppressTags: ['safety', 'high_risk']
       },
@@ -57,7 +57,7 @@
         icon: 'self_improvement',
         accent: 'stretch',
         priority: 1,
-        docPath: '/docs/micro_interventions/stretch-reset.md',
+        docPath: '/docs/micro_interventions/伸展重置.md',
         triggerTags: ['restless', 'overloaded', 'stuck'],
         suppressTags: ['safety', 'high_risk']
       },
@@ -71,7 +71,7 @@
         icon: 'toggle_on',
         accent: 'choice',
         priority: 3,
-        docPath: '/docs/micro_interventions/tiny-choice-reset.md',
+        docPath: '/docs/micro_interventions/微選擇重置.md',
         triggerTags: ['overloaded', 'indecisive', 'short_reply'],
         suppressTags: ['safety', 'high_risk']
       }
@@ -192,3 +192,4 @@
     chooseIntervention
   };
 }));
+

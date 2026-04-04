@@ -5,7 +5,7 @@
 
 用途有三個：
 - 說明目前 repo 內真正可執行、可持續維護的基線架構。
-- 說明目前版本和 [AI_Companion_PRD.md](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/AI_Companion_PRD.md) 之間還有哪些差距。
+- 說明目前版本和 [AI陪伴系統_產品需求文件.md](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/docs/AI陪伴系統_產品需求文件.md) 之間還有哪些差距。
 - 提供後續每次修改程式邏輯、前端互動、FHIR 交付層時的固定檢查清單。
 
 這份文件是內部技術文檔，不是對外產品介紹。
@@ -354,3 +354,4 @@ AI Companion 現在的真實狀態，已不是「一個待補強的 Dify chatflo
 - production-ready 的醫療整合能力。
 
 後續這份文件的角色，不再是記錄 Dify 節點有沒有補回來，而是持續約束 Node 版 AI Companion 沿著同一條產品主線前進，不要在重構、擴充與前端美化過程中偏離產品核心。
+

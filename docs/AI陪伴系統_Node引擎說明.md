@@ -28,7 +28,7 @@
   - 互動負擔如何影響 `Option / Soulmate / 其他模式`
   - 六個模式實際偏向條件
 - 手動測試清單見：
-  - [AI_COMPANION_TEST_CHECKLIST.md](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/docs/AI_COMPANION_TEST_CHECKLIST.md)
+  - [AI陪伴系統_測試檢查清單.md](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/docs/AI陪伴系統_測試檢查清單.md)
 
 ## Runtime
 - 主 server: [app/fhirDeliveryServer.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/fhirDeliveryServer.js)
@@ -136,3 +136,4 @@
 - [fhirBundleBuilder.test.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/fhirBundleBuilder.test.js)
 - [aiCompanionEngine.test.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/aiCompanionEngine.test.js)
 - [aiCompanionOutput.test.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/aiCompanionOutput.test.js)
+
