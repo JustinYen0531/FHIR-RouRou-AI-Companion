@@ -1870,6 +1870,26 @@ function formatChatError(payload = {}) {
   return `目前無法連接聊天流：${message}`;
 }
 
+function extractFhirDeliveryError(payload = {}) {
+  const blockingReasons = Array.isArray(payload?.bundle_result?.blocking_reasons)
+    ? payload.bundle_result.blocking_reasons.filter(Boolean)
+    : [];
+  if (blockingReasons.length) {
+    return blockingReasons.join('；');
+  }
+
+  const issueDiagnostics = Array.isArray(payload?.transaction_response?.body?.issue)
+    ? payload.transaction_response.body.issue
+        .map((issue) => issue?.diagnostics || issue?.details?.text || issue?.code || '')
+        .filter(Boolean)
+    : [];
+  if (issueDiagnostics.length) {
+    return issueDiagnostics.join('；');
+  }
+
+  return payload?.transaction_response?.error || payload?.error || 'FHIR 上傳失敗';
+}
+
 function getRuntimeConfig() {
   const provider = localStorage.getItem('rourou.aiProvider') || DEFAULT_PROVIDER;
   return {
@@ -2194,8 +2214,9 @@ async function openConsentPreview() {
       previewBody.innerHTML = buildConsentPreviewHtml(sessionExport, fhirDraft);
     }
     if (confirmButton) {
-      confirmButton.disabled = true;
-      confirmButton.textContent = '請先滑到最下方';
+      APP_STATE.pendingConsent.canConfirm = true;
+      confirmButton.disabled = false;
+      confirmButton.textContent = '同意送出';
     }
     if (scrollBody) {
       scrollBody.scrollTop = 0;
@@ -2204,7 +2225,7 @@ async function openConsentPreview() {
       overlay.classList.add('active');
       overlay.setAttribute('aria-hidden', 'false');
     }
-    setConsentPreviewProgress(100, '授權預覽已就緒，請滑到最下方後送出');
+    setConsentPreviewProgress(100, '授權預覽已就緒，可以直接送出');
   } catch (error) {
     setConsentPreviewProgress(100, '授權預覽準備失敗');
     await appendMessage('ai', error.message || '目前無法打開授權預覽。', { animate: true });
@@ -2640,7 +2661,7 @@ async function authorizeAndSendReport() {
     const payload = await response.json();
 
     if (!response.ok) {
-      throw new Error(payload?.bundle_result?.blocking_reasons?.join('；') || payload?.error || 'FHIR 上傳失敗');
+      throw new Error(extractFhirDeliveryError(payload));
     }
 
     setConsentPreviewProgress(82, '正在整理送出結果...');

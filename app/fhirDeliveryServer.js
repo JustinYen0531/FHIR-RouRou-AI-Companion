@@ -13,6 +13,7 @@ const {
 
 const APP_DIR = __dirname;
 const DEFAULT_PUBLIC_FHIR_BASE_URL = 'https://hapi.fhir.org/baseR4';
+const PUBLIC_DEMO_FHIR_TARGETS = [DEFAULT_PUBLIC_FHIR_BASE_URL];
 const STATIC_FILES = {
   '/': { filePath: path.join(APP_DIR, 'index.html'), contentType: 'text/html; charset=utf-8' },
   '/index.html': { filePath: path.join(APP_DIR, 'index.html'), contentType: 'text/html; charset=utf-8' },
@@ -59,8 +60,41 @@ function sendStaticFile(res, pathname) {
   return true;
 }
 
+function normalizeFhirTarget(value) {
+  return String(value || '').trim().replace(/\/+$/, '');
+}
+
+function shouldUseUniqueDemoKeys(fhirBaseUrl) {
+  const normalized = normalizeFhirTarget(fhirBaseUrl);
+  return PUBLIC_DEMO_FHIR_TARGETS.some((target) => normalizeFhirTarget(target) === normalized);
+}
+
+function createDemoDeliverySuffix() {
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+}
+
+function preparePayloadForDeliveryTarget(payload, fhirBaseUrl) {
+  if (!shouldUseUniqueDemoKeys(fhirBaseUrl)) {
+    return payload;
+  }
+
+  const cloned = JSON.parse(JSON.stringify(payload || {}));
+  const suffix = createDemoDeliverySuffix();
+
+  if (cloned.patient && cloned.patient.key) {
+    cloned.patient.key = `${cloned.patient.key}-${suffix}`;
+  }
+
+  if (cloned.session && cloned.session.encounterKey) {
+    cloned.session.encounterKey = `${cloned.session.encounterKey}-${suffix}`;
+  }
+
+  return cloned;
+}
+
 async function processExportPayload(payload, options = {}) {
-  const bundleResult = buildSessionExportBundle(payload);
+  const deliveryPayload = preparePayloadForDeliveryTarget(payload, options.fhirBaseUrl);
+  const bundleResult = buildSessionExportBundle(deliveryPayload);
   const response = {
     delivery_status: 'blocked',
     mode: options.fhirBaseUrl ? 'transaction' : 'dry_run',

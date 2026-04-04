@@ -45,6 +45,33 @@ async function testTransactionDelivery() {
   assert.strictEqual(result.body.transaction_response.ok, true);
 }
 
+async function testPublicHapiDeliveryUsesUniqueKeys() {
+  const payload = getSamplePayload();
+  const originalPatientKey = payload.patient.key;
+  const originalEncounterKey = payload.session.encounterKey;
+  let submittedBundle = null;
+  const fakeFetch = async (url, options) => {
+    submittedBundle = JSON.parse(options.body);
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ resourceType: 'Bundle', type: 'transaction-response' })
+    };
+  };
+
+  const result = await processExportPayload(payload, {
+    fhirBaseUrl: 'https://hapi.fhir.org/baseR4',
+    fetchImpl: fakeFetch
+  });
+
+  const patientEntry = submittedBundle.entry.find((entry) => entry.resource.resourceType === 'Patient');
+  const encounterEntry = submittedBundle.entry.find((entry) => entry.resource.resourceType === 'Encounter');
+  assert.strictEqual(result.statusCode, 200);
+  assert.strictEqual(result.body.delivery_status, 'delivered');
+  assert.ok(patientEntry.resource.identifier[0].value.startsWith(originalPatientKey + '-'));
+  assert.ok(encounterEntry.resource.identifier[0].value.startsWith(originalEncounterKey + '-'));
+}
+
 async function testChatProxyDelivery() {
   const fakeEngine = {
     handleMessage: async (payload) => {
@@ -172,6 +199,7 @@ async function run() {
   await testDryRunDelivery();
   await testBlockedDelivery();
   await testTransactionDelivery();
+  await testPublicHapiDeliveryUsesUniqueKeys();
   await testChatProxyDelivery();
   await testChatProxyMissingApiKey();
   await testOutputProxyDelivery();
