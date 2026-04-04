@@ -365,7 +365,8 @@ const APP_STATE = {
   },
   aiSettings: {
     voiceStyle: localStorage.getItem('rourou.voiceStyle') || 'gentle',
-    interactionSensing: localStorage.getItem('rourou.interactionSensing') !== 'false'
+    interactionSensing: localStorage.getItem('rourou.interactionSensing') !== 'false',
+    userPrompt: localStorage.getItem('rourou.userPrompt') || ''
   },
   microIntervention: {
     currentCardId: '',
@@ -2062,13 +2063,6 @@ async function openConsentPreview() {
   try {
     const sessionPayload = await fetchOutputPayload('session_export', '準備授權預覽所需的 session export');
     const fhirPayload = await fetchOutputPayload('fhir_delivery', '準備授權預覽所需的 FHIR draft');
-  if (checkSensitiveContent(message)) {
-    appendSystemNotice('偵測到較高情緒強度，Rou Rou 已轉由核心對話保護模式輔助你。');
-    APP_STATE.selectedMode = 'void';
-    localStorage.setItem('rourou.selectedMode', 'void');
-    updateModeLabels();
-    evaluateMicroIntervention({ answer: '風險預警' }, { lastUserMessage: message, riskFlag: true });
-  }
     const sessionExport = JSON.parse(JSON.stringify(sessionPayload.session_export || {}));
     const fhirDraft = attachProfileToFhirResult(JSON.parse(JSON.stringify(fhirPayload.output || {})));
 
@@ -2428,8 +2422,12 @@ function attachProfileToFhirResult(fhirPayload) {
   enhanced.resources = (Array.isArray(fhirPayload.resources) ? fhirPayload.resources : []).concat(
     profileObservations.map((obs, i) => ({ type: 'Observation', code: obs.code.coding[0].code, display: obs.code.text }))
   );
-
   return enhanced;
+}
+
+function saveUserPrompt(textarea) {
+  APP_STATE.aiSettings.userPrompt = textarea.value;
+  localStorage.setItem('rourou.userPrompt', textarea.value);
 }
 
 
@@ -2823,6 +2821,10 @@ document.addEventListener('DOMContentLoaded', () => {
   wirePrivacyControls();
   syncRealTimeLabels();
   updateShortcutPagerState();
+  const userPromptArea = document.getElementById('settings-user-prompt');
+  if (userPromptArea) {
+    userPromptArea.value = APP_STATE.aiSettings.userPrompt;
+  }
 
   // Keep time updated
   setInterval(syncRealTimeLabels, 30000);
@@ -2851,6 +2853,7 @@ window.removeCustomShortcut = removeCustomShortcut;
 window.saveModeSettings = saveModeSettings;
 window.refreshModeListUI = refreshModeListUI;
 window.closeConsentPreview = closeConsentPreview;
+window.saveUserPrompt = saveUserPrompt;
 
 function toggleMemoryDrawer() {
   const drawer = document.getElementById('memory-drawer');
