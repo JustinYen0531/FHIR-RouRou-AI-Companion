@@ -2693,10 +2693,11 @@ function wireShortcutInteractions() {
     viewport.dataset.wired = 'true';
     viewport.addEventListener('scroll', updateShortcutPagerState, { passive: true });
     viewport.addEventListener('click', (event) => {
-      if (viewport.dataset.suppressClick === 'true') {
-        viewport.dataset.suppressClick = 'false';
+      const addButton = event.target.closest('.shortcut-fab, .shortcut-empty-add-btn');
+      if (addButton) {
         event.preventDefault();
         event.stopPropagation();
+        openShortcutComposer();
         return;
       }
       const deleteButton = event.target.closest('.shortcut-delete-btn');
@@ -2704,6 +2705,12 @@ function wireShortcutInteractions() {
         event.preventDefault();
         event.stopPropagation();
         removeCustomShortcut(Number(deleteButton.dataset.index));
+        return;
+      }
+      if (viewport.dataset.suppressClick === 'true') {
+        viewport.dataset.suppressClick = 'false';
+        event.preventDefault();
+        event.stopPropagation();
         return;
       }
       const button = event.target.closest('.shortcut-chip');
@@ -2721,7 +2728,7 @@ function wireShortcutInteractions() {
 
     viewport.addEventListener('pointerdown', (event) => {
       if (event.pointerType === 'mouse' && event.button !== 0) return;
-      if (event.target.closest('.shortcut-delete-btn') || event.target.closest('.shortcut-collapse-btn')) return;
+      if (event.target.closest('.shortcut-delete-btn') || event.target.closest('.shortcut-fab') || event.target.closest('.shortcut-empty-add-btn') || event.target.closest('.shortcut-collapse-btn')) return;
       dragState.active = true;
       dragState.pointerId = event.pointerId;
       dragState.startX = event.clientX;
