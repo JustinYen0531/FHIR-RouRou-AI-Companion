@@ -390,6 +390,9 @@
             <p class="note-text" id="report-fhir-summary">尚未產生 FHIR 草稿。按下「FHIR 草稿」後，這裡會顯示可交付摘要。</p>
             <div class="note-footer"><span id="report-fhir-status">尚未生成</span> · <span id="report-fhir-resources">FHIR 資源數：0</span></div>
           </div>
+          <div class="report-fhir-actions">
+            <button id="report-delete-fhir-draft" class="ghost-btn report-delete-fhir-draft" type="button" onclick="deleteFhirDraft()">刪除草稿</button>
+          </div>
           <div id="report-consent-progress" class="report-consent-progress" aria-live="polite" hidden>
             <div class="report-consent-progress-top">
               <span id="report-consent-progress-label">正在準備授權預覽...</span>

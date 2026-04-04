@@ -4088,6 +4088,31 @@ body.micro-detail-open {
   box-shadow: var(--shadow-card);
 }
 
+.report-fhir-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.report-delete-fhir-draft:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.fhir-link-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+.fhir-link-toggle-copy {
+  min-width: 0;
+}
+
 .fhir-link-title {
   display: flex;
   align-items: center;
@@ -4097,7 +4122,24 @@ body.micro-detail-open {
   color: var(--primary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-bottom: 10px;
+}
+
+.fhir-link-toggle-summary {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--on-surface);
+  font-weight: 700;
+}
+
+.fhir-link-toggle-icon {
+  color: var(--primary);
+  transition: transform 0.22s ease;
+}
+
+.fhir-link-section.expanded .fhir-link-toggle-icon {
+  transform: rotate(180deg);
 }
 
 .fhir-link-target {
@@ -4137,6 +4179,14 @@ body.micro-detail-open {
   word-break: break-word;
 }
 
+.fhir-link-panel {
+  display: none;
+}
+
+.fhir-link-section.expanded .fhir-link-panel {
+  display: block;
+}
+
 .fhir-link-target a,
 .fhir-link-item a {
   color: var(--primary);
@@ -4157,6 +4207,15 @@ body.micro-detail-open {
   padding: 10px 12px;
   border-radius: 12px;
   background: rgba(238,244,249,0.8);
+}
+
+.fhir-link-empty {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(238,244,249,0.8);
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .fhir-link-copy {

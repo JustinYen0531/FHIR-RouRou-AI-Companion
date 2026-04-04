@@ -679,6 +679,7 @@ function buildFhirResourceLinks(deliveryResult) {
   const entries = Array.isArray(deliveryResult?.transaction_response?.body?.entry)
     ? deliveryResult.transaction_response.body.entry
     : [];
+  const preferredOrder = ['Patient', 'Encounter', 'QuestionnaireResponse', 'Observation', 'Composition', 'DocumentReference', 'Provenance'];
 
   if (!baseUrl || !entries.length) return [];
 
@@ -692,12 +693,21 @@ function buildFhirResourceLinks(deliveryResult) {
       const [resourceType = 'Resource', resourceId = ''] = canonicalPath.split('/');
 
       return {
+        resourceType,
         label: resourceId ? `${resourceType}/${resourceId}` : resourceType,
         path: canonicalPath || resourcePath,
         url: `${baseUrl}/${canonicalPath || resourcePath}`
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .sort((a, b) => {
+      const aIndex = preferredOrder.indexOf(a.resourceType);
+      const bIndex = preferredOrder.indexOf(b.resourceType);
+      const safeA = aIndex === -1 ? preferredOrder.length : aIndex;
+      const safeB = bIndex === -1 ? preferredOrder.length : bIndex;
+      if (safeA !== safeB) return safeA - safeB;
+      return a.label.localeCompare(b.label, 'en');
+    });
 }
 
 function findFhirResourceLink(deliveryResult, resourceType) {
@@ -747,6 +757,7 @@ function renderReportOutputs() {
   const fhirResources = document.getElementById('report-fhir-resources');
   const fhirLinks = document.getElementById('report-fhir-links');
   const authNote = document.getElementById('report-auth-note');
+  const deleteDraftButton = document.getElementById('report-delete-fhir-draft');
 
   if (intro) {
     intro.textContent = updatedAt
@@ -846,6 +857,17 @@ function renderReportOutputs() {
     }
   }
 
+  if (deleteDraftButton) {
+    const hasDraftContent = Boolean(
+      fhirDelivery?.narrative_summary ||
+      (Array.isArray(fhirDelivery?.resources) && fhirDelivery.resources.length) ||
+      APP_STATE.reportOutputs.fhir_delivery_result ||
+      APP_STATE.pendingConsent?.fhirDraft ||
+      APP_STATE.pendingConsent?.deliveryResult
+    );
+    deleteDraftButton.disabled = !hasDraftContent;
+  }
+
   if (fhirLinks) {
     const targetUrl = normalizeFhirBaseUrl(fhirDeliveryResult?.fhir_base_url);
     const linkItems = buildFhirResourceLinks(fhirDeliveryResult);
@@ -854,12 +876,21 @@ function renderReportOutputs() {
       APP_STATE.pendingConsent.sessionExport || APP_STATE.reportOutputs.session_export || null
     );
     if (fixedPatientValues.identifier !== '尚未準備' || fixedPatientValues.resourceId !== '尚未建立' || (fhirDeliveryResult?.delivery_status === 'delivered' && targetUrl && linkItems.length)) {
+      const summaryLabel = linkItems.length
+        ? `已建立 ${linkItems.length} 個 FHIR 資源`
+        : '查看 FHIR 交付資訊';
       fhirLinks.innerHTML = `
         <div class="fhir-link-section">
-          <div class="fhir-link-title">
-            <span class="mat-icon">link</span>
-            FHIR 交付資訊
-          </div>
+          <button class="fhir-link-toggle" type="button" onclick="toggleFhirResourceLinks(this)" aria-expanded="false">
+            <span class="fhir-link-toggle-copy">
+              <span class="fhir-link-title">
+                <span class="mat-icon">link</span>
+                FHIR 交付資訊
+              </span>
+              <span class="fhir-link-toggle-summary">${escapeHtml(summaryLabel)}</span>
+            </span>
+            <span class="mat-icon fhir-link-toggle-icon">expand_more</span>
+          </button>
           <div class="fhir-fixed-meta">
             <div class="fhir-fixed-meta-item">
               <div class="fhir-fixed-meta-label">送出的 Patient identifier</div>
@@ -870,8 +901,9 @@ function renderReportOutputs() {
               <div class="fhir-fixed-meta-value">${escapeHtml(fixedPatientValues.resourceId)}</div>
             </div>
           </div>
-          ${targetUrl ? `<div class="fhir-link-target">FHIR Server：<a href="${escapeHtml(targetUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(targetUrl)}</a></div>` : ''}
-          ${fhirDeliveryResult?.delivery_status === 'delivered' && targetUrl && linkItems.length ? `
+          <div class="fhir-link-panel">
+            ${targetUrl ? `<div class="fhir-link-target">FHIR Server：<a href="${escapeHtml(targetUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(targetUrl)}</a></div>` : ''}
+            ${fhirDeliveryResult?.delivery_status === 'delivered' && targetUrl && linkItems.length ? `
             <div class="fhir-link-list">
               ${linkItems.map((item) => `
                 <div class="fhir-link-item">
@@ -883,7 +915,8 @@ function renderReportOutputs() {
                 </div>
               `).join('')}
             </div>
-          ` : ''}
+            ` : '<div class="fhir-link-empty">這次送出還沒有可直接打開的 HAPI 資源連結。</div>'}
+          </div>
         </div>
       `;
     } else {
@@ -3500,6 +3533,44 @@ function saveReportForLater() {
   appendSystemNotice('這份報告已標記為稍後再送。系統目前不會自動上傳 FHIR。');
 }
 
+function deleteFhirDraft() {
+  const hasDraftContent = Boolean(
+    APP_STATE.reportOutputs.fhir_delivery ||
+    APP_STATE.reportOutputs.fhir_delivery_result ||
+    APP_STATE.pendingConsent?.fhirDraft ||
+    APP_STATE.pendingConsent?.deliveryResult
+  );
+  if (!hasDraftContent) {
+    appendSystemNotice('目前沒有可刪除的 FHIR 草稿。');
+    return;
+  }
+
+  const confirmed = window.confirm('要清除目前這份 FHIR 草稿嗎？這只會刪除本地草稿與連結顯示，不會刪除 HAPI 上已建立的資源。');
+  if (!confirmed) return;
+
+  APP_STATE.reportOutputs.fhir_delivery = null;
+  APP_STATE.reportOutputs.fhir_delivery_result = null;
+  APP_STATE.pendingConsent.fhirDraft = null;
+  APP_STATE.pendingConsent.deliveryResult = null;
+  APP_STATE.pendingConsent.sessionExport = null;
+  APP_STATE.reportFhirDraft = {
+    isLoading: false,
+    error: '',
+    emptyReason: 'FHIR 草稿已刪除。需要時可以重新生成。'
+  };
+
+  renderReportOutputs();
+  appendSystemNotice('已刪除目前這份 FHIR 草稿。');
+}
+
+function toggleFhirResourceLinks(button) {
+  if (!button) return;
+  const section = button.closest('.fhir-link-section');
+  if (!section) return;
+  const isExpanded = section.classList.toggle('expanded');
+  button.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+}
+
 function selectVoiceStyle(style, element) {
   APP_STATE.aiSettings.voiceStyle = style;
   localStorage.setItem('rourou.voiceStyle', style);
@@ -3834,6 +3905,8 @@ window.refreshModeListUI = refreshModeListUI;
 window.openConsentPreview = openConsentPreview;
 window.authorizeAndSendReport = authorizeAndSendReport;
 window.saveReportForLater = saveReportForLater;
+window.deleteFhirDraft = deleteFhirDraft;
+window.toggleFhirResourceLinks = toggleFhirResourceLinks;
 window.closeConsentPreview = closeConsentPreview;
 window.saveUserPrompt = saveUserPrompt;
 window.closeShortcutBar = closeShortcutBar;
