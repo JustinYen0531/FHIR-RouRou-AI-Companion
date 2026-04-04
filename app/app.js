@@ -2619,16 +2619,16 @@ async function openConsentPreview() {
     setConsentPreviewProgress(18, '正在同步目前對話狀態...', '同步中');
     setReportConsentProgress({
       visible: true,
-      value: 34,
+      value: 36,
       label: '正在整理可授權的 session export...',
       note: '抓取這次對話的摘要與病人授權內容。',
       valueText: '整理中'
     });
-    setConsentPreviewProgress(34, '正在整理可授權的 session export...', '整理中');
+    setConsentPreviewProgress(36, '正在整理可授權的 session export...', '整理中');
     startProgressStageRotation([
-      { visible: true, value: 34, label: '正在整理可授權的 session export...', note: '抓取這次對話的摘要與病人授權內容。', valueText: '整理中' },
-      { visible: true, value: 39, label: '正在比對這次對話脈絡...', note: '把最近對話內容對齊到授權預覽格式。', valueText: '比對中' },
-      { visible: true, value: 44, label: '正在檢查可送出欄位...', note: '確認這次授權需要的欄位都已備齊。', valueText: '檢查中' }
+      { visible: true, value: 36, label: '正在整理可授權的 session export...', note: '抓取這次對話的摘要與病人授權內容。', valueText: '整理中' },
+      { visible: true, value: 48, label: '正在比對這次對話脈絡...', note: '把最近對話內容對齊到授權預覽格式。', valueText: '比對中' },
+      { visible: true, value: 58, label: '正在檢查可送出欄位...', note: '確認這次授權需要的欄位都已備齊。', valueText: '檢查中' }
     ]);
     const sessionPayload = await fetchOutputPayload('session_export', '準備授權預覽所需的 session export');
     stopProgressStageRotation();
@@ -2658,16 +2658,16 @@ async function openConsentPreview() {
     } else {
       setReportConsentProgress({
         visible: true,
-        value: 64,
+        value: 68,
         label: '正在建立 FHIR 草稿預覽...',
         note: 'FHIR 草稿需要額外生成，通常會再多花幾秒。',
         valueText: '生成中'
       });
-      setConsentPreviewProgress(64, '正在建立 FHIR 草稿預覽...', '生成中');
+      setConsentPreviewProgress(68, '正在建立 FHIR 草稿預覽...', '生成中');
       startProgressStageRotation([
-        { visible: true, value: 64, label: '正在建立 FHIR 草稿預覽...', note: 'FHIR 草稿需要額外生成，通常會再多花幾秒。', valueText: '生成中' },
-        { visible: true, value: 69, label: '正在整理 Observation 與摘要...', note: '把對話內容轉成可交付的 FHIR 結構。', valueText: '轉換中' },
-        { visible: true, value: 74, label: '正在補齊預覽資訊...', note: '把草稿內容整理成你即將看到的授權預覽。', valueText: '補齊中' }
+        { visible: true, value: 68, label: '正在建立 FHIR 草稿預覽...', note: 'FHIR 草稿需要額外生成，通常會再多花幾秒。', valueText: '生成中' },
+        { visible: true, value: 79, label: '正在整理 Observation 與摘要...', note: '把對話內容轉成可交付的 FHIR 結構。', valueText: '轉換中' },
+        { visible: true, value: 89, label: '正在補齊預覽資訊...', note: '把草稿內容整理成你即將看到的授權預覽。', valueText: '補齊中' }
       ]);
       const fhirPayload = await fetchOutputPayload('fhir_delivery', '準備授權預覽所需的 FHIR draft');
       stopProgressStageRotation();
