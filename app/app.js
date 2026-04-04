@@ -703,6 +703,21 @@ function findFhirResourceLink(deliveryResult, resourceType) {
   return buildFhirResourceLinks(deliveryResult).find((item) => item.label.startsWith(`${resourceType}/`)) || null;
 }
 
+function getFixedPatientValues(fhirDeliveryResult, fallbackSessionExport) {
+  const targetUrl = normalizeFhirBaseUrl(
+    fhirDeliveryResult?.fhir_base_url || fallbackSessionExport?.__deliveryTargetUrl || ''
+  );
+  const previewIdentifier = getPreviewPatientIdentifier(
+    fallbackSessionExport || {},
+    targetUrl
+  );
+  const deliveredPatient = findFhirResourceLink(fhirDeliveryResult, 'Patient');
+  return {
+    identifier: previewIdentifier || String(fallbackSessionExport?.patient?.key || '').trim() || '尚未準備',
+    resourceId: deliveredPatient?.label || '尚未建立'
+  };
+}
+
 function renderReportOutputs() {
   const clinician = APP_STATE.reportOutputs.clinician_summary || {};
   const patientAnalysis = APP_STATE.reportOutputs.patient_analysis || {};
@@ -833,25 +848,41 @@ function renderReportOutputs() {
   if (fhirLinks) {
     const targetUrl = normalizeFhirBaseUrl(fhirDeliveryResult?.fhir_base_url);
     const linkItems = buildFhirResourceLinks(fhirDeliveryResult);
-    if (fhirDeliveryResult?.delivery_status === 'delivered' && targetUrl && linkItems.length) {
+    const fixedPatientValues = getFixedPatientValues(
+      fhirDeliveryResult,
+      APP_STATE.pendingConsent.sessionExport || APP_STATE.reportOutputs.session_export || null
+    );
+    if (fixedPatientValues.identifier !== '尚未準備' || fixedPatientValues.resourceId !== '尚未建立' || (fhirDeliveryResult?.delivery_status === 'delivered' && targetUrl && linkItems.length)) {
       fhirLinks.innerHTML = `
         <div class="fhir-link-section">
           <div class="fhir-link-title">
             <span class="mat-icon">link</span>
-            已成功寫入 HAPI FHIR
+            FHIR 交付資訊
           </div>
-          <div class="fhir-link-target">FHIR Server：<a href="${escapeHtml(targetUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(targetUrl)}</a></div>
-          <div class="fhir-link-list">
-            ${linkItems.map((item) => `
-              <div class="fhir-link-item">
-                <span class="mat-icon" style="font-size:16px;color:var(--primary)">open_in_new</span>
-                <div class="fhir-link-copy">
-                  <div class="fhir-link-label">${escapeHtml(item.label)}</div>
-                  <div class="fhir-link-path"><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.path)}</a></div>
+          <div class="fhir-fixed-meta">
+            <div class="fhir-fixed-meta-item">
+              <div class="fhir-fixed-meta-label">送出的 Patient identifier</div>
+              <div class="fhir-fixed-meta-value">${escapeHtml(fixedPatientValues.identifier)}</div>
+            </div>
+            <div class="fhir-fixed-meta-item">
+              <div class="fhir-fixed-meta-label">建立出的 Patient 資源 ID</div>
+              <div class="fhir-fixed-meta-value">${escapeHtml(fixedPatientValues.resourceId)}</div>
+            </div>
+          </div>
+          ${targetUrl ? `<div class="fhir-link-target">FHIR Server：<a href="${escapeHtml(targetUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(targetUrl)}</a></div>` : ''}
+          ${fhirDeliveryResult?.delivery_status === 'delivered' && targetUrl && linkItems.length ? `
+            <div class="fhir-link-list">
+              ${linkItems.map((item) => `
+                <div class="fhir-link-item">
+                  <span class="mat-icon" style="font-size:16px;color:var(--primary)">open_in_new</span>
+                  <div class="fhir-link-copy">
+                    <div class="fhir-link-label">${escapeHtml(item.label)}</div>
+                    <div class="fhir-link-path"><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.path)}</a></div>
+                  </div>
                 </div>
-              </div>
-            `).join('')}
-          </div>
+              `).join('')}
+            </div>
+          ` : ''}
         </div>
       `;
     } else {

@@ -4085,6 +4085,35 @@ body {
   word-break: break-word;
 }
 
+.fhir-fixed-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.fhir-fixed-meta-item {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(238,244,249,0.8);
+  border: 1px solid rgba(68,102,85,0.12);
+}
+
+.fhir-fixed-meta-label {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--on-surface-variant);
+}
+
+.fhir-fixed-meta-value {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 700;
+  color: var(--on-surface);
+  word-break: break-word;
+}
+
 .fhir-link-target a,
 .fhir-link-item a {
   color: var(--primary);
