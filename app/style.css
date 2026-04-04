@@ -3037,6 +3037,18 @@ body {
  max-width: 420px;
  margin-top: 24px;
  padding: 0 20px;
+ transition: opacity 0.22s ease, transform 0.22s ease, max-height 0.22s ease, margin-top 0.22s ease;
+ max-height: 720px;
+ opacity: 1;
+ overflow: hidden;
+}
+
+.home-history-section.is-hidden {
+ max-height: 0;
+ opacity: 0;
+ margin-top: 0;
+ transform: translateY(-8px);
+ pointer-events: none;
 }
 
 .home-history-header {

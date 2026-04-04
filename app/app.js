@@ -1318,11 +1318,15 @@ function goToHomeGuidePage(index) {
 function toggleHomeGuide() {
   const toggle = document.getElementById('home-guide-toggle');
   const viewer = document.getElementById('home-guide-viewer');
+  const historySection = document.getElementById('home-history-section');
   if (!toggle || !viewer) return;
   const nextExpanded = toggle.getAttribute('aria-expanded') !== 'true';
   toggle.setAttribute('aria-expanded', nextExpanded ? 'true' : 'false');
   viewer.classList.toggle('active', nextExpanded);
   viewer.setAttribute('aria-hidden', nextExpanded ? 'false' : 'true');
+  if (historySection) {
+    historySection.classList.toggle('is-hidden', nextExpanded);
+  }
   if (nextExpanded) {
     updateHomeGuideDots();
   }
