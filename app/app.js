@@ -729,6 +729,56 @@ function getFixedPatientValues(fhirDeliveryResult, fallbackSessionExport) {
   };
 }
 
+function syncReportOutputsFromSessionExport(sessionExport = {}) {
+  if (!sessionExport || typeof sessionExport !== 'object') return;
+
+  if (sessionExport.clinician_summary_draft && typeof sessionExport.clinician_summary_draft === 'object') {
+    APP_STATE.reportOutputs.clinician_summary = JSON.parse(JSON.stringify(sessionExport.clinician_summary_draft));
+  }
+
+  if (sessionExport.patient_analysis && typeof sessionExport.patient_analysis === 'object') {
+    APP_STATE.reportOutputs.patient_analysis = JSON.parse(JSON.stringify(sessionExport.patient_analysis));
+  }
+
+  if (sessionExport.patient_review_packet && typeof sessionExport.patient_review_packet === 'object') {
+    APP_STATE.reportOutputs.patient_review = JSON.parse(JSON.stringify(sessionExport.patient_review_packet));
+  }
+
+  if (sessionExport.fhir_delivery_draft && typeof sessionExport.fhir_delivery_draft === 'object') {
+    APP_STATE.reportOutputs.fhir_delivery = JSON.parse(JSON.stringify(sessionExport.fhir_delivery_draft));
+  }
+}
+
+function syncTherapeuticMemoryFromSessionExport(sessionExport = {}) {
+  if (!sessionExport || typeof sessionExport !== 'object') return;
+
+  const latestTags = sessionExport.latest_tag_payload && typeof sessionExport.latest_tag_payload === 'object'
+    ? sessionExport.latest_tag_payload
+    : {};
+  const burdenState = sessionExport.burden_level_state && typeof sessionExport.burden_level_state === 'object'
+    ? sessionExport.burden_level_state
+    : {};
+  const source = Object.keys(latestTags).length ? latestTags : burdenState;
+
+  const stressors = Array.isArray(source.stressors) ? source.stressors : [];
+  const triggers = Array.isArray(source.triggers) ? source.triggers : [];
+  const keyThemes = Array.isArray(source.keyThemes) ? source.keyThemes : [];
+  const positiveAnchors = Array.isArray(source.positiveAnchors) ? source.positiveAnchors : [];
+  const copingStyleHint = typeof source.copingStyleHint === 'string' ? source.copingStyleHint : '';
+
+  if (!stressors.length && !triggers.length && !keyThemes.length && !positiveAnchors.length && !copingStyleHint) {
+    return;
+  }
+
+  TherapeuticMemory.merge({
+    stressors,
+    triggers,
+    keyThemes,
+    positiveAnchors,
+    copingStyleHint
+  });
+}
+
 function renderReportOutputs() {
   const clinician = APP_STATE.reportOutputs.clinician_summary || {};
   const patientAnalysis = APP_STATE.reportOutputs.patient_analysis || {};
@@ -965,6 +1015,9 @@ function showScreen(screenId) {
   }
   
   if (screenId === 'screen-report') {
+    syncReportOutputsFromSessionExport(APP_STATE.reportOutputs.session_export);
+    syncTherapeuticMemoryFromSessionExport(APP_STATE.reportOutputs.session_export);
+    renderReportOutputs();
     renderMoodChart();
     ensureReportFhirDraft();
   }
@@ -3156,8 +3209,11 @@ async function sendMessage() {
     APP_STATE.lastChatMetadata = payload.metadata || null;
     APP_STATE.reportOutputs.session_export = payload.session_export || APP_STATE.reportOutputs.session_export;
     APP_STATE.runtimeMode = payload.metadata?.active_mode || APP_STATE.runtimeMode;
+    syncReportOutputsFromSessionExport(APP_STATE.reportOutputs.session_export);
+    syncTherapeuticMemoryFromSessionExport(APP_STATE.reportOutputs.session_export);
     APP_STATE.turnCount++;
     updateModeLabels();
+    renderReportOutputs();
     setTyping(false);
     await appendMessage('ai', payload.answer || '我有收到你的訊息，但這次沒有拿到完整回覆。', { animate: true });
     evaluateMicroIntervention(payload, { lastUserMessage: message });
