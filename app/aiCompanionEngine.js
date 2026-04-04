@@ -354,6 +354,7 @@ class AICompanionEngine {
     this.apiKey = options.apiKey || '';
     this.fetchImpl = options.fetchImpl;
     this.sessions = options.sessions || new Map();
+    this.onSessionsChanged = typeof options.onSessionsChanged === 'function' ? options.onSessionsChanged : null;
     this.prompts = createPromptRegistry();
     this.retriever = options.retriever || createSimpleRetriever(this.loadRagCorpus());
     this.now = options.now || (() => new Date().toISOString());
@@ -366,10 +367,29 @@ class AICompanionEngine {
     return '';
   }
 
+  findLatestSessionIdByUser(user) {
+    const normalizedUser = String(user || '').trim();
+    if (!normalizedUser) return '';
+    let latestSession = null;
+    for (const session of this.sessions.values()) {
+      if (String(session.user || '').trim() !== normalizedUser) continue;
+      if (!latestSession || String(session.updatedAt || '') > String(latestSession.updatedAt || '')) {
+        latestSession = session;
+      }
+    }
+    return latestSession ? latestSession.id : '';
+  }
+
+  persistSessions() {
+    if (this.onSessionsChanged) {
+      this.onSessionsChanged(this.sessions);
+    }
+  }
+
   getOrCreateSession(id, user) {
-    const sessionId = id || `conv-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+    const sessionId = id || this.findLatestSessionIdByUser(user) || `conv-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
     if (!this.sessions.has(sessionId)) {
-    this.sessions.set(sessionId, {
+      this.sessions.set(sessionId, {
         id: sessionId,
         user: user || 'web-demo-user',
         startedAt: this.now(),
@@ -388,10 +408,12 @@ class AICompanionEngine {
         },
         output_cache: {}
       });
+      this.persistSessions();
     }
     const session = this.sessions.get(sessionId);
     session.user = user || session.user;
     session.updatedAt = this.now();
+    this.persistSessions();
     return session;
   }
 
@@ -400,6 +422,7 @@ class AICompanionEngine {
     const state = session.state;
     const message = String(payload.message || '').trim();
     if (!message) {
+      this.persistSessions();
       return {
         conversation_id: session.id,
         answer: '',
@@ -424,6 +447,7 @@ class AICompanionEngine {
       const answer = state.command_feedback;
       session.history.push({ role: 'assistant', content: answer });
       this.updateMemorySnapshot(session, answer);
+      this.persistSessions();
       return {
         conversation_id: session.id,
         answer,
@@ -462,6 +486,7 @@ class AICompanionEngine {
       const answer = await this.runTextTask('safetyResponse', session, message);
       session.history.push({ role: 'assistant', content: answer });
       this.updateMemorySnapshot(session, answer);
+      this.persistSessions();
       return {
         conversation_id: session.id,
         answer,
@@ -487,6 +512,7 @@ class AICompanionEngine {
       });
       session.history.push({ role: 'assistant', content: outputResult.formatted_text });
       this.updateMemorySnapshot(session, outputResult.formatted_text);
+      this.persistSessions();
       return {
         conversation_id: session.id,
         answer: outputResult.formatted_text,
@@ -541,6 +567,7 @@ class AICompanionEngine {
 
     session.history.push({ role: 'assistant', content: answer });
     this.updateMemorySnapshot(session, answer);
+    this.persistSessions();
 
     return {
       conversation_id: session.id,
@@ -883,6 +910,7 @@ class AICompanionEngine {
       revision: session.revision,
       value: response
     };
+    this.persistSessions();
 
     return response;
   }

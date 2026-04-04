@@ -1,5 +1,9 @@
 const assert = require('assert');
 const { AICompanionEngine } = require('./aiCompanionEngine');
+const { loadSessionsFromFile, saveSessionsToFile } = require('./sessionPersistence');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 function createStubModelClient() {
   return async ({ systemPrompt, userPrompt }) => {
@@ -188,12 +192,52 @@ async function testOutputCommandBuildsStructuredDrafts() {
   assert.strictEqual(result.session_export.delivery_readiness_state.readiness_status, 'ready_for_backend_mapping');
 }
 
+async function testReuseLatestSessionByUserWhenConversationIdMissing() {
+  const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
+  const first = await engine.handleMessage({ message: '最近很累', user: 'demo-user' });
+  const second = await engine.handleMessage({ message: '還是很累', user: 'demo-user' });
+  assert.strictEqual(first.conversation_id, second.conversation_id);
+  assert.strictEqual(engine.sessions.size, 1);
+}
+
+async function testSessionPersistenceRoundTrip() {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-companion-'));
+  const storePath = path.join(tmpDir, 'sessions.json');
+  const persistedSnapshots = [];
+  const engine = new AICompanionEngine({
+    modelClient: createStubModelClient(),
+    apiKey: 'fake',
+    onSessionsChanged: (sessions) => {
+      saveSessionsToFile(sessions, storePath);
+      persistedSnapshots.push(loadSessionsFromFile(storePath));
+    }
+  });
+
+  const first = await engine.handleMessage({ message: '最近很累', user: 'persist-user' });
+  assert.ok(fs.existsSync(storePath));
+  const loaded = loadSessionsFromFile(storePath);
+  assert.strictEqual(loaded.size, 1);
+  assert.strictEqual(loaded.get(first.conversation_id).user, 'persist-user');
+  assert.ok(persistedSnapshots.length >= 1);
+
+  const resumedEngine = new AICompanionEngine({
+    modelClient: createStubModelClient(),
+    apiKey: 'fake',
+    sessions: loaded
+  });
+  const second = await resumedEngine.handleMessage({ message: '幫我整理給醫生', user: 'persist-user' });
+  assert.strictEqual(second.conversation_id, first.conversation_id);
+  assert.strictEqual(second.metadata.route, 'output');
+}
+
 async function run() {
   await testCommandRouting();
   await testHighRiskRouting();
   await testSelfHarmStatementRoutesToSafety();
   await testNaturalFlowBuildsSessionExport();
   await testOutputCommandBuildsStructuredDrafts();
+  await testReuseLatestSessionByUserWhenConversationIdMissing();
+  await testSessionPersistenceRoundTrip();
   console.log('AI companion engine tests passed.');
 }
 

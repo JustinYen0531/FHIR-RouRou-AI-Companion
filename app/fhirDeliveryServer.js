@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { buildSessionExportBundle } = require('./fhirBundleBuilder');
 const { AICompanionEngine } = require('./aiCompanionEngine');
+const { createSessionPersistence, DEFAULT_SESSION_STORE_PATH } = require('./sessionPersistence');
 const {
   DEFAULT_GROQ_BASE_URL,
   DEFAULT_GOOGLE_BASE_URL,
@@ -293,7 +294,10 @@ async function processOutputPayload(payload, options = {}) {
 }
 
 function createServer(options = {}) {
-  const sharedSessions = options.sessions || new Map();
+  const persistence = options.sessionPersistence || createSessionPersistence({
+    filePath: options.sessionStorePath || process.env.AI_COMPANION_SESSION_STORE || DEFAULT_SESSION_STORE_PATH
+  });
+  const sharedSessions = options.sessions || persistence.sessions || new Map();
   const sharedProvider = options.llmProvider || (options.googleApiKey || process.env.GOOGLE_API_KEY ? 'google' : 'groq');
   const sharedEngine = options.engine || new AICompanionEngine({
     provider: sharedProvider,
@@ -304,7 +308,8 @@ function createServer(options = {}) {
         : (options.groqBaseUrl || DEFAULT_GROQ_BASE_URL),
     model: options.llmModel || (sharedProvider === 'google' ? DEFAULT_GOOGLE_MODEL : undefined),
     fetchImpl: options.fetchImpl,
-    sessions: sharedSessions
+    sessions: sharedSessions,
+    onSessionsChanged: (sessions) => persistence.save(sessions)
   });
 
   return http.createServer(async (req, res) => {
@@ -372,10 +377,12 @@ if (require.main === module) {
   const googleBaseUrl = process.env.GOOGLE_API_BASE_URL || DEFAULT_GOOGLE_BASE_URL;
   const llmProvider = process.env.LLM_PROVIDER || (googleApiKey ? 'google' : 'groq');
   const llmModel = process.env.LLM_MODEL || (llmProvider === 'google' ? DEFAULT_GOOGLE_MODEL : '');
-  const server = createServer({ fhirBaseUrl, groqApiKey, groqBaseUrl, googleApiKey, googleBaseUrl, llmProvider, llmModel });
+  const sessionStorePath = process.env.AI_COMPANION_SESSION_STORE || DEFAULT_SESSION_STORE_PATH;
+  const server = createServer({ fhirBaseUrl, groqApiKey, groqBaseUrl, googleApiKey, googleBaseUrl, llmProvider, llmModel, sessionStorePath });
   server.listen(port, () => {
     console.log('FHIR delivery server listening on http://localhost:' + port);
     console.log('Static app available at http://localhost:' + port + '/');
+    console.log('Session persistence file:', sessionStorePath);
     if (fhirBaseUrl) {
       console.log('FHIR transaction target:', fhirBaseUrl);
     } else {
