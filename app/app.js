@@ -1642,9 +1642,26 @@ async function loadMicroInterventionContent(card) {
     return microState.contentCache[card.id];
   }
 
-  const response = await fetch(card.docPath);
-  if (!response.ok) {
-    throw new Error(`載入引導內容失敗：${card.docPath}`);
+  const candidatePaths = [
+    card.docPath,
+    String(card.docPath || '').replace('/docs/micro_interventions/', '/docs/計畫文件/')
+  ]
+    .filter(Boolean)
+    .filter((value, index, list) => list.indexOf(value) === index);
+
+  let lastFailedPath = card.docPath;
+  let response = null;
+
+  for (const docPath of candidatePaths) {
+    lastFailedPath = docPath;
+    response = await fetch(encodeURI(docPath));
+    if (response.ok) {
+      break;
+    }
+  }
+
+  if (!response || !response.ok) {
+    throw new Error(`載入引導內容失敗：${lastFailedPath}`);
   }
 
   const markdown = await response.text();
@@ -1703,6 +1720,7 @@ function closeMicroInterventionDetail() {
   if (!overlay) return;
   overlay.classList.remove('active');
   overlay.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('micro-detail-open');
   getMicroInterventionState().detailOpen = false;
 }
 
@@ -1729,6 +1747,7 @@ async function openMicroIntervention(cardId) {
 
   overlay.classList.add('active');
   overlay.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('micro-detail-open');
   getMicroInterventionState().detailOpen = true;
 
   try {

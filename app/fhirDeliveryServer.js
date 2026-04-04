@@ -34,10 +34,18 @@ function sendJson(res, statusCode, body) {
 }
 
 function sendStaticFile(res, pathname) {
-  const match = STATIC_FILES[pathname];
+  const decodedPathname = (() => {
+    try {
+      return decodeURIComponent(pathname);
+    } catch (error) {
+      return pathname;
+    }
+  })();
+
+  const match = STATIC_FILES[decodedPathname] || STATIC_FILES[pathname];
   if (!match) {
-    if (pathname.startsWith('/docs/')) {
-      const relativePath = pathname.replace(/^\/+/, '');
+    if (decodedPathname.startsWith('/docs/')) {
+      const relativePath = decodedPathname.replace(/^\/+/, '');
       const safePath = path.normalize(path.join(APP_DIR, '..', relativePath));
       const docsRoot = path.join(APP_DIR, '..', 'docs');
       if (!safePath.startsWith(docsRoot) || !fs.existsSync(safePath) || fs.statSync(safePath).isDirectory()) {
