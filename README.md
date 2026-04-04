@@ -47,6 +47,10 @@ node app\fhirDeliveryServer.js
 - `http://localhost:8787/`
 - `http://localhost:8787/health`
 
+若未另外指定，FHIR 交付會預設送往公開測試站：
+
+- `https://hapi.fhir.org/baseR4`
+
 ### 3. 啟用 AI 對話模型
 
 Google Gemini：
@@ -68,7 +72,18 @@ node app\fhirDeliveryServer.js
 
 若未提供 API Key，系統仍可啟動本地介面與 FHIR 交付層，但 AI 對話功能需由前端設定或補上金鑰後才能完整使用。
 
-### 4. 建立與驗證 FHIR Bundle
+### 4. 指定 FHIR 上傳目標
+
+若要改送其他 FHIR Server，可在啟動前指定：
+
+```powershell
+$env:FHIR_SERVER_URL="https://hapi.fhir.org/baseR4"
+node app\fhirDeliveryServer.js
+```
+
+若未設定 `FHIR_SERVER_URL`，Demo 會自動使用上面的 HAPI 測試站。
+
+### 5. 建立與驗證 FHIR Bundle
 
 執行 Bundle Builder 測試：
 

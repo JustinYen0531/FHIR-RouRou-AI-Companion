@@ -12,6 +12,7 @@ const {
 } = require('./llmChatClient');
 
 const APP_DIR = __dirname;
+const DEFAULT_PUBLIC_FHIR_BASE_URL = 'https://hapi.fhir.org/baseR4';
 const STATIC_FILES = {
   '/': { filePath: path.join(APP_DIR, 'index.html'), contentType: 'text/html; charset=utf-8' },
   '/index.html': { filePath: path.join(APP_DIR, 'index.html'), contentType: 'text/html; charset=utf-8' },
@@ -298,6 +299,7 @@ function createServer(options = {}) {
   const persistence = options.sessionPersistence || createSessionPersistence({
     filePath: options.sessionStorePath || process.env.AI_COMPANION_SESSION_STORE || DEFAULT_SESSION_STORE_PATH
   });
+  const activeFhirBaseUrl = String(options.fhirBaseUrl || '').trim();
   const sharedSessions = options.sessions || persistence.sessions || new Map();
   const sharedProvider = options.llmProvider || (options.googleApiKey || process.env.GOOGLE_API_KEY ? 'google' : 'groq');
   const sharedEngine = options.engine || new AICompanionEngine({
@@ -334,6 +336,8 @@ function createServer(options = {}) {
         ok: true,
         ai_engine: 'node',
         provider: sharedProvider,
+        fhir_delivery_mode: activeFhirBaseUrl ? 'transaction' : 'dry_run',
+        fhir_server_url: activeFhirBaseUrl,
         groq_configured: Boolean(options.groqApiKey || process.env.GROQ_API_KEY),
         google_configured: Boolean(options.googleApiKey || process.env.GOOGLE_API_KEY)
       });
@@ -382,7 +386,7 @@ function createServer(options = {}) {
 
 if (require.main === module) {
   const port = Number(process.env.PORT || 8787);
-  const fhirBaseUrl = process.env.FHIR_SERVER_URL || '';
+  const fhirBaseUrl = String(process.env.FHIR_SERVER_URL || DEFAULT_PUBLIC_FHIR_BASE_URL).trim();
   const groqApiKey = process.env.GROQ_API_KEY || '';
   const googleApiKey = process.env.GOOGLE_API_KEY || '';
   const groqBaseUrl = process.env.GROQ_API_BASE_URL || DEFAULT_GROQ_BASE_URL;
