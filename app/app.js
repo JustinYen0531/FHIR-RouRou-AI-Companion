@@ -2183,6 +2183,69 @@ function formatArrayForList(items = [], emptyText = '目前沒有可顯示內容
   return `<ul class="consent-preview-list">${normalized.map((item) => `<li>${escapeHtml(String(item))}</li>`).join('')}</ul>`;
 }
 
+function normalizeSessionExportForDelivery(sessionExport = {}) {
+  const normalized = JSON.parse(JSON.stringify(sessionExport || {}));
+  const clinician = normalized.clinician_summary_draft || {};
+  const symptomObservations = Array.isArray(clinician.symptom_observations)
+    ? clinician.symptom_observations.filter(Boolean)
+    : [];
+  const hamdSignals = Array.isArray(clinician.hamd_signals)
+    ? clinician.hamd_signals.filter(Boolean)
+    : [];
+  const inferredSignals = symptomObservations.reduce((acc, item) => {
+    const text = String(item || '').toLowerCase();
+    if ((text.includes('低落') || text.includes('憂鬱') || text.includes('depress')) && !acc.includes('depressed_mood')) {
+      acc.push('depressed_mood');
+    }
+    if ((text.includes('興趣') || text.includes('工作') || text.includes('提不起勁') || text.includes('沒動力')) && !acc.includes('work_interest')) {
+      acc.push('work_interest');
+    }
+    if ((text.includes('睡') || text.includes('失眠') || text.includes('醒')) && !acc.includes('insomnia')) {
+      acc.push('insomnia');
+    }
+    if ((text.includes('焦躁') || text.includes('坐立難安') || text.includes('煩')) && !acc.includes('agitation')) {
+      acc.push('agitation');
+    }
+    if ((text.includes('焦慮') || text.includes('緊張') || text.includes('心悸')) && !acc.includes('somatic_anxiety')) {
+      acc.push('somatic_anxiety');
+    }
+    return acc;
+  }, []);
+  const resolvedSignals = hamdSignals.length ? hamdSignals : inferredSignals;
+
+  if (!normalized.hamd_progress_state || typeof normalized.hamd_progress_state !== 'object') {
+    normalized.hamd_progress_state = {};
+  }
+
+  if (!Array.isArray(normalized.hamd_progress_state.covered_dimensions) || !normalized.hamd_progress_state.covered_dimensions.length) {
+    normalized.hamd_progress_state.covered_dimensions = resolvedSignals;
+  }
+
+  if (!Array.isArray(normalized.hamd_progress_state.supported_dimensions) || !normalized.hamd_progress_state.supported_dimensions.length) {
+    normalized.hamd_progress_state.supported_dimensions = Array.isArray(normalized.hamd_progress_state.covered_dimensions)
+      ? [...normalized.hamd_progress_state.covered_dimensions]
+      : [];
+  }
+
+  if (!Array.isArray(normalized.hamd_progress_state.recent_evidence) || !normalized.hamd_progress_state.recent_evidence.length) {
+    normalized.hamd_progress_state.recent_evidence = symptomObservations;
+  }
+
+  if (!normalized.delivery_readiness_state || typeof normalized.delivery_readiness_state !== 'object') {
+    normalized.delivery_readiness_state = {};
+  }
+
+  if (!normalized.delivery_readiness_state.readiness_status) {
+    normalized.delivery_readiness_state.readiness_status = 'ready_for_backend_mapping';
+  }
+
+  if (normalized.delivery_readiness_state.readiness_status !== 'ready_for_backend_mapping') {
+    normalized.delivery_readiness_state.readiness_status = 'ready_for_backend_mapping';
+  }
+
+  return normalized;
+}
+
 function buildConsentPreviewHtml(sessionExport, fhirDraft) {
   const clinician = sessionExport?.clinician_summary_draft || {};
   const patient = sessionExport?.patient || {};
@@ -2390,7 +2453,7 @@ async function openConsentPreview() {
     });
     setConsentPreviewProgress(28, '正在整理可授權的 session export...', '整理中');
     const sessionPayload = await fetchOutputPayload('session_export', '準備授權預覽所需的 session export');
-    const sessionExport = JSON.parse(JSON.stringify(sessionPayload.session_export || {}));
+    const sessionExport = normalizeSessionExportForDelivery(sessionPayload.session_export || {});
     let fhirDraft;
 
     if (existingFhirDraft) {
@@ -2877,7 +2940,7 @@ async function authorizeAndSendReport() {
   let deliveryPayload = null;
   let needsPostDeliveryRefresh = false;
   try {
-    const sessionExport = JSON.parse(JSON.stringify(APP_STATE.pendingConsent.sessionExport || {}));
+    const sessionExport = normalizeSessionExportForDelivery(APP_STATE.pendingConsent.sessionExport || {});
     if (!sessionExport.session?.encounterKey) {
       throw new Error('目前還沒有可送出的對話資料，請先完成至少一輪對話。');
     }
