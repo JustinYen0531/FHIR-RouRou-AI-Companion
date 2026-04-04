@@ -931,7 +931,11 @@ const DEFAULT_SHORTCUT_PAGE_ONE = [
   { label: '整理給醫師', command: 'OUTPUT:clinician_summary' },
   { label: '請分析我', command: 'OUTPUT:patient_analysis' },
   { label: 'FHIR 草稿', command: 'OUTPUT:fhir_delivery' },
-  { label: '樹洞模式', command: 'void' }
+  { label: '樹洞模式', command: 'void' },
+  { label: '靈魂陪伴', command: 'soulmate' },
+  { label: '任務引導', command: 'mission' },
+  { label: '選項引導', command: 'option' },
+  { label: '自然聊天', command: 'natural' }
 ];
 
 function formatShortcutLabel(label) {

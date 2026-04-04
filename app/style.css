@@ -2228,7 +2228,7 @@ body {
   right: 0;
   bottom: 70px;
   z-index: 5;
-  padding: 12px 16px 14px;
+  padding: 8px 16px 14px;
   border-top: 1px solid rgba(168, 180, 187, 0.12);
 }
 
@@ -2248,13 +2248,13 @@ body {
 }
 
 .shortcut-bar {
-  margin-bottom: 10px;
+  margin-bottom: 4px;
   transition: all 0.3s ease;
 }
 
 .shortcut-page-shell {
   position: relative;
-  min-height: 266px;
+  min-height: 160px;
   padding-right: 92px;
 }
 
@@ -2300,7 +2300,7 @@ body {
 }
 
 .shortcut-chip {
-  min-height: 82px;
+  min-height: 72px;
   border-radius: 24px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(246, 250, 254, 0.62));
   color: #44575f;
@@ -2443,7 +2443,8 @@ body {
   display: flex;
   justify-content: center;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: 4px;
+  margin-bottom: 2px;
 }
 
 .shortcut-dot {
