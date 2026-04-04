@@ -108,6 +108,20 @@ function appendDeliveryDebugLog(entry) {
   }
 }
 
+function buildCreatedResourceMap(transactionBody) {
+  const entries = Array.isArray(transactionBody?.entry) ? transactionBody.entry : [];
+  return entries.reduce((acc, entry) => {
+    const location = String(entry?.response?.location || '').trim();
+    if (!location) return acc;
+    const canonicalPath = location.replace(/^https?:\/\/[^/]+/i, '').replace(/^\/+/, '').replace(/\/_history\/[^/]+$/i, '');
+    const [resourceType = '', resourceId = ''] = canonicalPath.split('/');
+    if (resourceType && resourceId && !acc[resourceType]) {
+      acc[resourceType] = `${resourceType}/${resourceId}`;
+    }
+    return acc;
+  }, {});
+}
+
 async function processExportPayload(payload, options = {}) {
   const deliveryPayload = preparePayloadForDeliveryTarget(payload, options.fhirBaseUrl);
   const bundleResult = buildSessionExportBundle(deliveryPayload);
@@ -217,6 +231,7 @@ async function processExportPayload(payload, options = {}) {
         }
       })
     };
+    const createdResources = buildCreatedResourceMap(parsed);
     appendDeliveryDebugLog({
       phase: 'transaction_response',
       deliveryStatus: result.body.delivery_status,
@@ -224,6 +239,7 @@ async function processExportPayload(payload, options = {}) {
       patientKey: deliveryPayload?.patient?.key || '',
       encounterKey: deliveryPayload?.session?.encounterKey || '',
       httpStatus: transactionResponse.status,
+      createdResources,
       diagnostics: Array.isArray(parsed?.issue)
         ? parsed.issue.map((issue) => issue?.diagnostics || issue?.details?.text || issue?.code || '').filter(Boolean)
         : []

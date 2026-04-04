@@ -694,6 +694,10 @@ function buildFhirResourceLinks(deliveryResult) {
     .filter(Boolean);
 }
 
+function findFhirResourceLink(deliveryResult, resourceType) {
+  return buildFhirResourceLinks(deliveryResult).find((item) => item.label.startsWith(`${resourceType}/`)) || null;
+}
+
 function renderReportOutputs() {
   const clinician = APP_STATE.reportOutputs.clinician_summary || {};
   const patientAnalysis = APP_STATE.reportOutputs.patient_analysis || {};
@@ -2898,8 +2902,11 @@ async function authorizeAndSendReport() {
       setConsentPreviewProgress(100, '已完成授權，但目前為 dry-run', '完成');
       appendSystemNotice('已完成手動授權，但目前後端尚未設定 FHIR_SERVER_URL，所以這次只是 dry-run，尚未真正送到醫院端。');
     } else if (deliveryStatus === 'delivered') {
+      const patientLink = findFhirResourceLink(payload, 'Patient');
       setConsentPreviewProgress(100, 'FHIR 報告已成功送出', '完成');
-      appendSystemNotice('已手動授權並成功送出 FHIR 報告。');
+      appendSystemNotice(patientLink
+        ? `已手動授權並成功送出 FHIR 報告。Patient ID：${patientLink.label}`
+        : '已手動授權並成功送出 FHIR 報告。');
     } else {
       setConsentPreviewProgress(100, `送出完成，目前狀態：${deliveryStatus}`, '完成');
       appendSystemNotice(`手動授權流程已完成，目前狀態：${deliveryStatus}`);
