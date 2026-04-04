@@ -14,6 +14,7 @@ const {
 const APP_DIR = __dirname;
 const DEFAULT_PUBLIC_FHIR_BASE_URL = 'https://hapi.fhir.org/baseR4';
 const PUBLIC_DEMO_FHIR_TARGETS = [DEFAULT_PUBLIC_FHIR_BASE_URL];
+const DELIVERY_DEBUG_LOG_PATH = path.join(APP_DIR, '..', '.logs', 'fhir-delivery-debug.ndjson');
 const STATIC_FILES = {
   '/': { filePath: path.join(APP_DIR, 'index.html'), contentType: 'text/html; charset=utf-8' },
   '/index.html': { filePath: path.join(APP_DIR, 'index.html'), contentType: 'text/html; charset=utf-8' },
@@ -92,6 +93,21 @@ function preparePayloadForDeliveryTarget(payload, fhirBaseUrl) {
   return cloned;
 }
 
+function appendDeliveryDebugLog(entry) {
+  try {
+    const logDir = path.dirname(DELIVERY_DEBUG_LOG_PATH);
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+    fs.appendFileSync(DELIVERY_DEBUG_LOG_PATH, JSON.stringify({
+      loggedAt: new Date().toISOString(),
+      ...entry
+    }) + '\n');
+  } catch (error) {
+    console.error('Unable to write FHIR delivery debug log:', error.message);
+  }
+}
+
 async function processExportPayload(payload, options = {}) {
   const deliveryPayload = preparePayloadForDeliveryTarget(payload, options.fhirBaseUrl);
   const bundleResult = buildSessionExportBundle(deliveryPayload);
@@ -104,6 +120,14 @@ async function processExportPayload(payload, options = {}) {
   };
 
   if (!bundleResult.bundle_json) {
+    appendDeliveryDebugLog({
+      phase: 'bundle_missing',
+      deliveryStatus: 'blocked',
+      fhirBaseUrl: options.fhirBaseUrl || '',
+      patientKey: deliveryPayload?.patient?.key || '',
+      encounterKey: deliveryPayload?.session?.encounterKey || '',
+      blockingReasons: bundleResult.blocking_reasons || []
+    });
     return {
       statusCode: 422,
       body: Object.assign(response, {
@@ -113,6 +137,14 @@ async function processExportPayload(payload, options = {}) {
   }
 
   if (bundleResult.validation_report && !bundleResult.validation_report.valid) {
+    appendDeliveryDebugLog({
+      phase: 'validation_failed',
+      deliveryStatus: 'validation_failed',
+      fhirBaseUrl: options.fhirBaseUrl || '',
+      patientKey: deliveryPayload?.patient?.key || '',
+      encounterKey: deliveryPayload?.session?.encounterKey || '',
+      validationIssues: bundleResult.validation_report.issues || []
+    });
     return {
       statusCode: 422,
       body: Object.assign(response, {
@@ -122,6 +154,13 @@ async function processExportPayload(payload, options = {}) {
   }
 
   if (!options.fhirBaseUrl) {
+    appendDeliveryDebugLog({
+      phase: 'dry_run_ready',
+      deliveryStatus: 'dry_run_ready',
+      fhirBaseUrl: '',
+      patientKey: deliveryPayload?.patient?.key || '',
+      encounterKey: deliveryPayload?.session?.encounterKey || ''
+    });
     return {
       statusCode: 200,
       body: Object.assign(response, {
@@ -132,6 +171,13 @@ async function processExportPayload(payload, options = {}) {
 
   const fetchImpl = options.fetchImpl || global.fetch;
   if (typeof fetchImpl !== 'function') {
+    appendDeliveryDebugLog({
+      phase: 'server_misconfigured',
+      deliveryStatus: 'server_misconfigured',
+      fhirBaseUrl: options.fhirBaseUrl || '',
+      patientKey: deliveryPayload?.patient?.key || '',
+      encounterKey: deliveryPayload?.session?.encounterKey || ''
+    });
     return {
       statusCode: 500,
       body: Object.assign(response, {
@@ -160,7 +206,7 @@ async function processExportPayload(payload, options = {}) {
       parsed = { raw: text };
     }
 
-    return {
+    const result = {
       statusCode: transactionResponse.ok ? 200 : 502,
       body: Object.assign(response, {
         delivery_status: transactionResponse.ok ? 'delivered' : 'transaction_failed',
@@ -171,7 +217,27 @@ async function processExportPayload(payload, options = {}) {
         }
       })
     };
+    appendDeliveryDebugLog({
+      phase: 'transaction_response',
+      deliveryStatus: result.body.delivery_status,
+      fhirBaseUrl: options.fhirBaseUrl || '',
+      patientKey: deliveryPayload?.patient?.key || '',
+      encounterKey: deliveryPayload?.session?.encounterKey || '',
+      httpStatus: transactionResponse.status,
+      diagnostics: Array.isArray(parsed?.issue)
+        ? parsed.issue.map((issue) => issue?.diagnostics || issue?.details?.text || issue?.code || '').filter(Boolean)
+        : []
+    });
+    return result;
   } catch (error) {
+    appendDeliveryDebugLog({
+      phase: 'transaction_exception',
+      deliveryStatus: 'transaction_failed',
+      fhirBaseUrl: options.fhirBaseUrl || '',
+      patientKey: deliveryPayload?.patient?.key || '',
+      encounterKey: deliveryPayload?.session?.encounterKey || '',
+      error: error.message
+    });
     return {
       statusCode: 502,
       body: Object.assign(response, {

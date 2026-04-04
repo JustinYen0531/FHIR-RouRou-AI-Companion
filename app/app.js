@@ -1933,6 +1933,17 @@ function extractFhirDeliveryError(payload = {}) {
   return payload?.transaction_response?.error || payload?.error || 'FHIR 上傳失敗';
 }
 
+function rememberFhirDeliveryDebug(debug = {}) {
+  try {
+    localStorage.setItem('rourou.lastFhirDeliveryDebug', JSON.stringify({
+      capturedAt: new Date().toISOString(),
+      ...debug
+    }));
+  } catch (error) {
+    console.error('Unable to persist FHIR delivery debug info.', error);
+  }
+}
+
 function getRuntimeConfig() {
   const provider = localStorage.getItem('rourou.aiProvider') || DEFAULT_PROVIDER;
   return {
@@ -2862,6 +2873,16 @@ async function authorizeAndSendReport() {
     });
     const payload = await response.json();
     deliveryPayload = payload;
+    rememberFhirDeliveryDebug({
+      phase: 'response',
+      responseOk: response.ok,
+      httpStatus: response.status,
+      deliveryStatus: payload?.delivery_status || '',
+      error: extractFhirDeliveryError(payload),
+      responseBody: payload,
+      encounterKey: sessionExport?.session?.encounterKey || '',
+      patientKey: sessionExport?.patient?.key || ''
+    });
 
     if (!response.ok) {
       throw new Error(extractFhirDeliveryError(payload));
@@ -2888,10 +2909,26 @@ async function authorizeAndSendReport() {
     if (deliveredStatus === 'delivered' || deliveredStatus === 'dry_run_ready') {
       needsPostDeliveryRefresh = true;
       console.error('FHIR delivery succeeded, but post-send UI sync failed.', error);
+      rememberFhirDeliveryDebug({
+        phase: 'post_delivery_ui_sync_failed',
+        responseOk: true,
+        httpStatus: deliveryPayload?.transaction_response?.status || 200,
+        deliveryStatus: deliveredStatus,
+        error: error.message || 'Unknown UI sync failure',
+        responseBody: deliveryPayload
+      });
       appendSystemNotice(`FHIR 已完成送出，但畫面同步時發生錯誤：${error.message || '未知錯誤'}`);
       return;
     }
 
+    rememberFhirDeliveryDebug({
+      phase: 'request_failed',
+      responseOk: false,
+      httpStatus: deliveryPayload?.transaction_response?.status || 0,
+      deliveryStatus: deliveredStatus || '',
+      error: error.message || 'Unknown FHIR delivery failure',
+      responseBody: deliveryPayload
+    });
     setConsentPreviewProgress(100, '送出失敗，請再試一次', '失敗');
     if (confirmButton) {
       confirmButton.disabled = false;
