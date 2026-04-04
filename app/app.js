@@ -3598,7 +3598,13 @@ function wireShortcutInteractions() {
 
     viewport.addEventListener('pointerdown', (event) => {
       if (event.pointerType === 'mouse' && event.button !== 0) return;
-      if (event.target.closest('.shortcut-delete-btn') || event.target.closest('.shortcut-fab') || event.target.closest('.shortcut-empty-add-btn') || event.target.closest('.shortcut-collapse-btn')) return;
+      if (
+        event.target.closest('.shortcut-chip') ||
+        event.target.closest('.shortcut-delete-btn') ||
+        event.target.closest('.shortcut-fab') ||
+        event.target.closest('.shortcut-empty-add-btn') ||
+        event.target.closest('.shortcut-collapse-btn')
+      ) return;
       dragState.active = true;
       dragState.pointerId = event.pointerId;
       dragState.startX = event.clientX;
