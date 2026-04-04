@@ -404,8 +404,8 @@
             <span class="mat-icon fill" style="color:#446655">verified_user</span>
             <p id="report-auth-note">我已確認以上報告內容，並授權 Rou Rou 將此摘要加密傳送至主治醫師診間系統，以作為本次診療輔助。</p>
           </div>
-          <button class="primary-btn">數位授權並送出報告</button>
-          <button class="ghost-btn">暫存報告，稍後再傳送</button>
+          <button id="report-authorize-submit" class="primary-btn" type="button">數位授權並送出報告</button>
+          <button id="report-save-later" class="ghost-btn" type="button">暫存報告，稍後再傳送</button>
         </section>
         </div>
       </div>
@@ -697,7 +697,7 @@
             <span class="mat-icon fill" style="color:#446655">database</span>
             <div><div class="settings-label">醫院資料同步</div><div class="settings-sub">即時同步 FHIR 記錄更新</div></div>
           </div>
-          <label class="toggle"><input type="checkbox" checked/><span class="toggle-track"></span></label>
+          <label class="toggle"><input id="fhir-realtime-sync-toggle" type="checkbox"/><span class="toggle-track"></span></label>
         </div>
         <div class="fhir-institution">
           <div class="fhir-label">已連線院所</div>
@@ -706,7 +706,7 @@
         <div class="settings-divider"></div>
         <div class="settings-toggle-row">
           <div><div class="settings-label">自動報告草稿</div><div class="settings-sub">需要時替你準備醫師摘要草稿</div></div>
-          <label class="toggle"><input type="checkbox"/><span class="toggle-track"></span></label>
+          <label class="toggle"><input id="auto-report-draft-toggle" type="checkbox"/><span class="toggle-track"></span></label>
         </div>
       </div>
 

@@ -284,6 +284,10 @@ const APP_STATE = {
     session_export: null,
     updatedAt: ''
   },
+  privacySettings: {
+    fhirRealtimeSync: localStorage.getItem('rourou.fhirRealtimeSync') === 'true',
+    autoReportDraft: localStorage.getItem('rourou.autoReportDraft') === 'true'
+  },
   microIntervention: {
     currentCardId: '',
     lastPresentedCardId: '',
@@ -1561,6 +1565,19 @@ function getRuntimeConfig() {
   };
 }
 
+function getPrivacySettings() {
+  return {
+    fhirRealtimeSync: APP_STATE.privacySettings.fhirRealtimeSync,
+    autoReportDraft: APP_STATE.privacySettings.autoReportDraft
+  };
+}
+
+function savePrivacySettings(nextSettings = {}) {
+  APP_STATE.privacySettings = Object.assign({}, APP_STATE.privacySettings, nextSettings);
+  localStorage.setItem('rourou.fhirRealtimeSync', APP_STATE.privacySettings.fhirRealtimeSync ? 'true' : 'false');
+  localStorage.setItem('rourou.autoReportDraft', APP_STATE.privacySettings.autoReportDraft ? 'true' : 'false');
+}
+
 function initializeRuntimeConfig() {
   if (!localStorage.getItem('rourou.aiProvider')) {
     localStorage.setItem('rourou.aiProvider', DEFAULT_PROVIDER);
@@ -1577,6 +1594,40 @@ function initializeRuntimeConfig() {
   if (!localStorage.getItem('rourou.aiModel')) {
     localStorage.setItem('rourou.aiModel', DEFAULT_PROVIDER === 'google' ? 'gemini-2.0-flash' : 'llama-3.1-8b-instant');
   }
+
+  if (!localStorage.getItem('rourou.fhirRealtimeSync')) {
+    localStorage.setItem('rourou.fhirRealtimeSync', 'false');
+  }
+
+  if (!localStorage.getItem('rourou.autoReportDraft')) {
+    localStorage.setItem('rourou.autoReportDraft', 'false');
+  }
+}
+
+async function fetchOutputPayload(outputType, instructionOverride = '') {
+  await ensureModeSynced();
+  const config = getRuntimeConfig();
+  const response = await fetch('/api/chat/output', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      conversation_id: APP_STATE.conversationId,
+      user: config.userId,
+      output_type: outputType,
+      instruction: instructionOverride || (OUTPUT_DEFINITIONS[outputType]?.instruction || outputType),
+      api_provider: config.provider,
+      api_key: config.apiKey,
+      api_base_url: config.apiBaseUrl,
+      api_model: config.model
+    })
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(formatChatError(payload));
+  }
+  APP_STATE.conversationId = payload.conversation_id || APP_STATE.conversationId;
+  APP_STATE.lastChatMetadata = payload.metadata || APP_STATE.lastChatMetadata;
+  return payload;
 }
 
 async function ensureModeSynced() {
@@ -1863,29 +1914,7 @@ async function requestOutput(outputType, options = {}) {
   setTyping(true);
 
   try {
-    await ensureModeSynced();
-    const config = getRuntimeConfig();
-    const response = await fetch('/api/chat/output', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        conversation_id: APP_STATE.conversationId,
-        user: config.userId,
-        output_type: outputType,
-        instruction: definition.instruction,
-        api_provider: config.provider,
-        api_key: config.apiKey,
-        api_base_url: config.apiBaseUrl,
-        api_model: config.model
-      })
-    });
-    const payload = await response.json();
-    if (!response.ok) {
-      throw new Error(formatChatError(payload));
-    }
-
-    APP_STATE.conversationId = payload.conversation_id || APP_STATE.conversationId;
-    APP_STATE.lastChatMetadata = payload.metadata || APP_STATE.lastChatMetadata;
+    const payload = await fetchOutputPayload(outputType, definition.instruction);
 
     // Layer 4：FHIR Draft 附加心理畫像 Observations
     let finalPayload = payload;
@@ -1920,6 +1949,111 @@ async function requestOutput(outputType, options = {}) {
     await appendMessage('ai', error.message || '目前無法產生輸出。', { animate: true });
   } finally {
     APP_STATE.isSending = false;
+  }
+}
+
+async function authorizeAndSendReport() {
+  if (APP_STATE.isSending) return;
+
+  APP_STATE.isSending = true;
+  clearMicroInterventionCard();
+  closeMicroInterventionDetail();
+  setTyping(true);
+  appendSystemNotice('正在準備授權送出的 FHIR 內容...');
+
+  try {
+    const exportPayload = await fetchOutputPayload('session_export', '準備授權送出所需的 session export');
+    const sessionExport = JSON.parse(JSON.stringify(exportPayload.session_export || {}));
+    if (!sessionExport.session?.encounterKey) {
+      throw new Error('目前還沒有可送出的對話資料，請先完成至少一輪對話。');
+    }
+
+    sessionExport.patient_authorization_state = Object.assign(
+      {},
+      sessionExport.patient_authorization_state || {},
+      {
+        authorization_status: 'patient_authorized_manual_submit',
+        share_with_clinician: 'yes',
+        consent_note: `Manually authorized in UI at ${new Date().toISOString()}`
+      }
+    );
+
+    const response = await fetch('/api/fhir/bundle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sessionExport)
+    });
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload?.bundle_result?.blocking_reasons?.join('；') || payload?.error || 'FHIR 上傳失敗');
+    }
+
+    const deliveryStatus = payload.delivery_status || 'unknown';
+    if (deliveryStatus === 'dry_run_ready') {
+      appendSystemNotice('已完成手動授權，但目前後端尚未設定 FHIR_SERVER_URL，所以這次只是 dry-run，尚未真正送到醫院端。');
+    } else if (deliveryStatus === 'delivered') {
+      appendSystemNotice('已手動授權並成功送出 FHIR 報告。');
+    } else {
+      appendSystemNotice(`手動授權流程已完成，目前狀態：${deliveryStatus}`);
+    }
+
+    showScreen('screen-report');
+    switchReportTab('auto');
+    switchAutoAudience('doctor');
+  } catch (error) {
+    await appendMessage('ai', error.message || '目前無法送出 FHIR 報告。', { animate: true });
+  } finally {
+    setTyping(false);
+    APP_STATE.isSending = false;
+  }
+}
+
+function saveReportForLater() {
+  appendSystemNotice('這份報告已標記為稍後再送。系統目前不會自動上傳 FHIR。');
+}
+
+function wirePrivacyControls() {
+  const realtimeToggle = document.getElementById('fhir-realtime-sync-toggle');
+  const autoDraftToggle = document.getElementById('auto-report-draft-toggle');
+  const authorizeButton = document.getElementById('report-authorize-submit');
+  const saveLaterButton = document.getElementById('report-save-later');
+  const settings = getPrivacySettings();
+
+  if (realtimeToggle) {
+    realtimeToggle.checked = settings.fhirRealtimeSync;
+    if (!realtimeToggle.dataset.wired) {
+      realtimeToggle.dataset.wired = 'true';
+      realtimeToggle.addEventListener('change', (event) => {
+        savePrivacySettings({ fhirRealtimeSync: Boolean(event.target.checked) });
+        if (event.target.checked) {
+          appendSystemNotice('已記住你的偏好，但目前系統仍只支援手動授權送出，不會自動上傳。');
+        } else {
+          appendSystemNotice('已關閉即時同步。FHIR 只會在你手動授權後送出。');
+        }
+      });
+    }
+  }
+
+  if (autoDraftToggle) {
+    autoDraftToggle.checked = settings.autoReportDraft;
+    if (!autoDraftToggle.dataset.wired) {
+      autoDraftToggle.dataset.wired = 'true';
+      autoDraftToggle.addEventListener('change', (event) => {
+        savePrivacySettings({ autoReportDraft: Boolean(event.target.checked) });
+        appendSystemNotice(event.target.checked ? '已開啟需要時準備醫師摘要草稿。' : '已關閉自動報告草稿提示。');
+      });
+    }
+  }
+
+  if (authorizeButton && !authorizeButton.dataset.wired) {
+    authorizeButton.dataset.wired = 'true';
+    authorizeButton.addEventListener('click', authorizeAndSendReport);
+  }
+
+  if (saveLaterButton && !saveLaterButton.dataset.wired) {
+    saveLaterButton.dataset.wired = 'true';
+    saveLaterButton.addEventListener('click', saveReportForLater);
   }
 }
 
@@ -2077,6 +2211,7 @@ document.addEventListener('DOMContentLoaded', () => {
   TherapeuticMemory.renderProfileUI();
   clearMicroInterventionCard();
   closeMicroInterventionDetail();
+  wirePrivacyControls();
   syncRealTimeLabels();
   updateShortcutPagerState();
 
