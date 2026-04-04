@@ -284,9 +284,19 @@ const APP_STATE = {
     session_export: null,
     updatedAt: ''
   },
+  pendingConsent: {
+    sessionExport: null,
+    fhirDraft: null,
+    deliveryResult: null,
+    canConfirm: false
+  },
   privacySettings: {
     fhirRealtimeSync: localStorage.getItem('rourou.fhirRealtimeSync') === 'true',
     autoReportDraft: localStorage.getItem('rourou.autoReportDraft') === 'true'
+  },
+  aiSettings: {
+    voiceStyle: localStorage.getItem('rourou.voiceStyle') || 'gentle',
+    interactionSensing: localStorage.getItem('rourou.interactionSensing') !== 'false'
   },
   microIntervention: {
     currentCardId: '',
@@ -1578,6 +1588,167 @@ function savePrivacySettings(nextSettings = {}) {
   localStorage.setItem('rourou.autoReportDraft', APP_STATE.privacySettings.autoReportDraft ? 'true' : 'false');
 }
 
+function formatArrayForList(items = [], emptyText = '目前沒有可顯示內容。') {
+  const normalized = Array.isArray(items) ? items.filter(Boolean) : [];
+  if (!normalized.length) {
+    return `<p>${escapeHtml(emptyText)}</p>`;
+  }
+  return `<ul class="consent-preview-list">${normalized.map((item) => `<li>${escapeHtml(String(item))}</li>`).join('')}</ul>`;
+}
+
+function buildConsentPreviewHtml(sessionExport, fhirDraft) {
+  const clinician = sessionExport?.clinician_summary_draft || {};
+  const patient = sessionExport?.patient || {};
+  const session = sessionExport?.session || {};
+  const hamd = sessionExport?.hamd_progress_state || {};
+  const resourceList = Array.isArray(fhirDraft?.resources) ? fhirDraft.resources : [];
+  const resourceLabels = resourceList.map((item) => item.display || item.type || item.resourceType || 'Unknown');
+
+  return `
+    <section class="consent-preview-section">
+      <h4>送出資訊摘要</h4>
+      <div class="consent-preview-meta">
+        <div class="consent-preview-meta-item">
+          <div class="consent-preview-meta-label">病人 ID</div>
+          <div class="consent-preview-meta-value">${escapeHtml(patient.key || 'unknown')}</div>
+        </div>
+        <div class="consent-preview-meta-item">
+          <div class="consent-preview-meta-label">Encounter</div>
+          <div class="consent-preview-meta-value">${escapeHtml(session.encounterKey || '尚未建立')}</div>
+        </div>
+        <div class="consent-preview-meta-item">
+          <div class="consent-preview-meta-label">主模式</div>
+          <div class="consent-preview-meta-value">${escapeHtml(sessionExport?.active_mode || 'auto')}</div>
+        </div>
+        <div class="consent-preview-meta-item">
+          <div class="consent-preview-meta-label">FHIR 資源數</div>
+          <div class="consent-preview-meta-value">${escapeHtml(String(resourceList.length))}</div>
+        </div>
+      </div>
+    </section>
+    <section class="consent-preview-section">
+      <h4>醫師摘要草稿</h4>
+      <p>${escapeHtml(clinician.draft_summary || '尚未產生摘要內容。')}</p>
+    </section>
+    <section class="consent-preview-section">
+      <h4>主要關注事項</h4>
+      ${formatArrayForList(clinician.chief_concerns, '尚未整理出主要關注事項。')}
+    </section>
+    <section class="consent-preview-section">
+      <h4>症狀觀察</h4>
+      ${formatArrayForList(clinician.symptom_observations, '尚未整理出症狀觀察。')}
+    </section>
+    <section class="consent-preview-section">
+      <h4>HAM-D 線索</h4>
+      ${formatArrayForList(hamd.covered_dimensions, '目前尚未收斂出 HAM-D 維度。')}
+    </section>
+    <section class="consent-preview-section">
+      <h4>FHIR Draft 摘要</h4>
+      <p>${escapeHtml(fhirDraft?.narrative_summary || '尚未產生 FHIR 草稿摘要。')}</p>
+    </section>
+    <section class="consent-preview-section">
+      <h4>即將送出的資源</h4>
+      ${formatArrayForList(resourceLabels, '目前沒有可送出的 FHIR 資源。')}
+    </section>
+    <section class="consent-preview-section">
+      <h4>Session Export JSON</h4>
+      <pre class="consent-preview-json">${escapeHtml(JSON.stringify(sessionExport, null, 2))}</pre>
+    </section>
+  `;
+}
+
+function resetConsentPreviewState() {
+  APP_STATE.pendingConsent = {
+    sessionExport: null,
+    fhirDraft: null,
+    deliveryResult: null,
+    canConfirm: false
+  };
+  const confirmButton = document.getElementById('consent-preview-confirm');
+  const scrollBody = document.getElementById('consent-preview-scroll');
+  const previewBody = document.getElementById('consent-preview-body');
+  if (confirmButton) {
+    confirmButton.disabled = true;
+    confirmButton.textContent = '同意送出';
+  }
+  if (scrollBody) {
+    scrollBody.scrollTop = 0;
+  }
+  if (previewBody) {
+    previewBody.innerHTML = '';
+  }
+}
+
+function closeConsentPreview() {
+  const overlay = document.getElementById('consent-preview-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('active');
+  overlay.setAttribute('aria-hidden', 'true');
+  resetConsentPreviewState();
+}
+
+function handleConsentPreviewScroll() {
+  const scrollBody = document.getElementById('consent-preview-scroll');
+  const confirmButton = document.getElementById('consent-preview-confirm');
+  if (!scrollBody || !confirmButton || APP_STATE.pendingConsent.canConfirm) return;
+  const nearBottom = scrollBody.scrollTop + scrollBody.clientHeight >= scrollBody.scrollHeight - 24;
+  if (nearBottom) {
+    APP_STATE.pendingConsent.canConfirm = true;
+    confirmButton.disabled = false;
+    confirmButton.textContent = '同意送出';
+  }
+}
+
+async function openConsentPreview() {
+  if (APP_STATE.isSending) return;
+
+  APP_STATE.isSending = true;
+  clearMicroInterventionCard();
+  closeMicroInterventionDetail();
+  setTyping(true);
+  appendSystemNotice('正在準備授權預覽...');
+
+  try {
+    const sessionPayload = await fetchOutputPayload('session_export', '準備授權預覽所需的 session export');
+    const fhirPayload = await fetchOutputPayload('fhir_delivery', '準備授權預覽所需的 FHIR draft');
+    const sessionExport = JSON.parse(JSON.stringify(sessionPayload.session_export || {}));
+    const fhirDraft = attachProfileToFhirResult(JSON.parse(JSON.stringify(fhirPayload.output || {})));
+
+    if (!sessionExport.session?.encounterKey) {
+      throw new Error('目前還沒有可送出的對話資料，請先完成至少一輪對話。');
+    }
+
+    APP_STATE.pendingConsent.sessionExport = sessionExport;
+    APP_STATE.pendingConsent.fhirDraft = fhirDraft;
+    APP_STATE.pendingConsent.canConfirm = false;
+
+    const previewBody = document.getElementById('consent-preview-body');
+    const overlay = document.getElementById('consent-preview-overlay');
+    const confirmButton = document.getElementById('consent-preview-confirm');
+    const scrollBody = document.getElementById('consent-preview-scroll');
+
+    if (previewBody) {
+      previewBody.innerHTML = buildConsentPreviewHtml(sessionExport, fhirDraft);
+    }
+    if (confirmButton) {
+      confirmButton.disabled = true;
+      confirmButton.textContent = '請先滑到最下方';
+    }
+    if (scrollBody) {
+      scrollBody.scrollTop = 0;
+    }
+    if (overlay) {
+      overlay.classList.add('active');
+      overlay.setAttribute('aria-hidden', 'false');
+    }
+  } catch (error) {
+    await appendMessage('ai', error.message || '目前無法打開授權預覽。', { animate: true });
+  } finally {
+    setTyping(false);
+    APP_STATE.isSending = false;
+  }
+}
+
 function initializeRuntimeConfig() {
   if (!localStorage.getItem('rourou.aiProvider')) {
     localStorage.setItem('rourou.aiProvider', DEFAULT_PROVIDER);
@@ -1954,16 +2125,23 @@ async function requestOutput(outputType, options = {}) {
 
 async function authorizeAndSendReport() {
   if (APP_STATE.isSending) return;
+  if (!APP_STATE.pendingConsent.sessionExport) {
+    await openConsentPreview();
+    return;
+  }
+  if (!APP_STATE.pendingConsent.canConfirm) {
+    appendSystemNotice('請先滑到最下方，再按同意送出。');
+    return;
+  }
 
   APP_STATE.isSending = true;
   clearMicroInterventionCard();
   closeMicroInterventionDetail();
   setTyping(true);
-  appendSystemNotice('正在準備授權送出的 FHIR 內容...');
+  appendSystemNotice('正在送出你已確認的 FHIR 內容...');
 
   try {
-    const exportPayload = await fetchOutputPayload('session_export', '準備授權送出所需的 session export');
-    const sessionExport = JSON.parse(JSON.stringify(exportPayload.session_export || {}));
+    const sessionExport = JSON.parse(JSON.stringify(APP_STATE.pendingConsent.sessionExport || {}));
     if (!sessionExport.session?.encounterKey) {
       throw new Error('目前還沒有可送出的對話資料，請先完成至少一輪對話。');
     }
@@ -2001,6 +2179,7 @@ async function authorizeAndSendReport() {
     showScreen('screen-report');
     switchReportTab('auto');
     switchAutoAudience('doctor');
+    closeConsentPreview();
   } catch (error) {
     await appendMessage('ai', error.message || '目前無法送出 FHIR 報告。', { animate: true });
   } finally {
@@ -2010,7 +2189,54 @@ async function authorizeAndSendReport() {
 }
 
 function saveReportForLater() {
+  closeConsentPreview();
   appendSystemNotice('這份報告已標記為稍後再送。系統目前不會自動上傳 FHIR。');
+}
+
+function selectVoiceStyle(style, element) {
+  APP_STATE.aiSettings.voiceStyle = style;
+  localStorage.setItem('rourou.voiceStyle', style);
+  if (element && element.parentNode) {
+    element.parentNode.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    element.classList.add('active');
+  }
+}
+
+function toggleInteractionSensing(input) {
+  APP_STATE.aiSettings.interactionSensing = input.checked;
+  localStorage.setItem('rourou.interactionSensing', input.checked ? 'true' : 'false');
+}
+
+function checkSensitiveContent(text) {
+  if (!APP_STATE.aiSettings.interactionSensing) return false;
+  const risks = ['不想活', '自殺', '死掉', '結束生命', '傷害自', '傷人', '自殘'];
+  return risks.some(r => text.includes(r));
+}
+
+function updateSettingsUI() {
+  // Voice Style
+  const voiceGroup = document.getElementById('settings-voice-style');
+  if (voiceGroup) {
+    const activeStyle = APP_STATE.aiSettings.voiceStyle;
+    voiceGroup.querySelectorAll('.chip').forEach(c => {
+      c.classList.toggle('active', c.getAttribute('data-style') === activeStyle);
+    });
+  }
+
+  // Default Mode
+  const modeName = document.getElementById('settings-mode-name');
+  const modeIcon = document.getElementById('settings-mode-icon');
+  const modeDef = MODE_DEFINITIONS[APP_STATE.selectedMode] || MODE_DEFINITIONS.natural;
+  if (modeName) modeName.textContent = modeDef.label;
+  if (modeIcon) {
+    modeIcon.textContent = modeDef.icon || 'auto_awesome';
+    if (modeDef.icon === 'favorite') modeIcon.classList.add('fill');
+    else modeIcon.classList.remove('fill');
+  }
+
+  // Sensing Toggle
+  const sensingToggle = document.getElementById('settings-interaction-sensing');
+  if (sensingToggle) sensingToggle.checked = APP_STATE.aiSettings.interactionSensing;
 }
 
 function wirePrivacyControls() {
@@ -2048,12 +2274,35 @@ function wirePrivacyControls() {
 
   if (authorizeButton && !authorizeButton.dataset.wired) {
     authorizeButton.dataset.wired = 'true';
-    authorizeButton.addEventListener('click', authorizeAndSendReport);
+    authorizeButton.addEventListener('click', openConsentPreview);
   }
 
   if (saveLaterButton && !saveLaterButton.dataset.wired) {
     saveLaterButton.dataset.wired = 'true';
     saveLaterButton.addEventListener('click', saveReportForLater);
+  }
+
+  const consentOverlay = document.getElementById('consent-preview-overlay');
+  const consentScroll = document.getElementById('consent-preview-scroll');
+  const confirmButton = document.getElementById('consent-preview-confirm');
+
+  if (consentOverlay && !consentOverlay.dataset.wired) {
+    consentOverlay.dataset.wired = 'true';
+    consentOverlay.addEventListener('click', (event) => {
+      if (event.target === consentOverlay) {
+        closeConsentPreview();
+      }
+    });
+  }
+
+  if (consentScroll && !consentScroll.dataset.wired) {
+    consentScroll.dataset.wired = 'true';
+    consentScroll.addEventListener('scroll', handleConsentPreviewScroll, { passive: true });
+  }
+
+  if (confirmButton && !confirmButton.dataset.wired) {
+    confirmButton.dataset.wired = 'true';
+    confirmButton.addEventListener('click', authorizeAndSendReport);
   }
 }
 
@@ -2241,6 +2490,7 @@ window.submitShortcutComposer = submitShortcutComposer;
 window.removeCustomShortcut = removeCustomShortcut;
 window.saveModeSettings = saveModeSettings;
 window.refreshModeListUI = refreshModeListUI;
+window.closeConsentPreview = closeConsentPreview;
 
 function toggleMemoryDrawer() {
   const drawer = document.getElementById('memory-drawer');

@@ -782,6 +782,33 @@
     </div>
   </div>
 
+  <div id="consent-preview-overlay" class="consent-preview-overlay" aria-hidden="true">
+    <div class="consent-preview-card">
+      <div class="consent-preview-header">
+        <div>
+          <div class="consent-preview-kicker">送出前確認</div>
+          <div class="consent-preview-title">即將送出的 FHIR 草稿</div>
+        </div>
+        <button class="icon-btn" type="button" aria-label="關閉" onclick="closeConsentPreview()">
+          <span class="mat-icon">close</span>
+        </button>
+      </div>
+      <div id="consent-preview-scroll" class="consent-preview-scroll">
+        <div class="consent-preview-intro">
+          請先完整查看以下即將送出的內容。滑到最下方後，才會解鎖最後的送出按鈕。
+        </div>
+        <div id="consent-preview-body" class="consent-preview-body"></div>
+        <div class="consent-preview-bottom">
+          <div class="consent-preview-bottom-note">我已閱讀上方內容，理解這次送出會把目前摘要資料上傳到已設定的 FHIR 端點。</div>
+        </div>
+      </div>
+      <div class="consent-preview-actions">
+        <button class="ghost-btn" type="button" onclick="closeConsentPreview()">返回修改</button>
+        <button id="consent-preview-confirm" class="primary-btn" type="button" disabled>同意送出</button>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /app -->
 
 <script src="app.js"></script>
