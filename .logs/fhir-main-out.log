@@ -1,0 +1,5 @@
+FHIR delivery server listening on http://localhost:8787
+Static app available at http://localhost:8787/
+Session persistence file: C:\Users\閻星澄\Desktop\FHIR-main\FHIR-main\.data\ai-companion-sessions.json
+FHIR transaction target: https://hapi.fhir.org/baseR4
+AI companion engine is waiting for GOOGLE_API_KEY / GROQ_API_KEY or a client-provided api_key.

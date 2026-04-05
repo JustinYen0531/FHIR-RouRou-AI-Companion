@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "savedAt": "2026-04-04T05:26:07.903Z",
+  "savedAt": "2026-04-05T04:04:46.850Z",
   "sessions": [
     {
       "id": "conv-1775280321963-6bf3df",
@@ -55,6 +55,463 @@
         "risk_flag": "false",
         "latest_tag_summary": "",
         "hamd_focus": ""
+      },
+      "output_cache": {}
+    },
+    {
+      "id": "manual-check",
+      "user": "web-demo-user",
+      "startedAt": "2026-04-05T03:30:07.450Z",
+      "updatedAt": "2026-04-05T03:30:07.478Z",
+      "history": [
+        {
+          "role": "user",
+          "content": "?????????,?????,????????????"
+        }
+      ],
+      "state": {
+        "pending_question": "none",
+        "risk_flag": "false",
+        "red_flag_payload": "none",
+        "followup_turn_count": "0",
+        "followup_status": "none",
+        "active_mode": "auto",
+        "latest_tag_payload": "none",
+        "hamd_progress_state": "none",
+        "hamd_formal_assessment": "none",
+        "summary_draft_state": "none",
+        "clinician_summary_draft": "none",
+        "routing_mode_override": "auto",
+        "command_feedback": "none",
+        "patient_review_packet": "none",
+        "fhir_delivery_draft": "none",
+        "mission_retrieval_audit": "none",
+        "option_retrieval_audit": "none",
+        "burden_level_state": "none",
+        "patient_authorization_state": "none",
+        "delivery_readiness_state": "none"
+      },
+      "revision": 1,
+      "memory_snapshot": {
+        "note_history": [],
+        "last_user_message": "?????????,?????,????????????",
+        "last_assistant_message": "",
+        "active_mode": "auto",
+        "risk_flag": "false",
+        "latest_tag_summary": "",
+        "hamd_focus": ""
+      },
+      "output_cache": {}
+    },
+    {
+      "id": "manual-check-2",
+      "user": "web-demo-user",
+      "startedAt": "2026-04-05T03:30:12.951Z",
+      "updatedAt": "2026-04-05T03:30:12.952Z",
+      "history": [],
+      "state": {
+        "pending_question": "none",
+        "risk_flag": "false",
+        "red_flag_payload": "none",
+        "followup_turn_count": "0",
+        "followup_status": "none",
+        "active_mode": "auto",
+        "latest_tag_payload": "none",
+        "hamd_progress_state": "none",
+        "hamd_formal_assessment": "none",
+        "summary_draft_state": "none",
+        "clinician_summary_draft": "none",
+        "routing_mode_override": "auto",
+        "command_feedback": "none",
+        "patient_review_packet": "none",
+        "fhir_delivery_draft": "none",
+        "mission_retrieval_audit": "none",
+        "option_retrieval_audit": "none",
+        "burden_level_state": "none",
+        "patient_authorization_state": "none",
+        "delivery_readiness_state": "none"
+      },
+      "revision": 0,
+      "memory_snapshot": {
+        "note_history": [],
+        "last_user_message": "",
+        "last_assistant_message": "",
+        "active_mode": "auto",
+        "risk_flag": "false",
+        "latest_tag_summary": "",
+        "hamd_focus": ""
+      },
+      "output_cache": {}
+    },
+    {
+      "id": "manual-check-live",
+      "user": "web-demo-user",
+      "startedAt": "2026-04-05T03:37:34.785Z",
+      "updatedAt": "2026-04-05T03:37:34.822Z",
+      "history": [
+        {
+          "role": "user",
+          "content": "?????????,?????,????????????"
+        }
+      ],
+      "state": {
+        "pending_question": "none",
+        "risk_flag": "false",
+        "red_flag_payload": "none",
+        "followup_turn_count": "0",
+        "followup_status": "none",
+        "active_mode": "auto",
+        "latest_tag_payload": "none",
+        "hamd_progress_state": "none",
+        "hamd_formal_assessment": "none",
+        "summary_draft_state": "none",
+        "clinician_summary_draft": "none",
+        "routing_mode_override": "auto",
+        "command_feedback": "none",
+        "patient_review_packet": "none",
+        "fhir_delivery_draft": "none",
+        "mission_retrieval_audit": "none",
+        "option_retrieval_audit": "none",
+        "burden_level_state": "none",
+        "patient_authorization_state": "none",
+        "delivery_readiness_state": "none"
+      },
+      "revision": 1,
+      "memory_snapshot": {
+        "note_history": [],
+        "last_user_message": "?????????,?????,????????????",
+        "last_assistant_message": "",
+        "active_mode": "auto",
+        "risk_flag": "false",
+        "latest_tag_summary": "",
+        "hamd_focus": ""
+      },
+      "output_cache": {}
+    },
+    {
+      "id": "openrouter-smoke",
+      "user": "web-demo-user",
+      "startedAt": "2026-04-05T04:04:36.983Z",
+      "updatedAt": "2026-04-05T04:04:36.989Z",
+      "history": [
+        {
+          "role": "user",
+          "content": "?????:?????"
+        },
+        {
+          "role": "assistant",
+          "content": "我能理解你現在可能感到困惑。這裡有幾個簡單的選擇，你可以告訴我你的想法：\n\n1. 想聊聊最近的感受嗎？\n2. 需要一些放鬆的建議嗎？\n3. 想要找人聽你說話嗎？"
+        }
+      ],
+      "state": {
+        "pending_question": "none",
+        "risk_flag": "false",
+        "red_flag_payload": "none",
+        "followup_turn_count": "0",
+        "followup_status": "none",
+        "active_mode": "mode_4_option",
+        "latest_tag_payload": {
+          "route_type": "normal",
+          "source_mode": "auto",
+          "followup_status": "none",
+          "sentiment_tags": [],
+          "behavioral_tags": [],
+          "cognitive_tags": [],
+          "warning_tags": [],
+          "summary": ""
+        },
+        "hamd_progress_state": {
+          "progress_stage": "none",
+          "current_focus": "none",
+          "supported_dimensions": [],
+          "covered_dimensions": [],
+          "missing_dimensions": [
+            "depressed_mood",
+            "guilt",
+            "work_interest",
+            "retardation",
+            "agitation",
+            "somatic_anxiety",
+            "insomnia"
+          ],
+          "next_recommended_dimension": "depressed_mood",
+          "recent_evidence": [],
+          "needs_clarification": "yes",
+          "status_summary": "使用者的表達模糊且不清楚，可能感到困惑或無法明確表達需求。"
+        },
+        "hamd_formal_assessment": {
+          "scale_version": "HAM-D17",
+          "status": "review_required",
+          "assessment_mode": "smart_hunter_probe_or_mission_structured_or_mixed",
+          "recall_window": "past_7_days",
+          "pending_probe_item_code": "",
+          "pending_probe_question": "",
+          "items": [
+            {
+              "item_code": "depressed_mood",
+              "item_label": "憂鬱情緒",
+              "scale_range": "0_to_4",
+              "evidence_type": "none",
+              "direct_answer_value": null,
+              "ai_suggested_score": null,
+              "clinician_final_score": null,
+              "evidence_summary": [],
+              "rating_rationale": "",
+              "confidence": "low",
+              "review_required": false
+            },
+            {
+              "item_code": "guilt",
+              "item_label": "有罪感",
+              "scale_range": "0_to_4",
+              "evidence_type": "none",
+              "direct_answer_value": null,
+              "ai_suggested_score": null,
+              "clinician_final_score": null,
+              "evidence_summary": [],
+              "rating_rationale": "",
+              "confidence": "low",
+              "review_required": false
+            },
+            {
+              "item_code": "suicide",
+              "item_label": "自殺意念",
+              "scale_range": "0_to_4",
+              "evidence_type": "none",
+              "direct_answer_value": null,
+              "ai_suggested_score": null,
+              "clinician_final_score": null,
+              "evidence_summary": [],
+              "rating_rationale": "",
+              "confidence": "low",
+              "review_required": false
+            },
+            {
+              "item_code": "insomnia_early",
+              "item_label": "入睡困難",
+              "scale_range": "0_to_2",
+              "evidence_type": "none",
+              "direct_answer_value": null,
+              "ai_suggested_score": null,
+              "clinician_final_score": null,
+              "evidence_summary": [],
+              "rating_rationale": "",
+              "confidence": "low",
+              "review_required": false
+            },
+            {
+              "item_code": "insomnia_middle",
+              "item_label": "睡眠中斷",
+              "scale_range": "0_to_2",
+              "evidence_type": "none",
+              "direct_answer_value": null,
+              "ai_suggested_score": null,
+              "clinician_final_score": null,
+              "evidence_summary": [],
+              "rating_rationale": "",
+              "confidence": "low",
+              "review_required": false
+            },
+            {
+              "item_code": "insomnia_late",
+              "item_label": "早醒",
+              "scale_range": "0_to_2",
+              "evidence_type": "none",
+              "direct_answer_value": null,
+              "ai_suggested_score": null,
+              "clinician_final_score": null,
+              "evidence_summary": [],
+              "rating_rationale": "",
+              "confidence": "low",
+              "review_required": false
+            },
+            {
+              "item_code": "work_activities",
+              "item_label": "工作與活動",
+              "scale_range": "0_to_4",
+              "evidence_type": "none",
+              "direct_answer_value": null,
+              "ai_suggested_score": null,
+              "clinician_final_score": null,
+              "evidence_summary": [],
+              "rating_rationale": "",
+              "confidence": "low",
+              "review_required": false
+            },
+            {
+              "item_code": "retardation",
+              "item_label": "精神運動遲滯",
+              "scale_range": "0_to_4",
+              "evidence_type": "none",
+              "direct_answer_value": null,
+              "ai_suggested_score": null,
+              "clinician_final_score": null,
+              "evidence_summary": [],
+              "rating_rationale": "",
+              "confidence": "low",
+              "review_required": true
+            },
+            {
+              "item_code": "agitation",
+              "item_label": "激越",
+              "scale_range": "0_to_4",
+              "evidence_type": "none",
+              "direct_answer_value": null,
+              "ai_suggested_score": null,
+              "clinician_final_score": null,
+              "evidence_summary": [],
+              "rating_rationale": "",
+              "confidence": "low",
+              "review_required": true
+            },
+            {
+              "item_code": "psychic_anxiety",
+              "item_label": "精神性焦慮",
+              "scale_range": "0_to_4",
+              "evidence_type": "none",
+              "direct_answer_value": null,
+              "ai_suggested_score": null,
+              "clinician_final_score": null,
+              "evidence_summary": [],
+              "rating_rationale": "",
+              "confidence": "low",
+              "review_required": false
+            },
+            {
+              "item_code": "somatic_anxiety",
+              "item_label": "軀體性焦慮",
+              "scale_range": "0_to_4",
+              "evidence_type": "none",
+              "direct_answer_value": null,
+              "ai_suggested_score": null,
+              "clinician_final_score": null,
+              "evidence_summary": [],
+              "rating_rationale": "",
+              "confidence": "low",
+              "review_required": false
+            },
+            {
+              "item_code": "gastrointestinal_somatic",
+              "item_label": "胃腸症狀",
+              "scale_range": "0_to_2",
+              "evidence_type": "none",
+              "direct_answer_value": null,
+              "ai_suggested_score": null,
+              "clinician_final_score": null,
+              "evidence_summary": [],
+              "rating_rationale": "",
+              "confidence": "low",
+              "review_required": false
+            },
+            {
+              "item_code": "general_somatic",
+              "item_label": "一般身體症狀",
+              "scale_range": "0_to_2",
+              "evidence_type": "none",
+              "direct_answer_value": null,
+              "ai_suggested_score": null,
+              "clinician_final_score": null,
+              "evidence_summary": [],
+              "rating_rationale": "",
+              "confidence": "low",
+              "review_required": false
+            },
+            {
+              "item_code": "genital_symptoms",
+              "item_label": "生理功能症狀",
+              "scale_range": "0_to_2",
+              "evidence_type": "none",
+              "direct_answer_value": null,
+              "ai_suggested_score": null,
+              "clinician_final_score": null,
+              "evidence_summary": [],
+              "rating_rationale": "",
+              "confidence": "low",
+              "review_required": false
+            },
+            {
+              "item_code": "hypochondriasis",
+              "item_label": "疑病傾向",
+              "scale_range": "0_to_4",
+              "evidence_type": "none",
+              "direct_answer_value": null,
+              "ai_suggested_score": null,
+              "clinician_final_score": null,
+              "evidence_summary": [],
+              "rating_rationale": "",
+              "confidence": "low",
+              "review_required": false
+            },
+            {
+              "item_code": "weight_loss",
+              "item_label": "體重下降",
+              "scale_range": "0_to_2",
+              "evidence_type": "none",
+              "direct_answer_value": null,
+              "ai_suggested_score": null,
+              "clinician_final_score": null,
+              "evidence_summary": [],
+              "rating_rationale": "",
+              "confidence": "low",
+              "review_required": false
+            },
+            {
+              "item_code": "insight",
+              "item_label": "病識感",
+              "scale_range": "0_to_2",
+              "evidence_type": "none",
+              "direct_answer_value": null,
+              "ai_suggested_score": null,
+              "clinician_final_score": null,
+              "evidence_summary": [],
+              "rating_rationale": "",
+              "confidence": "low",
+              "review_required": true
+            }
+          ],
+          "ai_total_score": 0,
+          "clinician_total_score": null,
+          "severity_band": "normal_or_remission",
+          "review_flags": [
+            "retardation",
+            "agitation",
+            "insight"
+          ],
+          "rated_by": "",
+          "reviewed_at": ""
+        },
+        "summary_draft_state": "none",
+        "clinician_summary_draft": "none",
+        "routing_mode_override": "auto",
+        "command_feedback": "none",
+        "patient_review_packet": "none",
+        "fhir_delivery_draft": "none",
+        "mission_retrieval_audit": "none",
+        "option_retrieval_audit": {
+          "retrieval_status": "empty",
+          "use_knowledge": "no",
+          "knowledge_role": "none",
+          "confidence_note": "No relevant local knowledge chunk matched this turn.",
+          "safe_usage_note": "Do not force knowledge into the answer when retrieval is empty."
+        },
+        "burden_level_state": {
+          "burden_level": "high",
+          "response_style": "option_first",
+          "followup_budget": "0",
+          "burden_note": "使用者的表達模糊且不清楚，可能感到困惑或無法明確表達需求，互動負擔高。"
+        },
+        "patient_authorization_state": "none",
+        "delivery_readiness_state": "none"
+      },
+      "revision": 1,
+      "memory_snapshot": {
+        "note_history": [],
+        "last_user_message": "?????:?????",
+        "last_assistant_message": "我能理解你現在可能感到困惑。這裡有幾個簡單的選擇，你可以告訴我你的想法：\n\n1. 想聊聊最近的感受嗎？\n2. 需要一些放鬆的建議嗎？\n3. 想要找人聽你說話嗎？",
+        "active_mode": "mode_4_option",
+        "risk_flag": "false",
+        "latest_tag_summary": "",
+        "hamd_focus": "none"
       },
       "output_cache": {}
     }
