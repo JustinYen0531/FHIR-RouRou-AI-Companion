@@ -952,6 +952,83 @@ function enrichHamdProgressState(progress, longitudinal) {
   return next;
 }
 
+function buildSummaryDraftState(state, longitudinal, message = '') {
+  const redFlags = normalizeObjectState(state, 'red_flag_payload', {});
+  const latestTags = normalizeObjectState(state, 'latest_tag_payload', {});
+  const progress = normalizeObjectState(state, 'hamd_progress_state', {});
+  const draftSummary = !isGenericDraftText(longitudinal.draftSummary)
+    ? longitudinal.draftSummary
+    : (String(message || '').trim() || '目前尚在整理這段對話的主要症狀與功能影響。');
+
+  return {
+    active_mode: state.active_mode,
+    risk_flag: state.risk_flag,
+    followup_status: state.followup_status,
+    latest_tags: latestTags,
+    red_flags: redFlags,
+    hamd_progress: progress,
+    draft_summary: draftSummary
+  };
+}
+
+function buildPatientReviewPacket(clinicianDraft) {
+  const concerns = normalizeArray(clinicianDraft.chief_concerns).slice(0, 4);
+  const followupNeeds = normalizeArray(clinicianDraft.followup_needs).slice(0, 3);
+  const confirmItems = Array.from(new Set([
+    ...concerns.map((item) => `主要困擾是否包含：${item}`),
+    ...followupNeeds.map((item) => `後續需補充：${item}`)
+  ])).slice(0, 5);
+
+  return {
+    packet_version: 'p3_patient_review_v1',
+    status: 'draft_review',
+    patient_facing_summary: clinicianDraft.draft_summary || '已依照目前對話整理出可供審閱的重點。',
+    confirm_items: confirmItems,
+    editable_items: [],
+    remove_if_wrong: [],
+    authorization_needed: 'yes',
+    authorization_prompt: '請先確認整理內容是否正確，再決定是否提供給醫師。'
+  };
+}
+
+function buildPatientAuthorizationState(clinicianDraft, patientReviewPacket) {
+  const reviewBlockers = [];
+  if (isEmptyClinicianDraft(clinicianDraft)) {
+    reviewBlockers.push('目前整理內容仍不足，尚未適合直接提供給醫師。');
+  }
+  reviewBlockers.push('病人需要確認對話內容的正確性');
+
+  return {
+    state_version: 'p3_authorization_state_v1',
+    authorization_status: 'review_required',
+    share_with_clinician: 'no',
+    review_blockers: Array.from(new Set(reviewBlockers)),
+    patient_actions: [
+      '確認整理的內容是否正確',
+      '授權醫師查看資訊'
+    ],
+    restricted_sections: [],
+    consent_note: patientReviewPacket.authorization_prompt || '請在審閱後授權我們將這些資訊提供給你的醫師。'
+  };
+}
+
+function buildDeliveryReadinessState(fhirDraft, patientAuthorizationState) {
+  const blockers = normalizeArray(patientAuthorizationState.review_blockers);
+  return {
+    state_version: 'p3_delivery_readiness_v1',
+    readiness_status: 'ready_for_backend_mapping',
+    primary_blockers: blockers.length ? blockers : ['病人尚未完成審閱或同意'],
+    next_step: '請病人審閱並確認內容後授權醫師查看資訊。',
+    provenance_requirements: [
+      '病人對話內容的確認',
+      '病人授權醫師查看資訊'
+    ],
+    handoff_note: isEmptyFhirDraft(fhirDraft)
+      ? 'FHIR 草稿仍需依對話重新整理後再送出。'
+      : '請病人確認內容後再進行下一步。'
+  };
+}
+
 function buildClinicianSummaryDraft(longitudinal, state, formalAssessment, previousDraft = {}) {
   const reviewFlags = normalizeArray(formalAssessment.review_flags);
   const explicitRiskFlags = normalizeArray(normalizeObjectState(state, 'red_flag_payload', {}).warning_tags);
@@ -988,7 +1065,7 @@ function buildClinicianSummaryDraft(longitudinal, state, formalAssessment, previ
   );
 }
 
-function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAssessment, previousDraft = {}) {
+function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAssessment) {
   const symptomObservations = normalizeArray(longitudinal?.symptomObservations).length
     ? normalizeArray(longitudinal.symptomObservations)
     : normalizeArray(clinicianDraft?.symptom_observations);
@@ -1029,14 +1106,10 @@ function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAsses
   }));
 
   const narrativeSummary = hasMeaningfulLongitudinalEvidence(longitudinal)
-    ? (longitudinal.draftSummary || summarizeConcernBundle(chiefConcerns))
-    : (
-      !isPlaceholderSection(previousDraft?.narrative_summary)
-        ? String(previousDraft.narrative_summary || '').trim()
-        : '尚待補充主要困擾'
-    );
+    ? (longitudinal.draftSummary || clinicianDraft?.draft_summary || summarizeConcernBundle(chiefConcerns))
+    : '尚待補充主要困擾';
 
-  return Object.assign({}, previousDraft && typeof previousDraft === 'object' ? previousDraft : {}, {
+  return {
     draft_version: 'p5_fhir_delivery_v3',
     delivery_status: 'pre_review_or_ready_for_mapping_orblocked',
     consent_gate: 'review_required_or_ready_for_consent_orblocked',
@@ -1047,24 +1120,24 @@ function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAsses
         section: 'chief_concerns',
         focus: chiefConcerns.length
           ? summarizeConcernBundle(chiefConcerns)
-          : (!isPlaceholderSection(previousDraft?.composition_sections?.[0]?.focus) ? previousDraft.composition_sections[0].focus : '尚待補充主要困擾')
+          : '尚待補充主要困擾'
       },
       {
         section: 'symptom_timeline',
         focus: symptomObservations.slice(0, 3).join('；')
-          || (!isPlaceholderSection(previousDraft?.composition_sections?.[1]?.focus) ? previousDraft.composition_sections[1].focus : '目前已知症狀線索仍需補足時間軸。')
+          || '目前已知症狀線索仍需補足時間軸。'
       },
       {
         section: 'functional_impact',
         focus: buildFunctionalImpactSummary(chiefConcerns)
           || longitudinal.followupNeeds[0]
-          || (!isPlaceholderSection(previousDraft?.composition_sections?.[2]?.focus) ? previousDraft.composition_sections[2].focus : '目前已知有功能受損，但仍待補足最受影響情境。')
+          || '目前已知有功能受損，但仍待補足最受影響情境。'
       },
       {
         section: 'care_goal',
         focus: hasMeaningfulLongitudinalEvidence(longitudinal)
           ? buildCareGoalSummary(longitudinal)
-          : (!isPlaceholderSection(previousDraft?.composition_sections?.[3]?.focus) ? previousDraft.composition_sections[3].focus : '尚待補充更明確的就醫目標與期待。')
+          : '尚待補充更明確的就醫目標與期待。'
       }
     ],
     observation_candidates: observationCandidates,
@@ -1074,7 +1147,7 @@ function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAsses
     patient_review_required: 'yes',
     export_blockers: normalizeArray(normalizeObjectState(state, 'patient_authorization_state', {}).review_blockers),
     notes: longitudinal.draftSummary || '本草稿已依整段對話整理主要困擾、功能受損與 HAM-D 線索，仍需病人審閱與臨床確認。'
-  });
+  };
 }
 
 function buildPatientAnalysis(state, fallbackMessage = '') {
@@ -1761,106 +1834,30 @@ class AICompanionEngine {
       normalizeObjectState(state, 'hamd_progress_state', {}),
       longitudinal
     );
-    state.summary_draft_state = await this.runJsonTask('summaryDraftBuilder', session, message, {
-      fallback: {
-        active_mode: state.active_mode,
-        risk_flag: state.risk_flag,
-        followup_status: state.followup_status,
-        latest_tags: state.latest_tag_payload,
-        red_flags: state.red_flag_payload,
-        hamd_progress: state.hamd_progress_state,
-        hamd_formal_assessment: state.hamd_formal_assessment,
-        draft_summary: message
-      }
-    });
-    const existingSummaryDraft = state.summary_draft_state && typeof state.summary_draft_state === 'object'
-      ? state.summary_draft_state
-      : {};
-    const summaryDraftText = !isGenericDraftText(longitudinal.draftSummary)
-      ? longitudinal.draftSummary
-      : (!isGenericDraftText(existingSummaryDraft.draft_summary) ? existingSummaryDraft.draft_summary : message);
-    state.summary_draft_state = Object.assign({}, state.summary_draft_state, {
-      active_mode: state.active_mode,
-      risk_flag: state.risk_flag,
-      followup_status: state.followup_status,
-      latest_tags: state.latest_tag_payload,
-      red_flags: state.red_flag_payload,
-      hamd_progress: state.hamd_progress_state,
-      draft_summary: summaryDraftText
-    });
+    state.summary_draft_state = buildSummaryDraftState(state, longitudinal, message);
     const formalAssessment = hydrateFormalAssessment(state.hamd_formal_assessment);
-    const modelClinicianDraft = await this.runJsonTask('clinicianSummaryBuilder', session, message, {
-      fallback: {
-        summary_version: 'p1_clinician_draft_v1',
-        active_mode: state.active_mode,
-        risk_level: state.risk_flag === 'true' ? 'high' : 'watch',
-        chief_concerns: [message],
-        symptom_observations: normalizeArray(normalizeObjectState(state, 'hamd_progress_state', {}).recent_evidence),
-        hamd_signals: normalizeArray(normalizeObjectState(state, 'hamd_progress_state', {}).covered_dimensions),
-        ...buildFormalClinicianFields(formalAssessment),
-        followup_needs: [],
-        safety_flags: normalizeArray(normalizeObjectState(state, 'red_flag_payload', {}).warning_tags),
-        patient_tone: 'unknown',
-        draft_summary: typeof state.summary_draft_state === 'object' ? state.summary_draft_state.draft_summary || message : message
-      }
-    });
     state.clinician_summary_draft = buildClinicianSummaryDraft(
       longitudinal,
       state,
       formalAssessment,
-      modelClinicianDraft
+      normalizeObjectState(state, 'clinician_summary_draft', {})
     );
-    state.patient_review_packet = await this.runJsonTask('patientReviewBuilder', session, message, {
-      fallback: {
-        packet_version: 'p3_patient_review_v1',
-        status: 'draft_review',
-        patient_facing_summary: typeof state.clinician_summary_draft === 'object' ? state.clinician_summary_draft.draft_summary || message : message,
-        confirm_items: [],
-        editable_items: [],
-        remove_if_wrong: [],
-        authorization_needed: 'yes',
-        authorization_prompt: '若你願意，我可以把這份整理提供給臨床團隊。'
-      }
-    });
+    state.patient_review_packet = buildPatientReviewPacket(state.clinician_summary_draft);
     state.patient_analysis = buildPatientAnalysis(state, message);
-    state.patient_authorization_state = await this.runJsonTask('patientAuthorizationBuilder', session, message, {
-      fallback: {
-        state_version: 'p3_authorization_state_v1',
-        authorization_status: 'ready_for_consent',
-        share_with_clinician: 'yes',
-        review_blockers: [],
-        patient_actions: [],
-        restricted_sections: [],
-        consent_note: 'Fallback authorization state.'
-      }
-    });
-    const modelFhirDraft = await this.runJsonTask('fhirDeliveryBuilder', session, message, {
-      fallback: {
-        draft_version: 'p3_fhir_delivery_v1',
-        delivery_status: 'ready_for_mapping',
-        consent_gate: 'ready_for_consent',
-        resources: [],
-        hamd_formal_targets: buildFormalFhirTargets(formalAssessment),
-        narrative_summary: typeof state.clinician_summary_draft === 'object' ? state.clinician_summary_draft.draft_summary || message : message
-      }
-    });
+    state.patient_authorization_state = buildPatientAuthorizationState(
+      state.clinician_summary_draft,
+      state.patient_review_packet
+    );
     state.fhir_delivery_draft = buildFhirDeliveryDraft(
       state.clinician_summary_draft,
       longitudinal,
       state,
-      formalAssessment,
-      modelFhirDraft
+      formalAssessment
     );
-    state.delivery_readiness_state = await this.runJsonTask('deliveryReadinessBuilder', session, message, {
-      fallback: {
-        state_version: 'p3_delivery_readiness_v1',
-        readiness_status: 'ready_for_backend_mapping',
-        primary_blockers: [],
-        next_step: 'Send to backend mapping',
-        provenance_requirements: [],
-        handoff_note: 'Fallback delivery readiness state.'
-      }
-    });
+    state.delivery_readiness_state = buildDeliveryReadinessState(
+      state.fhir_delivery_draft,
+      state.patient_authorization_state
+    );
   }
 
   async ensureStructuredOutputs(session, instruction = '', options = {}) {
