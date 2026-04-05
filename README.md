@@ -2,169 +2,196 @@
 
 ## 專案簡介
 
-AI Companion 是一套以心理健康診前整理為核心的 AI 陪伴系統。病人可先透過自然語言描述近期情緒、睡眠、壓力與功能影響，系統再將對話內容整理成醫師摘要、病人審閱稿，以及符合 FHIR / TW Core 導向的結構化資料，作為臨床閱讀與後續交換的基礎。
+AI Companion 是一套以心理健康診前整理為核心的 AI 陪伴系統。  
+使用者可以先透過自然語言描述近期情緒、睡眠、壓力、功能影響與生活困擾，系統再把對話內容整理成：
 
-本專案聚焦的不是「讓 AI 直接診斷」，而是降低病人表達門檻、提升醫療端閱讀效率，並把對話資料轉換成可驗證、可交換的標準格式。
+- 醫師摘要
+- 病人審閱稿
+- FHIR Draft / FHIR Bundle
+- 治療性記憶與個人化理解
+
+本專案的目標不是讓 AI 直接做醫療診斷，而是降低病人的表達門檻，提升醫療端閱讀效率，並把對話資料轉換成可驗證、可交換的標準格式。
+
+## 直接使用
+
+如果你只是想直接體驗，不需要先下載專案。
+
+- 線上 Demo：[https://fhir-rho.vercel.app](https://fhir-rho.vercel.app)
+- YouTube 介紹影片：[https://youtu.be/xgSwaATVUeA](https://youtu.be/xgSwaATVUeA)
+
+建議使用方式：
+
+1. 想直接操作系統：打開線上 Demo
+2. 想先快速理解功能：先看 YouTube 介紹影片
+3. 想看程式與技術細節：再下載本 repository
+
+## 系統亮點
+
+- AI 陪伴式對話，可先接住情緒，再逐步整理重要資訊
+- 支援多種互動模式，例如樹洞模式、靈魂陪伴、任務引導、選項引導與自動分流
+- 內建治療性記憶，會逐步記住壓力來源、觸發點、正向錨點與溝通偏好
+- 支援醫師摘要、病人審閱稿、FHIR Draft 按需輸出
+- 支援病人授權後再送出，不是對話一結束就自動上傳
+- 可將整理結果映射成 FHIR / TW Core 導向結構
+- 已支援 OpenRouter / Google Gemini / Groq 等模型來源
+- 目前預設模型與連線設定已整理好，線上版可直接使用，不需要使用者自行填 API key
+
+## 目前推薦的使用方式
+
+### 方式一：直接使用線上版
+
+適合評審、老師、一般體驗者。
+
+- 入口：[https://fhir-rho.vercel.app](https://fhir-rho.vercel.app)
+- 不需要下載專案
+- 不需要自行設定 API key
+- 可直接體驗聊天、記憶、報表與 FHIR 相關流程
+
+### 方式二：先看影片理解系統
+
+適合想先快速掌握整體概念的人。
+
+- 影片：[https://youtu.be/xgSwaATVUeA](https://youtu.be/xgSwaATVUeA)
+- 可先了解系統定位、互動流程、臨床整理邏輯與展示方式
+
+### 方式三：本機啟動開發版
+
+適合要讀程式、改功能、做本地測試的人。
 
 ## 競賽資訊
 
 - 隊伍名稱：星澄遠征軍
 - 作品名稱：AI Companion
 - 主題領域：醫療資訊 / 心理健康
-- 使用者角色：病人、醫師、護理師、個管師、心理師、系統管理者
-- 核心 FHIR Resources：Patient、Encounter、Practitioner、Observation、QuestionnaireResponse、Composition、DocumentReference、Provenance
+- 主要使用情境：病人看診前整理、醫療端閱讀、FHIR 結構化交付
+- 核心 FHIR Resources：Patient、Encounter、Observation、QuestionnaireResponse、Composition、DocumentReference、Provenance
 
-## Demo 入口
-
-- Web Demo：啟動本地伺服器後開啟 `http://localhost:8787/`
-- FHIR API：`http://localhost:8787/api/fhir/bundle`
-- 健康檢查：`http://localhost:8787/health`
-- 帳密：目前無固定示範帳密；可直接以本機啟動方式操作
-
-Demo 操作建議：
-
-1. 啟動 `node app\fhirDeliveryServer.js`
-2. 開啟 `http://localhost:8787/`
-3. 在聊天畫面輸入情緒或睡眠困擾內容
-4. 透過按鈕或文字指令產生 `整理給醫師`、`病人審閱稿`、`FHIR Draft`
-
-## 如何執行
+## 本機執行方式
 
 ### 1. 環境需求
 
 - Node.js 18 以上
 - Windows PowerShell 或其他可執行 Node.js 的終端機
-- 若要啟用 AI 對話模型，需準備 Google Gemini 或 Groq API Key
 
-### 2. 啟動本地 Demo
+### 2. 啟動本地伺服器
 
 ```powershell
 node app\fhirDeliveryServer.js
 ```
 
-啟動後可直接使用：
+啟動後可開啟：
 
-- `http://localhost:8787/`
-- `http://localhost:8787/health`
+- [http://localhost:8787/](http://localhost:8787/)
+- [http://localhost:8787/health](http://localhost:8787/health)
 
-若未另外指定，FHIR 交付會預設送往公開測試站：
+FHIR 預設測試目標：
 
-- `https://hapi.fhir.org/baseR4`
+- [https://hapi.fhir.org/baseR4](https://hapi.fhir.org/baseR4)
 
-### 3. 啟用 AI 對話模型
+### 3. AI 模型設定
 
-建議做法是先在專案根目錄建立 `\.env.local`，伺服器啟動時會自動讀取。
+目前專案支援：
 
-1. 複製範例檔：
+- OpenRouter
+- Google Gemini
+- Groq
+
+如果你要在本機自行指定模型，可使用 `.env.local`。
+
+先複製：
 
 ```powershell
 Copy-Item .env.example .env.local
 ```
 
-2. 編輯 `\.env.local`，填入你的 API Key。
+再依需求填入。
 
-Groq `\.env.local` 範例：
+OpenRouter 範例：
 
-```powershell
-LLM_PROVIDER=groq
-GROQ_API_BASE_URL=https://api.groq.com/openai/v1
-GROQ_API_KEY=YOUR_GROQ_API_KEY
-```
-
-OpenRouter `\.env.local` 範例：
-
-```powershell
+```env
 LLM_PROVIDER=openrouter
 OPENROUTER_API_BASE_URL=https://openrouter.ai/api/v1
 OPENROUTER_API_KEY=YOUR_OPENROUTER_API_KEY
 LLM_MODEL=openai/gpt-4o-mini
 ```
 
-Google Gemini `\.env.local` 範例：
+Google Gemini 範例：
 
-```powershell
+```env
 LLM_PROVIDER=google
 GOOGLE_API_BASE_URL=https://generativelanguage.googleapis.com/v1beta
 GOOGLE_API_KEY=YOUR_GOOGLE_API_KEY
 ```
 
-3. 啟動伺服器：
+Groq 範例：
 
-```powershell
-node app\fhirDeliveryServer.js
+```env
+LLM_PROVIDER=groq
+GROQ_API_BASE_URL=https://api.groq.com/openai/v1
+GROQ_API_KEY=YOUR_GROQ_API_KEY
 ```
 
-若同時存在系統環境變數與 `\.env.local`，系統會優先使用已存在的系統環境變數。
+說明：
 
-Google Gemini：
+- `.env.local` 不會被提交到 git
+- 若未另外覆蓋，本地會讀取你目前的預設設定
+- 線上展示版不需要使用者自己填 API key
 
-```powershell
-$env:LLM_PROVIDER="google"
-$env:GOOGLE_API_KEY="YOUR_GOOGLE_API_KEY"
-node app\fhirDeliveryServer.js
-```
+## 主要功能
 
-Groq：
+### 1. AI 陪伴對話
 
-```powershell
-$env:LLM_PROVIDER="groq"
-$env:GROQ_API_BASE_URL="https://api.groq.com/openai/v1"
-$env:GROQ_API_KEY="YOUR_GROQ_API_KEY"
-node app\fhirDeliveryServer.js
-```
+- 接住病人的自然語言輸入
+- 根據內容切換互動模式
+- 可處理情緒困擾、壓力、睡眠、功能影響等主題
 
-若未提供 API Key，系統仍可啟動本地介面與 FHIR 交付層，但 AI 對話功能需由前端設定或補上金鑰後才能完整使用。
+### 2. 治療性記憶
 
-### 4. 指定 FHIR 上傳目標
+- 累積壓力來源
+- 累積情緒觸發點
+- 記住正向錨點與偏好
+- 記住溝通風格
 
-若要改送其他 FHIR Server，可在啟動前指定：
+### 3. 按需輸出
 
-```powershell
-$env:FHIR_SERVER_URL="https://hapi.fhir.org/baseR4"
-node app\fhirDeliveryServer.js
-```
+- 整理給醫師
+- 病人審閱稿
+- FHIR Draft
+- 交付前檢查與授權流程
 
-若未設定 `FHIR_SERVER_URL`，Demo 會自動使用上面的 HAPI 測試站。
+### 4. FHIR / TW Core 導向整合
 
-### 5. 建立與驗證 FHIR Bundle
+- 將對話內容映射為結構化資料
+- 提供後續交付與互通的實作基礎
+- 支援 HAPI FHIR 測試環境驗證
 
-執行 Bundle Builder 測試：
+## 專案結構
 
-```powershell
-node app\fhirBundleBuilder.test.js
-```
+- [app](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app)：前端、Node 伺服器、FHIR 與 AI 引擎主程式
+- [重要實作文件](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/重要實作文件)：目前主要說明文件與測試紀錄
+- [廢棄之Dify聊天流](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/廢棄之Dify聊天流)：舊版 Dify chatflow 匯出檔，作為歷史資料保留
+- [flowise](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/flowise)：過往 Flowise 相關資產與轉換資料
+- [tools](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/tools)：開發用工具腳本
 
-以範例資料產生 Bundle：
+## 重要文件
 
-```powershell
-node app\buildBundleDemo.js
-```
+目前建議優先看這些：
 
-啟動 FHIR Delivery API 測試：
+- [競賽實作內容說明](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/重要實作文件/競賽實作內容說明.md)
+- [AI陪伴系統_產品需求文件](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/重要實作文件/AI陪伴系統_產品需求文件.md)
+- [AI陪伴系統_白話流程說明](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/重要實作文件/AI陪伴系統_白話流程說明.md)
+- [AI陪伴系統_Node引擎說明](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/重要實作文件/AI陪伴系統_Node引擎說明.md)
+- [AI陪伴系統_FHIR技術摘要](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/重要實作文件/AI陪伴系統_FHIR技術摘要.md)
+- [AI陪伴系統_HAM-D正式評分升級計畫](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/重要實作文件/AI陪伴系統_HAM-D正式評分升級計畫.md)
+- [AI陪伴系統_測試檢查清單](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/重要實作文件/AI陪伴系統_測試檢查清單.md)
+- [AI陪伴系統_專案大事記](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/重要實作文件/AI陪伴系統_專案大事記.md)
 
-```powershell
-node app\fhirDeliveryServer.test.js
-```
+## 補充說明
 
-## 系統亮點
+- 本專案目前主線以 `master` 為主
+- `main` 保留為較早期的另一條演進分支，不是目前主要展示內容
+- 若你看到 README、舊 chatflow、舊資料夾名稱不完全一致，請以 `app` 與 `重要實作文件` 內目前內容為準
 
-- AI 陪伴式對話，協助病人在看診前逐步整理情緒與症狀
-- 支援醫師摘要、病人審閱稿、FHIR Draft 按需輸出
-- 對話資料可映射為 FHIR Bundle，具備與 TW Core 導向整合的實作基礎
-- 內含 HAM-D 線索追蹤、風險標籤整理與交付前檢查流程
+## License / 使用說明
 
-## 主要檔案位置
-
-- 前端與本地伺服器：`app\index.html`、`app\fhirDeliveryServer.js`
-- FHIR Bundle Builder：`app\fhirBundleBuilder.js`
-- 範例輸入：`app\sampleSessionExport.json`
-- 範例輸出：`app\sampleBundleOutput.json`
-- 競賽說明文件：`docs\競賽實作內容說明.md`
-
-## 相關文件
-
-- `docs\競賽實作內容說明.md`
-- `docs\AI陪伴系統_產品需求文件.md`
-- `docs\AI陪伴系統_白話流程說明.md`
-- `docs\AI陪伴系統_FHIR技術摘要.md`
-- `docs\AI陪伴系統_測試檢查清單.md`
+本 repository 主要作為競賽展示、技術驗證與開發紀錄使用。若需進一步引用或延伸使用，建議先聯絡作者確認。
