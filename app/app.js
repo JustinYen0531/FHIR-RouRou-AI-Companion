@@ -3445,8 +3445,7 @@ async function extractProfileFromConversation() {
         api_provider: config.provider,
         api_key: config.apiKey,
         api_base_url: config.apiBaseUrl,
-        api_model: config.model,
-        hide_response: true
+        api_model: config.model
       })
     });
 
