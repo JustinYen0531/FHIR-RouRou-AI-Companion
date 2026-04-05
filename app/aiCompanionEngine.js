@@ -648,6 +648,16 @@ function formatTranscriptEntry(item) {
   return `${role}：${content}`;
 }
 
+function isDraftRelevantInstruction(message) {
+  const text = String(message || '').trim();
+  if (!text) return false;
+  const normalized = text.toLowerCase().replace(/^\//, '');
+  if (Object.prototype.hasOwnProperty.call(COMMAND_MAP, normalized)) {
+    return false;
+  }
+  return !OUTPUT_COMMAND_PATTERNS.some((item) => item.patterns.some((pattern) => pattern.test(text)));
+}
+
 function buildPatientAnalysis(state, fallbackMessage = '') {
   const clinician = normalizeObjectState(state, 'clinician_summary_draft', {});
   const patientReview = normalizeObjectState(state, 'patient_review_packet', {});
@@ -1413,8 +1423,9 @@ class AICompanionEngine {
     if (session.structured_revision === session.revision) {
       return;
     }
+    const normalizedInstruction = String(instruction || '').trim();
     const triggerMessage =
-      String(instruction || '').trim() ||
+      (isDraftRelevantInstruction(normalizedInstruction) ? normalizedInstruction : '') ||
       session.memory_snapshot.last_user_message ||
       session.history.slice().reverse().find((item) => item.role === 'user' && isDraftRelevantHistoryItem(item))?.content ||
       '';
