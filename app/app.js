@@ -362,6 +362,7 @@ const APP_STATE = {
   selectedMoodTags: [],
   phq9Scores: Array(9).fill(0),
   chatHistory: [],
+  pendingFreshSession: false,
   lastChatMetadata: null,
   customShortcuts: loadCustomShortcuts(),
   reportOutputs: {
@@ -2634,6 +2635,7 @@ function formatModeLabel(value) {
 
 function resetConversationState() {
   APP_STATE.conversationId = '';
+  APP_STATE.pendingFreshSession = false;
   APP_STATE.syncedMode = '';
   APP_STATE.runtimeMode = '';
   APP_STATE.lastChatMetadata = null;
@@ -2657,6 +2659,20 @@ function resetConversationState() {
     error: '',
     emptyReason: ''
   };
+}
+
+function buildConversationRequestState() {
+  return {
+    conversation_id: APP_STATE.conversationId,
+    force_new_session: Boolean(!APP_STATE.conversationId && APP_STATE.pendingFreshSession)
+  };
+}
+
+function finalizeConversationRequest(payload = {}) {
+  APP_STATE.conversationId = payload.conversation_id || APP_STATE.conversationId;
+  if (APP_STATE.conversationId) {
+    APP_STATE.pendingFreshSession = false;
+  }
 }
 
 function normalizeFhirDraftPayload(payload) {
@@ -2916,6 +2932,7 @@ async function continueSpecificSession(sessionId) {
 
 function startNewConversation() {
   resetConversationState();
+  APP_STATE.pendingFreshSession = true;
   showScreen('screen-chat');
   appendSystemNotice('已開始新的對話。這次不會接續之前的會話。');
 }
@@ -3545,11 +3562,13 @@ function initializeRuntimeConfig() {
 async function fetchOutputPayload(outputType, instructionOverride = '') {
   await ensureModeSynced();
   const config = getRuntimeConfig();
+  const conversationState = buildConversationRequestState();
   const response = await fetch('/api/chat/output', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      conversation_id: APP_STATE.conversationId,
+      conversation_id: conversationState.conversation_id,
+      force_new_session: conversationState.force_new_session,
       user: config.userId,
       output_type: outputType,
       instruction: instructionOverride || (OUTPUT_DEFINITIONS[outputType]?.instruction || outputType),
@@ -3560,7 +3579,7 @@ async function fetchOutputPayload(outputType, instructionOverride = '') {
   if (!response.ok) {
     throw new Error(formatChatError(payload));
   }
-  APP_STATE.conversationId = payload.conversation_id || APP_STATE.conversationId;
+  finalizeConversationRequest(payload);
   APP_STATE.lastChatMetadata = payload.metadata || APP_STATE.lastChatMetadata;
   return payload;
 }
@@ -3572,12 +3591,14 @@ async function ensureModeSynced() {
   }
 
   const config = getRuntimeConfig();
+  const conversationState = buildConversationRequestState();
   const response = await fetch('/api/chat/message', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message: mode.command,
-        conversation_id: APP_STATE.conversationId,
+        conversation_id: conversationState.conversation_id,
+        force_new_session: conversationState.force_new_session,
         user: config.userId,
         ...buildRuntimeRequestConfig(config),
         hide_response: true
@@ -3589,7 +3610,7 @@ async function ensureModeSynced() {
     throw new Error(payload.error || '模式同步失敗');
   }
 
-  APP_STATE.conversationId = payload.conversation_id || APP_STATE.conversationId;
+  finalizeConversationRequest(payload);
   APP_STATE.syncedMode = mode.command;
   APP_STATE.runtimeMode = payload.metadata?.active_mode || APP_STATE.runtimeMode;
   updateModeLabels();
@@ -3636,6 +3657,7 @@ async function sendMessage() {
 
     setThinkingState(true, '正在生成暖心回覆...');
     const config = getRuntimeConfig();
+    const conversationState = buildConversationRequestState();
     const userPromptContext = buildUserPromptContextString();
     const memoryContext = TherapeuticMemory.buildContextString();
     const contextParts = [userPromptContext, memoryContext].filter(Boolean);
@@ -3645,7 +3667,8 @@ async function sendMessage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message: messageWithMemory,
-        conversation_id: APP_STATE.conversationId,
+        conversation_id: conversationState.conversation_id,
+        force_new_session: conversationState.force_new_session,
         user: config.userId,
         ...buildRuntimeRequestConfig(config)
       })
@@ -3656,7 +3679,7 @@ async function sendMessage() {
       throw new Error(formatChatError(payload));
     }
 
-    APP_STATE.conversationId = payload.conversation_id || APP_STATE.conversationId;
+    finalizeConversationRequest(payload);
     APP_STATE.lastChatMetadata = payload.metadata || null;
     APP_STATE.reportOutputs.session_export = payload.session_export || APP_STATE.reportOutputs.session_export;
     APP_STATE.runtimeMode = payload.metadata?.active_mode || APP_STATE.runtimeMode;
@@ -3684,6 +3707,7 @@ async function sendMessage() {
 async function extractProfileFromConversation() {
   try {
     const config = getRuntimeConfig();
+    const conversationState = buildConversationRequestState();
     const extractPrompt = `請分析我們的對話，幫我萃取以下格式的 JSON，只回傳 JSON 不要其他文字：
 {
   "stressors": ["壓力來源1", "壓力來源2"],
@@ -3699,7 +3723,8 @@ async function extractProfileFromConversation() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message: extractPrompt,
-        conversation_id: APP_STATE.conversationId,
+        conversation_id: conversationState.conversation_id,
+        force_new_session: conversationState.force_new_session,
         user: config.userId,
         ...buildRuntimeRequestConfig(config)
       })
@@ -3707,6 +3732,7 @@ async function extractProfileFromConversation() {
 
     if (!response.ok) return;
     const payload = await response.json();
+    finalizeConversationRequest(payload);
     const answer = payload.answer || '';
 
     // 嘗試解析 JSON（可能包在 MD fence 裡）

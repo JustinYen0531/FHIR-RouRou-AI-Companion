@@ -359,7 +359,8 @@ async function processChatPayload(payload, options = {}) {
         message,
         inputs: payload.inputs || {},
         user,
-        conversation_id: payload.conversation_id || ''
+        conversation_id: payload.conversation_id || '',
+        force_new_session: Boolean(payload.force_new_session)
       }
     );
 
@@ -433,6 +434,7 @@ async function processOutputPayload(payload, options = {}) {
     });
     const result = await engine.generateOutput({
       conversation_id: payload.conversation_id || '',
+      force_new_session: Boolean(payload.force_new_session),
       user,
       output_type: outputType,
       instruction: payload.instruction || ''

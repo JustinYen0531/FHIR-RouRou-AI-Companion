@@ -110,6 +110,39 @@ async function testChatProxyDelivery() {
   assert.ok(result.body.session_export);
 }
 
+async function testChatProxyPassesForceNewSessionFlag() {
+  const fakeEngine = {
+    handleMessage: async (payload) => {
+      assert.strictEqual(payload.force_new_session, true);
+      return {
+        conversation_id: 'conv-new',
+        answer: '新的對話已建立。',
+        message_id: 'msg-new',
+        metadata: {
+          route: 'Natural',
+          active_mode: 'mode_5_natural',
+          risk_flag: 'false',
+          latest_tag_payload: {},
+          burden_level_state: {}
+        },
+        session_export: getSamplePayload()
+      };
+    }
+  };
+
+  const result = await processChatPayload(
+    {
+      message: '重新開始',
+      user: 'demo-user',
+      force_new_session: true
+    },
+    { engine: fakeEngine }
+  );
+
+  assert.strictEqual(result.statusCode, 200);
+  assert.strictEqual(result.body.conversation_id, 'conv-new');
+}
+
 async function testChatProxyMissingApiKey() {
   const result = await processChatPayload({ message: 'hello', user: 'demo-user' }, {});
   assert.strictEqual(result.statusCode, 500);
@@ -249,6 +282,7 @@ async function run() {
   await testTransactionDelivery();
   await testPublicHapiDeliveryUsesUniqueKeys();
   await testChatProxyDelivery();
+  await testChatProxyPassesForceNewSessionFlag();
   await testChatProxyMissingApiKey();
   await testOutputProxyDelivery();
   await testSessionListEndpoint();

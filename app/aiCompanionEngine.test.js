@@ -204,6 +204,18 @@ async function testReuseLatestSessionByUserWhenConversationIdMissing() {
   assert.strictEqual(engine.sessions.size, 1);
 }
 
+async function testForceNewSessionCreatesSeparateConversation() {
+  const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
+  const first = await engine.handleMessage({ message: '最近很累', user: 'demo-user' });
+  const second = await engine.handleMessage({
+    message: '想重新開始聊',
+    user: 'demo-user',
+    force_new_session: true
+  });
+  assert.notStrictEqual(first.conversation_id, second.conversation_id);
+  assert.strictEqual(engine.sessions.size, 2);
+}
+
 async function testSessionPersistenceRoundTrip() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-companion-'));
   const storePath = path.join(tmpDir, 'sessions.json');
@@ -241,6 +253,7 @@ async function run() {
   await testNaturalFlowBuildsSessionExport();
   await testOutputCommandBuildsStructuredDrafts();
   await testReuseLatestSessionByUserWhenConversationIdMissing();
+  await testForceNewSessionCreatesSeparateConversation();
   await testSessionPersistenceRoundTrip();
   console.log('AI companion engine tests passed.');
 }

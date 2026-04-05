@@ -722,8 +722,9 @@ class AICompanionEngine {
     }
   }
 
-  getOrCreateSession(id, user) {
-    const sessionId = id || this.findLatestSessionIdByUser(user) || `conv-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+  getOrCreateSession(id, user, options = {}) {
+    const forceNewSession = Boolean(options.forceNewSession);
+    const sessionId = id || (!forceNewSession && this.findLatestSessionIdByUser(user)) || `conv-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
     if (!this.sessions.has(sessionId)) {
       this.sessions.set(sessionId, {
         id: sessionId,
@@ -754,7 +755,9 @@ class AICompanionEngine {
   }
 
   async handleMessage(payload, options = {}) {
-    const session = this.getOrCreateSession(payload.conversation_id, payload.user);
+    const session = this.getOrCreateSession(payload.conversation_id, payload.user, {
+      forceNewSession: payload.force_new_session
+    });
     const state = session.state;
     const message = String(payload.message || '').trim();
     if (!message) {
@@ -1270,7 +1273,9 @@ class AICompanionEngine {
   }
 
   async generateOutput(payload) {
-    const session = this.getOrCreateSession(payload.conversation_id, payload.user);
+    const session = this.getOrCreateSession(payload.conversation_id, payload.user, {
+      forceNewSession: payload.force_new_session
+    });
     const outputType = String(payload.output_type || '').trim();
     const instruction = String(payload.instruction || '').trim();
     const cacheKey = outputType;
