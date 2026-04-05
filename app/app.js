@@ -96,21 +96,22 @@ const TherapeuticMemory = {
 
   get() {
     try {
-      return JSON.parse(localStorage.getItem(this.KEY)) || this._default();
+      return this._normalize(JSON.parse(localStorage.getItem(this.KEY)));
     } catch {
       return this._default();
     }
   },
 
   save(profile) {
-    profile.lastUpdatedAt = new Date().toISOString();
-    localStorage.setItem(this.KEY, JSON.stringify(profile));
+    const nextProfile = this._normalize(profile);
+    nextProfile.lastUpdatedAt = new Date().toISOString();
+    localStorage.setItem(this.KEY, JSON.stringify(nextProfile));
     this.renderProfileUI();
-    this.scheduleSessionSync(profile);
+    this.scheduleSessionSync(nextProfile);
   },
 
   replace(profile, options = {}) {
-    const nextProfile = profile && typeof profile === 'object' ? profile : this._default();
+    const nextProfile = this._normalize(profile);
     localStorage.setItem(this.KEY, JSON.stringify(nextProfile));
     this.renderProfileUI();
     if (!options.skipSessionSync) {
@@ -379,6 +380,45 @@ const TherapeuticMemory = {
       emotionalBaseline: { dominantMood: '', phq9Trend: [], hamdSignalCount: 0 },
       keyThemes: [],
       clinicianNotes: ''
+    };
+  },
+
+  _normalize(profile) {
+    const fallback = this._default();
+    const source = profile && typeof profile === 'object' ? profile : {};
+    const copingProfile = source.copingProfile && typeof source.copingProfile === 'object'
+      ? source.copingProfile
+      : {};
+    const emotionalBaseline = source.emotionalBaseline && typeof source.emotionalBaseline === 'object'
+      ? source.emotionalBaseline
+      : {};
+
+    return {
+      ...fallback,
+      ...source,
+      userId: typeof source.userId === 'string' && source.userId.trim()
+        ? source.userId.trim()
+        : fallback.userId,
+      sessionCount: Number.isFinite(Number(source.sessionCount))
+        ? Math.max(0, Number(source.sessionCount))
+        : 0,
+      stressors: Array.isArray(source.stressors) ? source.stressors.filter(Boolean) : [],
+      triggers: Array.isArray(source.triggers) ? source.triggers.filter(Boolean) : [],
+      positiveAnchors: Array.isArray(source.positiveAnchors) ? source.positiveAnchors.filter(Boolean) : [],
+      keyThemes: Array.isArray(source.keyThemes) ? source.keyThemes.filter((item) => typeof item === 'string' && item.trim()) : [],
+      copingProfile: {
+        preferredStyle: typeof copingProfile.preferredStyle === 'string' ? copingProfile.preferredStyle : '',
+        effectiveMethods: Array.isArray(copingProfile.effectiveMethods) ? copingProfile.effectiveMethods.filter(Boolean) : [],
+        ineffectiveMethods: Array.isArray(copingProfile.ineffectiveMethods) ? copingProfile.ineffectiveMethods.filter(Boolean) : []
+      },
+      emotionalBaseline: {
+        dominantMood: typeof emotionalBaseline.dominantMood === 'string' ? emotionalBaseline.dominantMood : '',
+        phq9Trend: Array.isArray(emotionalBaseline.phq9Trend) ? emotionalBaseline.phq9Trend.filter(Boolean) : [],
+        hamdSignalCount: Number.isFinite(Number(emotionalBaseline.hamdSignalCount))
+          ? Math.max(0, Number(emotionalBaseline.hamdSignalCount))
+          : 0
+      },
+      clinicianNotes: typeof source.clinicianNotes === 'string' ? source.clinicianNotes : ''
     };
   }
 };
@@ -3759,6 +3799,7 @@ async function sendMessage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message: messageWithMemory,
+        raw_message: message,
         conversation_id: conversationState.conversation_id,
         force_new_session: conversationState.force_new_session,
         therapeutic_profile: conversationState.therapeutic_profile,
@@ -3816,6 +3857,8 @@ async function extractProfileFromConversation() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message: extractPrompt,
+        raw_message: '',
+        hide_response: true,
         conversation_id: conversationState.conversation_id,
         force_new_session: conversationState.force_new_session,
         therapeutic_profile: conversationState.therapeutic_profile,
