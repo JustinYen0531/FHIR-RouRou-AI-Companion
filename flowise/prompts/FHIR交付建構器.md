@@ -41,6 +41,8 @@
 6. 若病人審閱或授權尚未完成，不可把 delivery_status 寫成 ready_for_mapping。
 7. export_blockers 要明確指出授權、內容修正、欄位不足等阻塞因素。
 8. notes 說明這仍是交付前 draft，不是最終正式醫療文件。
+9. composition_sections、observation_candidates 與 questionnaire_targets 應根據整段對話整合，不要只反映最後一句。
+10. 請避免把逐字原句整段貼入；優先轉成可交付、可讀的整理句。
 clinician_summary_draft：{{#conversation.clinician_summary_draft#}}
 patient_review_packet：{{#conversation.patient_review_packet#}}
 patient_authorization_state：{{#conversation.patient_authorization_state#}}
