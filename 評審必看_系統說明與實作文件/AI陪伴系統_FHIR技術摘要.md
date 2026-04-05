@@ -4,11 +4,11 @@
 
 本專案的主題是：
 
-**以 AI Companion 對話系統協助心理健康診前整理，並將整理後的資料轉換為 FHIR / TW Core 導向的結構化資訊。**
+**以 AI Companion 對話系統協助憂鬱症病患的診前整理，並將整理後的資料轉換為 FHIR / TW Core 導向的結構化資訊。**
 
 應用情境如下：
 
-- 病人在看診前，先與 AI Companion 對話描述近期情緒、睡眠、壓力與功能影響
+- 憂鬱症病人在看診前，先與 AI Companion 對話描述近期情緒、睡眠、壓力與功能影響
 - 系統將對話內容整理成醫師摘要、病人審閱稿與 FHIR Draft
 - FHIR Draft 可再被組裝為 Bundle，供後續交付或與 FHIR Server 串接
 

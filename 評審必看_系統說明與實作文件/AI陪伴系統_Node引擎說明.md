@@ -1,6 +1,7 @@
 # AI Companion Node Engine
 
 ## Summary
+- 這套引擎目前的產品焦點，是支援**憂鬱症病患**在回診前進行情緒整理、HAM-D 線索蒐集與 FHIR 草稿生成。
 - 主聊天流程不再依賴 Dify 或 Flowise。
 - 現在由 Node server 直接管理：
   - session state
