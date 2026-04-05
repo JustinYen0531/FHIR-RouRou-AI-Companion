@@ -1,0 +1,47 @@
+const { buildServerOptions, getSharedPersistence } = require('../_options');
+const { handleCors, sendJson } = require('../_shared');
+
+module.exports = function handler(req, res) {
+  if (handleCors(req, res)) {
+    return;
+  }
+
+  if (req.method !== 'GET') {
+    sendJson(res, 405, { error: 'Method not allowed' });
+    return;
+  }
+
+  const url = new URL(req.url, 'https://placeholder.local');
+  const sessionId = String(url.searchParams.get('id') || '').trim();
+  if (!sessionId) {
+    sendJson(res, 400, { error: 'Session id is required.' });
+    return;
+  }
+
+  const persistence = getSharedPersistence();
+  buildServerOptions();
+  const session = persistence.sessions.get(sessionId);
+  if (!session) {
+    sendJson(res, 404, { error: 'Session not found.' });
+    return;
+  }
+
+  sendJson(res, 200, {
+    ok: true,
+    session: {
+      id: session.id,
+      user: session.user || 'web-demo-user',
+      startedAt: session.startedAt || '',
+      updatedAt: session.updatedAt || '',
+      history: Array.isArray(session.history) ? session.history : [],
+      state: session.state && typeof session.state === 'object' ? session.state : {},
+      revision: Number.isFinite(Number(session.revision)) ? Number(session.revision) : 0,
+      memory_snapshot: session.memory_snapshot && typeof session.memory_snapshot === 'object'
+        ? session.memory_snapshot
+        : {},
+      output_cache: session.output_cache && typeof session.output_cache === 'object'
+        ? session.output_cache
+        : {}
+    }
+  });
+};
