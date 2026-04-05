@@ -10,7 +10,8 @@ const DEFAULT_GOOGLE_MODEL = 'gemini-2.0-flash';
 const DEFAULT_USER_ID = 'web-demo-user';
 const DEFAULT_PROVIDER = 'google';
 const RUNTIME_CONFIG_SOURCE_KEY = 'rourou.aiConfigSource';
-const LOCAL_SESSION_ARCHIVE_KEY = 'rourou.localSessionArchive';
+const LEGACY_LOCAL_SESSION_ARCHIVE_KEY = 'rourou.localSessionArchive';
+const LOCAL_SESSION_ARCHIVE_KEY = 'rourou.singleSessionArchive.v2';
 let SERVER_RUNTIME_CONFIG = {
   provider: DEFAULT_PROVIDER,
   apiBaseUrl: DEFAULT_GOOGLE_BASE_URL,
@@ -2851,7 +2852,7 @@ function saveLocalSessionArchiveRecords(records = []) {
     .map((item) => normalizeLocalSessionRecord(item))
     .filter((item) => item.id)
     .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
-    .slice(0, 20);
+    .slice(0, 1);
   localStorage.setItem(LOCAL_SESSION_ARCHIVE_KEY, JSON.stringify(normalized));
 }
 
@@ -2871,19 +2872,11 @@ function removeLocalSessionArchive(sessionId) {
   return true;
 }
 
-function mergeRecentSessionSummaries(serverSessions = [], localSessions = []) {
-  const merged = new Map();
-  const scoreSession = (session) => `${String(session.updatedAt || '')}|${String(session.message_count || 0).padStart(4, '0')}`;
-  for (const session of [...(Array.isArray(serverSessions) ? serverSessions : []), ...(Array.isArray(localSessions) ? localSessions : [])]) {
-    if (!session || !session.id) continue;
-    const existing = merged.get(session.id);
-    if (!existing || scoreSession(session) > scoreSession(existing)) {
-      merged.set(session.id, session);
-    }
-  }
-  return Array.from(merged.values())
-    .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
-    .slice(0, 5);
+function getSingleRecentSessionSummary() {
+  const latest = loadLocalSessionArchiveRecords()
+    .map((session) => summarizeSessionRecord(session))
+    .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))[0];
+  return latest ? [latest] : [];
 }
 
 function buildCurrentSessionRecord() {
@@ -3123,21 +3116,9 @@ async function deleteRecentSession(sessionId) {
   if (!confirmed) return;
 
   const removedLocalBackup = removeLocalSessionArchive(sessionId);
-  let serverDeleteError = null;
-  try {
-    const response = await fetch(`/api/chat/session?id=${encodeURIComponent(sessionId)}`, {
-      method: 'DELETE'
-    });
-    const payload = await response.json();
-    if (!response.ok) {
-      throw new Error(payload.error || '刪除對話失敗');
-    }
-  } catch (error) {
-    serverDeleteError = error;
-    if (!removedLocalBackup) {
-      appendSystemNotice(error.message || '刪除對話失敗。');
-      return;
-    }
+  if (!removedLocalBackup) {
+    appendSystemNotice('目前沒有可刪除的上一段對話。');
+    return;
   }
 
   APP_STATE.recentSessions = APP_STATE.recentSessions.filter((item) => item.id !== sessionId);
@@ -3150,12 +3131,8 @@ async function deleteRecentSession(sessionId) {
     renderRecentSessions();
   }
 
-  if (serverDeleteError) {
-    appendSystemNotice('已刪除這台裝置上的本機備份，但伺服端刪除失敗。');
-  } else {
-    appendSystemNotice('已刪除這筆對話。');
-  }
-  await loadRecentSessions();
+  appendSystemNotice('已刪除上一段對話。');
+  renderRecentSessions();
 }
 
 async function loadRecentSessions() {
@@ -3164,33 +3141,11 @@ async function loadRecentSessions() {
     container.innerHTML = `<div class="home-session-empty">正在讀取最近對話...</div>`;
   }
 
-  const localSessions = loadLocalSessionArchiveRecords().map((session) => summarizeSessionRecord(session));
-  try {
-    const config = getRuntimeConfig();
-    let response = await fetch(`/api/chat/sessions?user=${encodeURIComponent(config.userId)}&limit=5`);
-    let payload = await response.json();
-    if (!response.ok) {
-      throw new Error(payload.error || '讀取最近對話失敗');
-    }
-    if ((!Array.isArray(payload.sessions) || !payload.sessions.length) && config.userId) {
-      response = await fetch('/api/chat/sessions?limit=5');
-      payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.error || '讀取最近對話失敗');
-      }
-    }
-    APP_STATE.recentSessions = mergeRecentSessionSummaries(
-      Array.isArray(payload.sessions) ? payload.sessions : [],
-      localSessions
-    );
+  APP_STATE.recentSessions = getSingleRecentSessionSummary();
+  if (APP_STATE.recentSessions.length) {
     renderRecentSessions();
-  } catch (error) {
-    APP_STATE.recentSessions = mergeRecentSessionSummaries([], localSessions);
-    if (APP_STATE.recentSessions.length) {
-      renderRecentSessions();
-    } else if (container) {
-      container.innerHTML = `<div class="home-session-empty">${escapeHtml(error.message || '目前無法讀取最近對話。')}</div>`;
-    }
+  } else if (container) {
+    container.innerHTML = `<div class="home-session-empty">目前還沒有已保存的對話。你之後上一段聊天會顯示在這裡。</div>`;
   }
 }
 
@@ -3923,6 +3878,7 @@ async function openConsentPreview() {
 }
 
 function initializeRuntimeConfig() {
+  localStorage.removeItem(LEGACY_LOCAL_SESSION_ARCHIVE_KEY);
   if (!localStorage.getItem('rourou.userId')) {
     localStorage.setItem('rourou.userId', DEFAULT_USER_ID);
   }
