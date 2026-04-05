@@ -1,5 +1,7 @@
 const DEFAULT_GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 const DEFAULT_GROQ_MODEL = 'llama-3.1-8b-instant';
+const DEFAULT_OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
+const DEFAULT_OPENROUTER_MODEL = 'openai/gpt-4o-mini';
 const DEFAULT_GOOGLE_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_GOOGLE_MODEL = 'gemini-2.0-flash';
 const DEFAULT_LLM_TIMEOUT_MS = 20000;
@@ -14,12 +16,14 @@ function normalizeProvider(provider) {
   if (value === 'gemini') return 'google';
   if (value === 'google') return 'google';
   if (value === 'groq') return 'groq';
+  if (value === 'openrouter') return 'openrouter';
   return '';
 }
 
 function inferProvider(options = {}) {
   const explicit = normalizeProvider(options.provider);
   if (explicit) return explicit;
+  if (String(options.baseUrl || '').includes('openrouter.ai')) return 'openrouter';
   if (String(options.baseUrl || '').includes('googleapis.com')) return 'google';
   return 'groq';
 }
@@ -134,6 +138,93 @@ async function completeWithGroq(payload, options = {}) {
   };
 }
 
+async function completeWithOpenRouter(payload, options = {}) {
+  const apiKey = String(options.apiKey || '').trim();
+  if (!apiKey) {
+    const error = new Error('Missing OpenRouter API key.');
+    error.code = 'openrouter_missing_api_key';
+    error.status = 500;
+    throw error;
+  }
+
+  const fetchImpl = options.fetchImpl || global.fetch;
+  if (typeof fetchImpl !== 'function') {
+    throw new Error('No fetch implementation is available for OpenRouter chat delivery.');
+  }
+
+  const timeoutMs = Number(options.timeoutMs || DEFAULT_LLM_TIMEOUT_MS);
+  const timeout = createTimeoutController(timeoutMs);
+
+  const messages = [];
+  if (payload.systemPrompt) {
+    messages.push({
+      role: 'system',
+      content: payload.expectJson
+        ? `${payload.systemPrompt}\n\n${buildJsonInstruction()}`
+        : payload.systemPrompt
+    });
+  }
+  for (const item of payload.history || []) {
+    if (!item || !item.role || !item.content) continue;
+    messages.push({ role: item.role, content: item.content });
+  }
+  messages.push({
+    role: 'user',
+    content: payload.userPrompt
+  });
+
+  let response;
+  try {
+    response = await fetchImpl(`${String(options.baseUrl || DEFAULT_OPENROUTER_BASE_URL).replace(/\/+$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: options.model || DEFAULT_OPENROUTER_MODEL,
+        temperature: payload.temperature == null ? 0.2 : payload.temperature,
+        messages
+      }),
+      signal: timeout.controller.signal
+    });
+  } catch (error) {
+    timeout.clear();
+    if (error?.name === 'AbortError') {
+      const timeoutError = new Error(`OpenRouter request timed out after ${timeoutMs / 1000} seconds.`);
+      timeoutError.code = 'openrouter_timeout';
+      timeoutError.status = 504;
+      throw timeoutError;
+    }
+    const requestError = new Error(error.message || 'Failed to reach OpenRouter.');
+    requestError.code = 'openrouter_request_failed';
+    requestError.status = 502;
+    throw requestError;
+  }
+
+  timeout.clear();
+
+  const text = await response.text();
+  const parsed = parseJsonSafely(text);
+
+  if (!response.ok) {
+    const errorMessage =
+      parsed?.error?.message ||
+      parsed?.message ||
+      parsed?.raw ||
+      `OpenRouter request failed with status ${response.status}.`;
+    const responseError = new Error(errorMessage);
+    responseError.code = parsed?.error?.code || parsed?.code || 'openrouter_error';
+    responseError.status = response.status;
+    throw responseError;
+  }
+
+  return {
+    text: parsed?.choices?.[0]?.message?.content || '',
+    raw: parsed
+  };
+}
+
 async function completeWithGoogle(payload, options = {}) {
   const apiKey = String(options.apiKey || '').trim();
   if (!apiKey) {
@@ -235,6 +326,9 @@ async function completeChat(payload, options = {}) {
       if (provider === 'google') {
         return await completeWithGoogle(payload, options);
       }
+      if (provider === 'openrouter') {
+        return await completeWithOpenRouter(payload, options);
+      }
       return await completeWithGroq(payload, options);
     } catch (error) {
       if (!shouldRetryLlmError(error) || attempt >= retries) {
@@ -250,11 +344,14 @@ async function completeChat(payload, options = {}) {
 module.exports = {
   DEFAULT_GROQ_BASE_URL,
   DEFAULT_GROQ_MODEL,
+  DEFAULT_OPENROUTER_BASE_URL,
+  DEFAULT_OPENROUTER_MODEL,
   DEFAULT_GOOGLE_BASE_URL,
   DEFAULT_GOOGLE_MODEL,
   DEFAULT_LLM_TIMEOUT_MS,
   inferProvider,
   completeChat,
   completeWithGroq,
+  completeWithOpenRouter,
   completeWithGoogle
 };

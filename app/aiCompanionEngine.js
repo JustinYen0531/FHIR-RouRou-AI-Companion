@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { completeChat, DEFAULT_GROQ_MODEL, DEFAULT_GOOGLE_MODEL } = require('./llmChatClient');
+const { completeChat, DEFAULT_GROQ_MODEL, DEFAULT_OPENROUTER_MODEL, DEFAULT_GOOGLE_MODEL } = require('./llmChatClient');
 
 const ROOT_DIR = path.join(__dirname, '..');
 const STATE_SCHEMA_PATH = path.join(ROOT_DIR, 'flowise', 'FLOWISE_STATE_SCHEMA.json');
@@ -679,7 +679,13 @@ class AICompanionEngine {
   constructor(options = {}) {
     this.modelClient = options.modelClient || completeChat;
     this.provider = options.provider || '';
-    this.model = options.model || (this.provider === 'google' ? DEFAULT_GOOGLE_MODEL : DEFAULT_GROQ_MODEL);
+    this.model = options.model || (
+      this.provider === 'google'
+        ? DEFAULT_GOOGLE_MODEL
+        : this.provider === 'openrouter'
+          ? DEFAULT_OPENROUTER_MODEL
+          : DEFAULT_GROQ_MODEL
+    );
     this.baseUrl = options.baseUrl;
     this.apiKey = options.apiKey || '';
     this.fetchImpl = options.fetchImpl;

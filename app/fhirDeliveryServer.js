@@ -6,6 +6,8 @@ const { AICompanionEngine } = require('./aiCompanionEngine');
 const { createSessionPersistence, DEFAULT_SESSION_STORE_PATH, listSessionSummaries } = require('./sessionPersistence');
 const {
   DEFAULT_GROQ_BASE_URL,
+  DEFAULT_OPENROUTER_BASE_URL,
+  DEFAULT_OPENROUTER_MODEL,
   DEFAULT_GOOGLE_BASE_URL,
   DEFAULT_GOOGLE_MODEL,
   inferProvider
@@ -315,19 +317,23 @@ async function processExportPayload(payload, options = {}) {
 async function processChatPayload(payload, options = {}) {
   const provider = inferProvider({
     provider: payload.api_provider || options.llmProvider || '',
-    baseUrl: payload.api_base_url || options.googleBaseUrl || options.groqBaseUrl || ''
-  }) || (payload.api_provider || options.llmProvider || (options.googleApiKey || process.env.GOOGLE_API_KEY ? 'google' : 'groq'));
+    baseUrl: payload.api_base_url || options.googleBaseUrl || options.openrouterBaseUrl || options.groqBaseUrl || ''
+  }) || (payload.api_provider || options.llmProvider || (options.googleApiKey || process.env.GOOGLE_API_KEY ? 'google' : options.openrouterApiKey || process.env.OPENROUTER_API_KEY ? 'openrouter' : 'groq'));
   const apiKey = (
     provider === 'google'
       ? (payload.api_key || options.googleApiKey || '')
-      : (payload.api_key || options.groqApiKey || '')
+      : provider === 'openrouter'
+        ? (payload.api_key || options.openrouterApiKey || '')
+        : (payload.api_key || options.groqApiKey || '')
   ).trim();
   const apiBaseUrl = (
     provider === 'google'
       ? (payload.api_base_url || options.googleBaseUrl || DEFAULT_GOOGLE_BASE_URL)
-      : (payload.api_base_url || options.groqBaseUrl || DEFAULT_GROQ_BASE_URL)
+      : provider === 'openrouter'
+        ? (payload.api_base_url || options.openrouterBaseUrl || DEFAULT_OPENROUTER_BASE_URL)
+        : (payload.api_base_url || options.groqBaseUrl || DEFAULT_GROQ_BASE_URL)
   ).trim();
-  const apiModel = String(payload.api_model || options.llmModel || (provider === 'google' ? DEFAULT_GOOGLE_MODEL : '')).trim();
+  const apiModel = String(payload.api_model || options.llmModel || (provider === 'google' ? DEFAULT_GOOGLE_MODEL : provider === 'openrouter' ? DEFAULT_OPENROUTER_MODEL : '')).trim();
   const user = (payload.user || 'web-demo-user').trim();
   const message = (payload.message || '').trim();
   const hasRequestModelConfig = Boolean(payload.api_key || payload.api_provider || payload.api_base_url || payload.api_model);
@@ -367,7 +373,7 @@ async function processChatPayload(payload, options = {}) {
         message_id: result.message_id,
         metadata: Object.assign({}, result.metadata, {
           provider,
-          model: apiModel || (provider === 'google' ? DEFAULT_GOOGLE_MODEL : undefined)
+          model: apiModel || (provider === 'google' ? DEFAULT_GOOGLE_MODEL : provider === 'openrouter' ? DEFAULT_OPENROUTER_MODEL : undefined)
         }),
         session_export: result.session_export || null
       }
@@ -388,19 +394,23 @@ async function processChatPayload(payload, options = {}) {
 async function processOutputPayload(payload, options = {}) {
   const provider = inferProvider({
     provider: payload.api_provider || options.llmProvider || '',
-    baseUrl: payload.api_base_url || options.googleBaseUrl || options.groqBaseUrl || ''
-  }) || (payload.api_provider || options.llmProvider || (options.googleApiKey || process.env.GOOGLE_API_KEY ? 'google' : 'groq'));
+    baseUrl: payload.api_base_url || options.googleBaseUrl || options.openrouterBaseUrl || options.groqBaseUrl || ''
+  }) || (payload.api_provider || options.llmProvider || (options.googleApiKey || process.env.GOOGLE_API_KEY ? 'google' : options.openrouterApiKey || process.env.OPENROUTER_API_KEY ? 'openrouter' : 'groq'));
   const apiKey = (
     provider === 'google'
       ? (payload.api_key || options.googleApiKey || '')
-      : (payload.api_key || options.groqApiKey || '')
+      : provider === 'openrouter'
+        ? (payload.api_key || options.openrouterApiKey || '')
+        : (payload.api_key || options.groqApiKey || '')
   ).trim();
   const apiBaseUrl = (
     provider === 'google'
       ? (payload.api_base_url || options.googleBaseUrl || DEFAULT_GOOGLE_BASE_URL)
-      : (payload.api_base_url || options.groqBaseUrl || DEFAULT_GROQ_BASE_URL)
+      : provider === 'openrouter'
+        ? (payload.api_base_url || options.openrouterBaseUrl || DEFAULT_OPENROUTER_BASE_URL)
+        : (payload.api_base_url || options.groqBaseUrl || DEFAULT_GROQ_BASE_URL)
   ).trim();
-  const apiModel = String(payload.api_model || options.llmModel || (provider === 'google' ? DEFAULT_GOOGLE_MODEL : '')).trim();
+  const apiModel = String(payload.api_model || options.llmModel || (provider === 'google' ? DEFAULT_GOOGLE_MODEL : provider === 'openrouter' ? DEFAULT_OPENROUTER_MODEL : '')).trim();
   const user = (payload.user || 'web-demo-user').trim();
   const outputType = String(payload.output_type || '').trim();
   const hasRequestModelConfig = Boolean(payload.api_key || payload.api_provider || payload.api_base_url || payload.api_model);
@@ -438,7 +448,7 @@ async function processOutputPayload(payload, options = {}) {
         {
           metadata: Object.assign({}, result.metadata, {
             provider,
-            model: apiModel || (provider === 'google' ? DEFAULT_GOOGLE_MODEL : undefined)
+            model: apiModel || (provider === 'google' ? DEFAULT_GOOGLE_MODEL : provider === 'openrouter' ? DEFAULT_OPENROUTER_MODEL : undefined)
           })
         }
       )
@@ -463,15 +473,22 @@ function createServer(options = {}) {
   });
   const activeFhirBaseUrl = String(options.fhirBaseUrl || '').trim();
   const sharedSessions = options.sessions || persistence.sessions || new Map();
-  const sharedProvider = options.llmProvider || (options.googleApiKey || process.env.GOOGLE_API_KEY ? 'google' : 'groq');
+  const sharedProvider = options.llmProvider || (options.googleApiKey || process.env.GOOGLE_API_KEY ? 'google' : options.openrouterApiKey || process.env.OPENROUTER_API_KEY ? 'openrouter' : 'groq');
   const sharedEngine = options.engine || new AICompanionEngine({
     provider: sharedProvider,
-    apiKey: sharedProvider === 'google' ? (options.googleApiKey || '') : (options.groqApiKey || ''),
+    apiKey:
+      sharedProvider === 'google'
+        ? (options.googleApiKey || '')
+        : sharedProvider === 'openrouter'
+          ? (options.openrouterApiKey || '')
+          : (options.groqApiKey || ''),
     baseUrl:
       sharedProvider === 'google'
         ? (options.googleBaseUrl || DEFAULT_GOOGLE_BASE_URL)
-        : (options.groqBaseUrl || DEFAULT_GROQ_BASE_URL),
-    model: options.llmModel || (sharedProvider === 'google' ? DEFAULT_GOOGLE_MODEL : undefined),
+        : sharedProvider === 'openrouter'
+          ? (options.openrouterBaseUrl || DEFAULT_OPENROUTER_BASE_URL)
+          : (options.groqBaseUrl || DEFAULT_GROQ_BASE_URL),
+    model: options.llmModel || (sharedProvider === 'google' ? DEFAULT_GOOGLE_MODEL : sharedProvider === 'openrouter' ? DEFAULT_OPENROUTER_MODEL : undefined),
     fetchImpl: options.fetchImpl,
     sessions: sharedSessions,
     onSessionsChanged: (sessions) => persistence.save(sessions)
@@ -501,6 +518,7 @@ function createServer(options = {}) {
         fhir_delivery_mode: activeFhirBaseUrl ? 'transaction' : 'dry_run',
         fhir_server_url: activeFhirBaseUrl,
         groq_configured: Boolean(options.groqApiKey || process.env.GROQ_API_KEY),
+        openrouter_configured: Boolean(options.openrouterApiKey || process.env.OPENROUTER_API_KEY),
         google_configured: Boolean(options.googleApiKey || process.env.GOOGLE_API_KEY)
       });
       return;
@@ -550,13 +568,15 @@ if (require.main === module) {
   const port = Number(process.env.PORT || 8787);
   const fhirBaseUrl = String(process.env.FHIR_SERVER_URL || DEFAULT_PUBLIC_FHIR_BASE_URL).trim();
   const groqApiKey = process.env.GROQ_API_KEY || '';
+  const openrouterApiKey = process.env.OPENROUTER_API_KEY || '';
   const googleApiKey = process.env.GOOGLE_API_KEY || '';
   const groqBaseUrl = process.env.GROQ_API_BASE_URL || DEFAULT_GROQ_BASE_URL;
+  const openrouterBaseUrl = process.env.OPENROUTER_API_BASE_URL || DEFAULT_OPENROUTER_BASE_URL;
   const googleBaseUrl = process.env.GOOGLE_API_BASE_URL || DEFAULT_GOOGLE_BASE_URL;
-  const llmProvider = process.env.LLM_PROVIDER || (googleApiKey ? 'google' : 'groq');
-  const llmModel = process.env.LLM_MODEL || (llmProvider === 'google' ? DEFAULT_GOOGLE_MODEL : '');
+  const llmProvider = process.env.LLM_PROVIDER || (googleApiKey ? 'google' : openrouterApiKey ? 'openrouter' : 'groq');
+  const llmModel = process.env.LLM_MODEL || (llmProvider === 'google' ? DEFAULT_GOOGLE_MODEL : llmProvider === 'openrouter' ? DEFAULT_OPENROUTER_MODEL : '');
   const sessionStorePath = process.env.AI_COMPANION_SESSION_STORE || DEFAULT_SESSION_STORE_PATH;
-  const server = createServer({ fhirBaseUrl, groqApiKey, groqBaseUrl, googleApiKey, googleBaseUrl, llmProvider, llmModel, sessionStorePath });
+  const server = createServer({ fhirBaseUrl, groqApiKey, groqBaseUrl, openrouterApiKey, openrouterBaseUrl, googleApiKey, googleBaseUrl, llmProvider, llmModel, sessionStorePath });
   server.listen(port, () => {
     console.log('FHIR delivery server listening on http://localhost:' + port);
     console.log('Static app available at http://localhost:' + port + '/');
@@ -568,10 +588,12 @@ if (require.main === module) {
     }
     if (llmProvider === 'google' && googleApiKey) {
       console.log('AI companion engine configured for Google Gemini at', googleBaseUrl);
+    } else if (llmProvider === 'openrouter' && openrouterApiKey) {
+      console.log('AI companion engine configured for OpenRouter at', openrouterBaseUrl);
     } else if (groqApiKey) {
       console.log('AI companion engine configured for Groq at', groqBaseUrl);
     } else {
-      console.log('AI companion engine is waiting for GOOGLE_API_KEY / GROQ_API_KEY or a client-provided api_key.');
+      console.log('AI companion engine is waiting for GOOGLE_API_KEY / OPENROUTER_API_KEY / GROQ_API_KEY or a client-provided api_key.');
     }
   });
 }

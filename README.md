@@ -71,6 +71,15 @@ GROQ_API_BASE_URL=https://api.groq.com/openai/v1
 GROQ_API_KEY=YOUR_GROQ_API_KEY
 ```
 
+OpenRouter `\.env.local` 範例：
+
+```powershell
+LLM_PROVIDER=openrouter
+OPENROUTER_API_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_API_KEY=YOUR_OPENROUTER_API_KEY
+LLM_MODEL=openai/gpt-4o-mini
+```
+
 Google Gemini `\.env.local` 範例：
 
 ```powershell

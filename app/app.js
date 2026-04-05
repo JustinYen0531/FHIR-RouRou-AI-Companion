@@ -1,7 +1,10 @@
-﻿const DEFAULT_GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
+const DEFAULT_GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
+const DEFAULT_OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 const DEFAULT_GOOGLE_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_GROQ_API_KEY = '';
+const DEFAULT_OPENROUTER_API_KEY = '';
 const DEFAULT_GOOGLE_API_KEY = '';
+const DEFAULT_OPENROUTER_MODEL = 'openai/gpt-4o-mini';
 const DEFAULT_PROVIDER = localStorage.getItem('rourou.aiProvider') || 'google';
 const FHIR_REPORT_HISTORY_KEY = 'rourou.fhirReportHistory';
 const HOME_GUIDE_PAGES = [
@@ -2381,12 +2384,20 @@ function formatChatError(payload = {}) {
     return 'Groq 超時了，這次等待太久沒有回來。通常代表模型沒有回應或後端執行過慢。';
   }
 
+  if (payload.code === 'openrouter_timeout') {
+    return 'OpenRouter 超時了，這次等待太久沒有回來。通常代表上游模型沒有回應或網路過慢。';
+  }
+
   if (payload.code === 'RESOURCE_EXHAUSTED' || payload.status === 429) {
     return `模型供應商目前拒絕請求，通常是配額或速率限制。\n\n原始訊息：${message}`;
   }
 
   if (message.includes('Missing Groq API key') || message.includes('Missing Google API key')) {
     return '目前沒有可用的模型 API key，請到 Settings 確認聊天引擎設定。';
+  }
+
+  if (message.includes('Missing OpenRouter API key')) {
+    return '目前沒有可用的 OpenRouter API key，請到 Settings 確認聊天引擎設定。';
   }
 
   return `目前無法連接聊天流：${message}`;
@@ -2429,11 +2440,11 @@ function getRuntimeConfig() {
     provider,
     apiBaseUrl:
       localStorage.getItem('rourou.aiBaseUrl') ||
-      (provider === 'google' ? DEFAULT_GOOGLE_BASE_URL : DEFAULT_GROQ_BASE_URL),
+      (provider === 'google' ? DEFAULT_GOOGLE_BASE_URL : provider === 'openrouter' ? DEFAULT_OPENROUTER_BASE_URL : DEFAULT_GROQ_BASE_URL),
     apiKey:
       localStorage.getItem('rourou.aiApiKey') ||
-      (provider === 'google' ? DEFAULT_GOOGLE_API_KEY : DEFAULT_GROQ_API_KEY),
-    model: localStorage.getItem('rourou.aiModel') || (provider === 'google' ? 'gemini-2.0-flash' : 'llama-3.1-8b-instant'),
+      (provider === 'google' ? DEFAULT_GOOGLE_API_KEY : provider === 'openrouter' ? DEFAULT_OPENROUTER_API_KEY : DEFAULT_GROQ_API_KEY),
+    model: localStorage.getItem('rourou.aiModel') || (provider === 'google' ? 'gemini-2.0-flash' : provider === 'openrouter' ? DEFAULT_OPENROUTER_MODEL : 'llama-3.1-8b-instant'),
     userId: APP_STATE.userId
   };
 }
@@ -3263,15 +3274,15 @@ function initializeRuntimeConfig() {
   }
 
   if (!localStorage.getItem('rourou.aiBaseUrl')) {
-    localStorage.setItem('rourou.aiBaseUrl', DEFAULT_PROVIDER === 'google' ? DEFAULT_GOOGLE_BASE_URL : DEFAULT_GROQ_BASE_URL);
+    localStorage.setItem('rourou.aiBaseUrl', DEFAULT_PROVIDER === 'google' ? DEFAULT_GOOGLE_BASE_URL : DEFAULT_PROVIDER === 'openrouter' ? DEFAULT_OPENROUTER_BASE_URL : DEFAULT_GROQ_BASE_URL);
   }
 
   if (!localStorage.getItem('rourou.aiApiKey')) {
-    localStorage.setItem('rourou.aiApiKey', DEFAULT_PROVIDER === 'google' ? DEFAULT_GOOGLE_API_KEY : DEFAULT_GROQ_API_KEY);
+    localStorage.setItem('rourou.aiApiKey', DEFAULT_PROVIDER === 'google' ? DEFAULT_GOOGLE_API_KEY : DEFAULT_PROVIDER === 'openrouter' ? DEFAULT_OPENROUTER_API_KEY : DEFAULT_GROQ_API_KEY);
   }
 
   if (!localStorage.getItem('rourou.aiModel')) {
-    localStorage.setItem('rourou.aiModel', DEFAULT_PROVIDER === 'google' ? 'gemini-2.0-flash' : 'llama-3.1-8b-instant');
+    localStorage.setItem('rourou.aiModel', DEFAULT_PROVIDER === 'google' ? 'gemini-2.0-flash' : DEFAULT_PROVIDER === 'openrouter' ? DEFAULT_OPENROUTER_MODEL : 'llama-3.1-8b-instant');
   }
 
   if (!localStorage.getItem('rourou.fhirRealtimeSync')) {
@@ -4051,6 +4062,7 @@ function injectRuntimeSettings() {
           <select id="ai-provider" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7">
             <option value="google">Google Gemini</option>
             <option value="groq">Groq</option>
+            <option value="openrouter">OpenRouter</option>
           </select>
           <input id="ai-base-url" type="text" placeholder="https://generativelanguage.googleapis.com/v1beta" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
           <input id="ai-model" type="text" placeholder="gemini-2.0-flash" style="width:100%;padding:12px 14px;border-radius:14px;background:#f5f8fb;border:1px solid #d7e0e7"/>
@@ -4076,15 +4088,15 @@ function injectRuntimeSettings() {
 
   document.getElementById('ai-provider').addEventListener('change', (event) => {
     const provider = event.target.value;
-    document.getElementById('ai-base-url').value = provider === 'google' ? DEFAULT_GOOGLE_BASE_URL : DEFAULT_GROQ_BASE_URL;
-    document.getElementById('ai-model').value = provider === 'google' ? 'gemini-2.0-flash' : 'llama-3.1-8b-instant';
+    document.getElementById('ai-base-url').value = provider === 'google' ? DEFAULT_GOOGLE_BASE_URL : provider === 'openrouter' ? DEFAULT_OPENROUTER_BASE_URL : DEFAULT_GROQ_BASE_URL;
+    document.getElementById('ai-model').value = provider === 'google' ? 'gemini-2.0-flash' : provider === 'openrouter' ? DEFAULT_OPENROUTER_MODEL : 'llama-3.1-8b-instant';
   });
 
   document.getElementById('save-ai-engine-config').addEventListener('click', () => {
     const provider = document.getElementById('ai-provider').value.trim() || DEFAULT_PROVIDER;
     localStorage.setItem('rourou.aiProvider', provider);
-    localStorage.setItem('rourou.aiBaseUrl', document.getElementById('ai-base-url').value.trim() || (provider === 'google' ? DEFAULT_GOOGLE_BASE_URL : DEFAULT_GROQ_BASE_URL));
-    localStorage.setItem('rourou.aiModel', document.getElementById('ai-model').value.trim() || (provider === 'google' ? 'gemini-2.0-flash' : 'llama-3.1-8b-instant'));
+    localStorage.setItem('rourou.aiBaseUrl', document.getElementById('ai-base-url').value.trim() || (provider === 'google' ? DEFAULT_GOOGLE_BASE_URL : provider === 'openrouter' ? DEFAULT_OPENROUTER_BASE_URL : DEFAULT_GROQ_BASE_URL));
+    localStorage.setItem('rourou.aiModel', document.getElementById('ai-model').value.trim() || (provider === 'google' ? 'gemini-2.0-flash' : provider === 'openrouter' ? DEFAULT_OPENROUTER_MODEL : 'llama-3.1-8b-instant'));
     localStorage.setItem('rourou.aiApiKey', document.getElementById('ai-api-key').value.trim() || '');
     localStorage.setItem('rourou.userId', document.getElementById('ai-user-id').value.trim() || APP_STATE.userId);
     APP_STATE.userId = localStorage.getItem('rourou.userId') || APP_STATE.userId;
