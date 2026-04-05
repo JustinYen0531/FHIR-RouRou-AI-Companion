@@ -771,6 +771,47 @@ function pushUnique(list, value, limit = 6) {
   list.push(text);
 }
 
+function buildSignalCategory(signal) {
+  const map = {
+    depressed_mood: 'mood',
+    guilt: 'self_image',
+    work_interest: 'function',
+    retardation: 'function',
+    agitation: 'arousal',
+    somatic_anxiety: 'anxiety',
+    insomnia: 'sleep'
+  };
+  return map[signal] || 'patient_report';
+}
+
+function summarizeConcernBundle(chiefConcerns = []) {
+  const concerns = normalizeArray(chiefConcerns);
+  if (!concerns.length) return '尚待補充主要困擾';
+  if (concerns.length === 1) return concerns[0];
+  if (concerns.length === 2) return `${concerns[0]}，並伴隨${concerns[1]}`;
+  return `${concerns[0]}、${concerns[1]}，並延伸到${concerns[2]}`;
+}
+
+function buildFunctionalImpactSummary(chiefConcerns = []) {
+  const concerns = normalizeArray(chiefConcerns);
+  const impacts = [];
+  if (concerns.includes('工作或日常功能受損')) impacts.push('情緒與身體反應已對工作或日常安排造成實際干擾');
+  if (concerns.includes('作息失調與日夜顛倒')) impacts.push('作息延後與白天起床困難已影響責任履行');
+  if (concerns.includes('迴避、盜汗與惡夢等創傷式反應')) impacts.push('迴避特定人事地帶來額外時間成本與行動限制');
+  if (concerns.includes('依賴菸酒協助入睡')) impacts.push('為了入睡而依賴菸酒，顯示睡眠調節方式已失衡');
+  return impacts.join('；');
+}
+
+function buildCareGoalSummary(longitudinal) {
+  if (longitudinal.returnVisitGoal) {
+    return '使用者希望整理目前症狀、功能受損與就醫重點，供回診或醫療端參考。';
+  }
+  if (longitudinal.followupNeeds.length) {
+    return `下一步建議優先補足：${longitudinal.followupNeeds.slice(0, 2).join('；')}`;
+  }
+  return '尚待補充更明確的就醫目標與期待。';
+}
+
 function isGenericDraftText(value) {
   const text = String(value || '').trim();
   if (!text) return true;
@@ -791,10 +832,12 @@ function buildLongitudinalEvidence(session) {
   const evidenceMap = new Map();
   const followupNeeds = [];
   const riskFlags = [];
+  const matchedRuleKeys = [];
 
   userMessages.forEach((message) => {
     CLINICAL_SIGNAL_RULES.forEach((rule) => {
       if (!rule.pattern.test(message)) return;
+      pushUnique(matchedRuleKeys, rule.key, 10);
       pushUnique(chiefConcerns, rule.label, 6);
       rule.signals.forEach((signal) => pushUnique(hamdSignals, signal, 8));
       pushUnique(symptomObservations, rule.summarize(message), 10);
@@ -834,6 +877,7 @@ function buildLongitudinalEvidence(session) {
 
   return {
     userMessages,
+    matchedRuleKeys,
     chiefConcerns,
     symptomObservations,
     hamdSignals,
@@ -852,9 +896,13 @@ function enrichHamdProgressState(progress, longitudinal) {
   next.supported_dimensions = longitudinal.hamdSignals.slice(0, 6);
   next.recent_evidence = longitudinal.symptomObservations.slice(0, 8);
   next.current_focus = longitudinal.hamdSignals[0] || next.current_focus || 'depressed_mood';
-  next.next_recommended_dimension = longitudinal.hamdSignals.includes('insomnia')
-    ? 'somatic_anxiety'
-    : (longitudinal.hamdSignals[0] || next.next_recommended_dimension || 'depressed_mood');
+  if (longitudinal.hamdSignals.includes('somatic_anxiety') && !longitudinal.hamdSignals.includes('guilt')) {
+    next.next_recommended_dimension = 'guilt';
+  } else if (longitudinal.hamdSignals.includes('insomnia') && !longitudinal.hamdSignals.includes('work_interest')) {
+    next.next_recommended_dimension = 'work_interest';
+  } else {
+    next.next_recommended_dimension = longitudinal.hamdSignals[1] || longitudinal.hamdSignals[0] || next.next_recommended_dimension || 'depressed_mood';
+  }
   return next;
 }
 
@@ -867,16 +915,18 @@ function buildClinicianSummaryDraft(longitudinal, state, formalAssessment, previ
 
   return Object.assign(
     {
-      summary_version: 'p2_clinician_draft_v2',
+      summary_version: 'p3_clinician_draft_v3',
       active_mode: state.active_mode,
       risk_level: riskLevel,
-      chief_concerns: longitudinal.chiefConcerns.slice(0, 4),
-      symptom_observations: longitudinal.symptomObservations.slice(0, 8),
+      chief_concerns: longitudinal.chiefConcerns.slice(0, 6),
+      symptom_observations: longitudinal.symptomObservations
+        .filter((item) => !isGenericDraftText(item))
+        .slice(0, 8),
       hamd_signals: longitudinal.hamdSignals.slice(0, 6),
       followup_needs: longitudinal.followupNeeds.slice(0, 5),
       safety_flags: [...longitudinal.riskFlags, ...explicitRiskFlags].slice(0, 4),
       patient_tone: longitudinal.patientTone,
-      draft_summary: longitudinal.draftSummary || '已根據整段對話整理出主要症狀與功能影響。'
+      draft_summary: longitudinal.draftSummary || '已根據整段對話整理出主要症狀、功能影響與後續釐清方向。'
     },
     buildFormalClinicianFields(formalAssessment),
     previousDraft && typeof previousDraft === 'object'
@@ -895,32 +945,52 @@ function buildClinicianSummaryDraft(longitudinal, state, formalAssessment, previ
 function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAssessment, previousDraft = {}) {
   const symptomObservations = normalizeArray(clinicianDraft?.symptom_observations);
   const hamdSignals = normalizeArray(clinicianDraft?.hamd_signals);
+  const chiefConcerns = normalizeArray(clinicianDraft?.chief_concerns);
+  const evidenceBySignal = longitudinal.evidenceBySignal && typeof longitudinal.evidenceBySignal === 'object'
+    ? longitudinal.evidenceBySignal
+    : {};
   const resources = [
       { resource_type: 'Composition', resourceType: 'Composition', display: 'Composition / Clinical Summary', status: 'preliminary', purpose: 'clinical_summary' },
       { resource_type: 'Observation', resourceType: 'Observation', display: 'Observation / HAMD Signal Tracking', status: 'preliminary', purpose: 'hamd_signal_tracking' },
       { resource_type: 'ClinicalImpression', resourceType: 'ClinicalImpression', display: 'ClinicalImpression / Risk And Context', status: 'preliminary', purpose: 'risk_and_context' },
       { resource_type: 'QuestionnaireResponse', resourceType: 'QuestionnaireResponse', display: 'QuestionnaireResponse / Dialogue Mapping', status: 'preliminary', purpose: 'dialogue_to_scale_mapping' }
   ];
+  const observationCandidates = hamdSignals.map((signal) => ({
+    focus: (evidenceBySignal[signal] || []).join('；') || `已捕捉 ${signal} 相關對話線索`,
+    category: buildSignalCategory(signal),
+    signal,
+    status: 'preliminary'
+  }));
+  symptomObservations.forEach((item) => {
+    if (observationCandidates.length >= 8) return;
+    if (observationCandidates.some((entry) => entry.focus === item)) return;
+    observationCandidates.push({
+      focus: item,
+      category: 'patient_report',
+      signal: '',
+      status: 'preliminary'
+    });
+  });
+  const questionnaireTargets = hamdSignals.map((signal) => ({
+    dimension: signal,
+    reason: (evidenceBySignal[signal] || []).join('；') || `需補足 ${signal} 的正式量表資訊`
+  }));
 
   return Object.assign({}, previousDraft && typeof previousDraft === 'object' ? previousDraft : {}, {
-    draft_version: 'p4_fhir_delivery_v2',
+    draft_version: 'p5_fhir_delivery_v3',
     delivery_status: 'pre_review_or_ready_for_mapping_orblocked',
     consent_gate: 'review_required_or_ready_for_consent_orblocked',
-    narrative_summary: longitudinal.draftSummary || normalizeArray(clinicianDraft?.chief_concerns).slice(0, 3).join('、') || '已整理主要困擾與功能影響，待病人審閱後交付。',
+    narrative_summary: longitudinal.draftSummary || summarizeConcernBundle(chiefConcerns),
     resources,
     composition_sections: [
-      { section: 'chief_concerns', focus: normalizeArray(clinicianDraft?.chief_concerns).slice(0, 3).join('、') || '待補主要困擾' },
-      { section: 'symptom_timeline', focus: symptomObservations.slice(0, 3).join('；') || '待補症狀與時間線' },
-      { section: 'functional_impact', focus: longitudinal.followupNeeds[0] || '待補功能受損與日常影響' },
-      { section: 'care_goal', focus: longitudinal.returnVisitGoal ? '使用者希望整理內容供回診或醫療端參考' : '待補就醫目標' }
+      { section: 'chief_concerns', focus: summarizeConcernBundle(chiefConcerns) },
+      { section: 'symptom_timeline', focus: symptomObservations.slice(0, 3).join('；') || '目前已知症狀線索仍需補足時間軸。' },
+      { section: 'functional_impact', focus: buildFunctionalImpactSummary(chiefConcerns) || longitudinal.followupNeeds[0] || '目前已知有功能受損，但仍待補足最受影響情境。' },
+      { section: 'care_goal', focus: buildCareGoalSummary(longitudinal) }
     ],
-    observation_candidates: symptomObservations.slice(0, 8).map((item, index) => ({
-      focus: item,
-      category: hamdSignals[index] || 'patient_report',
-      status: 'preliminary'
-    })),
+    observation_candidates: observationCandidates,
     clinical_alerts: [...longitudinal.riskFlags, ...normalizeArray(normalizeObjectState(state, 'red_flag_payload', {}).warning_tags)].slice(0, 4),
-    questionnaire_targets: hamdSignals.slice(0, 6),
+    questionnaire_targets: questionnaireTargets,
     hamd_formal_targets: buildFormalFhirTargets(formalAssessment),
     patient_review_required: 'yes',
     export_blockers: normalizeArray(normalizeObjectState(state, 'patient_authorization_state', {}).review_blockers),
@@ -1624,6 +1694,12 @@ class AICompanionEngine {
         draft_summary: message
       }
     });
+    const existingSummaryDraft = state.summary_draft_state && typeof state.summary_draft_state === 'object'
+      ? state.summary_draft_state
+      : {};
+    const summaryDraftText = !isGenericDraftText(longitudinal.draftSummary)
+      ? longitudinal.draftSummary
+      : (!isGenericDraftText(existingSummaryDraft.draft_summary) ? existingSummaryDraft.draft_summary : message);
     state.summary_draft_state = Object.assign({}, state.summary_draft_state, {
       active_mode: state.active_mode,
       risk_flag: state.risk_flag,
@@ -1631,7 +1707,7 @@ class AICompanionEngine {
       latest_tags: state.latest_tag_payload,
       red_flags: state.red_flag_payload,
       hamd_progress: state.hamd_progress_state,
-      draft_summary: longitudinal.draftSummary || state.summary_draft_state?.draft_summary || message
+      draft_summary: summaryDraftText
     });
     const formalAssessment = hydrateFormalAssessment(state.hamd_formal_assessment);
     const modelClinicianDraft = await this.runJsonTask('clinicianSummaryBuilder', session, message, {
