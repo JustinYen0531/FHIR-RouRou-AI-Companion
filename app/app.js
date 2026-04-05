@@ -92,6 +92,7 @@ const HOME_GUIDE_PAGES = [
    ══════════════════════════════════════════════ */
 const TherapeuticMemory = {
   KEY: 'rourou.therapeuticProfile',
+  syncTimer: null,
 
   get() {
     try {
@@ -105,6 +106,41 @@ const TherapeuticMemory = {
     profile.lastUpdatedAt = new Date().toISOString();
     localStorage.setItem(this.KEY, JSON.stringify(profile));
     this.renderProfileUI();
+    this.scheduleSessionSync(profile);
+  },
+
+  replace(profile, options = {}) {
+    const nextProfile = profile && typeof profile === 'object' ? profile : this._default();
+    localStorage.setItem(this.KEY, JSON.stringify(nextProfile));
+    this.renderProfileUI();
+    if (!options.skipSessionSync) {
+      this.scheduleSessionSync(nextProfile);
+    }
+  },
+
+  scheduleSessionSync(profile = null) {
+    if (this.syncTimer) {
+      clearTimeout(this.syncTimer);
+    }
+    this.syncTimer = setTimeout(() => {
+      this.syncTimer = null;
+      this.syncCurrentSession(profile || this.get());
+    }, 250);
+  },
+
+  async syncCurrentSession(profile = null) {
+    if (typeof APP_STATE === 'undefined' || !APP_STATE.conversationId) return;
+    try {
+      await fetch(`/api/chat/session?id=${encodeURIComponent(APP_STATE.conversationId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          therapeutic_profile: profile || this.get()
+        })
+      });
+    } catch {
+      // Best-effort sync; local copy remains available even if server write fails.
+    }
   },
 
   merge(updates) {
@@ -316,8 +352,10 @@ const TherapeuticMemory = {
 
   clearProfile() {
     if (!confirm('確定要清除 Rou Rou 對你的所有記憶嗎？')) return;
-    localStorage.removeItem(this.KEY);
+    const nextProfile = this._default();
+    localStorage.setItem(this.KEY, JSON.stringify(nextProfile));
     this.renderProfileUI();
+    this.scheduleSessionSync(nextProfile);
     appendSystemNotice('記憶已清除。Rou Rou 下次會重新認識你。');
   },
 
@@ -948,6 +986,11 @@ function syncReportOutputsFromSessionExport(sessionExport = {}) {
 
 function syncTherapeuticMemoryFromSessionExport(sessionExport = {}) {
   if (!sessionExport || typeof sessionExport !== 'object') return;
+
+  if (sessionExport.therapeutic_profile && typeof sessionExport.therapeutic_profile === 'object') {
+    TherapeuticMemory.replace(sessionExport.therapeutic_profile, { skipSessionSync: true });
+    return;
+  }
 
   const latestTags = sessionExport.latest_tag_payload && typeof sessionExport.latest_tag_payload === 'object'
     ? sessionExport.latest_tag_payload
@@ -2670,7 +2713,8 @@ function resetConversationState() {
 function buildConversationRequestState() {
   return {
     conversation_id: APP_STATE.conversationId,
-    force_new_session: Boolean(!APP_STATE.conversationId && APP_STATE.pendingFreshSession)
+    force_new_session: Boolean(!APP_STATE.conversationId && APP_STATE.pendingFreshSession),
+    therapeutic_profile: TherapeuticMemory.get()
   };
 }
 
@@ -2914,7 +2958,8 @@ function buildSessionExportFromRecord(session = {}) {
     red_flag_payload: session.state?.red_flag_payload || {},
     patient_authorization_state: session.state?.patient_authorization_state || {},
     delivery_readiness_state: session.state?.delivery_readiness_state || {},
-    summary_draft_state: session.state?.summary_draft_state || {}
+    summary_draft_state: session.state?.summary_draft_state || {},
+    therapeutic_profile: session.state?.therapeutic_profile || {}
   };
 }
 
@@ -3611,6 +3656,7 @@ async function fetchOutputPayload(outputType, instructionOverride = '') {
     body: JSON.stringify({
       conversation_id: conversationState.conversation_id,
       force_new_session: conversationState.force_new_session,
+      therapeutic_profile: conversationState.therapeutic_profile,
       user: config.userId,
       output_type: outputType,
       instruction: instructionOverride || (OUTPUT_DEFINITIONS[outputType]?.instruction || outputType),
@@ -3641,6 +3687,7 @@ async function ensureModeSynced() {
         message: mode.command,
         conversation_id: conversationState.conversation_id,
         force_new_session: conversationState.force_new_session,
+        therapeutic_profile: conversationState.therapeutic_profile,
         user: config.userId,
         ...buildRuntimeRequestConfig(config),
         hide_response: true
@@ -3711,6 +3758,7 @@ async function sendMessage() {
         message: messageWithMemory,
         conversation_id: conversationState.conversation_id,
         force_new_session: conversationState.force_new_session,
+        therapeutic_profile: conversationState.therapeutic_profile,
         user: config.userId,
         ...buildRuntimeRequestConfig(config)
       })
@@ -3767,6 +3815,7 @@ async function extractProfileFromConversation() {
         message: extractPrompt,
         conversation_id: conversationState.conversation_id,
         force_new_session: conversationState.force_new_session,
+        therapeutic_profile: conversationState.therapeutic_profile,
         user: config.userId,
         ...buildRuntimeRequestConfig(config)
       })

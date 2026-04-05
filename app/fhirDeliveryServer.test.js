@@ -310,6 +310,50 @@ async function testSessionDeleteEndpoint() {
   assert.strictEqual(sessions.has('conv-a'), false);
 }
 
+async function testSessionPatchEndpoint() {
+  const sessions = new Map();
+  sessions.set('conv-a', {
+    id: 'conv-a',
+    user: 'demo-user',
+    startedAt: '2026-04-04T00:00:00.000Z',
+    updatedAt: '2026-04-04T00:05:00.000Z',
+    history: [{ role: 'user', content: '最近很累' }],
+    state: {},
+    revision: 1,
+    memory_snapshot: {},
+    output_cache: {}
+  });
+
+  const server = createServer({ sessions });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const payload = await new Promise((resolve, reject) => {
+    const req = http.request(`http://127.0.0.1:${port}/api/chat/session?id=conv-a`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' }
+    }, (res) => {
+      let raw = '';
+      res.on('data', (chunk) => { raw += chunk; });
+      res.on('end', () => resolve(JSON.parse(raw)));
+    });
+    req.on('error', reject);
+    req.write(JSON.stringify({
+      therapeutic_profile: {
+        version: '1.0',
+        userId: 'demo-user',
+        stressors: [{ label: '工作壓力' }]
+      }
+    }));
+    req.end();
+  });
+
+  server.close();
+  assert.strictEqual(payload.ok, true);
+  assert.strictEqual(payload.updated, true);
+  assert.deepStrictEqual(sessions.get('conv-a').state.therapeutic_profile.stressors, [{ label: '工作壓力' }]);
+}
+
 async function run() {
   await testDryRunDelivery();
   await testBlockedDelivery();
@@ -322,6 +366,7 @@ async function run() {
   await testSessionListEndpoint();
   await testSessionDetailEndpoint();
   await testSessionDeleteEndpoint();
+  await testSessionPatchEndpoint();
   console.log('FHIR delivery server tests passed.');
 }
 

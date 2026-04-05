@@ -279,6 +279,36 @@ function normalizeArray(value) {
   return Array.isArray(value) ? value.filter(Boolean) : [];
 }
 
+function normalizeTherapeuticProfile(profile, fallbackUser = '') {
+  const base = profile && typeof profile === 'object' ? profile : {};
+  return {
+    version: typeof base.version === 'string' && base.version.trim() ? base.version.trim() : '1.0',
+    userId: typeof base.userId === 'string' && base.userId.trim() ? base.userId.trim() : String(fallbackUser || '').trim(),
+    createdAt: base.createdAt || new Date().toISOString(),
+    lastUpdatedAt: base.lastUpdatedAt || new Date().toISOString(),
+    sessionCount: Number.isFinite(Number(base.sessionCount)) ? Number(base.sessionCount) : 0,
+    stressors: normalizeArray(base.stressors).map((item) => typeof item === 'string' ? { label: item } : item).filter((item) => item && item.label),
+    triggers: normalizeArray(base.triggers).map((item) => typeof item === 'string' ? { keyword: item } : item).filter((item) => item && item.keyword),
+    copingProfile: base.copingProfile && typeof base.copingProfile === 'object'
+      ? {
+          preferredStyle: typeof base.copingProfile.preferredStyle === 'string' ? base.copingProfile.preferredStyle : '',
+          effectiveMethods: normalizeArray(base.copingProfile.effectiveMethods),
+          ineffectiveMethods: normalizeArray(base.copingProfile.ineffectiveMethods)
+        }
+      : { preferredStyle: '', effectiveMethods: [], ineffectiveMethods: [] },
+    positiveAnchors: normalizeArray(base.positiveAnchors).map((item) => typeof item === 'string' ? { label: item, category: 'other' } : item).filter((item) => item && item.label),
+    emotionalBaseline: base.emotionalBaseline && typeof base.emotionalBaseline === 'object'
+      ? {
+          dominantMood: typeof base.emotionalBaseline.dominantMood === 'string' ? base.emotionalBaseline.dominantMood : '',
+          phq9Trend: normalizeArray(base.emotionalBaseline.phq9Trend),
+          hamdSignalCount: Number.isFinite(Number(base.emotionalBaseline.hamdSignalCount)) ? Number(base.emotionalBaseline.hamdSignalCount) : 0
+        }
+      : { dominantMood: '', phq9Trend: [], hamdSignalCount: 0 },
+    keyThemes: normalizeArray(base.keyThemes),
+    clinicianNotes: typeof base.clinicianNotes === 'string' ? base.clinicianNotes : ''
+  };
+}
+
 function defaultSessionExport(session) {
   return {
     patient: {
@@ -305,7 +335,8 @@ function defaultSessionExport(session) {
     delivery_readiness_state: normalizeObjectState(session.state, 'delivery_readiness_state', {}),
     patient_review_packet: normalizeObjectState(session.state, 'patient_review_packet', {}),
     fhir_delivery_draft: normalizeObjectState(session.state, 'fhir_delivery_draft', {}),
-    summary_draft_state: normalizeObjectState(session.state, 'summary_draft_state', {})
+    summary_draft_state: normalizeObjectState(session.state, 'summary_draft_state', {}),
+    therapeutic_profile: normalizeObjectState(session.state, 'therapeutic_profile', normalizeTherapeuticProfile({}, session.user))
   };
 }
 
@@ -740,6 +771,11 @@ class AICompanionEngine {
     }
   }
 
+  syncTherapeuticProfile(session, profile) {
+    if (!session || !profile || typeof profile !== 'object') return;
+    session.state.therapeutic_profile = normalizeTherapeuticProfile(profile, session.user);
+  }
+
   getOrCreateSession(id, user, options = {}) {
     const forceNewSession = Boolean(options.forceNewSession);
     const sessionId = id || (!forceNewSession && this.findLatestSessionIdByUser(user)) || `conv-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
@@ -782,6 +818,7 @@ class AICompanionEngine {
       forceNewSession: payload.force_new_session
     });
     const state = session.state;
+    this.syncTherapeuticProfile(session, payload.therapeutic_profile);
     if (!message) {
       this.persistSessions();
       return {
@@ -1298,6 +1335,7 @@ class AICompanionEngine {
     const session = this.getOrCreateSession(payload.conversation_id, payload.user, {
       forceNewSession: payload.force_new_session
     });
+    this.syncTherapeuticProfile(session, payload.therapeutic_profile);
     const outputType = String(payload.output_type || '').trim();
     const instruction = String(payload.instruction || '').trim();
     const cacheKey = outputType;

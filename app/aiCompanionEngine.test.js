@@ -225,6 +225,30 @@ async function testCorruptedInputIsRejectedBeforePersist() {
   assert.strictEqual(engine.sessions.size, 0);
 }
 
+async function testTherapeuticProfilePersistsInSession() {
+  const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
+  const profile = {
+    version: '1.0',
+    userId: 'demo-user',
+    sessionCount: 3,
+    stressors: [{ label: '工作壓力' }],
+    triggers: [{ keyword: '開會' }],
+    copingProfile: { preferredStyle: '先慢慢聊', effectiveMethods: [], ineffectiveMethods: [] },
+    positiveAnchors: [{ label: '散步', category: 'other' }],
+    emotionalBaseline: { dominantMood: '緊張', phq9Trend: [], hamdSignalCount: 0 },
+    keyThemes: ['工作'],
+    clinicianNotes: ''
+  };
+  const result = await engine.handleMessage({
+    message: '最近很累',
+    user: 'demo-user',
+    therapeutic_profile: profile
+  });
+  assert.deepStrictEqual(result.session_export.therapeutic_profile.stressors, [{ label: '工作壓力' }]);
+  const session = engine.sessions.get(result.conversation_id);
+  assert.deepStrictEqual(session.state.therapeutic_profile.stressors, [{ label: '工作壓力' }]);
+}
+
 async function testSessionPersistenceRoundTrip() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-companion-'));
   const storePath = path.join(tmpDir, 'sessions.json');
@@ -264,6 +288,7 @@ async function run() {
   await testReuseLatestSessionByUserWhenConversationIdMissing();
   await testForceNewSessionCreatesSeparateConversation();
   await testCorruptedInputIsRejectedBeforePersist();
+  await testTherapeuticProfilePersistsInSession();
   await testSessionPersistenceRoundTrip();
   console.log('AI companion engine tests passed.');
 }

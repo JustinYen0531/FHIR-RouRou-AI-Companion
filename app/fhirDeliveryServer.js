@@ -360,7 +360,8 @@ async function processChatPayload(payload, options = {}) {
         inputs: payload.inputs || {},
         user,
         conversation_id: payload.conversation_id || '',
-        force_new_session: Boolean(payload.force_new_session)
+        force_new_session: Boolean(payload.force_new_session),
+        therapeutic_profile: payload.therapeutic_profile || null
       }
     );
 
@@ -435,6 +436,7 @@ async function processOutputPayload(payload, options = {}) {
     const result = await engine.generateOutput({
       conversation_id: payload.conversation_id || '',
       force_new_session: Boolean(payload.force_new_session),
+      therapeutic_profile: payload.therapeutic_profile || null,
       user,
       output_type: outputType,
       instruction: payload.instruction || ''
@@ -601,7 +603,7 @@ function createServer(options = {}) {
       return;
     }
 
-    if (req.method !== 'POST' || !['/api/fhir/bundle', '/api/chat/message', '/api/chat/output'].includes(parsedUrl.pathname)) {
+    if (!['POST', 'PATCH'].includes(req.method) || !['/api/fhir/bundle', '/api/chat/message', '/api/chat/output', '/api/chat/session'].includes(parsedUrl.pathname)) {
       sendJson(res, 404, { error: 'Not found' });
       return;
     }
@@ -618,6 +620,30 @@ function createServer(options = {}) {
         payload = rawBody ? JSON.parse(rawBody) : {};
       } catch (error) {
         sendJson(res, 400, { error: 'Invalid JSON body' });
+        return;
+      }
+
+      if (req.method === 'PATCH' && parsedUrl.pathname === '/api/chat/session') {
+        const sessionId = String(parsedUrl.searchParams.get('id') || '').trim();
+        if (!sessionId) {
+          sendJson(res, 400, { error: 'Session id is required.' });
+          return;
+        }
+
+        const session = sharedSessions.get(sessionId);
+        if (!session) {
+          sendJson(res, 404, { error: 'Session not found.' });
+          return;
+        }
+
+        if (payload.therapeutic_profile && typeof payload.therapeutic_profile === 'object') {
+          session.state = session.state && typeof session.state === 'object' ? session.state : {};
+          session.state.therapeutic_profile = payload.therapeutic_profile;
+          session.updatedAt = new Date().toISOString();
+          persistence.save(sharedSessions);
+        }
+
+        sendJson(res, 200, { ok: true, updated: true, session_id: sessionId });
         return;
       }
 
