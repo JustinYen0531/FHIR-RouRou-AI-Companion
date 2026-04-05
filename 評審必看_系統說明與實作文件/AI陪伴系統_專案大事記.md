@@ -1,6 +1,6 @@
 # AI陪伴系統專案大事記
 
-本文件依據 `FHIR-main` 專案目前的 Git 提交紀錄整理而成，涵蓋 `2026-03-24` 至 `2026-04-05` 的主要開發軸線。內容不是逐筆 commit 轉錄，而是將同日或同階段的重點整合成可閱讀的專案大事記，方便作為競賽說明、成果報告與簡報敘事素材。
+本文件依據 `FHIR-main` 專案目前的 Git 提交紀錄整理而成，涵蓋 `2026-03-24` 至 `2026-04-06` 的主要開發軸線。內容不是逐筆 commit 轉錄，而是將同日或同階段的重點整合成可閱讀的專案大事記，方便作為競賽說明、成果報告與簡報敘事素材。
 
 ---
 
@@ -42,7 +42,9 @@
 
 `2026-04-05` 則進入整理與驗證期。這一天先加入 timestamped FHIR history management，代表系統已開始把 FHIR 交付結果視為可追蹤、可回顧的歷史紀錄，而非一次性輸出。接著修正 void mode prompt behavior，說明聊天模式細節仍持續微調。同日也補上第二份 mode switching 手動測試紀錄，以及 FHIR composition output review record，顯示專案在高強度實作之後，正逐步回到驗證輸出品質、確認模式切換穩定度與審查 FHIR 組成內容的階段。
 
-整體來看，這個專案在非常短的時間內走過了一條完整的產品化路徑：先建立 AI workflow 與模式路由，再解決平台相容性與風險處理，接著把臨床摘要、HAM-D、記憶層與微介入能力加入系統，再做出手機化前端與完整互動，最後把結果真正接上 FHIR bundle、validation、delivery API、HAPI FHIR upload、consent 流程與歷史管理。從 Git 紀錄可看出，團隊並非單一路線開發，而是在流程、前端、FHIR、測試、文件五條線上同步推進，並透過大量修正與回退來換取最終的穩定與可展示性。這正是本專案從概念驗證走向實作成果的重要軌跡。
+`2026-04-06` 的重點則很適合作為這一輪調整的收尾與補敘事。從 Git 紀錄可以看出，這一天雖然 commit 數量不算暴衝，但方向非常明確，主要是在補齊「讓外部更容易理解 FHIR 能力」的說明材料。團隊先後加入 FHIR login 與 registration notes、mock EMR video notes，以及 FHIR intro experience notes，代表系統已不只是把資料做出來而已，而是開始補足展示情境、示範腳本與導覽式說明，讓評審、老師或第一次接觸的人能更快看懂整條體驗路徑。這些文件型提交的價值其實很高，因為它們把前幾天已經完成的 FHIR draft、交付流程與醫療端閱讀情境串成一個更完整的敘事閉環。換句話說，專案在這一天正式從「功能很多」再往前走一步，變成「功能、展示、說明三者更一致」的版本。
+
+整體來看，這個專案在非常短的時間內走過了一條完整的產品化路徑：先建立 AI workflow 與模式路由，再解決平台相容性與風險處理，接著把臨床摘要、HAM-D、記憶層與微介入能力加入系統，再做出手機化前端與完整互動，最後把結果真正接上 FHIR bundle、validation、delivery API、HAPI FHIR upload、consent 流程、歷史管理與展示敘事材料。從 Git 紀錄可看出，團隊並非單一路線開發，而是在流程、前端、FHIR、測試、文件五條線上同步推進，並透過大量修正與回退來換取最終的穩定與可展示性。這正是本專案從概念驗證走向實作成果的重要軌跡。
 
 ---
 
@@ -64,4 +66,4 @@
 
 同一天最關鍵的成果，則是 FHIR consent 與 delivery 流程的整合完成。團隊先後補上 consent preview、formal HAM-D draft pipeline、HAPI resource links、consent progress feedback、upload collision 修正、auto-generate FHIR draft、Patient ID 顯示、payload normalize、fallback 機制與 draft merge 邏輯，讓 AI 對話結果能被整理、預覽、確認、轉換並上傳到 HAPI FHIR 伺服器，真正形成一條從陪伴對話走向標準醫療資料交付的完整流程。
 
-最後到 `2026-04-05`，系統開始進入驗證與整理階段，新增 timestamped FHIR history management、修正 void mode prompt，並補上模式切換與 FHIR composition output 的人工檢查紀錄。整體而言，`FHIR-main` 在短短十多天內，從 AI workflow 雛形快速成長為結合陪伴對話、風險分流、治療記憶、前端互動、FHIR 標準化輸出與競賽文件的完整作品，展現出高度密集而有方向的開發節奏。
+最後到 `2026-04-05` 與 `2026-04-06`，系統開始進入驗證、整理與展示敘事補強階段。除了加入 timestamped FHIR history management、修正 void mode prompt、補上模式切換與 FHIR composition output 的人工檢查紀錄外，也進一步新增 FHIR login / registration notes、mock EMR video notes 與 FHIR intro experience notes。這代表專案不只在打磨輸出品質，也開始強化外部理解路徑，讓評審或初次接觸者能更快掌握系統如何從對話走到 FHIR 醫療資料展示。整體而言，`FHIR-main` 在短短十多天內，從 AI workflow 雛形快速成長為結合陪伴對話、風險分流、治療記憶、前端互動、FHIR 標準化輸出、測試紀錄與競賽敘事文件的完整作品，展現出高度密集而有方向的開發節奏。
