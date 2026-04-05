@@ -1,4 +1,4 @@
-# 星澄遠征軍｜AI Companion
+# 星澄遠征軍｜Rou Rou AI Companion
 
 ## 專案簡介
 
