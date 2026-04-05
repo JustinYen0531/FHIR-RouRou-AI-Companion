@@ -2988,6 +2988,7 @@ function resetConversationState() {
   APP_STATE.syncedMode = '';
   APP_STATE.runtimeMode = '';
   APP_STATE.lastChatMetadata = null;
+  APP_STATE.chatHistory = [];
   APP_STATE.reportOutputs = {
     clinician_summary: null,
     patient_analysis: null,
@@ -3300,8 +3301,12 @@ async function continueSpecificSession(sessionId) {
 }
 
 function startNewConversation() {
+  saveCurrentSessionToLocalArchive();
   resetConversationState();
   APP_STATE.pendingFreshSession = true;
+  renderChatHistory([]);
+  updateModeLabels();
+  renderReportOutputs();
   showScreen('screen-chat');
   appendSystemNotice('已開始新的對話。這次不會接續之前的會話。');
 }
