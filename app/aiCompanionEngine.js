@@ -634,33 +634,107 @@ function buildFormalFhirTargets(formalAssessment) {
 function buildPatientAnalysis(state, fallbackMessage = '') {
   const clinician = normalizeObjectState(state, 'clinician_summary_draft', {});
   const patientReview = normalizeObjectState(state, 'patient_review_packet', {});
+  const latestTags = normalizeObjectState(state, 'latest_tag_payload', {});
+  const burden = normalizeObjectState(state, 'burden_level_state', {});
+  const hamdProgress = normalizeObjectState(state, 'hamd_progress_state', {});
+  const therapeuticProfile = normalizeObjectState(state, 'therapeutic_profile', {});
   const concerns = normalizeArray(clinician.chief_concerns).slice(0, 3);
   const observations = normalizeArray(clinician.symptom_observations).slice(0, 3);
+  const followupNeeds = normalizeArray(clinician.followup_needs).slice(0, 3);
+  const stressors = normalizeArray(therapeuticProfile.stressors)
+    .map((item) => typeof item === 'string' ? item : item?.label)
+    .filter(Boolean)
+    .slice(0, 3);
+  const keyThemes = normalizeArray(therapeuticProfile.keyThemes).filter(Boolean).slice(0, 3);
+  const positiveAnchors = normalizeArray(therapeuticProfile.positiveAnchors)
+    .map((item) => typeof item === 'string' ? item : item?.label)
+    .filter(Boolean)
+    .slice(0, 2);
+  const supportedDimensions = normalizeArray(hamdProgress.supported_dimensions).filter(Boolean).slice(0, 3);
+  const recentEvidence = normalizeArray(hamdProgress.recent_evidence).filter(Boolean).slice(0, 3);
+  const sentimentTags = normalizeArray(latestTags.sentiment_tags).filter(Boolean).slice(0, 3);
+  const cognitiveTags = normalizeArray(latestTags.cognitive_tags).filter(Boolean).slice(0, 2);
+  const behavioralTags = normalizeArray(latestTags.behavioral_tags).filter(Boolean).slice(0, 2);
   const summary =
     patientReview.patient_facing_summary ||
     clinician.draft_summary ||
     fallbackMessage ||
     '目前還沒有足夠內容可以整理成給病人的分析。';
+  const stateUnderstanding = [];
+  if (sentimentTags.length) stateUnderstanding.push(`你最近的情緒線索比較靠近「${sentimentTags.join('、')}」`);
+  if (burden.burden_level === 'high') stateUnderstanding.push('你現在的互動負擔偏高，可能不太適合一次處理太多問題');
+  if (burden.burden_level === 'medium') stateUnderstanding.push('你現在還撐得住對話，但可能已經有點疲累，需要比較溫和的整理節奏');
+  if (supportedDimensions.length) stateUnderstanding.push(`目前對話已經碰到的狀態面向包含 ${supportedDimensions.join('、')}`);
+  if (keyThemes.length) stateUnderstanding.push(`這段對話反覆繞著 ${keyThemes.join('、')} 這幾個主題`);
+  if (!stateUnderstanding.length) stateUnderstanding.push('目前資料還偏少，但已經能看出你不是單純想抱怨，而是在試著整理自己的狀態');
 
-  const bullets = [...concerns, ...observations].slice(0, 4);
+  const pressurePoints = [];
+  if (concerns.length) pressurePoints.push(...concerns.map((item) => `你明顯在意的事包括：${item}`));
+  if (stressors.length) pressurePoints.push(...stressors.map((item) => `可能正在拉扯你的壓力來源之一是：${item}`));
+  if (observations.length) pressurePoints.push(...observations.map((item) => `我注意到一個具體表現是：${item}`));
+  if (recentEvidence.length) pressurePoints.push(...recentEvidence.map((item) => `最近浮出的線索像是：${item}`));
+  if (cognitiveTags.length) pressurePoints.push(`你的想法裡可能也帶著 ${cognitiveTags.join('、')} 這類認知壓力`);
+  if (behavioralTags.length) pressurePoints.push(`行為線索上有 ${behavioralTags.join('、')} 的傾向`);
+  const dedupedPressurePoints = Array.from(new Set(pressurePoints)).slice(0, 4);
+
+  const supportSuggestions = [];
+  if (burden.response_style === 'option_first' || burden.burden_level === 'high') {
+    supportSuggestions.push('你現在比較適合先用「少一點選項、少一點追問」的方式繼續，而不是一次講很多。');
+  } else {
+    supportSuggestions.push('你現在可以承受一些整理，所以比較適合慢慢把最卡的那件事講清楚。');
+  }
+  if (followupNeeds.length) {
+    supportSuggestions.push(`如果要再往下聊，優先可以放在：${followupNeeds.join('、')}`);
+  }
+  if (hamdProgress.next_recommended_dimension) {
+    supportSuggestions.push(`下一步如果要更理解你的狀態，可以再補一點和「${hamdProgress.next_recommended_dimension}」有關的感受或例子。`);
+  }
+  if (positiveAnchors.length) {
+    supportSuggestions.push(`你不是只有困住的部分，像 ${positiveAnchors.join('、')} 這些也可能是幫你穩住自己的資源。`);
+  }
+  if (!supportSuggestions.length) {
+    supportSuggestions.push('如果你願意，下一輪可以先從最近最卡、最難受，或最反覆想到的一件事開始。');
+  }
+
+  const nextSteps = [
+    '如果你想要的是被理解，可以繼續補充最近最卡的一件事，讓分析不要只停在表面。',
+    '如果你想把這些內容整理成比較正式的看診材料，可以按「整理給醫師」。'
+  ];
+  if (burden.burden_level === 'high') {
+    nextSteps.unshift('如果你現在很沒力，也可以只回一小句，像「最難受的是什麼」或「我最卡在哪裡」。');
+  }
+
+  const bullets = Array.from(new Set([
+    ...concerns,
+    ...observations,
+    ...stressors,
+    ...keyThemes
+  ])).slice(0, 5);
   const markdown = [
     '## 給你的分析',
     '',
     summary,
     '',
-    '### 我目前注意到的重點',
-    ...(bullets.length ? bullets.map((item) => `- ${item}`) : ['- 目前還需要更多對話，才能整理出更完整的重點。']),
+    '### 我怎麼理解你現在的狀態',
+    ...stateUnderstanding.map((item) => `- ${item}`),
+    '',
+    '### 我目前注意到你卡住的地方',
+    ...(dedupedPressurePoints.length
+      ? dedupedPressurePoints.map((item) => `- ${item}`)
+      : ['- 目前還需要更多對話，才能整理出更具體的卡點。']),
+    '',
+    '### 你現在比較需要的支持方式',
+    ...supportSuggestions.map((item) => `- ${item}`),
     '',
     '### 接下來可以怎麼做',
-    '- 如果你願意，可以繼續聊最近最卡的一件事。',
-    '- 如果你想整理成醫療用摘要，可以按「整理給醫師」。',
+    ...nextSteps.map((item) => `- ${item}`),
     '',
     '### 提醒',
     '這份內容是依據目前對話整理的陪伴式理解，不是醫療診斷。'
   ].join('\n');
 
   return {
-    version: 'p3_patient_analysis_v1',
+    version: 'p3_patient_analysis_v2',
     status: 'ready',
     plain_summary: summary,
     key_points: bullets,
