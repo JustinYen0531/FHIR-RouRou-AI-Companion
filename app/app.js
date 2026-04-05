@@ -2434,6 +2434,47 @@ function rememberFhirDeliveryDebug(debug = {}) {
   }
 }
 
+function buildUserPromptContextString() {
+  const userPrompt = String(APP_STATE?.aiSettings?.userPrompt || '').trim();
+  if (!userPrompt) return '';
+  return [
+    '【個性化記憶 - 這是使用者手動提供的偏好，請在回應時納入】',
+    userPrompt
+  ].join('\n');
+}
+
+function extractPreferenceItemsFromText(text = '') {
+  const source = String(text || '').trim();
+  if (!source) return [];
+  const matches = [];
+  const regex = /我(?:最)?喜歡([^，。！？\n]+)/g;
+  let match;
+  while ((match = regex.exec(source))) {
+    const item = String(match[1] || '').trim().replace(/^(是|的)/, '').trim();
+    if (item) matches.push(item);
+  }
+  return Array.from(new Set(matches));
+}
+
+function buildPreferenceRecallReply(message = '') {
+  const question = String(message || '').trim();
+  if (!/(喜歡什麼|記得.*喜歡|知道.*喜歡|我的偏好|我喜歡什麼)/.test(question)) {
+    return '';
+  }
+
+  const memoryItems = Array.isArray(TherapeuticMemory.get()?.positiveAnchors)
+    ? TherapeuticMemory.get().positiveAnchors.map((item) => item?.label).filter(Boolean)
+    : [];
+  const promptItems = extractPreferenceItemsFromText(APP_STATE?.aiSettings?.userPrompt || '');
+  const items = Array.from(new Set(memoryItems.concat(promptItems)));
+
+  if (!items.length) {
+    return '';
+  }
+
+  return `我目前記得你喜歡 ${items.join('、')}。如果你願意，我也可以繼續把更多偏好記住。`;
+}
+
 function getRuntimeConfig() {
   const provider = localStorage.getItem('rourou.aiProvider') || DEFAULT_PROVIDER;
   return {
@@ -3378,6 +3419,13 @@ async function sendMessage() {
   setTyping(true);
 
   try {
+    const directPreferenceReply = buildPreferenceRecallReply(message);
+    if (directPreferenceReply) {
+      setTyping(false);
+      await appendMessage('ai', directPreferenceReply, { animate: true });
+      return;
+    }
+
     setThinkingState(true, '正在分析對話脈絡...');
     await new Promise(r => setTimeout(r, 1200));
     setThinkingState(true, '同步臨床歷史紀錄...');
@@ -3387,8 +3435,10 @@ async function sendMessage() {
 
     setThinkingState(true, '正在生成暖心回覆...');
     const config = getRuntimeConfig();
+    const userPromptContext = buildUserPromptContextString();
     const memoryContext = TherapeuticMemory.buildContextString();
-    const messageWithMemory = memoryContext ? `${memoryContext}\n\n用戶說：${message}` : message;
+    const contextParts = [userPromptContext, memoryContext].filter(Boolean);
+    const messageWithMemory = contextParts.length ? `${contextParts.join('\n\n')}\n\n用戶說：${message}` : message;
     const response = await fetch('/api/chat/message', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
