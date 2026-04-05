@@ -16,7 +16,7 @@ AI Companion 是一套以心理健康診前整理為核心的 AI 陪伴系統。
 
 如果你只是想直接體驗，不需要先下載專案。
 
-- 線上 Demo：[https://fhir-rho.vercel.app](https://fhir-rho.vercel.app)
+- 線上 Demo：[https://fhir-xingcheng.vercel.app](https://fhir-xingcheng.vercel.app)
 - YouTube 介紹影片：[https://youtu.be/xgSwaATVUeA](https://youtu.be/xgSwaATVUeA)
 
 建議使用方式：
@@ -42,7 +42,7 @@ AI Companion 是一套以心理健康診前整理為核心的 AI 陪伴系統。
 
 適合評審、老師、一般體驗者。
 
-- 入口：[https://fhir-rho.vercel.app](https://fhir-rho.vercel.app)
+- 入口：[https://fhir-xingcheng.vercel.app](https://fhir-xingcheng.vercel.app)
 - 不需要下載專案
 - 不需要自行設定 API key
 - 可直接體驗聊天、記憶、報表與 FHIR 相關流程
