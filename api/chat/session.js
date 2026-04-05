@@ -30,18 +30,60 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const session = persistence.sessions.get(sessionId);
+    let session = persistence.sessions.get(sessionId);
     if (!session) {
-      sendJson(res, 404, { error: 'Session not found.' });
-      return;
+      session = {
+        id: sessionId,
+        user: payload.user || 'web-demo-user',
+        startedAt: payload.startedAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        history: [],
+        state: {},
+        revision: 0,
+        memory_snapshot: {},
+        output_cache: {}
+      };
+      persistence.sessions.set(sessionId, session);
     }
 
     if (payload.therapeutic_profile && typeof payload.therapeutic_profile === 'object') {
       session.state = session.state && typeof session.state === 'object' ? session.state : {};
       session.state.therapeutic_profile = payload.therapeutic_profile;
       session.updatedAt = new Date().toISOString();
-      persistence.save(persistence.sessions);
     }
+
+    if (Array.isArray(payload.history)) {
+      session.history = payload.history;
+      session.updatedAt = new Date().toISOString();
+    }
+
+    if (payload.state && typeof payload.state === 'object') {
+      session.state = payload.state;
+      session.updatedAt = new Date().toISOString();
+    }
+
+    if (payload.memory_snapshot && typeof payload.memory_snapshot === 'object') {
+      session.memory_snapshot = payload.memory_snapshot;
+      session.updatedAt = new Date().toISOString();
+    }
+
+    if (Number.isFinite(Number(payload.revision))) {
+      session.revision = Number(payload.revision);
+    }
+
+    if (payload.user) {
+      session.user = payload.user;
+    }
+
+    if (payload.startedAt) {
+      session.startedAt = payload.startedAt;
+    }
+
+    if (payload.clear_output_cache) {
+      session.output_cache = {};
+    }
+
+    persistence.save(persistence.sessions);
 
     sendJson(res, 200, { ok: true, updated: true, session_id: sessionId });
     return;

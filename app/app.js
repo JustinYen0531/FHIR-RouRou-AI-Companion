@@ -849,7 +849,9 @@ function buildFhirHistoryEntry({ type, draft = null, deliveryResult = null, sess
   const resourceLinks = buildFhirResourceLinks(deliveryResult);
   const fixedPatientValues = getFixedPatientValues(deliveryResult, sessionExport);
   const targetUrl = normalizeFhirBaseUrl(deliveryResult?.fhir_base_url || sessionExport?.__deliveryTargetUrl || '');
-  const summary = String(draft?.narrative_summary || '').trim() || (entryType === 'delivery' ? 'FHIR 交付結果' : 'FHIR 草稿');
+  const summary = isValidFhirDraftOutput(draft)
+    ? String(draft?.narrative_summary || '').trim()
+    : (entryType === 'delivery' ? 'FHIR 交付結果' : 'FHIR 草稿');
   const deliveryStatus = deliveryResult?.delivery_status || draft?.delivery_status || (entryType === 'draft' ? 'draft' : 'unknown');
   const fingerprint = JSON.stringify({
     entryType,
@@ -1009,14 +1011,57 @@ function getFixedPatientValues(fhirDeliveryResult, fallbackSessionExport) {
   };
 }
 
+function isPlaceholderDraftText(value = '') {
+  const text = String(value || '').trim();
+  if (!text) return true;
+  return /^待補/.test(text) || /^尚待補充/.test(text) || /目前對話中沒有提供具體的症狀或情況描述/.test(text) || /目前沒有具體的對話內容可供摘要/.test(text);
+}
+
+function isValidClinicianSummaryOutput(output = {}) {
+  if (!output || typeof output !== 'object') return false;
+  const concerns = Array.isArray(output.chief_concerns) ? output.chief_concerns.filter(Boolean) : [];
+  const observations = Array.isArray(output.symptom_observations) ? output.symptom_observations.filter(Boolean) : [];
+  const summary = String(output.draft_summary || '').trim();
+  return concerns.length > 0 || observations.length > 0 || !isPlaceholderDraftText(summary);
+}
+
+function isValidPatientAnalysisOutput(output = {}) {
+  if (!output || typeof output !== 'object') return false;
+  const summary = String(output.plain_summary || output.markdown || '').trim();
+  const keyPoints = Array.isArray(output.key_points) ? output.key_points.filter(Boolean) : [];
+  return !isPlaceholderDraftText(summary) || keyPoints.length > 0;
+}
+
+function isValidFhirDraftOutput(output = {}) {
+  if (!output || typeof output !== 'object') return false;
+  const narrative = String(output.narrative_summary || '').trim();
+  const sections = Array.isArray(output.composition_sections) ? output.composition_sections.filter(Boolean) : [];
+  const meaningfulSections = sections.filter((item) => item && !isPlaceholderDraftText(item.focus));
+  const observations = Array.isArray(output.observation_candidates) ? output.observation_candidates.filter(Boolean) : [];
+  const targets = Array.isArray(output.questionnaire_targets) ? output.questionnaire_targets.filter(Boolean) : [];
+  return (!isPlaceholderDraftText(narrative) && meaningfulSections.length > 0) || observations.length > 0 || targets.length > 0;
+}
+
+function getPreferredFhirSummaryText() {
+  const fhirDraft = APP_STATE.reportOutputs.fhir_delivery;
+  const clinician = APP_STATE.reportOutputs.clinician_summary;
+  if (isValidFhirDraftOutput(fhirDraft)) {
+    return String(fhirDraft.narrative_summary || '').trim();
+  }
+  if (isValidClinicianSummaryOutput(clinician)) {
+    return String(clinician.draft_summary || '').trim();
+  }
+  return '';
+}
+
 function syncReportOutputsFromSessionExport(sessionExport = {}) {
   if (!sessionExport || typeof sessionExport !== 'object') return;
 
-  if (sessionExport.clinician_summary_draft && typeof sessionExport.clinician_summary_draft === 'object') {
+  if (isValidClinicianSummaryOutput(sessionExport.clinician_summary_draft)) {
     APP_STATE.reportOutputs.clinician_summary = JSON.parse(JSON.stringify(sessionExport.clinician_summary_draft));
   }
 
-  if (sessionExport.patient_analysis && typeof sessionExport.patient_analysis === 'object') {
+  if (isValidPatientAnalysisOutput(sessionExport.patient_analysis)) {
     APP_STATE.reportOutputs.patient_analysis = JSON.parse(JSON.stringify(sessionExport.patient_analysis));
   }
 
@@ -1024,7 +1069,7 @@ function syncReportOutputsFromSessionExport(sessionExport = {}) {
     APP_STATE.reportOutputs.patient_review = JSON.parse(JSON.stringify(sessionExport.patient_review_packet));
   }
 
-  if (sessionExport.fhir_delivery_draft && typeof sessionExport.fhir_delivery_draft === 'object') {
+  if (isValidFhirDraftOutput(sessionExport.fhir_delivery_draft)) {
     APP_STATE.reportOutputs.fhir_delivery = JSON.parse(JSON.stringify(sessionExport.fhir_delivery_draft));
   }
 }
@@ -1132,11 +1177,11 @@ function renderReportOutputs() {
   }
 
   if (fhirStatus) {
-    if (APP_STATE.reportFhirDraft.isLoading && !fhirDelivery?.narrative_summary) {
+    if (APP_STATE.reportFhirDraft.isLoading && !isValidFhirDraftOutput(fhirDelivery)) {
       fhirStatus.textContent = '生成中';
-    } else if (APP_STATE.reportFhirDraft.error && !fhirDelivery?.narrative_summary) {
+    } else if (APP_STATE.reportFhirDraft.error && !isValidFhirDraftOutput(fhirDelivery)) {
       fhirStatus.textContent = '生成失敗';
-    } else if (APP_STATE.reportFhirDraft.emptyReason && !fhirDelivery?.narrative_summary) {
+    } else if (APP_STATE.reportFhirDraft.emptyReason && !isValidFhirDraftOutput(fhirDelivery)) {
       fhirStatus.textContent = '尚無資料';
     } else {
       fhirStatus.textContent = fhirDeliveryResult?.delivery_status || fhirDelivery?.delivery_status || '尚未生成';
@@ -1144,16 +1189,17 @@ function renderReportOutputs() {
   }
 
   if (fhirSummary) {
-    if (fhirDelivery?.narrative_summary) {
-      fhirSummary.textContent = fhirDelivery.narrative_summary;
+    const preferredSummary = getPreferredFhirSummaryText();
+    if (preferredSummary) {
+      fhirSummary.textContent = preferredSummary;
     } else if (APP_STATE.reportFhirDraft.isLoading) {
-      fhirSummary.textContent = '正在依據目前對話建立 FHIR 草稿，完成後這裡會顯示可交付摘要。';
+      fhirSummary.textContent = '正在依據這段對話重新整理 FHIR 草稿，完成後這裡會顯示新的可交付摘要。';
     } else if (APP_STATE.reportFhirDraft.error) {
       fhirSummary.textContent = `FHIR 草稿建立失敗：${APP_STATE.reportFhirDraft.error}`;
     } else if (APP_STATE.reportFhirDraft.emptyReason) {
       fhirSummary.textContent = APP_STATE.reportFhirDraft.emptyReason;
     } else {
-      fhirSummary.textContent = '正在等待產生 FHIR 草稿。';
+      fhirSummary.textContent = '尚未重新生成，請重新整理 FHIR 草稿。';
     }
   }
 
@@ -1195,7 +1241,7 @@ function renderReportOutputs() {
 
   if (deleteDraftButton) {
     const hasDraftContent = Boolean(
-      fhirDelivery?.narrative_summary ||
+      isValidFhirDraftOutput(fhirDelivery) ||
       (Array.isArray(fhirDelivery?.resources) && fhirDelivery.resources.length) ||
       APP_STATE.reportOutputs.fhir_delivery_result ||
       APP_STATE.pendingConsent?.fhirDraft ||
@@ -1272,19 +1318,37 @@ function renderReportOutputs() {
 }
 
 function storeOutputResult(payload) {
-  APP_STATE.reportOutputs[payload.output_type] = payload.output || null;
+  const output = payload.output || null;
+  if (payload.output_type === 'fhir_delivery') {
+    if (isValidFhirDraftOutput(output) || !isValidFhirDraftOutput(APP_STATE.reportOutputs.fhir_delivery)) {
+      APP_STATE.reportOutputs.fhir_delivery = output;
+    }
+  } else if (payload.output_type === 'clinician_summary') {
+    if (isValidClinicianSummaryOutput(output) || !isValidClinicianSummaryOutput(APP_STATE.reportOutputs.clinician_summary)) {
+      APP_STATE.reportOutputs.clinician_summary = output;
+    }
+  } else if (payload.output_type === 'patient_analysis') {
+    if (isValidPatientAnalysisOutput(output) || !isValidPatientAnalysisOutput(APP_STATE.reportOutputs.patient_analysis)) {
+      APP_STATE.reportOutputs.patient_analysis = output;
+    }
+  } else {
+    APP_STATE.reportOutputs[payload.output_type] = output;
+  }
   if (payload.output_type === 'fhir_delivery') {
     APP_STATE.reportFhirDraft = {
       isLoading: false,
       error: '',
-      emptyReason: ''
+      emptyReason: isValidFhirDraftOutput(output) ? '' : '目前這份 FHIR 草稿仍在重新整理，請稍後再試一次。'
     };
-    if (payload.output && typeof payload.output === 'object') {
-      payload.output.recorded_at = payload.output.recorded_at || new Date().toISOString();
-      recordFhirDraftHistory(payload.output, payload.session_export || APP_STATE.reportOutputs.session_export || null);
+    if (isValidFhirDraftOutput(output)) {
+      output.recorded_at = output.recorded_at || new Date().toISOString();
+      recordFhirDraftHistory(output, payload.session_export || APP_STATE.reportOutputs.session_export || null);
     }
   }
-  APP_STATE.reportOutputs.session_export = payload.session_export || APP_STATE.reportOutputs.session_export;
+  if (payload.session_export && typeof payload.session_export === 'object') {
+    APP_STATE.reportOutputs.session_export = payload.session_export;
+    syncReportOutputsFromSessionExport(payload.session_export);
+  }
   APP_STATE.lastChatMetadata = payload.metadata || APP_STATE.lastChatMetadata;
   APP_STATE.runtimeMode = payload.metadata?.active_mode || APP_STATE.runtimeMode;
   APP_STATE.reportOutputs.updatedAt = formatTimeLabel(new Date());
@@ -2917,10 +2981,6 @@ function buildCurrentSessionRecord() {
     risk_flag: APP_STATE.lastChatMetadata?.risk_flag || sessionExport.risk_flag || 'false',
     latest_tag_payload: deepCloneSerializable(latestTagPayload, {}),
     burden_level_state: deepCloneSerializable(APP_STATE.lastChatMetadata?.burden_level_state || sessionExport.burden_level_state || {}, {}),
-    clinician_summary_draft: deepCloneSerializable(sessionExport.clinician_summary_draft || APP_STATE.reportOutputs.clinician_summary || {}, {}),
-    patient_analysis: deepCloneSerializable(sessionExport.patient_analysis || APP_STATE.reportOutputs.patient_analysis || {}, {}),
-    patient_review_packet: deepCloneSerializable(sessionExport.patient_review_packet || APP_STATE.reportOutputs.patient_review || {}, {}),
-    fhir_delivery_draft: deepCloneSerializable(sessionExport.fhir_delivery_draft || APP_STATE.reportOutputs.fhir_delivery || {}, {}),
     therapeutic_profile: deepCloneSerializable(TherapeuticMemory.get(), {})
   };
 
@@ -2972,7 +3032,17 @@ function applySessionRecord(session = {}, fallbackSessionId = '') {
     burden_level_state: normalizedSession.state?.burden_level_state || {}
   };
   APP_STATE.chatHistory = normalizeChatHistoryEntries(normalizedSession.history).slice(-24);
+  APP_STATE.reportOutputs.clinician_summary = null;
+  APP_STATE.reportOutputs.patient_analysis = null;
+  APP_STATE.reportOutputs.patient_review = null;
+  APP_STATE.reportOutputs.fhir_delivery = null;
+  APP_STATE.reportOutputs.fhir_delivery_result = null;
   APP_STATE.reportOutputs.session_export = buildSessionExportFromRecord(normalizedSession);
+  APP_STATE.reportFhirDraft = {
+    isLoading: false,
+    error: '',
+    emptyReason: '正在依據這段對話重新整理 FHIR 草稿...'
+  };
   syncReportOutputsFromSessionExport(APP_STATE.reportOutputs.session_export);
   syncTherapeuticMemoryFromSessionExport(APP_STATE.reportOutputs.session_export);
   renderChatHistory(APP_STATE.chatHistory);
@@ -3032,19 +3102,20 @@ function normalizeFhirDraftPayload(payload) {
   if (enhanced !== (finalPayload.output || finalPayload)) {
     finalPayload.output = enhanced;
   }
+  if (!isValidFhirDraftOutput(finalPayload.output)) {
+    return finalPayload;
+  }
   return finalPayload;
 }
 
 function getExistingFhirDraft() {
   const current = APP_STATE.reportOutputs.fhir_delivery;
-  if (!current) return null;
-  const hasSummary = Boolean(current.narrative_summary);
-  const hasResources = Array.isArray(current.resources) && current.resources.length > 0;
-  return hasSummary || hasResources ? JSON.parse(JSON.stringify(current)) : null;
+  if (!isValidFhirDraftOutput(current)) return null;
+  return JSON.parse(JSON.stringify(current));
 }
 
 async function ensureReportFhirDraft() {
-  const hasDraft = Boolean(APP_STATE.reportOutputs.fhir_delivery?.narrative_summary);
+  const hasDraft = isValidFhirDraftOutput(APP_STATE.reportOutputs.fhir_delivery);
   if (hasDraft || APP_STATE.reportFhirDraft.isLoading || APP_STATE.isSending) {
     return;
   }
@@ -3062,7 +3133,7 @@ async function ensureReportFhirDraft() {
   APP_STATE.reportFhirDraft = {
     isLoading: true,
     error: '',
-    emptyReason: ''
+    emptyReason: '正在依據這段對話重新整理 FHIR 草稿...'
   };
   renderReportOutputs();
 
@@ -3215,6 +3286,8 @@ function renderChatHistory(history = []) {
 }
 
 function buildSessionExportFromRecord(session = {}) {
+  const restoreSource = String(session.__restoreSource || session.__source || '').trim();
+  const trustStructuredOutputs = restoreSource === 'server';
   return {
     patient: {
       key: session.user || APP_STATE.userId,
@@ -3231,18 +3304,45 @@ function buildSessionExportFromRecord(session = {}) {
     risk_flag: session.state?.risk_flag || 'false',
     latest_tag_payload: session.state?.latest_tag_payload || {},
     burden_level_state: session.state?.burden_level_state || {},
-    clinician_summary_draft: session.state?.clinician_summary_draft || {},
-    patient_analysis: session.state?.patient_analysis || {},
-    patient_review_packet: session.state?.patient_review_packet || {},
-    fhir_delivery_draft: session.state?.fhir_delivery_draft || {},
+    clinician_summary_draft: trustStructuredOutputs ? (session.state?.clinician_summary_draft || {}) : {},
+    patient_analysis: trustStructuredOutputs ? (session.state?.patient_analysis || {}) : {},
+    patient_review_packet: trustStructuredOutputs ? (session.state?.patient_review_packet || {}) : {},
+    fhir_delivery_draft: trustStructuredOutputs ? (session.state?.fhir_delivery_draft || {}) : {},
     hamd_progress_state: session.state?.hamd_progress_state || {},
     hamd_formal_assessment: session.state?.hamd_formal_assessment || {},
     red_flag_payload: session.state?.red_flag_payload || {},
     patient_authorization_state: session.state?.patient_authorization_state || {},
     delivery_readiness_state: session.state?.delivery_readiness_state || {},
-    summary_draft_state: session.state?.summary_draft_state || {},
-    therapeutic_profile: session.state?.therapeutic_profile || {}
+    summary_draft_state: trustStructuredOutputs ? (session.state?.summary_draft_state || {}) : {},
+    therapeutic_profile: session.state?.therapeutic_profile || {},
+    __requiresRegeneration: !trustStructuredOutputs,
+    __source: trustStructuredOutputs ? 'server_session' : 'local_archive'
   };
+}
+
+async function syncLocalSessionRecordToServer(session = {}) {
+  if (!session || !session.id) return;
+  const normalizedHistory = (Array.isArray(session.history) ? session.history : []).map((item) => ({
+    ...item,
+    role: item?.role === 'ai' ? 'assistant' : item?.role
+  }));
+  try {
+    await fetch(`/api/chat/session?id=${encodeURIComponent(session.id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user: session.user || APP_STATE.userId || DEFAULT_USER_ID,
+        startedAt: session.startedAt || new Date().toISOString(),
+        history: normalizedHistory,
+        state: session.state && typeof session.state === 'object' ? session.state : {},
+        memory_snapshot: session.memory_snapshot && typeof session.memory_snapshot === 'object' ? session.memory_snapshot : {},
+        revision: Number.isFinite(Number(session.revision)) ? Number(session.revision) : 0,
+        clear_output_cache: true
+      })
+    });
+  } catch (error) {
+    console.warn('Unable to sync local session record back to server:', error);
+  }
 }
 
 async function restoreSession(sessionId) {
@@ -3259,15 +3359,17 @@ async function restoreSession(sessionId) {
       scoreSessionRecordForRestore(localSession) > scoreSessionRecordForRestore(serverSession)
     );
     if (shouldPreferLocal) {
-      applySessionRecord(localSession, sessionId);
+      applySessionRecord({ ...localSession, __restoreSource: 'local' }, sessionId);
+      await syncLocalSessionRecordToServer(localSession);
       appendSystemNotice('已優先使用這台裝置上較完整的上一段對話。');
       return;
     }
-    applySessionRecord(serverSession, sessionId);
+    applySessionRecord({ ...serverSession, __restoreSource: 'server' }, sessionId);
     return;
   } catch (error) {
     if (localSession) {
-      applySessionRecord(localSession, sessionId);
+      applySessionRecord({ ...localSession, __restoreSource: 'local' }, sessionId);
+      await syncLocalSessionRecordToServer(localSession);
       appendSystemNotice('目前改用這台裝置上的本機備份開啟這段對話。');
       return;
     }
@@ -3593,7 +3695,7 @@ function buildConsentPreviewHtml(sessionExport, fhirDraft) {
     </section>
     <section class="consent-preview-section">
       <h4>FHIR Draft 摘要</h4>
-      <p>${escapeHtml(fhirDraft?.narrative_summary || '尚未產生 FHIR 草稿摘要。')}</p>
+      <p>${escapeHtml(isValidFhirDraftOutput(fhirDraft) ? (fhirDraft?.narrative_summary || '') : (isValidClinicianSummaryOutput(clinician) ? clinician.draft_summary : '尚未重新生成 FHIR 草稿摘要。'))}</p>
     </section>
     <section class="consent-preview-section">
       <h4>即將送出的資源</h4>

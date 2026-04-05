@@ -667,7 +667,8 @@ const GENERIC_DRAFT_PHRASES = [
   '需要支持',
   '目前沒有具體的對話內容可供摘要',
   '目前資料還偏少',
-  '情緒穩定'
+  '情緒穩定',
+  '目前對話中沒有提供具體的症狀或情況描述'
 ];
 
 const CLINICAL_SIGNAL_RULES = [
@@ -818,6 +819,51 @@ function isGenericDraftText(value) {
   return GENERIC_DRAFT_PHRASES.some((phrase) => text.includes(phrase));
 }
 
+function isPlaceholderSection(value) {
+  const text = String(value || '').trim();
+  if (!text) return true;
+  return /^待補/.test(text) || /^尚待補充/.test(text) || /仍需補足/.test(text);
+}
+
+function hasMeaningfulLongitudinalEvidence(longitudinal = {}) {
+  return Boolean(
+    normalizeArray(longitudinal.chiefConcerns).length ||
+    normalizeArray(longitudinal.symptomObservations).length ||
+    normalizeArray(longitudinal.hamdSignals).length ||
+    normalizeArray(longitudinal.userMessages).length
+  );
+}
+
+function isEmptyClinicianDraft(draft = {}) {
+  if (!draft || typeof draft !== 'object') return true;
+  const chiefConcerns = normalizeArray(draft.chief_concerns).filter((item) => !isPlaceholderSection(item));
+  const observations = normalizeArray(draft.symptom_observations).filter((item) => !isGenericDraftText(item));
+  const summary = String(draft.draft_summary || '').trim();
+  return !chiefConcerns.length && !observations.length && isGenericDraftText(summary);
+}
+
+function isEmptyPatientAnalysis(output = {}) {
+  if (!output || typeof output !== 'object') return true;
+  const summary = String(output.plain_summary || output.markdown || '').trim();
+  const keyPoints = normalizeArray(output.key_points);
+  return isGenericDraftText(summary) && keyPoints.length === 0;
+}
+
+function isEmptyFhirDraft(draft = {}) {
+  if (!draft || typeof draft !== 'object') return true;
+  const narrative = String(draft.narrative_summary || '').trim();
+  const sections = normalizeArray(draft.composition_sections);
+  const meaningfulSections = sections.filter((item) => item && !isPlaceholderSection(item.focus));
+  const observationCandidates = normalizeArray(draft.observation_candidates);
+  const questionnaireTargets = normalizeArray(draft.questionnaire_targets);
+  return (
+    isPlaceholderSection(narrative) &&
+    meaningfulSections.length === 0 &&
+    observationCandidates.length === 0 &&
+    questionnaireTargets.length === 0
+  );
+}
+
 function buildLongitudinalEvidence(session) {
   const history = Array.isArray(session?.history) ? session.history : [];
   const userMessages = history
@@ -943,9 +989,15 @@ function buildClinicianSummaryDraft(longitudinal, state, formalAssessment, previ
 }
 
 function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAssessment, previousDraft = {}) {
-  const symptomObservations = normalizeArray(clinicianDraft?.symptom_observations);
-  const hamdSignals = normalizeArray(clinicianDraft?.hamd_signals);
-  const chiefConcerns = normalizeArray(clinicianDraft?.chief_concerns);
+  const symptomObservations = normalizeArray(longitudinal?.symptomObservations).length
+    ? normalizeArray(longitudinal.symptomObservations)
+    : normalizeArray(clinicianDraft?.symptom_observations);
+  const hamdSignals = normalizeArray(longitudinal?.hamdSignals).length
+    ? normalizeArray(longitudinal.hamdSignals)
+    : normalizeArray(clinicianDraft?.hamd_signals);
+  const chiefConcerns = normalizeArray(longitudinal?.chiefConcerns).length
+    ? normalizeArray(longitudinal.chiefConcerns)
+    : normalizeArray(clinicianDraft?.chief_concerns);
   const evidenceBySignal = longitudinal.evidenceBySignal && typeof longitudinal.evidenceBySignal === 'object'
     ? longitudinal.evidenceBySignal
     : {};
@@ -976,17 +1028,44 @@ function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAsses
     reason: (evidenceBySignal[signal] || []).join('；') || `需補足 ${signal} 的正式量表資訊`
   }));
 
+  const narrativeSummary = hasMeaningfulLongitudinalEvidence(longitudinal)
+    ? (longitudinal.draftSummary || summarizeConcernBundle(chiefConcerns))
+    : (
+      !isPlaceholderSection(previousDraft?.narrative_summary)
+        ? String(previousDraft.narrative_summary || '').trim()
+        : '尚待補充主要困擾'
+    );
+
   return Object.assign({}, previousDraft && typeof previousDraft === 'object' ? previousDraft : {}, {
     draft_version: 'p5_fhir_delivery_v3',
     delivery_status: 'pre_review_or_ready_for_mapping_orblocked',
     consent_gate: 'review_required_or_ready_for_consent_orblocked',
-    narrative_summary: longitudinal.draftSummary || summarizeConcernBundle(chiefConcerns),
+    narrative_summary: narrativeSummary,
     resources,
     composition_sections: [
-      { section: 'chief_concerns', focus: summarizeConcernBundle(chiefConcerns) },
-      { section: 'symptom_timeline', focus: symptomObservations.slice(0, 3).join('；') || '目前已知症狀線索仍需補足時間軸。' },
-      { section: 'functional_impact', focus: buildFunctionalImpactSummary(chiefConcerns) || longitudinal.followupNeeds[0] || '目前已知有功能受損，但仍待補足最受影響情境。' },
-      { section: 'care_goal', focus: buildCareGoalSummary(longitudinal) }
+      {
+        section: 'chief_concerns',
+        focus: chiefConcerns.length
+          ? summarizeConcernBundle(chiefConcerns)
+          : (!isPlaceholderSection(previousDraft?.composition_sections?.[0]?.focus) ? previousDraft.composition_sections[0].focus : '尚待補充主要困擾')
+      },
+      {
+        section: 'symptom_timeline',
+        focus: symptomObservations.slice(0, 3).join('；')
+          || (!isPlaceholderSection(previousDraft?.composition_sections?.[1]?.focus) ? previousDraft.composition_sections[1].focus : '目前已知症狀線索仍需補足時間軸。')
+      },
+      {
+        section: 'functional_impact',
+        focus: buildFunctionalImpactSummary(chiefConcerns)
+          || longitudinal.followupNeeds[0]
+          || (!isPlaceholderSection(previousDraft?.composition_sections?.[2]?.focus) ? previousDraft.composition_sections[2].focus : '目前已知有功能受損，但仍待補足最受影響情境。')
+      },
+      {
+        section: 'care_goal',
+        focus: hasMeaningfulLongitudinalEvidence(longitudinal)
+          ? buildCareGoalSummary(longitudinal)
+          : (!isPlaceholderSection(previousDraft?.composition_sections?.[3]?.focus) ? previousDraft.composition_sections[3].focus : '尚待補充更明確的就醫目標與期待。')
+      }
     ],
     observation_candidates: observationCandidates,
     clinical_alerts: [...longitudinal.riskFlags, ...normalizeArray(normalizeObjectState(state, 'red_flag_payload', {}).warning_tags)].slice(0, 4),
@@ -1784,8 +1863,9 @@ class AICompanionEngine {
     });
   }
 
-  async ensureStructuredOutputs(session, instruction = '') {
-    if (session.structured_revision === session.revision) {
+  async ensureStructuredOutputs(session, instruction = '', options = {}) {
+    const forceRefresh = Boolean(options.forceRefresh);
+    if (!forceRefresh && session.structured_revision === session.revision) {
       return;
     }
     const normalizedInstruction = String(instruction || '').trim();
@@ -1813,20 +1893,36 @@ class AICompanionEngine {
     this.syncTherapeuticProfile(session, payload.therapeutic_profile);
     const outputType = String(payload.output_type || '').trim();
     const instruction = String(payload.instruction || '').trim();
-    const cacheKey = outputType;
-    const cached = session.output_cache[cacheKey];
-    if (cached && cached.revision === session.revision) {
-      return cached.value;
-    }
-
     if (!outputType) {
       const error = new Error('output_type is required.');
       error.status = 400;
       error.code = 'missing_output_type';
       throw error;
     }
+    const cacheKey = outputType;
+    const cached = session.output_cache[cacheKey];
+    const currentLongitudinal = buildLongitudinalEvidence(session);
+    const currentClinicianDraft = normalizeObjectState(session.state, 'clinician_summary_draft', {});
+    const currentPatientAnalysis = normalizeObjectState(session.state, 'patient_analysis', {});
+    const currentFhirDraft = normalizeObjectState(session.state, 'fhir_delivery_draft', {});
+    const currentSummaryDraft = normalizeObjectState(session.state, 'summary_draft_state', {});
+    const hasInvalidStructuredState = (
+      (hasMeaningfulLongitudinalEvidence(currentLongitudinal) && isGenericDraftText(currentSummaryDraft.draft_summary)) ||
+      (outputType === 'clinician_summary' && isEmptyClinicianDraft(currentClinicianDraft)) ||
+      (outputType === 'patient_analysis' && isEmptyPatientAnalysis(currentPatientAnalysis)) ||
+      (outputType === 'fhir_delivery' && isEmptyFhirDraft(currentFhirDraft))
+    );
 
-    await this.ensureStructuredOutputs(session, instruction);
+    if (cached && cached.revision === session.revision && !hasInvalidStructuredState) {
+      return cached.value;
+    }
+    if (hasInvalidStructuredState) {
+      delete session.output_cache[cacheKey];
+    }
+
+    await this.ensureStructuredOutputs(session, instruction, {
+      forceRefresh: hasInvalidStructuredState
+    });
 
     let output;
       if (outputType === 'clinician_summary') {
@@ -1866,10 +1962,19 @@ class AICompanionEngine {
       }
     };
 
-    session.output_cache[cacheKey] = {
-      revision: session.revision,
-      value: response
-    };
+    const shouldCacheResponse = !(
+      (outputType === 'clinician_summary' && isEmptyClinicianDraft(output)) ||
+      (outputType === 'patient_analysis' && isEmptyPatientAnalysis(output)) ||
+      (outputType === 'fhir_delivery' && isEmptyFhirDraft(output))
+    );
+    if (shouldCacheResponse) {
+      session.output_cache[cacheKey] = {
+        revision: session.revision,
+        value: response
+      };
+    } else {
+      delete session.output_cache[cacheKey];
+    }
     this.persistSessions();
 
     return response;
