@@ -1029,6 +1029,122 @@ function buildDeliveryReadinessState(fhirDraft, patientAuthorizationState) {
   };
 }
 
+function chooseStructuredText(candidate, fallback) {
+  const candidateText = String(candidate || '').trim();
+  if (!candidateText || isGenericDraftText(candidateText) || isPlaceholderSection(candidateText)) {
+    return String(fallback || '').trim();
+  }
+  return candidateText;
+}
+
+function mergeUniqueTexts(primary, secondary, limit = 8) {
+  const merged = [];
+  [...normalizeArray(primary), ...normalizeArray(secondary)].forEach((item) => {
+    const text = String(item || '').trim();
+    if (!text || merged.includes(text) || merged.length >= limit) return;
+    merged.push(text);
+  });
+  return merged;
+}
+
+function mergeSummaryDraftState(baseDraft, generatedDraft) {
+  const generated = generatedDraft && typeof generatedDraft === 'object' ? generatedDraft : {};
+  return Object.assign({}, baseDraft, generated, {
+    latest_tags: generated.latest_tags && typeof generated.latest_tags === 'object' ? generated.latest_tags : baseDraft.latest_tags,
+    red_flags: generated.red_flags && typeof generated.red_flags === 'object' ? generated.red_flags : baseDraft.red_flags,
+    hamd_progress: generated.hamd_progress && typeof generated.hamd_progress === 'object' ? generated.hamd_progress : baseDraft.hamd_progress,
+    draft_summary: chooseStructuredText(generated.draft_summary, baseDraft.draft_summary)
+  });
+}
+
+function mergeClinicianSummaryDraft(baseDraft, generatedDraft, formalAssessment) {
+  const generated = generatedDraft && typeof generatedDraft === 'object' ? generatedDraft : {};
+  const merged = Object.assign({}, baseDraft, generated, {
+    chief_concerns: mergeUniqueTexts(baseDraft.chief_concerns, generated.chief_concerns, 6),
+    symptom_observations: mergeUniqueTexts(baseDraft.symptom_observations, generated.symptom_observations, 8),
+    hamd_signals: mergeUniqueTexts(baseDraft.hamd_signals, generated.hamd_signals, 6),
+    followup_needs: mergeUniqueTexts(baseDraft.followup_needs, generated.followup_needs, 5),
+    safety_flags: mergeUniqueTexts(baseDraft.safety_flags, generated.safety_flags, 4),
+    draft_summary: chooseStructuredText(generated.draft_summary, baseDraft.draft_summary),
+    patient_tone: String(generated.patient_tone || '').trim() || baseDraft.patient_tone,
+    hamd_item_scores: normalizeArray(generated.hamd_item_scores).length ? normalizeArray(generated.hamd_item_scores) : normalizeArray(baseDraft.hamd_item_scores),
+    hamd_evidence_table: normalizeArray(generated.hamd_evidence_table).length ? normalizeArray(generated.hamd_evidence_table) : normalizeArray(baseDraft.hamd_evidence_table),
+    hamd_review_required_items: normalizeArray(generated.hamd_review_required_items).length
+      ? normalizeArray(generated.hamd_review_required_items)
+      : normalizeArray(baseDraft.hamd_review_required_items),
+    hamd_total_score_ai: typeof generated.hamd_total_score_ai === 'number' ? generated.hamd_total_score_ai : baseDraft.hamd_total_score_ai,
+    hamd_total_score_clinician: typeof generated.hamd_total_score_clinician === 'number' ? generated.hamd_total_score_clinician : baseDraft.hamd_total_score_clinician,
+    hamd_severity_band: String(generated.hamd_severity_band || '').trim() || baseDraft.hamd_severity_band
+  });
+  return Object.assign({}, merged, buildFormalClinicianFields(formalAssessment), {
+    chief_concerns: merged.chief_concerns.length ? merged.chief_concerns : normalizeArray(baseDraft.chief_concerns),
+    symptom_observations: merged.symptom_observations.length ? merged.symptom_observations : normalizeArray(baseDraft.symptom_observations)
+  });
+}
+
+function mergePatientReviewPacket(basePacket, generatedPacket) {
+  const generated = generatedPacket && typeof generatedPacket === 'object' ? generatedPacket : {};
+  return Object.assign({}, basePacket, generated, {
+    patient_facing_summary: chooseStructuredText(generated.patient_facing_summary, basePacket.patient_facing_summary),
+    confirm_items: mergeUniqueTexts(basePacket.confirm_items, generated.confirm_items, 6),
+    editable_items: normalizeArray(generated.editable_items).length ? normalizeArray(generated.editable_items) : normalizeArray(basePacket.editable_items),
+    remove_if_wrong: normalizeArray(generated.remove_if_wrong).length ? normalizeArray(generated.remove_if_wrong) : normalizeArray(basePacket.remove_if_wrong),
+    authorization_prompt: chooseStructuredText(generated.authorization_prompt, basePacket.authorization_prompt)
+  });
+}
+
+function mergePatientAuthorizationState(baseState, generatedState) {
+  const generated = generatedState && typeof generatedState === 'object' ? generatedState : {};
+  return Object.assign({}, baseState, generated, {
+    review_blockers: mergeUniqueTexts(baseState.review_blockers, generated.review_blockers, 6),
+    patient_actions: mergeUniqueTexts(baseState.patient_actions, generated.patient_actions, 6),
+    consent_note: chooseStructuredText(generated.consent_note, baseState.consent_note),
+    share_with_clinician: generated.share_with_clinician === 'yes' ? 'yes' : baseState.share_with_clinician,
+    authorization_status: String(generated.authorization_status || '').trim() || baseState.authorization_status
+  });
+}
+
+function mergeFhirDeliveryDraft(baseDraft, generatedDraft) {
+  const generated = generatedDraft && typeof generatedDraft === 'object' ? generatedDraft : {};
+  const mergedSections = Array.isArray(baseDraft.composition_sections)
+    ? baseDraft.composition_sections.map((section, index) => {
+        const generatedSection = normalizeArray(generated.composition_sections)[index] || {};
+        return {
+          section: section.section,
+          focus: chooseStructuredText(generatedSection.focus, section.focus)
+        };
+      })
+    : [];
+
+  return Object.assign({}, baseDraft, generated, {
+    narrative_summary: chooseStructuredText(generated.narrative_summary, baseDraft.narrative_summary),
+    composition_sections: mergedSections.length ? mergedSections : normalizeArray(baseDraft.composition_sections),
+    observation_candidates: normalizeArray(generated.observation_candidates).length
+      ? normalizeArray(generated.observation_candidates)
+      : normalizeArray(baseDraft.observation_candidates),
+    questionnaire_targets: normalizeArray(generated.questionnaire_targets).length
+      ? normalizeArray(generated.questionnaire_targets)
+      : normalizeArray(baseDraft.questionnaire_targets),
+    clinical_alerts: mergeUniqueTexts(baseDraft.clinical_alerts, generated.clinical_alerts, 6),
+    export_blockers: mergeUniqueTexts(baseDraft.export_blockers, generated.export_blockers, 6),
+    notes: chooseStructuredText(generated.notes, baseDraft.notes),
+    hamd_formal_targets: normalizeArray(generated.hamd_formal_targets).length
+      ? normalizeArray(generated.hamd_formal_targets)
+      : normalizeArray(baseDraft.hamd_formal_targets),
+    resources: normalizeArray(generated.resources).length ? normalizeArray(generated.resources) : normalizeArray(baseDraft.resources)
+  });
+}
+
+function mergeDeliveryReadinessState(baseState, generatedState) {
+  const generated = generatedState && typeof generatedState === 'object' ? generatedState : {};
+  return Object.assign({}, baseState, generated, {
+    primary_blockers: mergeUniqueTexts(baseState.primary_blockers, generated.primary_blockers, 6),
+    next_step: chooseStructuredText(generated.next_step, baseState.next_step),
+    provenance_requirements: mergeUniqueTexts(baseState.provenance_requirements, generated.provenance_requirements, 6),
+    handoff_note: chooseStructuredText(generated.handoff_note, baseState.handoff_note)
+  });
+}
+
 function buildClinicianSummaryDraft(longitudinal, state, formalAssessment, previousDraft = {}) {
   const reviewFlags = normalizeArray(formalAssessment.review_flags);
   const explicitRiskFlags = normalizeArray(normalizeObjectState(state, 'red_flag_payload', {}).warning_tags);
@@ -1830,34 +1946,103 @@ class AICompanionEngine {
   async updateSummaryChain(session, message) {
     const state = session.state;
     const longitudinal = buildLongitudinalEvidence(session);
+    
+    // JS Fallbacks / Base states (ensure safe structure)
     state.hamd_progress_state = enrichHamdProgressState(
       normalizeObjectState(state, 'hamd_progress_state', {}),
       longitudinal
     );
-    state.summary_draft_state = buildSummaryDraftState(state, longitudinal, message);
     const formalAssessment = hydrateFormalAssessment(state.hamd_formal_assessment);
-    state.clinician_summary_draft = buildClinicianSummaryDraft(
+    const baseSummaryDraft = buildSummaryDraftState(state, longitudinal, message);
+    const baseClinicianSummary = buildClinicianSummaryDraft(
       longitudinal,
       state,
       formalAssessment,
       normalizeObjectState(state, 'clinician_summary_draft', {})
     );
-    state.patient_review_packet = buildPatientReviewPacket(state.clinician_summary_draft);
-    state.patient_analysis = buildPatientAnalysis(state, message);
-    state.patient_authorization_state = buildPatientAuthorizationState(
-      state.clinician_summary_draft,
-      state.patient_review_packet
-    );
-    state.fhir_delivery_draft = buildFhirDeliveryDraft(
-      state.clinician_summary_draft,
-      longitudinal,
-      state,
-      formalAssessment
-    );
-    state.delivery_readiness_state = buildDeliveryReadinessState(
-      state.fhir_delivery_draft,
-      state.patient_authorization_state
-    );
+    const basePatientReview = buildPatientReviewPacket(baseClinicianSummary);
+    const basePatientAnalysis = buildPatientAnalysis(state, message);
+    const basePatientAuth = buildPatientAuthorizationState(baseClinicianSummary, basePatientReview);
+    const baseFhirDelivery = buildFhirDeliveryDraft(baseClinicianSummary, longitudinal, state, formalAssessment);
+    const baseDeliveryReadiness = buildDeliveryReadinessState(baseFhirDelivery, basePatientAuth);
+
+    if (longitudinal.userMessages.length > 0) {
+      const generatedSummaryDraft = await this.runJsonTask('summaryDraftBuilder', session, message, {
+        fallback: baseSummaryDraft,
+        extraContext: {
+          deterministic_summary: baseSummaryDraft,
+          longitudinal_evidence: longitudinal
+        }
+      });
+      state.summary_draft_state = mergeSummaryDraftState(baseSummaryDraft, generatedSummaryDraft);
+
+      const generatedClinicianSummary = await this.runJsonTask('clinicianSummaryBuilder', session, message, {
+        fallback: baseClinicianSummary,
+        extraContext: {
+          deterministic_summary: state.summary_draft_state,
+          longitudinal_evidence: longitudinal,
+          clinician_base: baseClinicianSummary
+        }
+      });
+      state.clinician_summary_draft = mergeClinicianSummaryDraft(
+        baseClinicianSummary,
+        generatedClinicianSummary,
+        formalAssessment
+      );
+
+      const reviewBase = buildPatientReviewPacket(state.clinician_summary_draft);
+      const generatedReviewPacket = await this.runJsonTask('patientReviewBuilder', session, message, {
+        fallback: reviewBase,
+        extraContext: {
+          clinician_summary_draft: state.clinician_summary_draft,
+          longitudinal_evidence: longitudinal
+        }
+      });
+      state.patient_review_packet = mergePatientReviewPacket(reviewBase, generatedReviewPacket);
+
+      const authBase = buildPatientAuthorizationState(state.clinician_summary_draft, state.patient_review_packet);
+      const generatedAuthState = await this.runJsonTask('patientAuthorizationBuilder', session, message, {
+        fallback: authBase,
+        extraContext: {
+          clinician_summary_draft: state.clinician_summary_draft,
+          patient_review_packet: state.patient_review_packet
+        }
+      });
+      state.patient_authorization_state = mergePatientAuthorizationState(authBase, generatedAuthState);
+
+      const fhirBase = buildFhirDeliveryDraft(state.clinician_summary_draft, longitudinal, state, formalAssessment);
+      const generatedFhirDraft = await this.runJsonTask('fhirDeliveryBuilder', session, message, {
+        fallback: fhirBase,
+        extraContext: {
+          clinician_summary_draft: state.clinician_summary_draft,
+          patient_review_packet: state.patient_review_packet,
+          patient_authorization_state: state.patient_authorization_state,
+          longitudinal_evidence: longitudinal
+        }
+      });
+      state.fhir_delivery_draft = mergeFhirDeliveryDraft(fhirBase, generatedFhirDraft);
+
+      state.patient_analysis = buildPatientAnalysis(state, message);
+
+      const readinessBase = buildDeliveryReadinessState(state.fhir_delivery_draft, state.patient_authorization_state);
+      const generatedReadiness = await this.runJsonTask('deliveryReadinessBuilder', session, message, {
+        fallback: readinessBase,
+        extraContext: {
+          clinician_summary_draft: state.clinician_summary_draft,
+          patient_authorization_state: state.patient_authorization_state,
+          fhir_delivery_draft: state.fhir_delivery_draft
+        }
+      });
+      state.delivery_readiness_state = mergeDeliveryReadinessState(readinessBase, generatedReadiness);
+    } else {
+      state.summary_draft_state = baseSummaryDraft;
+      state.clinician_summary_draft = baseClinicianSummary;
+      state.patient_review_packet = basePatientReview;
+      state.patient_analysis = basePatientAnalysis;
+      state.patient_authorization_state = basePatientAuth;
+      state.fhir_delivery_draft = baseFhirDelivery;
+      state.delivery_readiness_state = baseDeliveryReadiness;
+    }
   }
 
   async ensureStructuredOutputs(session, instruction = '', options = {}) {
