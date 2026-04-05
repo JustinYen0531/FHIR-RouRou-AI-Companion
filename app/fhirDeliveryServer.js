@@ -472,9 +472,17 @@ async function processOutputPayload(payload, options = {}) {
 }
 
 function createServer(options = {}) {
-  const persistence = options.sessionPersistence || createSessionPersistence({
-    filePath: options.sessionStorePath || process.env.AI_COMPANION_SESSION_STORE || DEFAULT_SESSION_STORE_PATH
-  });
+  const persistence = options.sessionPersistence || (
+    options.sessions
+      ? {
+          filePath: options.sessionStorePath || 'memory://ai-companion-sessions',
+          sessions: options.sessions,
+          save() {}
+        }
+      : createSessionPersistence({
+          filePath: options.sessionStorePath || process.env.AI_COMPANION_SESSION_STORE || DEFAULT_SESSION_STORE_PATH
+        })
+  );
   const activeFhirBaseUrl = String(options.fhirBaseUrl || '').trim();
   const sharedSessions = options.sessions || persistence.sessions || new Map();
   const sharedProvider = options.llmProvider || (options.googleApiKey || process.env.GOOGLE_API_KEY ? 'google' : options.openrouterApiKey || process.env.OPENROUTER_API_KEY ? 'openrouter' : 'groq');
