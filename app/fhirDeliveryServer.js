@@ -511,10 +511,25 @@ function createServer(options = {}) {
     }
 
     if (req.method === 'GET' && parsedUrl.pathname === '/health') {
+      const defaultApiBaseUrl =
+        sharedProvider === 'google'
+          ? (options.googleBaseUrl || DEFAULT_GOOGLE_BASE_URL)
+          : sharedProvider === 'openrouter'
+            ? (options.openrouterBaseUrl || DEFAULT_OPENROUTER_BASE_URL)
+            : (options.groqBaseUrl || DEFAULT_GROQ_BASE_URL);
+      const defaultModel =
+        options.llmModel ||
+        (sharedProvider === 'google'
+          ? DEFAULT_GOOGLE_MODEL
+          : sharedProvider === 'openrouter'
+            ? DEFAULT_OPENROUTER_MODEL
+            : '');
       sendJson(res, 200, {
         ok: true,
         ai_engine: 'node',
         provider: sharedProvider,
+        default_api_base_url: defaultApiBaseUrl,
+        default_model: defaultModel,
         fhir_delivery_mode: activeFhirBaseUrl ? 'transaction' : 'dry_run',
         fhir_server_url: activeFhirBaseUrl,
         groq_configured: Boolean(options.groqApiKey || process.env.GROQ_API_KEY),

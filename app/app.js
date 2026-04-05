@@ -1,12 +1,21 @@
 const DEFAULT_GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 const DEFAULT_OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 const DEFAULT_GOOGLE_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
+const DEFAULT_GROQ_MODEL = 'llama-3.1-8b-instant';
 const DEFAULT_GROQ_API_KEY = '';
 const DEFAULT_OPENROUTER_API_KEY = '';
 const DEFAULT_GOOGLE_API_KEY = '';
 const DEFAULT_OPENROUTER_MODEL = 'openai/gpt-4o-mini';
+const DEFAULT_GOOGLE_MODEL = 'gemini-2.0-flash';
 const DEFAULT_USER_ID = 'web-demo-user';
-const DEFAULT_PROVIDER = localStorage.getItem('rourou.aiProvider') || 'google';
+const DEFAULT_PROVIDER = 'google';
+const RUNTIME_CONFIG_SOURCE_KEY = 'rourou.aiConfigSource';
+let SERVER_RUNTIME_CONFIG = {
+  provider: DEFAULT_PROVIDER,
+  apiBaseUrl: DEFAULT_GOOGLE_BASE_URL,
+  model: DEFAULT_GOOGLE_MODEL,
+  source: 'server'
+};
 const FHIR_REPORT_HISTORY_KEY = 'rourou.fhirReportHistory';
 const HOME_GUIDE_PAGES = [
   {
@@ -2493,18 +2502,98 @@ function buildPreferenceRecallReply(message = '') {
 }
 
 function getRuntimeConfig() {
-  const provider = localStorage.getItem('rourou.aiProvider') || DEFAULT_PROVIDER;
+  const source = localStorage.getItem(RUNTIME_CONFIG_SOURCE_KEY) === 'custom' ? 'custom' : 'server';
+  const serverConfig = getServerRuntimeConfig();
+  const provider = source === 'custom'
+    ? (localStorage.getItem('rourou.aiProvider') || serverConfig.provider)
+    : serverConfig.provider;
+  const defaults = getProviderDefaults(provider);
   return {
+    source,
     provider,
-    apiBaseUrl:
-      localStorage.getItem('rourou.aiBaseUrl') ||
-      (provider === 'google' ? DEFAULT_GOOGLE_BASE_URL : provider === 'openrouter' ? DEFAULT_OPENROUTER_BASE_URL : DEFAULT_GROQ_BASE_URL),
-    apiKey:
-      localStorage.getItem('rourou.aiApiKey') ||
-      (provider === 'google' ? DEFAULT_GOOGLE_API_KEY : provider === 'openrouter' ? DEFAULT_OPENROUTER_API_KEY : DEFAULT_GROQ_API_KEY),
-    model: localStorage.getItem('rourou.aiModel') || (provider === 'google' ? 'gemini-2.0-flash' : provider === 'openrouter' ? DEFAULT_OPENROUTER_MODEL : 'llama-3.1-8b-instant'),
+    apiBaseUrl: source === 'custom'
+      ? (localStorage.getItem('rourou.aiBaseUrl') || defaults.apiBaseUrl)
+      : serverConfig.apiBaseUrl,
+    apiKey: source === 'custom' ? (localStorage.getItem('rourou.aiApiKey') || '') : '',
+    model: source === 'custom'
+      ? (localStorage.getItem('rourou.aiModel') || defaults.model)
+      : serverConfig.model,
     userId: APP_STATE.userId
   };
+}
+
+function getProviderDefaults(provider) {
+  if (provider === 'openrouter') {
+    return {
+      provider,
+      apiBaseUrl: DEFAULT_OPENROUTER_BASE_URL,
+      model: DEFAULT_OPENROUTER_MODEL
+    };
+  }
+  if (provider === 'groq') {
+    return {
+      provider,
+      apiBaseUrl: DEFAULT_GROQ_BASE_URL,
+      model: DEFAULT_GROQ_MODEL
+    };
+  }
+  return {
+    provider: 'google',
+    apiBaseUrl: DEFAULT_GOOGLE_BASE_URL,
+    model: DEFAULT_GOOGLE_MODEL
+  };
+}
+
+function getServerRuntimeConfig() {
+  return Object.assign({}, getProviderDefaults(SERVER_RUNTIME_CONFIG.provider || DEFAULT_PROVIDER), SERVER_RUNTIME_CONFIG);
+}
+
+function buildRuntimeRequestConfig(config) {
+  if (config.source !== 'custom') {
+    return {};
+  }
+  return {
+    api_provider: config.provider,
+    api_key: config.apiKey,
+    api_base_url: config.apiBaseUrl,
+    api_model: config.model
+  };
+}
+
+function syncRuntimeSettingsForm() {
+  const providerInput = document.getElementById('ai-provider');
+  const baseUrlInput = document.getElementById('ai-base-url');
+  const modelInput = document.getElementById('ai-model');
+  const apiKeyInput = document.getElementById('ai-api-key');
+  const userIdInput = document.getElementById('ai-user-id');
+  if (!providerInput || !baseUrlInput || !modelInput || !apiKeyInput || !userIdInput) {
+    return;
+  }
+
+  const config = getRuntimeConfig();
+  providerInput.value = config.provider;
+  baseUrlInput.value = config.apiBaseUrl;
+  modelInput.value = config.model;
+  apiKeyInput.value = config.apiKey;
+  userIdInput.value = config.userId;
+}
+
+async function loadServerRuntimeConfig() {
+  try {
+    const response = await fetch('/health');
+    if (!response.ok) return;
+    const payload = await response.json();
+    const defaults = getProviderDefaults(payload.provider || DEFAULT_PROVIDER);
+    SERVER_RUNTIME_CONFIG = {
+      provider: payload.provider || defaults.provider,
+      apiBaseUrl: payload.default_api_base_url || defaults.apiBaseUrl,
+      model: payload.default_model || defaults.model,
+      source: 'server'
+    };
+    syncRuntimeSettingsForm();
+  } catch (error) {
+    console.warn('Unable to load server runtime config:', error);
+  }
 }
 
 function getPrivacySettings() {
@@ -3444,22 +3533,6 @@ function initializeRuntimeConfig() {
   }
   APP_STATE.userId = localStorage.getItem('rourou.userId') || DEFAULT_USER_ID;
 
-  if (!localStorage.getItem('rourou.aiProvider')) {
-    localStorage.setItem('rourou.aiProvider', DEFAULT_PROVIDER);
-  }
-
-  if (!localStorage.getItem('rourou.aiBaseUrl')) {
-    localStorage.setItem('rourou.aiBaseUrl', DEFAULT_PROVIDER === 'google' ? DEFAULT_GOOGLE_BASE_URL : DEFAULT_PROVIDER === 'openrouter' ? DEFAULT_OPENROUTER_BASE_URL : DEFAULT_GROQ_BASE_URL);
-  }
-
-  if (!localStorage.getItem('rourou.aiApiKey')) {
-    localStorage.setItem('rourou.aiApiKey', DEFAULT_PROVIDER === 'google' ? DEFAULT_GOOGLE_API_KEY : DEFAULT_PROVIDER === 'openrouter' ? DEFAULT_OPENROUTER_API_KEY : DEFAULT_GROQ_API_KEY);
-  }
-
-  if (!localStorage.getItem('rourou.aiModel')) {
-    localStorage.setItem('rourou.aiModel', DEFAULT_PROVIDER === 'google' ? 'gemini-2.0-flash' : DEFAULT_PROVIDER === 'openrouter' ? DEFAULT_OPENROUTER_MODEL : 'llama-3.1-8b-instant');
-  }
-
   if (!localStorage.getItem('rourou.fhirRealtimeSync')) {
     localStorage.setItem('rourou.fhirRealtimeSync', 'false');
   }
@@ -3480,10 +3553,7 @@ async function fetchOutputPayload(outputType, instructionOverride = '') {
       user: config.userId,
       output_type: outputType,
       instruction: instructionOverride || (OUTPUT_DEFINITIONS[outputType]?.instruction || outputType),
-      api_provider: config.provider,
-      api_key: config.apiKey,
-      api_base_url: config.apiBaseUrl,
-      api_model: config.model
+      ...buildRuntimeRequestConfig(config)
     })
   });
   const payload = await response.json();
@@ -3509,10 +3579,7 @@ async function ensureModeSynced() {
         message: mode.command,
         conversation_id: APP_STATE.conversationId,
         user: config.userId,
-        api_provider: config.provider,
-        api_key: config.apiKey,
-        api_base_url: config.apiBaseUrl,
-        api_model: config.model,
+        ...buildRuntimeRequestConfig(config),
         hide_response: true
       })
   });
@@ -3580,10 +3647,7 @@ async function sendMessage() {
         message: messageWithMemory,
         conversation_id: APP_STATE.conversationId,
         user: config.userId,
-        api_provider: config.provider,
-        api_key: config.apiKey,
-        api_base_url: config.apiBaseUrl,
-        api_model: config.model
+        ...buildRuntimeRequestConfig(config)
       })
     });
 
@@ -3637,10 +3701,7 @@ async function extractProfileFromConversation() {
         message: extractPrompt,
         conversation_id: APP_STATE.conversationId,
         user: config.userId,
-        api_provider: config.provider,
-        api_key: config.apiKey,
-        api_base_url: config.apiBaseUrl,
-        api_model: config.model
+        ...buildRuntimeRequestConfig(config)
       })
     });
 
@@ -4255,7 +4316,7 @@ function injectRuntimeSettings() {
           <button id="save-ai-engine-config" class="cta-primary with-icon" type="button">儲存聊天引擎設定</button>
         </div>
         <p style="font-size:12px;color:#64727a;line-height:1.6;margin-top:12px">
-          這裡設定模型 provider、base URL、model、API key 與 user id。前端會透過本地 Node proxy 轉發到程式版 AI Companion 引擎。
+          這裡設定模型 provider、base URL、model、API key 與 user id。若 API key 留空，系統會優先使用部署端預設金鑰與模型設定。
         </p>
       </div>
     </div>
@@ -4263,12 +4324,7 @@ function injectRuntimeSettings() {
 
   settingsMain.insertBefore(wrapper, settingsMain.firstChild);
 
-  const config = getRuntimeConfig();
-  document.getElementById('ai-provider').value = config.provider;
-  document.getElementById('ai-base-url').value = config.apiBaseUrl;
-  document.getElementById('ai-model').value = config.model;
-  document.getElementById('ai-api-key').value = config.apiKey;
-  document.getElementById('ai-user-id').value = config.userId;
+  syncRuntimeSettingsForm();
 
   document.getElementById('ai-provider').addEventListener('change', (event) => {
     const provider = event.target.value;
@@ -4277,25 +4333,42 @@ function injectRuntimeSettings() {
   });
 
   document.getElementById('save-ai-engine-config').addEventListener('click', () => {
-    const provider = document.getElementById('ai-provider').value.trim() || DEFAULT_PROVIDER;
-    localStorage.setItem('rourou.aiProvider', provider);
-    localStorage.setItem('rourou.aiBaseUrl', document.getElementById('ai-base-url').value.trim() || (provider === 'google' ? DEFAULT_GOOGLE_BASE_URL : provider === 'openrouter' ? DEFAULT_OPENROUTER_BASE_URL : DEFAULT_GROQ_BASE_URL));
-    localStorage.setItem('rourou.aiModel', document.getElementById('ai-model').value.trim() || (provider === 'google' ? 'gemini-2.0-flash' : provider === 'openrouter' ? DEFAULT_OPENROUTER_MODEL : 'llama-3.1-8b-instant'));
-    localStorage.setItem('rourou.aiApiKey', document.getElementById('ai-api-key').value.trim() || '');
+    const serverConfig = getServerRuntimeConfig();
+    const provider = document.getElementById('ai-provider').value.trim() || serverConfig.provider;
+    const defaults = getProviderDefaults(provider);
+    const apiBaseUrl = document.getElementById('ai-base-url').value.trim() || defaults.apiBaseUrl;
+    const model = document.getElementById('ai-model').value.trim() || defaults.model;
+    const apiKey = document.getElementById('ai-api-key').value.trim();
     localStorage.setItem('rourou.userId', document.getElementById('ai-user-id').value.trim() || APP_STATE.userId);
     APP_STATE.userId = localStorage.getItem('rourou.userId') || APP_STATE.userId;
+    const useServerDefault = !apiKey && provider === serverConfig.provider && apiBaseUrl === serverConfig.apiBaseUrl && model === serverConfig.model;
+    if (useServerDefault) {
+      localStorage.removeItem(RUNTIME_CONFIG_SOURCE_KEY);
+      localStorage.removeItem('rourou.aiProvider');
+      localStorage.removeItem('rourou.aiBaseUrl');
+      localStorage.removeItem('rourou.aiModel');
+      localStorage.removeItem('rourou.aiApiKey');
+    } else {
+      localStorage.setItem(RUNTIME_CONFIG_SOURCE_KEY, 'custom');
+      localStorage.setItem('rourou.aiProvider', provider);
+      localStorage.setItem('rourou.aiBaseUrl', apiBaseUrl);
+      localStorage.setItem('rourou.aiModel', model);
+      localStorage.setItem('rourou.aiApiKey', apiKey);
+    }
     APP_STATE.syncedMode = '';
-    appendSystemNotice('聊天引擎設定已更新。之後送出的訊息會走 Node 程式版 AI Companion。');
+    syncRuntimeSettingsForm();
+    appendSystemNotice(useServerDefault ? '已恢復為部署端預設 AI 設定。' : '聊天引擎設定已更新。之後送出的訊息會走你目前儲存的自訂設定。');
   });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   initializeRuntimeConfig();
   showScreen('screen-home');
   wireHomeGuide();
   wireHomeSessionControls();
   updateModeLabels();
   injectRuntimeSettings();
+  await loadServerRuntimeConfig();
   renderShortcutPager();
   wireShortcutInteractions();
   renderReportOutputs();
