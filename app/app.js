@@ -2809,6 +2809,17 @@ function summarizeSessionRecord(session = {}) {
   };
 }
 
+function scoreSessionRecordForRestore(session = {}) {
+  const summary = summarizeSessionRecord(session);
+  let score = 0;
+  if (!summary.has_corrupted_history) score += 4;
+  if (summary.last_user_message) score += 3;
+  if (summary.last_assistant_message) score += 2;
+  if (summary.latest_tag_summary) score += 1;
+  score += Math.min(summary.message_count || 0, 6);
+  return score;
+}
+
 function normalizeLocalSessionRecord(record = {}) {
   const state = record.state && typeof record.state === 'object' ? deepCloneSerializable(record.state, {}) : {};
   const memorySnapshot = record.memory_snapshot && typeof record.memory_snapshot === 'object'
@@ -3219,16 +3230,26 @@ function buildSessionExportFromRecord(session = {}) {
 }
 
 async function restoreSession(sessionId) {
+  const localSession = findLocalSessionArchiveById(sessionId);
   try {
     const response = await fetch(`/api/chat/session?id=${encodeURIComponent(sessionId)}`);
     const payload = await response.json();
     if (!response.ok) {
       throw new Error(payload.error || '讀取對話內容失敗');
     }
-    applySessionRecord(payload.session || {}, sessionId);
+    const serverSession = payload.session || {};
+    const shouldPreferLocal = Boolean(
+      localSession &&
+      scoreSessionRecordForRestore(localSession) > scoreSessionRecordForRestore(serverSession)
+    );
+    if (shouldPreferLocal) {
+      applySessionRecord(localSession, sessionId);
+      appendSystemNotice('已優先使用這台裝置上較完整的上一段對話。');
+      return;
+    }
+    applySessionRecord(serverSession, sessionId);
     return;
   } catch (error) {
-    const localSession = findLocalSessionArchiveById(sessionId);
     if (localSession) {
       applySessionRecord(localSession, sessionId);
       appendSystemNotice('目前改用這台裝置上的本機備份開啟這段對話。');
