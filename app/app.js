@@ -148,7 +148,13 @@ const TherapeuticMemory = {
 
   buildContextString() {
     const p = this.get();
-    if (!p.stressors.length && !p.triggers.length && !p.keyThemes.length) return '';
+    if (
+      !p.stressors.length &&
+      !p.triggers.length &&
+      !p.keyThemes.length &&
+      !p.positiveAnchors.length &&
+      !p.copingProfile.preferredStyle
+    ) return '';
 
     const stressorList = p.stressors.map(s => s.label).join('、') || '尚未記錄';
     const triggerList = p.triggers.map(t => t.keyword).join('、') || '尚未記錄';
