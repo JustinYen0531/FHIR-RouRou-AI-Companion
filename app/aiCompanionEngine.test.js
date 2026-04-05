@@ -216,6 +216,15 @@ async function testForceNewSessionCreatesSeparateConversation() {
   assert.strictEqual(engine.sessions.size, 2);
 }
 
+async function testCorruptedInputIsRejectedBeforePersist() {
+  const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
+  await assert.rejects(
+    engine.handleMessage({ message: '?????????,?????,????????????', user: 'demo-user' }),
+    (error) => error && error.code === 'corrupted_input_rejected'
+  );
+  assert.strictEqual(engine.sessions.size, 0);
+}
+
 async function testSessionPersistenceRoundTrip() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-companion-'));
   const storePath = path.join(tmpDir, 'sessions.json');
@@ -254,6 +263,7 @@ async function run() {
   await testOutputCommandBuildsStructuredDrafts();
   await testReuseLatestSessionByUserWhenConversationIdMissing();
   await testForceNewSessionCreatesSeparateConversation();
+  await testCorruptedInputIsRejectedBeforePersist();
   await testSessionPersistenceRoundTrip();
   console.log('AI companion engine tests passed.');
 }

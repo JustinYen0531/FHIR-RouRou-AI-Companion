@@ -104,6 +104,13 @@ function isUnreadableText(value) {
   return suspiciousChars.length / stripped.length >= 0.6;
 }
 
+function hasCorruptedHistory(history = []) {
+  return (Array.isArray(history) ? history : []).some((item) => {
+    const content = String(item?.content || '').trim();
+    return Boolean(content) && isUnreadableText(content);
+  });
+}
+
 function findReadableHistoryMessage(history = [], role = '') {
   const items = Array.isArray(history) ? history : [];
   for (let index = items.length - 1; index >= 0; index -= 1) {
@@ -156,6 +163,7 @@ function summarizeSession(session) {
     note_history_count: Array.isArray(session.memory_snapshot?.note_history) ? session.memory_snapshot.note_history.length : 0,
     has_clinician_summary: Boolean(clinicianSummary && Object.keys(clinicianSummary).length),
     has_fhir_draft: Boolean(session.state?.fhir_delivery_draft && typeof session.state.fhir_delivery_draft === 'object' && Object.keys(session.state.fhir_delivery_draft).length),
+    has_corrupted_history: hasCorruptedHistory(history),
     message_count: history.length
   };
 }
@@ -178,5 +186,7 @@ module.exports = {
   listSessionSummaries,
   loadSessionsFromFile,
   saveSessionsToFile,
-  summarizeSession
+  summarizeSession,
+  isUnreadableText,
+  hasCorruptedHistory
 };

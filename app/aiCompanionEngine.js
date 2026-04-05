@@ -134,6 +134,24 @@ const COMMAND_MAP = {
   }
 };
 
+function isPossiblyCorruptedInput(value = '') {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  const stripped = text.replace(/\s+/g, '');
+  if (stripped.length < 6) return false;
+  const suspiciousChars = stripped.match(/[?？�]/g) || [];
+  const suspiciousRatio = suspiciousChars.length / stripped.length;
+  if (suspiciousRatio < 0.6) return false;
+  return /[?？�]{3,}/.test(stripped);
+}
+
+function createCorruptedInputError() {
+  const error = new Error('輸入文字疑似在送出前就已發生編碼損壞，這次不會儲存到對話記錄。請直接在網頁重新輸入，並避免使用會把中文轉成問號的外部工具。');
+  error.status = 422;
+  error.code = 'corrupted_input_rejected';
+  return error;
+}
+
 const MODE_LABELS = {
   mode_1_void: 'Void',
   mode_2_soulmate: 'Soulmate',
@@ -755,11 +773,15 @@ class AICompanionEngine {
   }
 
   async handleMessage(payload, options = {}) {
+    const message = String(payload.message || '').trim();
+    if (message && isPossiblyCorruptedInput(message)) {
+      throw createCorruptedInputError();
+    }
+
     const session = this.getOrCreateSession(payload.conversation_id, payload.user, {
       forceNewSession: payload.force_new_session
     });
     const state = session.state;
-    const message = String(payload.message || '').trim();
     if (!message) {
       this.persistSessions();
       return {

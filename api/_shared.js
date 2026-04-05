@@ -25,13 +25,14 @@ function handleCors(req, res) {
 
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
-    let rawBody = '';
+    const chunks = [];
 
     req.on('data', (chunk) => {
-      rawBody += chunk;
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     });
 
     req.on('end', () => {
+      const rawBody = Buffer.concat(chunks).toString('utf8');
       if (!rawBody) {
         resolve({});
         return;

@@ -590,14 +590,15 @@ function createServer(options = {}) {
       return;
     }
 
-    let rawBody = '';
+    const chunks = [];
     req.on('data', (chunk) => {
-      rawBody += chunk;
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     });
 
     req.on('end', async () => {
       let payload;
       try {
+        const rawBody = Buffer.concat(chunks).toString('utf8');
         payload = rawBody ? JSON.parse(rawBody) : {};
       } catch (error) {
         sendJson(res, 400, { error: 'Invalid JSON body' });

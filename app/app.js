@@ -2761,7 +2761,8 @@ function renderRecentSessions() {
     const flags = [
       session.risk_flag === 'true' ? '<span class="home-session-flag risk">高風險標記</span>' : '',
       session.has_clinician_summary ? '<span class="home-session-flag">有醫師摘要</span>' : '',
-      session.has_fhir_draft ? '<span class="home-session-flag">有 FHIR 草稿</span>' : ''
+      session.has_fhir_draft ? '<span class="home-session-flag">有 FHIR 草稿</span>' : '',
+      session.has_corrupted_history ? '<span class="home-session-flag risk">訊息疑似損壞</span>' : ''
     ].filter(Boolean).join('');
 
     return `
