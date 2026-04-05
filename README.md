@@ -168,7 +168,7 @@ GROQ_API_KEY=YOUR_GROQ_API_KEY
 ## 專案結構
 
 - [app](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app)：前端、Node 伺服器、FHIR 與 AI 引擎主程式
-- [重要實作文件](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/重要實作文件)：目前主要說明文件與測試紀錄
+- [評審必看_系統說明與實作文件](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/評審必看_系統說明與實作文件)：目前主要說明文件、系統亮點與測試紀錄
 - [廢棄之Dify聊天流](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/廢棄之Dify聊天流)：舊版 Dify chatflow 匯出檔，作為歷史資料保留
 - [flowise](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/flowise)：過往 Flowise 相關資產與轉換資料
 - [tools](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/tools)：開發用工具腳本
@@ -177,20 +177,20 @@ GROQ_API_KEY=YOUR_GROQ_API_KEY
 
 目前建議優先看這些：
 
-- [競賽實作內容說明](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/重要實作文件/競賽實作內容說明.md)
-- [AI陪伴系統_產品需求文件](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/重要實作文件/AI陪伴系統_產品需求文件.md)
-- [AI陪伴系統_白話流程說明](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/重要實作文件/AI陪伴系統_白話流程說明.md)
-- [AI陪伴系統_Node引擎說明](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/重要實作文件/AI陪伴系統_Node引擎說明.md)
-- [AI陪伴系統_FHIR技術摘要](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/重要實作文件/AI陪伴系統_FHIR技術摘要.md)
-- [AI陪伴系統_HAM-D正式評分升級計畫](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/重要實作文件/AI陪伴系統_HAM-D正式評分升級計畫.md)
-- [AI陪伴系統_測試檢查清單](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/重要實作文件/AI陪伴系統_測試檢查清單.md)
-- [AI陪伴系統_專案大事記](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/重要實作文件/AI陪伴系統_專案大事記.md)
+- [競賽實作內容說明](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/評審必看_系統說明與實作文件/競賽實作內容說明.md)
+- [AI陪伴系統_產品需求文件](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/評審必看_系統說明與實作文件/AI陪伴系統_產品需求文件.md)
+- [AI陪伴系統_白話流程說明](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/評審必看_系統說明與實作文件/AI陪伴系統_白話流程說明.md)
+- [AI陪伴系統_Node引擎說明](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/評審必看_系統說明與實作文件/AI陪伴系統_Node引擎說明.md)
+- [AI陪伴系統_FHIR技術摘要](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/評審必看_系統說明與實作文件/AI陪伴系統_FHIR技術摘要.md)
+- [AI陪伴系統_HAM-D正式評分升級計畫](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/評審必看_系統說明與實作文件/AI陪伴系統_HAM-D正式評分升級計畫.md)
+- [AI陪伴系統_測試檢查清單](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/評審必看_系統說明與實作文件/AI陪伴系統_測試檢查清單.md)
+- [AI陪伴系統_專案大事記](/C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/評審必看_系統說明與實作文件/AI陪伴系統_專案大事記.md)
 
 ## 補充說明
 
 - 本專案目前主線以 `master` 為主
 - `main` 保留為較早期的另一條演進分支，不是目前主要展示內容
-- 若你看到 README、舊 chatflow、舊資料夾名稱不完全一致，請以 `app` 與 `重要實作文件` 內目前內容為準
+- 若你看到 README、舊 chatflow、舊資料夾名稱不完全一致，請以 `app` 與 `評審必看_系統說明與實作文件` 內目前內容為準
 
 ## License / 使用說明
 
