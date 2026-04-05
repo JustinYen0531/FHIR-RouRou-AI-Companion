@@ -770,7 +770,7 @@ function renderClinicalInsights(summary) {
 }
 
 function renderPatientAnalysisMarkdown(analysis) {
-  const markdown = analysis?.markdown || [
+  const rawMarkdown = analysis?.markdown || [
     '## 給你的分析',
     '',
     analysis?.plain_summary || analysis?.patient_facing_summary || '目前還沒有足夠內容可以整理成給病人的分析。',
@@ -779,6 +779,9 @@ function renderPatientAnalysisMarkdown(analysis) {
     '',
     analysis?.reminder || '這份內容是依據目前對話整理的陪伴式理解，不是醫療診斷。'
   ].join('\n');
+  const markdown = String(rawMarkdown || '')
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n');
 
   return renderMessageMarkdown(markdown);
 }

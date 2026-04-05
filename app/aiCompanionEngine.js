@@ -657,7 +657,7 @@ function buildPatientAnalysis(state, fallbackMessage = '') {
     '',
     '### 提醒',
     '這份內容是依據目前對話整理的陪伴式理解，不是醫療診斷。'
-  ].join('\\n');
+  ].join('\n');
 
   return {
     version: 'p3_patient_analysis_v1',
@@ -835,9 +835,14 @@ class AICompanionEngine {
       };
     }
 
-    session.history.push({ role: 'user', content: message });
+    const rawMessage = String(payload.raw_message || '').trim() || message;
+    const isInternalCall = payload.raw_message === '' || payload.hide_response;
+
+    if (!isInternalCall) {
+      session.history.push({ role: 'user', content: rawMessage });
+      session.memory_snapshot.last_user_message = rawMessage;
+    }
     session.revision += 1;
-    session.memory_snapshot.last_user_message = message;
 
     const command = this.detectCommand(message);
     if (command) {
