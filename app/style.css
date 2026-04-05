@@ -1970,6 +1970,8 @@ body {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   padding: 18px 18px var(--scroll-safe-bottom);
   scroll-padding-bottom: var(--scroll-safe-bottom);
 }
@@ -3030,6 +3032,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
+  touch-action: pan-y;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
@@ -3672,7 +3675,6 @@ body {
 body.micro-detail-open {
   overflow: hidden;
 }
-
 .shortcut-composer-overlay {
   position: fixed;
   inset: 0;
@@ -4614,5 +4616,6 @@ body.micro-detail-open {
   width: 22px;
   background: var(--primary);
 }
+
 
 

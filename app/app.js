@@ -1708,6 +1708,22 @@ function escapeHtml(value) {
   return div.innerHTML;
 }
 
+function isUnreadableSessionText(value = '') {
+  const text = String(value || '').trim();
+  if (!text) return true;
+  const stripped = text.replace(/\s+/g, '');
+  if (!stripped) return true;
+  const suspiciousChars = stripped.match(/[?？�]/g) || [];
+  return suspiciousChars.length / stripped.length >= 0.6;
+}
+
+function pickReadableSessionText(candidates = [], fallback = '') {
+  const readable = candidates
+    .map((item) => String(item || '').trim())
+    .find((item) => item && !isUnreadableSessionText(item));
+  return readable || fallback;
+}
+
 function renderInlineMarkdown(text) {
   return text
     .replace(/`([^`]+)`/g, '<code>$1</code>')
@@ -2629,8 +2645,14 @@ function renderRecentSessions() {
   }
 
   container.innerHTML = sessions.map((session) => {
-    const summary = session.latest_tag_summary || session.last_user_message || '這段對話目前還沒有摘要。';
-    const sub = session.last_assistant_message || '點進去可以繼續這段對話。';
+    const summary = pickReadableSessionText(
+      [session.latest_tag_summary, session.last_user_message, session.last_assistant_message],
+      '這段對話目前還沒有可讀摘要。'
+    );
+    const sub = pickReadableSessionText(
+      [session.last_assistant_message, session.last_user_message],
+      '點進去可以繼續這段對話。'
+    );
     const flags = [
       session.risk_flag === 'true' ? '<span class="home-session-flag risk">高風險標記</span>' : '',
       session.has_clinician_summary ? '<span class="home-session-flag">有醫師摘要</span>' : '',
