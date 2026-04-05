@@ -8,6 +8,9 @@ const PROMPTS_DIR = path.join(ROOT_DIR, 'flowise', 'prompts');
 const RAG_DIR = path.join(__dirname, 'rag');
 const RAG_TEXT_PATH = path.join(RAG_DIR, 'CompanionAI_RAG資料.txt');
 const DEFAULT_AUTHOR = 'AI Companion Node Engine';
+const MAX_CHAT_HISTORY_FOR_MODEL = 24;
+const MAX_TRANSCRIPT_TURNS_FOR_RETRIEVAL = 40;
+const MAX_RECENT_TRANSCRIPT_TURNS = 12;
 
 const PROMPT_FILES = {
   missionRetrievalAudit: '任務檢索稽核.md',
@@ -635,6 +638,14 @@ function isDraftRelevantHistoryItem(item) {
   if (!item || typeof item !== 'object') return false;
   const kind = String(item.kind || 'chat').trim();
   return kind !== 'command' && kind !== 'output';
+}
+
+function formatTranscriptEntry(item) {
+  if (!item || typeof item !== 'object') return '';
+  const role = item.role === 'assistant' ? 'AI' : '使用者';
+  const content = String(item.content || '').trim();
+  if (!content) return '';
+  return `${role}：${content}`;
 }
 
 function buildPatientAnalysis(state, fallbackMessage = '') {
@@ -1489,20 +1500,45 @@ class AICompanionEngine {
   }
 
   buildPromptContext(session, message, extraContext = {}) {
+    const transcriptWindow = this.buildTranscriptWindow(session);
     return Object.assign(
       {
         sys: {
           query: message
         },
         conversation: session.state,
-        retrieval: {}
+        retrieval: transcriptWindow
       },
       extraContext || {}
     );
   }
 
+  buildDraftRelevantHistory(session) {
+    return session.history.filter((item) => isDraftRelevantHistoryItem(item));
+  }
+
+  buildTranscriptWindow(session) {
+    const relevantHistory = this.buildDraftRelevantHistory(session);
+    const recentTurns = relevantHistory.slice(-MAX_RECENT_TRANSCRIPT_TURNS);
+    const olderTurns = relevantHistory.slice(
+      Math.max(0, relevantHistory.length - MAX_TRANSCRIPT_TURNS_FOR_RETRIEVAL),
+      Math.max(0, relevantHistory.length - MAX_RECENT_TRANSCRIPT_TURNS)
+    );
+
+    return {
+      total_relevant_turns: relevantHistory.length,
+      recent_chat_history: recentTurns.map((item) => ({
+        role: item.role,
+        content: String(item.content || '').trim()
+      })),
+      recent_chat_history_text: recentTurns.map(formatTranscriptEntry).filter(Boolean).join('\n'),
+      longitudinal_dialogue: olderTurns.map(formatTranscriptEntry).filter(Boolean).join('\n'),
+      context_rule: 'Ignore mode-switch, command, and output-control turns. Treat only real chat content as clinical draft evidence.'
+    };
+  }
+
   buildHistory(session) {
-    return session.history.filter((item) => isDraftRelevantHistoryItem(item)).slice(-8);
+    return this.buildDraftRelevantHistory(session).slice(-MAX_CHAT_HISTORY_FOR_MODEL);
   }
 
   async runTextTask(promptKey, session, message, options = {}) {

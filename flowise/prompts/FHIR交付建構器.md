@@ -10,6 +10,7 @@
 
 你要把目前的 clinician_summary_draft、patient_review_packet、patient_authorization_state、red_flag_payload、hamd_progress_state、hamd_formal_assessment 整理成「FHIR / TW Core 映射草稿」。
 這不是最終 server payload，而是交付前的結構化 draft。
+請盡量保留較早對話裡的重要症狀、功能受損、就醫目標與時間脈絡，不要因模式切換或快捷操作而改寫重點。
 請輸出固定 JSON：
 {
   "draft_version":"p3_fhir_delivery_v1",
@@ -46,4 +47,6 @@ patient_authorization_state：{{#conversation.patient_authorization_state#}}
 red_flag_payload：{{#conversation.red_flag_payload#}}
 hamd_progress_state：{{#conversation.hamd_progress_state#}}
 hamd_formal_assessment：{{#conversation.hamd_formal_assessment#}}
+recent_chat_history：{{#retrieval.recent_chat_history_text#}}
+longitudinal_dialogue：{{#retrieval.longitudinal_dialogue#}}
 只輸出 JSON，不要加解釋。
