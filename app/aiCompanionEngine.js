@@ -631,6 +631,12 @@ function buildFormalFhirTargets(formalAssessment) {
     }));
 }
 
+function isDraftRelevantHistoryItem(item) {
+  if (!item || typeof item !== 'object') return false;
+  const kind = String(item.kind || 'chat').trim();
+  return kind !== 'command' && kind !== 'output';
+}
+
 function buildPatientAnalysis(state, fallbackMessage = '') {
   const clinician = normalizeObjectState(state, 'clinician_summary_draft', {});
   const patientReview = normalizeObjectState(state, 'patient_review_packet', {});
@@ -909,20 +915,24 @@ class AICompanionEngine {
       };
     }
 
+    const command = this.detectCommand(message);
+    const outputType = this.detectOutputCommand(message);
     const rawMessage = String(payload.raw_message || '').trim() || message;
     const isInternalCall = payload.raw_message === '' || payload.hide_response;
+    const userHistoryKind = command ? 'command' : outputType ? 'output' : 'chat';
 
     if (!isInternalCall) {
-      session.history.push({ role: 'user', content: rawMessage });
-      session.memory_snapshot.last_user_message = rawMessage;
+      session.history.push({ role: 'user', content: rawMessage, kind: userHistoryKind });
+      if (userHistoryKind === 'chat') {
+        session.memory_snapshot.last_user_message = rawMessage;
+        session.revision += 1;
+      }
     }
-    session.revision += 1;
 
-    const command = this.detectCommand(message);
     if (command) {
       Object.assign(state, COMMAND_MAP[command]);
       const answer = state.command_feedback;
-      session.history.push({ role: 'assistant', content: answer });
+      session.history.push({ role: 'assistant', content: answer, kind: 'command' });
       this.updateMemorySnapshot(session, answer);
       this.persistSessions();
       return {
@@ -979,7 +989,6 @@ class AICompanionEngine {
       };
     }
 
-    const outputType = this.detectOutputCommand(message);
     if (outputType) {
       const outputResult = await this.generateOutput({
         conversation_id: session.id,
@@ -987,7 +996,7 @@ class AICompanionEngine {
         output_type: outputType,
         instruction: message
       });
-      session.history.push({ role: 'assistant', content: outputResult.formatted_text });
+      session.history.push({ role: 'assistant', content: outputResult.formatted_text, kind: 'output' });
       this.updateMemorySnapshot(session, outputResult.formatted_text);
       this.persistSessions();
       return {
@@ -1006,7 +1015,7 @@ class AICompanionEngine {
 
     if (state.pending_question !== 'none' && state.pending_question) {
       const answer = await this.handleFollowup(session, message);
-      session.history.push({ role: 'assistant', content: answer });
+      session.history.push({ role: 'assistant', content: answer, kind: 'chat' });
       this.updateMemorySnapshot(session, answer);
       return {
         conversation_id: session.id,
@@ -1042,7 +1051,7 @@ class AICompanionEngine {
       answer = await this.buildNaturalResponse(session, message);
     }
 
-    session.history.push({ role: 'assistant', content: answer });
+    session.history.push({ role: 'assistant', content: answer, kind: 'chat' });
     this.updateMemorySnapshot(session, answer);
     this.persistSessions();
 
@@ -1396,7 +1405,7 @@ class AICompanionEngine {
     const triggerMessage =
       String(instruction || '').trim() ||
       session.memory_snapshot.last_user_message ||
-      session.history.slice().reverse().find((item) => item.role === 'user')?.content ||
+      session.history.slice().reverse().find((item) => item.role === 'user' && isDraftRelevantHistoryItem(item))?.content ||
       '';
     await this.updateSummaryChain(session, triggerMessage);
     session.structured_revision = session.revision;
@@ -1493,7 +1502,7 @@ class AICompanionEngine {
   }
 
   buildHistory(session) {
-    return session.history.slice(-8);
+    return session.history.filter((item) => isDraftRelevantHistoryItem(item)).slice(-8);
   }
 
   async runTextTask(promptKey, session, message, options = {}) {
