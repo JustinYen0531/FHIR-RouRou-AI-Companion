@@ -658,6 +658,180 @@ function isDraftRelevantInstruction(message) {
   return !OUTPUT_COMMAND_PATTERNS.some((item) => item.patterns.some((pattern) => pattern.test(text)));
 }
 
+const GENERIC_DRAFT_PHRASES = [
+  '尋求情感支持',
+  '自我分析',
+  '需求情感支持',
+  '希望進行自我分析',
+  '需要幫助',
+  '需要支持'
+];
+
+const CLINICAL_SIGNAL_RULES = [
+  { label: '持續低落與憂鬱感', signal: 'depressed_mood', pattern: /(憂鬱|低落|沮喪|難過|沉重|提不起勁|空虛|沒意義)/i },
+  { label: '工作動力與意義感下降', signal: 'work_interest', pattern: /(工作|摸魚|沒動力|提不起勁|無意義|老闆打工|自我實踐)/i },
+  { label: '易怒與人際疏離', signal: 'agitation', pattern: /(易怒|暴躁|煩躁|疏離|遠離|孤單|沒人知道)/i },
+  { label: '注意力下降或思考拖慢', signal: 'retardation', pattern: /(心不在焉|變慢|拖住|專心|回話.*慢|思考.*慢)/i },
+  { label: '睡眠困擾', signal: 'insomnia', pattern: /(失眠|睡不著|半夜醒|早醒|睡眠)/i },
+  { label: '焦慮與身體緊繃', signal: 'somatic_anxiety', pattern: /(焦慮|緊張|心悸|胸悶|胃痛|頭痛|不安)/i },
+  { label: '自責或無望感', signal: 'guilt', pattern: /(自責|怪自己|絕望|無望|活著沒有意義|消失)/i }
+];
+
+function isGenericDraftText(value) {
+  const text = String(value || '').trim();
+  if (!text) return true;
+  return GENERIC_DRAFT_PHRASES.some((phrase) => text.includes(phrase));
+}
+
+function buildLongitudinalEvidence(session) {
+  const history = Array.isArray(session?.history) ? session.history : [];
+  const userMessages = history
+    .filter((item) => item && item.role === 'user' && isDraftRelevantHistoryItem(item))
+    .map((item) => String(item.content || '').trim())
+    .filter(Boolean)
+    .slice(-20);
+
+  const chiefConcerns = [];
+  const symptomObservations = [];
+  const hamdSignals = [];
+  const evidenceMap = new Map();
+
+  userMessages.forEach((message) => {
+    CLINICAL_SIGNAL_RULES.forEach((rule) => {
+      if (!rule.pattern.test(message)) return;
+      if (!chiefConcerns.includes(rule.label) && chiefConcerns.length < 4) {
+        chiefConcerns.push(rule.label);
+      }
+      if (!hamdSignals.includes(rule.signal)) {
+        hamdSignals.push(rule.signal);
+      }
+      const clipped = message.length > 70 ? `${message.slice(0, 70)}...` : message;
+      if (!symptomObservations.includes(clipped) && symptomObservations.length < 8) {
+        symptomObservations.push(clipped);
+      }
+      if (!evidenceMap.has(rule.signal)) {
+        evidenceMap.set(rule.signal, []);
+      }
+      const items = evidenceMap.get(rule.signal);
+      if (!items.includes(clipped) && items.length < 3) {
+        items.push(clipped);
+      }
+    });
+  });
+
+  const hasReturnVisitGoal = userMessages.some((message) => /(回診|看診|醫師|醫生)/i.test(message));
+  const tone = chiefConcerns.includes('持續低落與憂鬱感')
+    ? 'low_energy_distressed'
+    : chiefConcerns.includes('易怒與人際疏離')
+      ? 'distressed'
+      : 'guarded';
+
+  const draftSummaryParts = [];
+  if (chiefConcerns.length) {
+    draftSummaryParts.push(`本次對話主要聚焦於${chiefConcerns.slice(0, 3).join('、')}。`);
+  }
+  if (hasReturnVisitGoal) {
+    draftSummaryParts.push('使用者明確提到回診或醫療整理需求。');
+  }
+  if (hamdSignals.length) {
+    draftSummaryParts.push(`目前已觸及的 HAM-D 線索包含 ${hamdSignals.slice(0, 4).join('、')}。`);
+  }
+
+  return {
+    userMessages,
+    chiefConcerns,
+    symptomObservations,
+    hamdSignals,
+    evidenceBySignal: Object.fromEntries(evidenceMap),
+    returnVisitGoal: hasReturnVisitGoal,
+    patientTone: tone,
+    draftSummary: draftSummaryParts.join(' ').trim()
+  };
+}
+
+function enrichClinicianSummaryDraft(draft, longitudinal, state) {
+  const nextDraft = draft && typeof draft === 'object' ? Object.assign({}, draft) : {};
+  const existingChiefConcerns = normalizeArray(nextDraft.chief_concerns);
+  const existingObservations = normalizeArray(nextDraft.symptom_observations);
+  const existingSignals = normalizeArray(nextDraft.hamd_signals);
+
+  if (!existingChiefConcerns.length || existingChiefConcerns.every(isGenericDraftText)) {
+    nextDraft.chief_concerns = longitudinal.chiefConcerns.slice(0, 3);
+  }
+  if (!existingObservations.length) {
+    nextDraft.symptom_observations = longitudinal.symptomObservations.slice(0, 6);
+  }
+  if (!existingSignals.length) {
+    nextDraft.hamd_signals = longitudinal.hamdSignals.slice(0, 6);
+  }
+  if (isGenericDraftText(nextDraft.draft_summary)) {
+    nextDraft.draft_summary = longitudinal.draftSummary || nextDraft.draft_summary || '';
+  }
+  if (!String(nextDraft.patient_tone || '').trim() || nextDraft.patient_tone === 'unknown') {
+    nextDraft.patient_tone = longitudinal.patientTone;
+  }
+
+  const existingFollowups = normalizeArray(nextDraft.followup_needs);
+  if (!existingFollowups.length && longitudinal.returnVisitGoal) {
+    nextDraft.followup_needs = ['使用者已表達回診前整理需求，可聚焦近期症狀嚴重度、功能受損與時間線確認。'];
+  }
+
+  if (!normalizeArray(nextDraft.safety_flags).length) {
+    nextDraft.safety_flags = normalizeArray(normalizeObjectState(state, 'red_flag_payload', {}).warning_tags);
+  }
+
+  return nextDraft;
+}
+
+function enrichFhirDeliveryDraft(draft, clinicianDraft, longitudinal, state) {
+  const nextDraft = draft && typeof draft === 'object' ? Object.assign({}, draft) : {};
+  const symptomObservations = normalizeArray(clinicianDraft?.symptom_observations).length
+    ? normalizeArray(clinicianDraft.symptom_observations)
+    : longitudinal.symptomObservations;
+  const hamdSignals = normalizeArray(clinicianDraft?.hamd_signals).length
+    ? normalizeArray(clinicianDraft.hamd_signals)
+    : longitudinal.hamdSignals;
+
+  if (!Array.isArray(nextDraft.resources) || !nextDraft.resources.length) {
+    nextDraft.resources = [
+      { resource_type: 'Composition', status: 'preliminary', purpose: 'clinical_summary' },
+      { resource_type: 'Observation', status: 'preliminary', purpose: 'hamd_signal_tracking' },
+      { resource_type: 'ClinicalImpression', status: 'preliminary', purpose: 'risk_and_context' },
+      { resource_type: 'QuestionnaireResponse', status: 'preliminary', purpose: 'dialogue_to_scale_mapping' }
+    ];
+  }
+
+  if (!Array.isArray(nextDraft.composition_sections) || !nextDraft.composition_sections.length) {
+    nextDraft.composition_sections = [
+      { section: 'chief_concerns', focus: normalizeArray(clinicianDraft?.chief_concerns).slice(0, 3).join('、') || longitudinal.chiefConcerns.slice(0, 3).join('、') || '待補主要困擾' },
+      { section: 'symptom_timeline', focus: symptomObservations.slice(0, 2).join('；') || '待補症狀與時間線' },
+      { section: 'care_goal', focus: longitudinal.returnVisitGoal ? '使用者希望回診前完成整理並供醫療端參考' : '待補就醫目標' }
+    ];
+  }
+
+  if (!Array.isArray(nextDraft.observation_candidates) || !nextDraft.observation_candidates.length) {
+    nextDraft.observation_candidates = symptomObservations.slice(0, 6).map((item) => ({
+      focus: item,
+      category: 'patient_report',
+      status: 'preliminary'
+    }));
+  }
+
+  if (!Array.isArray(nextDraft.questionnaire_targets) || !nextDraft.questionnaire_targets.length) {
+    nextDraft.questionnaire_targets = hamdSignals.slice(0, 6);
+  }
+
+  if (!Array.isArray(nextDraft.clinical_alerts) || !nextDraft.clinical_alerts.length) {
+    nextDraft.clinical_alerts = normalizeArray(normalizeObjectState(state, 'red_flag_payload', {}).warning_tags);
+  }
+
+  if (!String(nextDraft.notes || '').trim() || isGenericDraftText(nextDraft.notes)) {
+    nextDraft.notes = longitudinal.draftSummary || '本草稿已依對話內容整理主要困擾與 HAM-D 線索，仍需病人審閱與臨床確認。';
+  }
+
+  return nextDraft;
+}
+
 function buildPatientAnalysis(state, fallbackMessage = '') {
   const clinician = normalizeObjectState(state, 'clinician_summary_draft', {});
   const patientReview = normalizeObjectState(state, 'patient_review_packet', {});
@@ -1337,6 +1511,7 @@ class AICompanionEngine {
 
   async updateSummaryChain(session, message) {
     const state = session.state;
+    const longitudinal = buildLongitudinalEvidence(session);
     state.summary_draft_state = await this.runJsonTask('summaryDraftBuilder', session, message, {
       fallback: {
         active_mode: state.active_mode,
@@ -1349,6 +1524,11 @@ class AICompanionEngine {
         draft_summary: message
       }
     });
+    if (state.summary_draft_state && typeof state.summary_draft_state === 'object' && isGenericDraftText(state.summary_draft_state.draft_summary)) {
+      state.summary_draft_state = Object.assign({}, state.summary_draft_state, {
+        draft_summary: longitudinal.draftSummary || state.summary_draft_state.draft_summary
+      });
+    }
     const formalAssessment = hydrateFormalAssessment(state.hamd_formal_assessment);
     state.clinician_summary_draft = await this.runJsonTask('clinicianSummaryBuilder', session, message, {
       fallback: {
@@ -1365,10 +1545,14 @@ class AICompanionEngine {
         draft_summary: typeof state.summary_draft_state === 'object' ? state.summary_draft_state.draft_summary || message : message
       }
     });
-    state.clinician_summary_draft = Object.assign(
-      {},
-      state.clinician_summary_draft,
-      buildFormalClinicianFields(formalAssessment)
+    state.clinician_summary_draft = enrichClinicianSummaryDraft(
+      Object.assign(
+        {},
+        state.clinician_summary_draft,
+        buildFormalClinicianFields(formalAssessment)
+      ),
+      longitudinal,
+      state
     );
     state.patient_review_packet = await this.runJsonTask('patientReviewBuilder', session, message, {
       fallback: {
@@ -1404,9 +1588,14 @@ class AICompanionEngine {
         narrative_summary: typeof state.clinician_summary_draft === 'object' ? state.clinician_summary_draft.draft_summary || message : message
       }
     });
-    state.fhir_delivery_draft = Object.assign({}, state.fhir_delivery_draft, {
-      hamd_formal_targets: buildFormalFhirTargets(formalAssessment)
-    });
+    state.fhir_delivery_draft = enrichFhirDeliveryDraft(
+      Object.assign({}, state.fhir_delivery_draft, {
+        hamd_formal_targets: buildFormalFhirTargets(formalAssessment)
+      }),
+      state.clinician_summary_draft,
+      longitudinal,
+      state
+    );
     state.delivery_readiness_state = await this.runJsonTask('deliveryReadinessBuilder', session, message, {
       fallback: {
         state_version: 'p3_delivery_readiness_v1',
