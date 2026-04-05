@@ -1712,13 +1712,25 @@ function sendQuickReply(text) {
   sendMessage();
 }
 
-function activateShortcut(command) {
+function buildOutputShortcutMessage(outputType) {
+  const messages = {
+    clinician_summary: '請幫我整理成給醫師看的重點。',
+    patient_analysis: '請幫我看看我現在的狀態。',
+    patient_review: '請幫我整理成我自己看得懂的版本。',
+    fhir_delivery: '請幫我準備 FHIR 草稿。'
+  };
+  return messages[outputType] || `請幫我處理${OUTPUT_DEFINITIONS[outputType]?.label || outputType}。`;
+}
+
+async function activateShortcut(command) {
   const normalized = decodeURIComponent(String(command || '')).trim();
   if (!normalized) return;
 
   if (normalized.startsWith('OUTPUT:')) {
     const outputType = normalized.replace(/^OUTPUT:/, '');
-    requestOutput(outputType);
+    const visibleMessage = buildOutputShortcutMessage(outputType);
+    await appendMessage('user', visibleMessage);
+    await requestOutput(outputType, { fromShortcut: true, visibleMessage });
     return;
   }
 
@@ -4268,7 +4280,7 @@ async function requestOutput(outputType, options = {}) {
     evaluateMicroIntervention(finalPayload, { fromOutput: true });
     setTyping(false);
     appendSystemNotice(`${definition.label} 已更新，請到 Reports 查看。`);
-    if (options.fromChatCommand) {
+    if (options.fromChatCommand || options.fromShortcut) {
       await appendMessage('ai', `${definition.label} 已更新。你可以到 Reports 頁面查看最新內容。`, { animate: true });
     }
     showScreen('screen-report');
