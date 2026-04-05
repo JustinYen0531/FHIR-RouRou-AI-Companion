@@ -6,7 +6,7 @@ module.exports = function handler(req, res) {
     return;
   }
 
-  if (req.method !== 'GET') {
+  if (!['GET', 'DELETE'].includes(req.method)) {
     sendJson(res, 405, { error: 'Method not allowed' });
     return;
   }
@@ -20,6 +20,19 @@ module.exports = function handler(req, res) {
 
   const persistence = getSharedPersistence();
   buildServerOptions();
+
+  if (req.method === 'DELETE') {
+    if (!persistence.sessions.has(sessionId)) {
+      sendJson(res, 404, { error: 'Session not found.' });
+      return;
+    }
+
+    persistence.sessions.delete(sessionId);
+    persistence.save(persistence.sessions);
+    sendJson(res, 200, { ok: true, deleted: true, session_id: sessionId });
+    return;
+  }
+
   const session = persistence.sessions.get(sessionId);
   if (!session) {
     sendJson(res, 404, { error: 'Session not found.' });

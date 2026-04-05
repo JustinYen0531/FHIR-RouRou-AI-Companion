@@ -551,10 +551,26 @@ function createServer(options = {}) {
       return;
     }
 
-    if (req.method === 'GET' && parsedUrl.pathname === '/api/chat/session') {
+    if ((req.method === 'GET' || req.method === 'DELETE') && parsedUrl.pathname === '/api/chat/session') {
       const sessionId = String(parsedUrl.searchParams.get('id') || '').trim();
       if (!sessionId) {
         sendJson(res, 400, { error: 'Session id is required.' });
+        return;
+      }
+
+      if (req.method === 'DELETE') {
+        if (!sharedSessions.has(sessionId)) {
+          sendJson(res, 404, { error: 'Session not found.' });
+          return;
+        }
+
+        sharedSessions.delete(sessionId);
+        persistence.save(sharedSessions);
+        sendJson(res, 200, {
+          ok: true,
+          deleted: true,
+          session_id: sessionId
+        });
         return;
       }
 

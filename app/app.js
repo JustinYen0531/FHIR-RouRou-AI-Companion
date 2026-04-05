@@ -1920,9 +1920,15 @@ function wireHomeSessionControls() {
   if (list && !list.dataset.wired) {
     list.dataset.wired = 'true';
     list.addEventListener('click', (event) => {
-      const button = event.target.closest('[data-session-id]');
+      const deleteButton = event.target.closest('[data-session-delete]');
+      if (deleteButton) {
+        event.preventDefault();
+        deleteRecentSession(deleteButton.dataset.sessionDelete);
+        return;
+      }
+      const button = event.target.closest('[data-session-open]');
       if (!button) return;
-      continueSpecificSession(button.dataset.sessionId);
+      continueSpecificSession(button.dataset.sessionOpen);
     });
   }
 }
@@ -2766,7 +2772,9 @@ function renderRecentSessions() {
     ].filter(Boolean).join('');
 
     return `
-      <button class="home-session-card" type="button" data-session-id="${escapeHtml(session.id)}">
+      <div class="home-session-item">
+        <button class="home-session-delete" type="button" aria-label="刪除這筆對話" data-session-delete="${escapeHtml(session.id)}">刪除</button>
+        <button class="home-session-card" type="button" data-session-open="${escapeHtml(session.id)}">
         <div class="home-session-top">
           <div class="home-session-time">${escapeHtml(formatSessionTimestamp(session.updatedAt))}</div>
           <div class="home-session-mode">${escapeHtml(formatModeLabel(session.active_mode))}</div>
@@ -2774,9 +2782,42 @@ function renderRecentSessions() {
         <div class="home-session-summary">${escapeHtml(summary)}</div>
         <div class="home-session-sub">${escapeHtml(sub)}</div>
         ${flags ? `<div class="home-session-flags">${flags}</div>` : ''}
-      </button>
+        </button>
+      </div>
     `;
   }).join('');
+}
+
+async function deleteRecentSession(sessionId) {
+  const target = APP_STATE.recentSessions.find((item) => item.id === sessionId);
+  if (!target) return;
+
+  const confirmed = window.confirm(`要刪除 ${formatSessionTimestamp(target.updatedAt)} 的這段對話嗎？這個動作無法復原。`);
+  if (!confirmed) return;
+
+  try {
+    const response = await fetch(`/api/chat/session?id=${encodeURIComponent(sessionId)}`, {
+      method: 'DELETE'
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.error || '刪除對話失敗');
+    }
+
+    APP_STATE.recentSessions = APP_STATE.recentSessions.filter((item) => item.id !== sessionId);
+    if (APP_STATE.conversationId === sessionId) {
+      resetConversationState();
+      APP_STATE.chatHistory = [];
+      renderChatHistory([]);
+      showScreen('screen-home');
+    } else {
+      renderRecentSessions();
+    }
+    appendSystemNotice('已刪除這筆對話。');
+    await loadRecentSessions();
+  } catch (error) {
+    appendSystemNotice(error.message || '刪除對話失敗。');
+  }
 }
 
 async function loadRecentSessions() {
