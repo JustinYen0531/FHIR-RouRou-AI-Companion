@@ -1966,6 +1966,7 @@ function wireHomeSessionControls() {
       const deleteButton = event.target.closest('[data-session-delete]');
       if (deleteButton) {
         event.preventDefault();
+        event.stopPropagation();
         deleteRecentSession(deleteButton.dataset.sessionDelete);
         return;
       }
@@ -2817,11 +2818,13 @@ function renderRecentSessions() {
 
     return `
       <div class="home-session-item">
-        <button class="home-session-delete" type="button" aria-label="刪除這筆對話" data-session-delete="${escapeHtml(session.id)}">刪除</button>
         <button class="home-session-card" type="button" data-session-open="${escapeHtml(session.id)}">
         <div class="home-session-top">
           <div class="home-session-time">${escapeHtml(formatSessionTimestamp(session.updatedAt))}</div>
-          <div class="home-session-mode">${escapeHtml(formatModeLabel(session.active_mode))}</div>
+          <div class="home-session-actions">
+            <div class="home-session-mode">${escapeHtml(formatModeLabel(session.active_mode))}</div>
+            <span class="home-session-delete" role="button" tabindex="0" aria-label="刪除這筆對話" data-session-delete="${escapeHtml(session.id)}">刪除</span>
+          </div>
         </div>
         <div class="home-session-summary">${escapeHtml(summary)}</div>
         <div class="home-session-sub">${escapeHtml(sub)}</div>
