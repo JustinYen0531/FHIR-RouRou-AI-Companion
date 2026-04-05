@@ -95,20 +95,53 @@ function createSessionPersistence(options = {}) {
   };
 }
 
+function isUnreadableText(value) {
+  const text = String(value || '').trim();
+  if (!text) return true;
+  const stripped = text.replace(/\s+/g, '');
+  if (!stripped) return true;
+  const suspiciousChars = stripped.match(/[?？�]/g) || [];
+  return suspiciousChars.length / stripped.length >= 0.6;
+}
+
+function findReadableHistoryMessage(history = [], role = '') {
+  const items = Array.isArray(history) ? history : [];
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    if (!item || !item.content) continue;
+    if (role && item.role !== role) continue;
+    const content = String(item.content || '').trim();
+    if (content && !isUnreadableText(content)) {
+      return content;
+    }
+  }
+  return '';
+}
+
 function summarizeSession(session) {
   const history = Array.isArray(session.history) ? session.history : [];
-  const lastUserMessage = session.memory_snapshot?.last_user_message ||
-    history.slice().reverse().find((item) => item && item.role === 'user')?.content ||
-    '';
-  const lastAssistantMessage = session.memory_snapshot?.last_assistant_message ||
-    history.slice().reverse().find((item) => item && item.role === 'assistant')?.content ||
-    '';
+  const lastUserMessage = !isUnreadableText(session.memory_snapshot?.last_user_message)
+    ? String(session.memory_snapshot?.last_user_message || '').trim()
+    : findReadableHistoryMessage(history, 'user') ||
+      String(session.memory_snapshot?.last_user_message || '').trim() ||
+      '';
+  const lastAssistantMessage = !isUnreadableText(session.memory_snapshot?.last_assistant_message)
+    ? String(session.memory_snapshot?.last_assistant_message || '').trim()
+    : findReadableHistoryMessage(history, 'assistant') ||
+      String(session.memory_snapshot?.last_assistant_message || '').trim() ||
+      '';
   const latestTags = session.state?.latest_tag_payload && typeof session.state.latest_tag_payload === 'object'
     ? session.state.latest_tag_payload
     : {};
   const clinicianSummary = session.state?.clinician_summary_draft && typeof session.state.clinician_summary_draft === 'object'
     ? session.state.clinician_summary_draft
     : {};
+  const latestTagSummary = !isUnreadableText(session.memory_snapshot?.latest_tag_summary)
+    ? String(session.memory_snapshot?.latest_tag_summary || '').trim()
+    : !isUnreadableText(latestTags.summary)
+      ? String(latestTags.summary || '').trim()
+      : '';
+  const fallbackSummary = findReadableHistoryMessage(history, 'assistant') || findReadableHistoryMessage(history, 'user') || '';
 
   return {
     id: session.id,
@@ -117,7 +150,7 @@ function summarizeSession(session) {
     updatedAt: session.updatedAt || '',
     active_mode: session.state?.active_mode || session.memory_snapshot?.active_mode || 'auto',
     risk_flag: session.state?.risk_flag || session.memory_snapshot?.risk_flag || 'false',
-    latest_tag_summary: session.memory_snapshot?.latest_tag_summary || latestTags.summary || '',
+    latest_tag_summary: latestTagSummary || fallbackSummary,
     last_user_message: String(lastUserMessage || '').trim(),
     last_assistant_message: String(lastAssistantMessage || '').trim(),
     note_history_count: Array.isArray(session.memory_snapshot?.note_history) ? session.memory_snapshot.note_history.length : 0,
