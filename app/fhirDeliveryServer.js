@@ -12,9 +12,11 @@ const {
 } = require('./llmChatClient');
 
 const APP_DIR = __dirname;
+const PROJECT_ROOT = path.join(APP_DIR, '..');
 const DEFAULT_PUBLIC_FHIR_BASE_URL = 'https://hapi.fhir.org/baseR4';
 const PUBLIC_DEMO_FHIR_TARGETS = [DEFAULT_PUBLIC_FHIR_BASE_URL];
 const DELIVERY_DEBUG_LOG_PATH = path.join(APP_DIR, '..', '.logs', 'fhir-delivery-debug.ndjson');
+const LOCAL_ENV_PATH = path.join(PROJECT_ROOT, '.env.local');
 const STATIC_FILES = {
   '/': { filePath: path.join(APP_DIR, 'index.html'), contentType: 'text/html; charset=utf-8' },
   '/index.html': { filePath: path.join(APP_DIR, 'index.html'), contentType: 'text/html; charset=utf-8' },
@@ -22,6 +24,36 @@ const STATIC_FILES = {
   '/microInterventionRules.js': { filePath: path.join(APP_DIR, 'microInterventionRules.js'), contentType: 'application/javascript; charset=utf-8' },
   '/style.css': { filePath: path.join(APP_DIR, 'style.css'), contentType: 'text/css; charset=utf-8' }
 };
+
+function stripWrappingQuotes(value) {
+  const text = String(value || '').trim();
+  if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'"))) {
+    return text.slice(1, -1);
+  }
+  return text;
+}
+
+function loadLocalEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+
+  const content = fs.readFileSync(filePath, 'utf8');
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const separatorIndex = line.indexOf('=');
+    if (separatorIndex <= 0) continue;
+
+    const key = line.slice(0, separatorIndex).trim();
+    if (!key || Object.prototype.hasOwnProperty.call(process.env, key)) continue;
+
+    const value = stripWrappingQuotes(line.slice(separatorIndex + 1));
+    process.env[key] = value;
+  }
+}
+
+loadLocalEnvFile(LOCAL_ENV_PATH);
 
 function sendJson(res, statusCode, body) {
   res.writeHead(statusCode, {

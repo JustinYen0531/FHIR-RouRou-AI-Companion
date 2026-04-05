@@ -53,6 +53,40 @@ node app\fhirDeliveryServer.js
 
 ### 3. 啟用 AI 對話模型
 
+建議做法是先在專案根目錄建立 `\.env.local`，伺服器啟動時會自動讀取。
+
+1. 複製範例檔：
+
+```powershell
+Copy-Item .env.example .env.local
+```
+
+2. 編輯 `\.env.local`，填入你的 API Key。
+
+Groq `\.env.local` 範例：
+
+```powershell
+LLM_PROVIDER=groq
+GROQ_API_BASE_URL=https://api.groq.com/openai/v1
+GROQ_API_KEY=YOUR_GROQ_API_KEY
+```
+
+Google Gemini `\.env.local` 範例：
+
+```powershell
+LLM_PROVIDER=google
+GOOGLE_API_BASE_URL=https://generativelanguage.googleapis.com/v1beta
+GOOGLE_API_KEY=YOUR_GOOGLE_API_KEY
+```
+
+3. 啟動伺服器：
+
+```powershell
+node app\fhirDeliveryServer.js
+```
+
+若同時存在系統環境變數與 `\.env.local`，系統會優先使用已存在的系統環境變數。
+
 Google Gemini：
 
 ```powershell
