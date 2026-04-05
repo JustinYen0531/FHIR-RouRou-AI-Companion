@@ -10,6 +10,7 @@ const DEFAULT_GOOGLE_MODEL = 'gemini-2.0-flash';
 const DEFAULT_USER_ID = 'web-demo-user';
 const DEFAULT_PROVIDER = 'google';
 const RUNTIME_CONFIG_SOURCE_KEY = 'rourou.aiConfigSource';
+const LOCAL_SESSION_ARCHIVE_KEY = 'rourou.localSessionArchive';
 let SERVER_RUNTIME_CONFIG = {
   provider: DEFAULT_PROVIDER,
   apiBaseUrl: DEFAULT_GOOGLE_BASE_URL,
@@ -1285,6 +1286,7 @@ function storeOutputResult(payload) {
   APP_STATE.reportOutputs.updatedAt = formatTimeLabel(new Date());
   renderReportOutputs();
   updateModeLabels();
+  saveCurrentSessionToLocalArchive();
 }
 
 function showScreen(screenId) {
@@ -2723,6 +2725,244 @@ function formatModeLabel(value) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function deepCloneSerializable(value, fallback) {
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeChatHistoryEntries(history = []) {
+  return (Array.isArray(history) ? history : [])
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const role = item.role === 'assistant' ? 'ai' : item.role;
+      const content = String(item.content || '').trim();
+      if (!role || !content) return null;
+      return {
+        ...item,
+        role,
+        content
+      };
+    })
+    .filter(Boolean);
+}
+
+function findLatestHistoryContent(history = [], roles = []) {
+  const roleList = Array.isArray(roles) ? roles : [roles];
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const item = history[index];
+    if (!item || !item.content) continue;
+    if (roleList.length && !roleList.includes(item.role)) continue;
+    const content = String(item.content || '').trim();
+    if (content && !isUnreadableSessionText(content)) {
+      return content;
+    }
+  }
+  return '';
+}
+
+function summarizeSessionRecord(session = {}) {
+  const history = normalizeChatHistoryEntries(session.history);
+  const state = session.state && typeof session.state === 'object' ? session.state : {};
+  const memorySnapshot = session.memory_snapshot && typeof session.memory_snapshot === 'object'
+    ? session.memory_snapshot
+    : {};
+  const clinicianSummary = state.clinician_summary_draft && typeof state.clinician_summary_draft === 'object'
+    ? state.clinician_summary_draft
+    : {};
+  const latestTagPayload = state.latest_tag_payload && typeof state.latest_tag_payload === 'object'
+    ? state.latest_tag_payload
+    : {};
+  const lastUserMessage = pickReadableSessionText([
+    memorySnapshot.last_user_message,
+    findLatestHistoryContent(history, 'user')
+  ], '');
+  const lastAssistantMessage = pickReadableSessionText([
+    memorySnapshot.last_assistant_message,
+    findLatestHistoryContent(history, ['ai', 'assistant'])
+  ], '');
+  const latestTagSummary = pickReadableSessionText([
+    memorySnapshot.latest_tag_summary,
+    latestTagPayload.summary,
+    lastAssistantMessage,
+    lastUserMessage
+  ], '');
+
+  return {
+    id: session.id || '',
+    user: session.user || APP_STATE.userId || DEFAULT_USER_ID,
+    startedAt: session.startedAt || '',
+    updatedAt: session.updatedAt || '',
+    active_mode: state.active_mode || memorySnapshot.active_mode || 'auto',
+    risk_flag: state.risk_flag || memorySnapshot.risk_flag || 'false',
+    latest_tag_summary: latestTagSummary,
+    last_user_message: lastUserMessage,
+    last_assistant_message: lastAssistantMessage,
+    note_history_count: Array.isArray(memorySnapshot.note_history) ? memorySnapshot.note_history.length : 0,
+    has_clinician_summary: Boolean(Object.keys(clinicianSummary).length),
+    has_fhir_draft: Boolean(state.fhir_delivery_draft && typeof state.fhir_delivery_draft === 'object' && Object.keys(state.fhir_delivery_draft).length),
+    has_corrupted_history: history.some((item) => isUnreadableSessionText(item.content)),
+    message_count: history.length
+  };
+}
+
+function normalizeLocalSessionRecord(record = {}) {
+  const state = record.state && typeof record.state === 'object' ? deepCloneSerializable(record.state, {}) : {};
+  const memorySnapshot = record.memory_snapshot && typeof record.memory_snapshot === 'object'
+    ? deepCloneSerializable(record.memory_snapshot, {})
+    : {};
+  return {
+    id: String(record.id || '').trim(),
+    user: String(record.user || APP_STATE.userId || DEFAULT_USER_ID).trim() || DEFAULT_USER_ID,
+    startedAt: record.startedAt || new Date().toISOString(),
+    updatedAt: record.updatedAt || record.startedAt || new Date().toISOString(),
+    history: normalizeChatHistoryEntries(record.history).slice(-48),
+    state,
+    revision: Number.isFinite(Number(record.revision)) ? Number(record.revision) : 0,
+    memory_snapshot: {
+      note_history: Array.isArray(memorySnapshot.note_history) ? memorySnapshot.note_history.filter(Boolean) : [],
+      last_user_message: String(memorySnapshot.last_user_message || '').trim(),
+      last_assistant_message: String(memorySnapshot.last_assistant_message || '').trim(),
+      active_mode: String(memorySnapshot.active_mode || state.active_mode || 'auto').trim() || 'auto',
+      risk_flag: String(memorySnapshot.risk_flag || state.risk_flag || 'false').trim() || 'false',
+      latest_tag_summary: String(memorySnapshot.latest_tag_summary || state.latest_tag_payload?.summary || '').trim()
+    },
+    output_cache: record.output_cache && typeof record.output_cache === 'object'
+      ? deepCloneSerializable(record.output_cache, {})
+      : {}
+  };
+}
+
+function loadLocalSessionArchiveRecords() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(LOCAL_SESSION_ARCHIVE_KEY));
+    return (Array.isArray(parsed) ? parsed : [])
+      .map((item) => normalizeLocalSessionRecord(item))
+      .filter((item) => item.id);
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalSessionArchiveRecords(records = []) {
+  const normalized = (Array.isArray(records) ? records : [])
+    .map((item) => normalizeLocalSessionRecord(item))
+    .filter((item) => item.id)
+    .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
+    .slice(0, 20);
+  localStorage.setItem(LOCAL_SESSION_ARCHIVE_KEY, JSON.stringify(normalized));
+}
+
+function findLocalSessionArchiveById(sessionId) {
+  const targetId = String(sessionId || '').trim();
+  if (!targetId) return null;
+  return loadLocalSessionArchiveRecords().find((item) => item.id === targetId) || null;
+}
+
+function removeLocalSessionArchive(sessionId) {
+  const targetId = String(sessionId || '').trim();
+  if (!targetId) return false;
+  const records = loadLocalSessionArchiveRecords();
+  const nextRecords = records.filter((item) => item.id !== targetId);
+  if (nextRecords.length === records.length) return false;
+  saveLocalSessionArchiveRecords(nextRecords);
+  return true;
+}
+
+function mergeRecentSessionSummaries(serverSessions = [], localSessions = []) {
+  const merged = new Map();
+  const scoreSession = (session) => `${String(session.updatedAt || '')}|${String(session.message_count || 0).padStart(4, '0')}`;
+  for (const session of [...(Array.isArray(serverSessions) ? serverSessions : []), ...(Array.isArray(localSessions) ? localSessions : [])]) {
+    if (!session || !session.id) continue;
+    const existing = merged.get(session.id);
+    if (!existing || scoreSession(session) > scoreSession(existing)) {
+      merged.set(session.id, session);
+    }
+  }
+  return Array.from(merged.values())
+    .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
+    .slice(0, 5);
+}
+
+function buildCurrentSessionRecord() {
+  if (!APP_STATE.conversationId) return null;
+  const sessionExport = APP_STATE.reportOutputs.session_export || {};
+  const history = normalizeChatHistoryEntries(APP_STATE.chatHistory);
+  const lastUserMessage = findLatestHistoryContent(history, 'user');
+  const lastAssistantMessage = findLatestHistoryContent(history, ['ai', 'assistant']);
+  const latestTagPayload = APP_STATE.lastChatMetadata?.latest_tag_payload || sessionExport.latest_tag_payload || {};
+  const state = {
+    active_mode: APP_STATE.runtimeMode || APP_STATE.lastChatMetadata?.active_mode || sessionExport.active_mode || 'auto',
+    risk_flag: APP_STATE.lastChatMetadata?.risk_flag || sessionExport.risk_flag || 'false',
+    latest_tag_payload: deepCloneSerializable(latestTagPayload, {}),
+    burden_level_state: deepCloneSerializable(APP_STATE.lastChatMetadata?.burden_level_state || sessionExport.burden_level_state || {}, {}),
+    clinician_summary_draft: deepCloneSerializable(sessionExport.clinician_summary_draft || APP_STATE.reportOutputs.clinician_summary || {}, {}),
+    patient_analysis: deepCloneSerializable(sessionExport.patient_analysis || APP_STATE.reportOutputs.patient_analysis || {}, {}),
+    patient_review_packet: deepCloneSerializable(sessionExport.patient_review_packet || APP_STATE.reportOutputs.patient_review || {}, {}),
+    fhir_delivery_draft: deepCloneSerializable(sessionExport.fhir_delivery_draft || APP_STATE.reportOutputs.fhir_delivery || {}, {}),
+    therapeutic_profile: deepCloneSerializable(TherapeuticMemory.get(), {})
+  };
+
+  return normalizeLocalSessionRecord({
+    id: APP_STATE.conversationId,
+    user: APP_STATE.userId || sessionExport.patient?.key || DEFAULT_USER_ID,
+    startedAt: sessionExport.session?.startedAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    history,
+    state,
+    revision: history.length,
+    memory_snapshot: {
+      note_history: [],
+      last_user_message: lastUserMessage,
+      last_assistant_message: lastAssistantMessage,
+      active_mode: state.active_mode,
+      risk_flag: state.risk_flag,
+      latest_tag_summary: pickReadableSessionText([
+        latestTagPayload.summary,
+        lastAssistantMessage,
+        lastUserMessage
+      ], '')
+    }
+  });
+}
+
+function saveCurrentSessionToLocalArchive() {
+  const record = buildCurrentSessionRecord();
+  if (!record || !record.id) return;
+  const records = loadLocalSessionArchiveRecords().filter((item) => item.id !== record.id);
+  records.unshift(record);
+  saveLocalSessionArchiveRecords(records);
+}
+
+function applySessionRecord(session = {}, fallbackSessionId = '') {
+  const normalizedSession = normalizeLocalSessionRecord({
+    ...session,
+    id: session.id || fallbackSessionId
+  });
+  APP_STATE.conversationId = normalizedSession.id || fallbackSessionId;
+  APP_STATE.userId = normalizedSession.user || APP_STATE.userId;
+  localStorage.setItem('rourou.userId', APP_STATE.userId);
+  APP_STATE.runtimeMode = normalizedSession.state?.active_mode || '';
+  APP_STATE.syncedMode = '';
+  APP_STATE.lastChatMetadata = {
+    active_mode: normalizedSession.state?.active_mode || '',
+    risk_flag: normalizedSession.state?.risk_flag || 'false',
+    latest_tag_payload: normalizedSession.state?.latest_tag_payload || {},
+    burden_level_state: normalizedSession.state?.burden_level_state || {}
+  };
+  APP_STATE.chatHistory = normalizeChatHistoryEntries(normalizedSession.history).slice(-24);
+  APP_STATE.reportOutputs.session_export = buildSessionExportFromRecord(normalizedSession);
+  syncReportOutputsFromSessionExport(APP_STATE.reportOutputs.session_export);
+  syncTherapeuticMemoryFromSessionExport(APP_STATE.reportOutputs.session_export);
+  renderChatHistory(APP_STATE.chatHistory);
+  updateModeLabels();
+  renderReportOutputs();
+  saveCurrentSessionToLocalArchive();
+  showScreen('screen-chat');
+}
+
 function resetConversationState() {
   APP_STATE.conversationId = '';
   APP_STATE.pendingFreshSession = false;
@@ -2882,6 +3122,8 @@ async function deleteRecentSession(sessionId) {
   const confirmed = window.confirm(`要刪除 ${formatSessionTimestamp(target.updatedAt)} 的這段對話嗎？這個動作無法復原。`);
   if (!confirmed) return;
 
+  const removedLocalBackup = removeLocalSessionArchive(sessionId);
+  let serverDeleteError = null;
   try {
     const response = await fetch(`/api/chat/session?id=${encodeURIComponent(sessionId)}`, {
       method: 'DELETE'
@@ -2890,21 +3132,30 @@ async function deleteRecentSession(sessionId) {
     if (!response.ok) {
       throw new Error(payload.error || '刪除對話失敗');
     }
-
-    APP_STATE.recentSessions = APP_STATE.recentSessions.filter((item) => item.id !== sessionId);
-    if (APP_STATE.conversationId === sessionId) {
-      resetConversationState();
-      APP_STATE.chatHistory = [];
-      renderChatHistory([]);
-      showScreen('screen-home');
-    } else {
-      renderRecentSessions();
-    }
-    appendSystemNotice('已刪除這筆對話。');
-    await loadRecentSessions();
   } catch (error) {
-    appendSystemNotice(error.message || '刪除對話失敗。');
+    serverDeleteError = error;
+    if (!removedLocalBackup) {
+      appendSystemNotice(error.message || '刪除對話失敗。');
+      return;
+    }
   }
+
+  APP_STATE.recentSessions = APP_STATE.recentSessions.filter((item) => item.id !== sessionId);
+  if (APP_STATE.conversationId === sessionId) {
+    resetConversationState();
+    APP_STATE.chatHistory = [];
+    renderChatHistory([]);
+    showScreen('screen-home');
+  } else {
+    renderRecentSessions();
+  }
+
+  if (serverDeleteError) {
+    appendSystemNotice('已刪除這台裝置上的本機備份，但伺服端刪除失敗。');
+  } else {
+    appendSystemNotice('已刪除這筆對話。');
+  }
+  await loadRecentSessions();
 }
 
 async function loadRecentSessions() {
@@ -2913,6 +3164,7 @@ async function loadRecentSessions() {
     container.innerHTML = `<div class="home-session-empty">正在讀取最近對話...</div>`;
   }
 
+  const localSessions = loadLocalSessionArchiveRecords().map((session) => summarizeSessionRecord(session));
   try {
     const config = getRuntimeConfig();
     let response = await fetch(`/api/chat/sessions?user=${encodeURIComponent(config.userId)}&limit=5`);
@@ -2927,11 +3179,16 @@ async function loadRecentSessions() {
         throw new Error(payload.error || '讀取最近對話失敗');
       }
     }
-    APP_STATE.recentSessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+    APP_STATE.recentSessions = mergeRecentSessionSummaries(
+      Array.isArray(payload.sessions) ? payload.sessions : [],
+      localSessions
+    );
     renderRecentSessions();
   } catch (error) {
-    APP_STATE.recentSessions = [];
-    if (container) {
+    APP_STATE.recentSessions = mergeRecentSessionSummaries([], localSessions);
+    if (APP_STATE.recentSessions.length) {
+      renderRecentSessions();
+    } else if (container) {
       container.innerHTML = `<div class="home-session-empty">${escapeHtml(error.message || '目前無法讀取最近對話。')}</div>`;
     }
   }
@@ -3007,32 +3264,23 @@ function buildSessionExportFromRecord(session = {}) {
 }
 
 async function restoreSession(sessionId) {
-  const response = await fetch(`/api/chat/session?id=${encodeURIComponent(sessionId)}`);
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload.error || '讀取對話內容失敗');
+  try {
+    const response = await fetch(`/api/chat/session?id=${encodeURIComponent(sessionId)}`);
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.error || '讀取對話內容失敗');
+    }
+    applySessionRecord(payload.session || {}, sessionId);
+    return;
+  } catch (error) {
+    const localSession = findLocalSessionArchiveById(sessionId);
+    if (localSession) {
+      applySessionRecord(localSession, sessionId);
+      appendSystemNotice('目前改用這台裝置上的本機備份開啟這段對話。');
+      return;
+    }
+    throw error;
   }
-
-  const session = payload.session || {};
-  APP_STATE.conversationId = session.id || sessionId;
-  APP_STATE.userId = session.user || APP_STATE.userId;
-  localStorage.setItem('rourou.userId', APP_STATE.userId);
-  APP_STATE.runtimeMode = session.state?.active_mode || '';
-  APP_STATE.syncedMode = '';
-  APP_STATE.lastChatMetadata = {
-    active_mode: session.state?.active_mode || '',
-    risk_flag: session.state?.risk_flag || 'false',
-    latest_tag_payload: session.state?.latest_tag_payload || {},
-    burden_level_state: session.state?.burden_level_state || {}
-  };
-  APP_STATE.chatHistory = Array.isArray(session.history) ? session.history.slice(-24) : [];
-  APP_STATE.reportOutputs.session_export = buildSessionExportFromRecord(session);
-  syncReportOutputsFromSessionExport(APP_STATE.reportOutputs.session_export);
-  syncTherapeuticMemoryFromSessionExport(APP_STATE.reportOutputs.session_export);
-  renderChatHistory(APP_STATE.chatHistory);
-  updateModeLabels();
-  renderReportOutputs();
-  showScreen('screen-chat');
 }
 
 async function continueLatestSession() {
@@ -3824,6 +4072,7 @@ async function sendMessage() {
     renderReportOutputs();
     setTyping(false);
     await appendMessage('ai', payload.answer || '我有收到你的訊息，但這次沒有拿到完整回覆。', { animate: true });
+    saveCurrentSessionToLocalArchive();
     evaluateMicroIntervention(payload, { lastUserMessage: message });
 
     // 每 3 輪觸發自動萃取
