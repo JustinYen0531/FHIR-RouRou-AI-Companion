@@ -5,6 +5,7 @@ const DEFAULT_GROQ_API_KEY = '';
 const DEFAULT_OPENROUTER_API_KEY = '';
 const DEFAULT_GOOGLE_API_KEY = '';
 const DEFAULT_OPENROUTER_MODEL = 'openai/gpt-4o-mini';
+const DEFAULT_USER_ID = 'web-demo-user';
 const DEFAULT_PROVIDER = localStorage.getItem('rourou.aiProvider') || 'google';
 const FHIR_REPORT_HISTORY_KEY = 'rourou.fhirReportHistory';
 const HOME_GUIDE_PAGES = [
@@ -340,7 +341,7 @@ window.TherapeuticMemory = TherapeuticMemory;
 const APP_STATE = {
   currentScreen: 'screen-chat',
   conversationId: '',
-  userId: localStorage.getItem('rourou.userId') || `user-${crypto.randomUUID()}`,
+  userId: localStorage.getItem('rourou.userId') || DEFAULT_USER_ID,
   selectedMode: localStorage.getItem('rourou.selectedMode') || 'natural',
   runtimeMode: '',
   syncedMode: '',
@@ -2658,10 +2659,17 @@ async function loadRecentSessions() {
 
   try {
     const config = getRuntimeConfig();
-    const response = await fetch(`/api/chat/sessions?user=${encodeURIComponent(config.userId)}&limit=5`);
-    const payload = await response.json();
+    let response = await fetch(`/api/chat/sessions?user=${encodeURIComponent(config.userId)}&limit=5`);
+    let payload = await response.json();
     if (!response.ok) {
       throw new Error(payload.error || '讀取最近對話失敗');
+    }
+    if ((!Array.isArray(payload.sessions) || !payload.sessions.length) && config.userId) {
+      response = await fetch('/api/chat/sessions?limit=5');
+      payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || '讀取最近對話失敗');
+      }
     }
     APP_STATE.recentSessions = Array.isArray(payload.sessions) ? payload.sessions : [];
     renderRecentSessions();
@@ -2673,27 +2681,126 @@ async function loadRecentSessions() {
   }
 }
 
-function continueLatestSession() {
+function renderChatHistory(history = []) {
+  const container = document.getElementById('chat-messages');
+  if (!container) return;
+
+  const sensorBadge = container.querySelector('.sensor-badge');
+  const dateChip = container.querySelector('.date-chip');
+  const typingIndicator = document.getElementById('typing-indicator');
+  const microSlot = document.getElementById('micro-intervention-slot');
+
+  container.innerHTML = '';
+  if (sensorBadge) container.appendChild(sensorBadge);
+  if (dateChip) container.appendChild(dateChip);
+
+  const items = Array.isArray(history) ? history : [];
+  items.forEach((item) => {
+    if (!item || !item.role || !item.content) return;
+    const { bubble } = createMessageBubble(item.role);
+    if (!bubble) return;
+    if (item.role === 'ai') {
+      bubble.innerHTML = renderMessageMarkdown(item.content);
+    } else {
+      bubble.textContent = item.content;
+    }
+  });
+
+  if (typingIndicator) {
+    typingIndicator.style.display = 'none';
+    container.appendChild(typingIndicator);
+  }
+  if (microSlot) {
+    microSlot.style.display = 'none';
+    microSlot.innerHTML = '';
+    container.appendChild(microSlot);
+  }
+
+  scrollChatToBottom();
+}
+
+function buildSessionExportFromRecord(session = {}) {
+  return {
+    patient: {
+      key: session.user || APP_STATE.userId,
+      name: session.user || APP_STATE.userId,
+      gender: 'unknown'
+    },
+    session: {
+      encounterKey: session.id || '',
+      startedAt: session.startedAt || '',
+      endedAt: session.updatedAt || ''
+    },
+    author: 'AI Companion Node Engine',
+    active_mode: session.state?.active_mode || '',
+    risk_flag: session.state?.risk_flag || 'false',
+    latest_tag_payload: session.state?.latest_tag_payload || {},
+    burden_level_state: session.state?.burden_level_state || {},
+    clinician_summary_draft: session.state?.clinician_summary_draft || {},
+    patient_analysis: session.state?.patient_analysis || {},
+    patient_review_packet: session.state?.patient_review_packet || {},
+    fhir_delivery_draft: session.state?.fhir_delivery_draft || {},
+    hamd_progress_state: session.state?.hamd_progress_state || {},
+    hamd_formal_assessment: session.state?.hamd_formal_assessment || {},
+    red_flag_payload: session.state?.red_flag_payload || {},
+    patient_authorization_state: session.state?.patient_authorization_state || {},
+    delivery_readiness_state: session.state?.delivery_readiness_state || {},
+    summary_draft_state: session.state?.summary_draft_state || {}
+  };
+}
+
+async function restoreSession(sessionId) {
+  const response = await fetch(`/api/chat/session?id=${encodeURIComponent(sessionId)}`);
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || '讀取對話內容失敗');
+  }
+
+  const session = payload.session || {};
+  APP_STATE.conversationId = session.id || sessionId;
+  APP_STATE.userId = session.user || APP_STATE.userId;
+  localStorage.setItem('rourou.userId', APP_STATE.userId);
+  APP_STATE.runtimeMode = session.state?.active_mode || '';
+  APP_STATE.syncedMode = '';
+  APP_STATE.lastChatMetadata = {
+    active_mode: session.state?.active_mode || '',
+    risk_flag: session.state?.risk_flag || 'false',
+    latest_tag_payload: session.state?.latest_tag_payload || {},
+    burden_level_state: session.state?.burden_level_state || {}
+  };
+  APP_STATE.chatHistory = Array.isArray(session.history) ? session.history.slice(-24) : [];
+  APP_STATE.reportOutputs.session_export = buildSessionExportFromRecord(session);
+  syncReportOutputsFromSessionExport(APP_STATE.reportOutputs.session_export);
+  syncTherapeuticMemoryFromSessionExport(APP_STATE.reportOutputs.session_export);
+  renderChatHistory(APP_STATE.chatHistory);
+  updateModeLabels();
+  renderReportOutputs();
+  showScreen('screen-chat');
+}
+
+async function continueLatestSession() {
   const latest = APP_STATE.recentSessions[0];
   if (!latest) {
     appendSystemNotice('目前還沒有可繼續的舊對話。');
     return;
   }
-  APP_STATE.conversationId = latest.id;
-  APP_STATE.runtimeMode = latest.active_mode || '';
-  APP_STATE.syncedMode = '';
-  showScreen('screen-chat');
-  appendSystemNotice(`已切換到 ${formatSessionTimestamp(latest.updatedAt)} 的對話。`);
+  try {
+    await restoreSession(latest.id);
+    appendSystemNotice(`已切換到 ${formatSessionTimestamp(latest.updatedAt)} 的對話。`);
+  } catch (error) {
+    appendSystemNotice(error.message || '切換舊對話失敗。');
+  }
 }
 
-function continueSpecificSession(sessionId) {
+async function continueSpecificSession(sessionId) {
   const target = APP_STATE.recentSessions.find((item) => item.id === sessionId);
   if (!target) return;
-  APP_STATE.conversationId = target.id;
-  APP_STATE.runtimeMode = target.active_mode || '';
-  APP_STATE.syncedMode = '';
-  showScreen('screen-chat');
-  appendSystemNotice(`已切換到 ${formatSessionTimestamp(target.updatedAt)} 的對話。`);
+  try {
+    await restoreSession(target.id);
+    appendSystemNotice(`已切換到 ${formatSessionTimestamp(target.updatedAt)} 的對話。`);
+  } catch (error) {
+    appendSystemNotice(error.message || '切換舊對話失敗。');
+  }
 }
 
 function startNewConversation() {
@@ -3310,6 +3417,11 @@ async function openConsentPreview() {
 }
 
 function initializeRuntimeConfig() {
+  if (!localStorage.getItem('rourou.userId')) {
+    localStorage.setItem('rourou.userId', DEFAULT_USER_ID);
+  }
+  APP_STATE.userId = localStorage.getItem('rourou.userId') || DEFAULT_USER_ID;
+
   if (!localStorage.getItem('rourou.aiProvider')) {
     localStorage.setItem('rourou.aiProvider', DEFAULT_PROVIDER);
   }

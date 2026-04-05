@@ -534,6 +534,40 @@ function createServer(options = {}) {
       return;
     }
 
+    if (req.method === 'GET' && parsedUrl.pathname === '/api/chat/session') {
+      const sessionId = String(parsedUrl.searchParams.get('id') || '').trim();
+      if (!sessionId) {
+        sendJson(res, 400, { error: 'Session id is required.' });
+        return;
+      }
+
+      const session = sharedSessions.get(sessionId);
+      if (!session) {
+        sendJson(res, 404, { error: 'Session not found.' });
+        return;
+      }
+
+      sendJson(res, 200, {
+        ok: true,
+        session: {
+          id: session.id,
+          user: session.user || 'web-demo-user',
+          startedAt: session.startedAt || '',
+          updatedAt: session.updatedAt || '',
+          history: Array.isArray(session.history) ? session.history : [],
+          state: session.state && typeof session.state === 'object' ? session.state : {},
+          revision: Number.isFinite(Number(session.revision)) ? Number(session.revision) : 0,
+          memory_snapshot: session.memory_snapshot && typeof session.memory_snapshot === 'object'
+            ? session.memory_snapshot
+            : {},
+          output_cache: session.output_cache && typeof session.output_cache === 'object'
+            ? session.output_cache
+            : {}
+        }
+      });
+      return;
+    }
+
     if (req.method !== 'POST' || !['/api/fhir/bundle', '/api/chat/message', '/api/chat/output'].includes(parsedUrl.pathname)) {
       sendJson(res, 404, { error: 'Not found' });
       return;
