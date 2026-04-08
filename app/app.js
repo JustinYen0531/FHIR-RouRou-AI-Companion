@@ -12,6 +12,12 @@ const DEFAULT_PROVIDER = 'google';
 const RUNTIME_CONFIG_SOURCE_KEY = 'rourou.aiConfigSource';
 const LEGACY_LOCAL_SESSION_ARCHIVE_KEY = 'rourou.localSessionArchive';
 const LOCAL_SESSION_ARCHIVE_KEY = 'rourou.singleSessionArchive.v2';
+const PINNED_SESSION_STORAGE_KEY = 'rourou.pinnedSession.v1';
+const PINNED_SESSION_EXAMPLE_PROMPTS = [
+  '我現在很亂，先用樹洞模式接住我，不要急著給建議。',
+  '幫我把這段對話整理成「可給醫師看的重點」條列版。',
+  '請示範這段對話如何轉成 FHIR 草稿，讓我看資料結構。'
+];
 let SERVER_RUNTIME_CONFIG = {
   provider: DEFAULT_PROVIDER,
   apiBaseUrl: DEFAULT_GOOGLE_BASE_URL,
@@ -456,6 +462,7 @@ const APP_STATE = {
   },
   fhirReportHistory: loadFhirReportHistory(),
   recentSessions: [],
+  pinnedSession: loadPinnedSession(),
   pendingConsent: {
     sessionExport: null,
     fhirDraft: null,
@@ -515,6 +522,98 @@ function loadCustomShortcuts() {
 
 function saveCustomShortcuts() {
   localStorage.setItem('rourou.customShortcuts', JSON.stringify(APP_STATE.customShortcuts || []));
+}
+
+function normalizePinnedSessionRecord(record = {}) {
+  const source = record && typeof record === 'object' ? record : {};
+  const id = String(source.id || '').trim();
+  if (!id) return null;
+  return {
+    id,
+    user: String(source.user || DEFAULT_USER_ID).trim() || DEFAULT_USER_ID,
+    updatedAt: source.updatedAt || new Date().toISOString(),
+    active_mode: String(source.active_mode || 'auto').trim() || 'auto',
+    risk_flag: String(source.risk_flag || 'false').trim() || 'false',
+    latest_tag_summary: String(source.latest_tag_summary || '').trim(),
+    last_user_message: String(source.last_user_message || '').trim(),
+    last_assistant_message: String(source.last_assistant_message || '').trim(),
+    has_clinician_summary: Boolean(source.has_clinician_summary),
+    has_fhir_draft: Boolean(source.has_fhir_draft),
+    has_corrupted_history: Boolean(source.has_corrupted_history),
+    message_count: Number.isFinite(Number(source.message_count)) ? Number(source.message_count) : 0,
+    pinnedAt: source.pinnedAt || new Date().toISOString()
+  };
+}
+
+function loadPinnedSession() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PINNED_SESSION_STORAGE_KEY) || 'null');
+    return normalizePinnedSessionRecord(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function savePinnedSession(record = null) {
+  const normalized = normalizePinnedSessionRecord(record);
+  APP_STATE.pinnedSession = normalized;
+  if (!normalized) {
+    localStorage.removeItem(PINNED_SESSION_STORAGE_KEY);
+    return;
+  }
+  localStorage.setItem(PINNED_SESSION_STORAGE_KEY, JSON.stringify(normalized));
+}
+
+function getPinCandidateSession() {
+  const fromCurrent = summarizeSessionRecord(buildCurrentSessionRecord() || {});
+  if (fromCurrent.id) {
+    return fromCurrent;
+  }
+  const fromRecent = Array.isArray(APP_STATE.recentSessions) && APP_STATE.recentSessions.length
+    ? APP_STATE.recentSessions[0]
+    : getSingleRecentSessionSummary()[0];
+  return fromRecent || null;
+}
+
+function syncPinnedSessionButtonState() {
+  const pinButton = document.getElementById('chat-pin-session');
+  if (!pinButton) return;
+  const currentId = String(APP_STATE.conversationId || '').trim();
+  const pinnedId = String(APP_STATE.pinnedSession?.id || '').trim();
+  const isPinned = Boolean(currentId && pinnedId && currentId === pinnedId);
+  pinButton.classList.toggle('is-active', isPinned);
+  pinButton.setAttribute('aria-pressed', isPinned ? 'true' : 'false');
+  pinButton.setAttribute('aria-label', isPinned ? '取消釘選這段對話' : '釘選這段對話到首頁最上方');
+  pinButton.title = isPinned ? '取消釘選這段對話' : '釘選這段對話到首頁最上方';
+}
+
+function togglePinnedSession() {
+  const candidate = getPinCandidateSession();
+  if (!candidate || !candidate.id) {
+    appendSystemNotice('目前還沒有可釘選的對話，先聊一段再釘選。');
+    return;
+  }
+
+  const currentPinnedId = String(APP_STATE.pinnedSession?.id || '').trim();
+  if (currentPinnedId && currentPinnedId === candidate.id) {
+    savePinnedSession(null);
+    appendSystemNotice('已取消釘選。');
+    syncPinnedSessionButtonState();
+    if (APP_STATE.currentScreen === 'screen-home') {
+      renderRecentSessions();
+    }
+    return;
+  }
+
+  savePinnedSession({
+    ...candidate,
+    pinnedAt: new Date().toISOString()
+  });
+  appendSystemNotice('已釘選這段對話，首頁最上方會固定顯示給評審先看。');
+  syncPinnedSessionButtonState();
+  if (APP_STATE.currentScreen === 'screen-home') {
+    renderRecentSessions();
+  }
 }
 
 const MODE_DEFINITIONS = {
@@ -1646,6 +1745,7 @@ function showScreen(screenId) {
   updateScrollSafeArea();
 
   if (screenId === 'screen-chat') {
+    syncPinnedSessionButtonState();
     window.requestAnimationFrame(() => {
       syncShortcutBarState();
       scrollChatToBottom();
@@ -2320,6 +2420,7 @@ function wireHomeSessionControls() {
   const continueButton = document.getElementById('home-continue-last-chat');
   const newChatButton = document.getElementById('home-start-new-chat');
   const list = document.getElementById('home-session-list');
+  const pinButton = document.getElementById('chat-pin-session');
 
   if (continueButton && !continueButton.dataset.wired) {
     continueButton.dataset.wired = 'true';
@@ -2346,6 +2447,13 @@ function wireHomeSessionControls() {
       continueSpecificSession(button.dataset.sessionOpen);
     });
   }
+
+  if (pinButton && !pinButton.dataset.wired) {
+    pinButton.dataset.wired = 'true';
+    pinButton.addEventListener('click', togglePinnedSession);
+  }
+
+  syncPinnedSessionButtonState();
 }
 
 const MICRO_INTERVENTION_RULES = window.MicroInterventionRules || null;
@@ -3279,6 +3387,14 @@ function saveCurrentSessionToLocalArchive() {
   const records = loadLocalSessionArchiveRecords().filter((item) => item.id !== record.id);
   records.unshift(record);
   saveLocalSessionArchiveRecords(records);
+
+  if (APP_STATE.pinnedSession?.id === record.id) {
+    savePinnedSession({
+      ...summarizeSessionRecord(record),
+      pinnedAt: APP_STATE.pinnedSession.pinnedAt || new Date().toISOString()
+    });
+  }
+  syncPinnedSessionButtonState();
 }
 
 function applySessionRecord(session = {}, fallbackSessionId = '') {
@@ -3449,16 +3565,58 @@ function renderRecentSessions() {
   if (!container) return;
 
   const sessions = Array.isArray(APP_STATE.recentSessions) ? APP_STATE.recentSessions : [];
+  const pinned = APP_STATE.pinnedSession;
   if (continueButton) {
     continueButton.disabled = !sessions.length;
   }
 
-  if (!sessions.length) {
+  if (!sessions.length && !pinned) {
     container.innerHTML = `<div class="home-session-empty">目前還沒有已保存的對話。你可以先開始一段新的聊天，之後這裡就會顯示最近的對話。</div>`;
     return;
   }
 
-  container.innerHTML = sessions.map((session) => {
+  const pinnedHtml = pinned ? (() => {
+    const summary = pickReadableSessionText(
+      [pinned.latest_tag_summary, pinned.last_user_message, pinned.last_assistant_message],
+      '這段釘選對話目前還沒有可讀摘要。'
+    );
+    const sub = pickReadableSessionText(
+      [pinned.last_assistant_message, pinned.last_user_message],
+      '點進去可以直接展示這段對話。'
+    );
+    const flags = [
+      pinned.risk_flag === 'true' ? '<span class="home-session-flag risk">高風險標記</span>' : '',
+      pinned.has_clinician_summary ? '<span class="home-session-flag">有醫師摘要</span>' : '',
+      pinned.has_fhir_draft ? '<span class="home-session-flag">有 FHIR 草稿</span>' : '',
+      pinned.has_corrupted_history ? '<span class="home-session-flag risk">訊息疑似損壞</span>' : ''
+    ].filter(Boolean).join('');
+    const promptList = PINNED_SESSION_EXAMPLE_PROMPTS
+      .map((prompt) => `<li class="home-session-demo-item">${escapeHtml(prompt)}</li>`)
+      .join('');
+
+    return `
+      <div class="home-session-item is-pinned">
+        <button class="home-session-card home-session-card-pinned" type="button" data-session-open="${escapeHtml(pinned.id)}">
+          <div class="home-session-top">
+            <div class="home-session-time">${escapeHtml(formatSessionTimestamp(pinned.updatedAt))}</div>
+            <div class="home-session-actions">
+              <div class="home-session-pin-badge"><span class="mat-icon fill">push_pin</span> 評審先看</div>
+            </div>
+          </div>
+          <div class="home-session-summary">${escapeHtml(summary)}</div>
+          <div class="home-session-sub">${escapeHtml(sub)}</div>
+          ${flags ? `<div class="home-session-flags">${flags}</div>` : ''}
+          <div class="home-session-note">
+            推薦展示問法（直接貼到聊天框就能看出功能差異）：
+            <ul class="home-session-demo-list">${promptList}</ul>
+          </div>
+        </button>
+      </div>
+    `;
+  })() : '';
+
+  const sessionListHtml = sessions.map((session) => {
+    const isPinnedSession = Boolean(pinned && pinned.id && session.id === pinned.id);
     const summary = pickReadableSessionText(
       [session.latest_tag_summary, session.last_user_message, session.last_assistant_message],
       '這段對話目前還沒有可讀摘要。'
@@ -3481,7 +3639,9 @@ function renderRecentSessions() {
           <div class="home-session-time">${escapeHtml(formatSessionTimestamp(session.updatedAt))}</div>
           <div class="home-session-actions">
             <div class="home-session-mode">${escapeHtml(formatModeLabel(session.active_mode))}</div>
-            <span class="home-session-delete" role="button" tabindex="0" aria-label="刪除這筆對話" data-session-delete="${escapeHtml(session.id)}">刪除</span>
+            ${isPinnedSession
+    ? '<span class="home-session-delete is-disabled" role="note" aria-label="這筆對話已釘選，無法刪除">已釘選</span>'
+    : `<span class="home-session-delete" role="button" tabindex="0" aria-label="刪除這筆對話" data-session-delete="${escapeHtml(session.id)}">刪除</span>`}
           </div>
         </div>
         <div class="home-session-summary">${escapeHtml(summary)}</div>
@@ -3491,9 +3651,20 @@ function renderRecentSessions() {
       </div>
     `;
   }).join('');
+
+  const emptySecondary = !sessions.length && pinned
+    ? '<div class="home-session-empty">目前沒有其他最近對話，先展示上面的釘選對話即可。</div>'
+    : '';
+
+  container.innerHTML = `${pinnedHtml}${sessionListHtml}${emptySecondary}`;
 }
 
 async function deleteRecentSession(sessionId) {
+  if (String(APP_STATE.pinnedSession?.id || '').trim() === String(sessionId || '').trim()) {
+    appendSystemNotice('這段對話已被釘選，請先取消釘選後才能刪除。');
+    return;
+  }
+
   const target = APP_STATE.recentSessions.find((item) => item.id === sessionId);
   if (!target) return;
 
@@ -3526,12 +3697,14 @@ async function loadRecentSessions() {
     container.innerHTML = `<div class="home-session-empty">正在讀取最近對話...</div>`;
   }
 
+  APP_STATE.pinnedSession = loadPinnedSession();
   APP_STATE.recentSessions = getSingleRecentSessionSummary();
-  if (APP_STATE.recentSessions.length) {
+  if (APP_STATE.recentSessions.length || APP_STATE.pinnedSession) {
     renderRecentSessions();
   } else if (container) {
     container.innerHTML = `<div class="home-session-empty">目前還沒有已保存的對話。你之後上一段聊天會顯示在這裡。</div>`;
   }
+  syncPinnedSessionButtonState();
 }
 
 function renderChatHistory(history = []) {
@@ -3679,7 +3852,8 @@ async function continueLatestSession() {
 }
 
 async function continueSpecificSession(sessionId) {
-  const target = APP_STATE.recentSessions.find((item) => item.id === sessionId);
+  const target = APP_STATE.recentSessions.find((item) => item.id === sessionId)
+    || (APP_STATE.pinnedSession?.id === sessionId ? APP_STATE.pinnedSession : null);
   if (!target) return;
   try {
     await restoreSession(target.id);
