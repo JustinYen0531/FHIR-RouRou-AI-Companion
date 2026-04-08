@@ -719,6 +719,24 @@ function formatTranscriptEntry(item) {
   return `${role}：${content}`;
 }
 
+function hasClinicalNarrativeCue(text = '') {
+  return /(失眠|睡不好|睡不著|腹瀉|肚子痛|腹痛|胃痛|發冷|盜汗|心悸|胸悶|焦慮|低落|沮喪|抓狂|易怒|噁心|食慾|頭痛|頭暈|上課|老師|同學|壓力)/i.test(text);
+}
+
+function isPureControlLikeInstruction(text = '') {
+  const normalized = String(text || '').trim();
+  if (!normalized) return true;
+  if (/^output:/i.test(normalized)) return true;
+  if (Object.prototype.hasOwnProperty.call(COMMAND_MAP, normalized.toLowerCase().replace(/^\//, ''))) return true;
+  const hasOutputKeyword = OUTPUT_COMMAND_PATTERNS.some((item) => item.patterns.some((pattern) => pattern.test(normalized)))
+    || OUTPUT_CONTROL_PATTERNS.some((pattern) => pattern.test(normalized))
+    || MODE_SWITCH_PATTERNS.some((pattern) => pattern.test(normalized));
+  if (!hasOutputKeyword) return false;
+  const compact = normalized.replace(/\s+/g, '');
+  const looksNarrative = /[。；，\n]/.test(normalized) || compact.length > 36 || hasClinicalNarrativeCue(normalized);
+  return !looksNarrative;
+}
+
 function isDraftRelevantInstruction(message) {
   const text = String(message || '').trim();
   if (!text) return false;
@@ -726,13 +744,7 @@ function isDraftRelevantInstruction(message) {
   if (Object.prototype.hasOwnProperty.call(COMMAND_MAP, normalized)) {
     return false;
   }
-  if (OUTPUT_COMMAND_PATTERNS.some((item) => item.patterns.some((pattern) => pattern.test(text)))) {
-    return false;
-  }
-  if (MODE_SWITCH_PATTERNS.some((pattern) => pattern.test(text))) {
-    return false;
-  }
-  if (OUTPUT_CONTROL_PATTERNS.some((pattern) => pattern.test(text))) {
+  if (isPureControlLikeInstruction(text)) {
     return false;
   }
   return true;
