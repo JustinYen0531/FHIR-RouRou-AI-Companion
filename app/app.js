@@ -2822,6 +2822,10 @@ function formatChatError(payload = {}) {
     return `模型供應商目前拒絕請求，通常是配額或速率限制。\n\n原始訊息：${message}`;
   }
 
+  if (payload.code === 'no_clinical_messages_for_ai') {
+    return '目前沒有可分析的臨床內容。請先用 1-2 句描述最近的症狀（例如：失眠、肚子痛、發冷、情緒低落），再按一次「請分析我／整理給醫師／FHIR 草稿」。';
+  }
+
   if (message.includes('Missing Groq API key') || message.includes('Missing Google API key')) {
     return '目前沒有可用的模型 API key，請到 Settings 確認聊天引擎設定。';
   }
