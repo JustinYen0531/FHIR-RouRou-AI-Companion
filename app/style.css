@@ -2346,6 +2346,37 @@ body {
   transition: all 0.3s ease;
 }
 
+.chat-output-countdown {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 2px 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(230, 241, 233, 0.92);
+  border: 1px solid rgba(117, 151, 131, 0.26);
+  color: #395b4a;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.chat-output-countdown .mat-icon {
+  font-size: 14px;
+}
+
+.chat-output-countdown.is-success {
+  background: rgba(213, 241, 223, 0.95);
+  border-color: rgba(72, 138, 96, 0.28);
+  color: #2f5d43;
+}
+
+.chat-output-countdown.is-error {
+  background: rgba(255, 235, 235, 0.95);
+  border-color: rgba(178, 88, 88, 0.3);
+  color: #8d3f3f;
+}
+
 .shortcut-collapse-btn {
   position: absolute;
   top: 6px;

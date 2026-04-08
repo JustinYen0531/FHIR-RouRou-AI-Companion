@@ -737,6 +737,30 @@ const OUTPUT_DEFINITIONS = {
   fhir_delivery: { label: 'FHIR 草稿', instruction: '產生FHIR draft' }
 };
 
+const OUTPUT_COUNTDOWN_CONFIG = {
+  fhir_delivery: {
+    key: 'fhir-draft-countdown',
+    seconds: 60,
+    pendingText: 'FHIR 草稿 AI 分析中',
+    completedText: 'FHIR 草稿分析完成。',
+    failedPrefix: 'FHIR 草稿分析失敗'
+  },
+  patient_analysis: {
+    key: 'patient-analysis-countdown',
+    seconds: 45,
+    pendingText: '病人分析 AI 整理中',
+    completedText: '病人分析整理完成。',
+    failedPrefix: '病人分析整理失敗'
+  },
+  clinician_summary: {
+    key: 'clinician-summary-countdown',
+    seconds: 45,
+    pendingText: '醫師摘要 AI 整理中',
+    completedText: '醫師摘要整理完成。',
+    failedPrefix: '醫師摘要整理失敗'
+  }
+};
+
 const OUTPUT_COMMANDS = [
   { type: 'clinician_summary', patterns: [/幫我整理給醫生/, /整理給醫師/, /整理成.*給醫(師|生).*(重點|摘要|版本)?/i, /醫師摘要/, /clinician summary/i, /doctor summary/i] },
   { type: 'patient_analysis', patterns: [/請分析我/, /分析我/, /給我分析/, /給我病人版本/, /patient analysis/i] },
@@ -2856,6 +2880,36 @@ function setTyping(visible) {
   }
 }
 
+function setOutputCountdownState(text = '', options = {}) {
+  const wrap = document.getElementById('chat-output-countdown');
+  const textNode = document.getElementById('chat-output-countdown-text');
+  const iconNode = document.getElementById('chat-output-countdown-icon');
+  if (!wrap || !textNode || !iconNode) return;
+
+  const message = String(text || '').trim();
+  if (!message) {
+    wrap.style.display = 'none';
+    textNode.textContent = '';
+    iconNode.textContent = 'hourglass_top';
+    wrap.classList.remove('is-success', 'is-error');
+    return;
+  }
+
+  const status = String(options.status || 'running').trim();
+  wrap.style.display = 'flex';
+  textNode.textContent = message;
+  wrap.classList.remove('is-success', 'is-error');
+  if (status === 'success') {
+    wrap.classList.add('is-success');
+    iconNode.textContent = 'check_circle';
+  } else if (status === 'error') {
+    wrap.classList.add('is-error');
+    iconNode.textContent = 'error';
+  } else {
+    iconNode.textContent = 'hourglass_top';
+  }
+}
+
 function scrollChatToBottom() {
   const container = document.getElementById('chat-messages');
   if (container) {
@@ -4881,20 +4935,25 @@ function saveUserPrompt(textarea) {
 async function requestOutput(outputType, options = {}) {
   if (APP_STATE.isSending) return;
   const definition = OUTPUT_DEFINITIONS[outputType] || { label: outputType, instruction: outputType };
+  const countdownConfig = OUTPUT_COUNTDOWN_CONFIG[outputType] || null;
   APP_STATE.isSending = true;
   clearMicroInterventionCard();
   closeMicroInterventionDetail();
   appendSystemNotice(`正在產生 ${definition.label}...`);
   setTyping(true);
-  const countdownKey = outputType === 'fhir_delivery' ? 'fhir-draft-countdown' : '';
+  const countdownKey = countdownConfig ? countdownConfig.key : '';
   let countdownTimer = null;
-  if (countdownKey) {
-    let remaining = 60;
-    appendSystemNotice(`FHIR 草稿 AI 分析中，可能需要約 ${remaining} 秒。`, { replaceKey: countdownKey });
+  let countdownClearTimer = null;
+  setOutputCountdownState('');
+  if (countdownConfig) {
+    let remaining = Math.max(1, Number(countdownConfig.seconds) || 1);
+    appendSystemNotice(`${countdownConfig.pendingText}，可能需要約 ${remaining} 秒。`, { replaceKey: countdownKey });
+    setOutputCountdownState(`${countdownConfig.pendingText}，約 ${remaining} 秒`);
     countdownTimer = setInterval(() => {
       remaining -= 1;
       if (remaining < 0) return;
-      appendSystemNotice(`FHIR 草稿 AI 分析中，可能需要約 ${remaining} 秒。`, { replaceKey: countdownKey });
+      appendSystemNotice(`${countdownConfig.pendingText}，可能需要約 ${remaining} 秒。`, { replaceKey: countdownKey });
+      setOutputCountdownState(`${countdownConfig.pendingText}，約 ${remaining} 秒`);
       if (remaining === 0 && countdownTimer) {
         clearInterval(countdownTimer);
         countdownTimer = null;
@@ -4927,8 +4986,16 @@ async function requestOutput(outputType, options = {}) {
       clearInterval(countdownTimer);
       countdownTimer = null;
     }
-    if (countdownKey) {
-      appendSystemNotice('FHIR 草稿分析完成。', { replaceKey: countdownKey });
+    if (countdownClearTimer) {
+      clearTimeout(countdownClearTimer);
+      countdownClearTimer = null;
+    }
+    if (countdownConfig) {
+      appendSystemNotice(countdownConfig.completedText, { replaceKey: countdownKey });
+      setOutputCountdownState(countdownConfig.completedText, { status: 'success' });
+      countdownClearTimer = setTimeout(() => setOutputCountdownState(''), 1600);
+    } else {
+      setOutputCountdownState('');
     }
     appendSystemNotice(`${definition.label} 已更新，請到 Reports 查看。`);
     if (options.fromChatCommand || options.fromShortcut) {
@@ -4947,8 +5014,17 @@ async function requestOutput(outputType, options = {}) {
       clearInterval(countdownTimer);
       countdownTimer = null;
     }
-    if (countdownKey) {
-      appendSystemNotice(`FHIR 草稿分析失敗：${error.message || '未知錯誤'}`, { replaceKey: countdownKey });
+    if (countdownClearTimer) {
+      clearTimeout(countdownClearTimer);
+      countdownClearTimer = null;
+    }
+    if (countdownConfig) {
+      const failText = `${countdownConfig.failedPrefix}：${error.message || '未知錯誤'}`;
+      appendSystemNotice(failText, { replaceKey: countdownKey });
+      setOutputCountdownState(failText, { status: 'error' });
+      countdownClearTimer = setTimeout(() => setOutputCountdownState(''), 3200);
+    } else {
+      setOutputCountdownState('');
     }
     await appendMessage('ai', error.message || '目前無法產生輸出。', { animate: true });
   } finally {
