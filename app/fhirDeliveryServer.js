@@ -436,6 +436,7 @@ async function processOutputPayload(payload, options = {}) {
     const result = await engine.generateOutput({
       conversation_id: payload.conversation_id || '',
       force_new_session: Boolean(payload.force_new_session),
+      force_refresh: Boolean(payload.force_refresh),
       therapeutic_profile: payload.therapeutic_profile || null,
       user,
       output_type: outputType,

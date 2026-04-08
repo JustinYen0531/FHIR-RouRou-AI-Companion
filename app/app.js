@@ -4336,6 +4336,7 @@ async function fetchOutputPayload(outputType, instructionOverride = '') {
     body: JSON.stringify({
       conversation_id: conversationState.conversation_id,
       force_new_session: conversationState.force_new_session,
+      force_refresh: true,
       therapeutic_profile: conversationState.therapeutic_profile,
       user: config.userId,
       output_type: outputType,

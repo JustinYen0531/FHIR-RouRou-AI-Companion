@@ -2655,6 +2655,7 @@ class AICompanionEngine {
     }
     const cacheKey = outputType;
     const cached = session.output_cache[cacheKey];
+    const forceRefresh = Boolean(payload.force_refresh);
     const currentLongitudinal = buildLongitudinalEvidence(
       session,
       normalizeObjectState(session.state, 'symptom_bridge_state', {})
@@ -2670,7 +2671,7 @@ class AICompanionEngine {
       (outputType === 'fhir_delivery' && isEmptyFhirDraft(currentFhirDraft))
     );
 
-    if (cached && cached.revision === session.revision && !hasInvalidStructuredState) {
+    if (!forceRefresh && cached && cached.revision === session.revision && !hasInvalidStructuredState) {
       return cached.value;
     }
     if (hasInvalidStructuredState) {
@@ -2678,7 +2679,7 @@ class AICompanionEngine {
     }
 
     await this.ensureStructuredOutputs(session, instruction, {
-      forceRefresh: hasInvalidStructuredState
+      forceRefresh: forceRefresh || hasInvalidStructuredState
     });
 
     let output;
