@@ -868,7 +868,7 @@ function buildCareGoalSummary(longitudinal) {
   if (longitudinal.followupNeeds.length) {
     return `下一步建議優先補足：${longitudinal.followupNeeds.slice(0, 2).join('；')}`;
   }
-  return '尚待補充更明確的就醫目標與期待。';
+  return '';
 }
 
 function isGenericDraftText(value) {
@@ -956,6 +956,95 @@ function sanitizeExcludedMessages(track = []) {
     text: String(item?.text || item?.content || '').trim(),
     reason: String(item?.reason || 'filtered').trim() || 'filtered'
   })).filter((item) => item.text);
+}
+
+const OBSERVATION_REWRITE_RULES = [
+  {
+    pattern: /(害怕|恐懼|緊張|焦慮|不安|怕)/i,
+    observation: '對話內容顯示持續性的焦慮與不安感。',
+    concern: '焦慮與不安感持續出現'
+  },
+  {
+    pattern: /(食慾|不想吃|吃不下|沒胃口|美食的欲望|進食)/i,
+    observation: '近期出現食慾下降與進食動機減弱。',
+    concern: '食慾與身體能量狀態下降'
+  },
+  {
+    pattern: /(不喜歡|不再喜歡|失去興趣|沒興趣|一起吃飯|跟其他人一起|社交|喜歡的事情)/i,
+    observation: '原本感興趣的活動參與意願下降，並伴隨社交退縮。',
+    concern: '興趣下降並影響社交參與'
+  },
+  {
+    pattern: /(上台|發表|分數|表現|課堂|報告|同學|老師)/i,
+    observation: '在課堂表現與評價情境中出現明顯壓力反應。',
+    concern: '學業表現與評價壓力造成負擔'
+  },
+  {
+    pattern: /(沒人理解|理解我|委屈|很難過|孤單|孤獨)/i,
+    observation: '反覆提到不被理解，呈現明顯的孤立與委屈感。',
+    concern: '人際理解不足帶來孤立感'
+  }
+];
+
+function stripObservationNoise(value = '') {
+  return String(value || '')
+    .replace(/[；;]+/g, '，')
+    .replace(/\s+/g, '')
+    .replace(/^(我(覺得|發現|知道|自己)?|現在|最近|以前|另外|可是|而且|只是|就是)+/g, '')
+    .replace(/(因為|所以|但是|然後|例如|比如|比方說)/g, '，')
+    .replace(/，{2,}/g, '，')
+    .replace(/^，+|，+$/g, '')
+    .trim();
+}
+
+function rewriteObservationText(value = '') {
+  const text = stripObservationNoise(value);
+  if (!text) return '';
+  const matchedRules = OBSERVATION_REWRITE_RULES.filter((rule) => rule.pattern.test(text));
+  if (matchedRules.length) {
+    return uniqueStrings(matchedRules.map((rule) => rule.observation), 2).join('');
+  }
+
+  const normalized = text
+    .replace(/^會/, '')
+    .replace(/^有/, '')
+    .replace(/^在/, '')
+    .replace(/^自己/, '')
+    .trim();
+  if (!normalized) return '';
+  return `對話中提及${normalized}。`;
+}
+
+function rewriteConcernText(value = '') {
+  const text = stripObservationNoise(value);
+  if (!text) return '';
+  const matchedRules = OBSERVATION_REWRITE_RULES.filter((rule) => rule.pattern.test(text));
+  if (matchedRules.length) {
+    return uniqueStrings(matchedRules.map((rule) => rule.concern), 2).join('、');
+  }
+  const normalized = text.replace(/[。！？]+$/g, '').trim();
+  return normalized || '';
+}
+
+function buildStructuredObservationSet(observations = [], inferenceTrack = [], evidenceTrack = [], limit = 8) {
+  const fromInference = sanitizeSymptomInferenceTrack(inferenceTrack).map((item) => {
+    const pieces = [
+      item.timeframe ? `${item.timeframe}` : '',
+      item.summary || item.symptom_label || '',
+      item.functional_impact || ''
+    ].filter(Boolean);
+    return rewriteObservationText(pieces.join('，'));
+  });
+  const fromEvidence = sanitizeSymptomEvidenceTrack(evidenceTrack).map((item) => rewriteObservationText(item.source_text));
+  const fromObservations = normalizeArray(observations).map((item) => rewriteObservationText(item));
+  return uniqueStrings([...fromInference, ...fromEvidence, ...fromObservations].filter(Boolean), limit);
+}
+
+function buildStructuredConcernSet(concerns = [], observations = [], evidenceTrack = [], limit = 6) {
+  const rewrittenConcerns = normalizeArray(concerns).map((item) => rewriteConcernText(item));
+  const inferredConcerns = normalizeArray(observations).map((item) => rewriteConcernText(item));
+  const evidenceConcerns = sanitizeSymptomEvidenceTrack(evidenceTrack).map((item) => rewriteConcernText(item.source_text));
+  return uniqueStrings([...rewrittenConcerns, ...inferredConcerns, ...evidenceConcerns].filter(Boolean), limit);
 }
 
 function buildSymptomBridgeFallback(longitudinal) {
@@ -1385,16 +1474,28 @@ function buildClinicianSummaryDraft(longitudinal, state, formalAssessment, previ
   const riskLevel = longitudinal.riskFlags.length || explicitRiskFlags.length
     ? 'watch'
     : 'none';
+  const structuredObservations = buildStructuredObservationSet(
+    longitudinal.symptomObservations,
+    longitudinal.symptomInferenceTrack,
+    longitudinal.symptomEvidenceTrack,
+    8
+  );
+  const structuredConcerns = buildStructuredConcernSet(
+    longitudinal.chiefConcerns,
+    structuredObservations,
+    longitudinal.symptomEvidenceTrack,
+    6
+  );
 
   return Object.assign(
     {
       summary_version: 'p3_clinician_draft_v3',
       active_mode: state.active_mode,
       risk_level: riskLevel,
-      chief_concerns: longitudinal.chiefConcerns.slice(0, 6),
-      symptom_observations: longitudinal.symptomObservations
-        .filter((item) => !isGenericDraftText(item))
-        .slice(0, 8),
+      chief_concerns: structuredConcerns.length ? structuredConcerns : longitudinal.chiefConcerns.slice(0, 6),
+      symptom_observations: structuredObservations.length
+        ? structuredObservations
+        : longitudinal.symptomObservations.filter((item) => !isGenericDraftText(item)).slice(0, 8),
       symptom_evidence_track: sanitizeSymptomEvidenceTrack(longitudinal.symptomEvidenceTrack).slice(0, 8),
       symptom_inference_track: sanitizeSymptomInferenceTrack(longitudinal.symptomInferenceTrack).slice(0, 8),
       hamd_signals: longitudinal.hamdSignals.slice(0, 6),
@@ -1418,9 +1519,18 @@ function buildClinicianSummaryDraft(longitudinal, state, formalAssessment, previ
 }
 
 function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAssessment) {
-  const symptomObservations = normalizeArray(longitudinal?.symptomObservations).length
-    ? normalizeArray(longitudinal.symptomObservations)
-    : normalizeArray(clinicianDraft?.symptom_observations);
+  const symptomObservations = buildStructuredObservationSet(
+    normalizeArray(longitudinal?.symptomObservations).length
+      ? normalizeArray(longitudinal.symptomObservations)
+      : normalizeArray(clinicianDraft?.symptom_observations),
+    normalizeArray(longitudinal?.symptomInferenceTrack).length
+      ? longitudinal.symptomInferenceTrack
+      : clinicianDraft?.symptom_inference_track,
+    normalizeArray(longitudinal?.symptomEvidenceTrack).length
+      ? longitudinal.symptomEvidenceTrack
+      : clinicianDraft?.symptom_evidence_track,
+    8
+  );
   const symptomEvidenceTrack = sanitizeSymptomEvidenceTrack(
     normalizeArray(longitudinal?.symptomEvidenceTrack).length
       ? longitudinal.symptomEvidenceTrack
@@ -1434,21 +1544,22 @@ function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAsses
   const hamdSignals = normalizeArray(longitudinal?.hamdSignals).length
     ? normalizeArray(longitudinal.hamdSignals)
     : normalizeArray(clinicianDraft?.hamd_signals);
-  const chiefConcerns = normalizeArray(longitudinal?.chiefConcerns).length
-    ? normalizeArray(longitudinal.chiefConcerns)
-    : normalizeArray(clinicianDraft?.chief_concerns);
+  const chiefConcerns = buildStructuredConcernSet(
+    normalizeArray(longitudinal?.chiefConcerns).length
+      ? normalizeArray(longitudinal.chiefConcerns)
+      : normalizeArray(clinicianDraft?.chief_concerns),
+    symptomObservations,
+    normalizeArray(longitudinal?.symptomEvidenceTrack).length
+      ? longitudinal.symptomEvidenceTrack
+      : clinicianDraft?.symptom_evidence_track,
+    6
+  );
   const evidenceBySignal = longitudinal.evidenceBySignal && typeof longitudinal.evidenceBySignal === 'object'
     ? longitudinal.evidenceBySignal
     : {};
-  const resources = [
-      { resource_type: 'Composition', resourceType: 'Composition', display: 'Composition / Clinical Summary', status: 'preliminary', purpose: 'clinical_summary' },
-      { resource_type: 'Observation', resourceType: 'Observation', display: 'Observation / HAMD Signal Tracking', status: 'preliminary', purpose: 'hamd_signal_tracking' },
-      { resource_type: 'ClinicalImpression', resourceType: 'ClinicalImpression', display: 'ClinicalImpression / Risk And Context', status: 'preliminary', purpose: 'risk_and_context' },
-      { resource_type: 'QuestionnaireResponse', resourceType: 'QuestionnaireResponse', display: 'QuestionnaireResponse / Dialogue Mapping', status: 'preliminary', purpose: 'dialogue_to_scale_mapping' }
-  ];
   const observationCandidates = symptomInferenceTrack.length
     ? symptomInferenceTrack.map((item) => ({
-        focus: item.summary || item.symptom_label,
+        focus: rewriteObservationText(item.summary || item.symptom_label),
         category: item.category || buildSignalCategory(item.hamd_signal),
         signal: item.hamd_signal || '',
         status: 'preliminary',
@@ -1478,16 +1589,62 @@ function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAsses
   const questionnaireTargets = symptomInferenceTrack.length
     ? symptomInferenceTrack.map((item) => {
         const label = item.hamd_signal || item.symptom_label || item.summary;
-        return `${label}：${item.summary || item.symptom_label}`;
-      }).slice(0, 8)
+        const summary = rewriteObservationText(item.summary || item.symptom_label);
+        return summary ? `${label}：${summary}` : '';
+      }).filter(Boolean).slice(0, 8)
     : hamdSignals.map((signal) => ({
         dimension: signal,
         reason: (evidenceBySignal[signal] || []).join('；') || `需補足 ${signal} 的正式量表資訊`
-      }));
+      })).filter((item) => item.reason);
 
   const narrativeSummary = hasMeaningfulLongitudinalEvidence(longitudinal)
     ? (longitudinal.draftSummary || clinicianDraft?.draft_summary || summarizeConcernBundle(chiefConcerns))
     : '尚待補充主要困擾';
+
+  const compositionSections = [];
+  if (chiefConcerns.length) {
+    compositionSections.push({
+      section: 'chief_concerns',
+      focus: summarizeConcernBundle(chiefConcerns)
+    });
+  }
+  if (symptomObservations.length) {
+    compositionSections.push({
+      section: 'symptom_timeline',
+      focus: symptomObservations.slice(0, 3).join('；')
+    });
+  }
+  const functionalImpact = buildFunctionalImpactSummary(chiefConcerns) || longitudinal.followupNeeds[0] || '';
+  if (functionalImpact) {
+    compositionSections.push({
+      section: 'functional_impact',
+      focus: functionalImpact
+    });
+  }
+  const careGoal = hasMeaningfulLongitudinalEvidence(longitudinal) ? buildCareGoalSummary(longitudinal) : '';
+  if (careGoal) {
+    compositionSections.push({
+      section: 'care_goal',
+      focus: careGoal
+    });
+  }
+
+  const resources = [
+    { resource_type: 'Composition', resourceType: 'Composition', display: 'Composition / Clinical Summary', status: 'preliminary', purpose: 'clinical_summary' },
+    observationCandidates.length
+      ? { resource_type: 'Observation', resourceType: 'Observation', display: 'Observation / Symptom Tracking', status: 'preliminary', purpose: 'symptom_tracking' }
+      : null,
+    (questionnaireTargets.length || normalizeArray(buildFormalFhirTargets(formalAssessment)).length)
+      ? { resource_type: 'QuestionnaireResponse', resourceType: 'QuestionnaireResponse', display: 'QuestionnaireResponse / Dialogue Mapping', status: 'preliminary', purpose: 'dialogue_to_scale_mapping' }
+      : null,
+    narrativeSummary
+      ? { resource_type: 'DocumentReference', resourceType: 'DocumentReference', display: 'DocumentReference / Summary Export', status: 'preliminary', purpose: 'summary_export' }
+      : null
+  ].filter(Boolean);
+
+  const formalTargets = buildFormalFhirTargets(formalAssessment);
+  const clinicalAlerts = [...longitudinal.riskFlags, ...normalizeArray(normalizeObjectState(state, 'red_flag_payload', {}).warning_tags)].slice(0, 4);
+  const exportBlockers = normalizeArray(normalizeObjectState(state, 'patient_authorization_state', {}).review_blockers);
 
   return {
     draft_version: 'p5_fhir_delivery_v3',
@@ -1495,39 +1652,15 @@ function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAsses
     consent_gate: 'review_required_or_ready_for_consent_orblocked',
     narrative_summary: narrativeSummary,
     resources,
-    composition_sections: [
-      {
-        section: 'chief_concerns',
-        focus: chiefConcerns.length
-          ? summarizeConcernBundle(chiefConcerns)
-          : '尚待補充主要困擾'
-      },
-      {
-        section: 'symptom_timeline',
-        focus: symptomObservations.slice(0, 3).join('；')
-          || '目前已知症狀線索仍需補足時間軸。'
-      },
-      {
-        section: 'functional_impact',
-        focus: buildFunctionalImpactSummary(chiefConcerns)
-          || longitudinal.followupNeeds[0]
-          || '目前已知有功能受損，但仍待補足最受影響情境。'
-      },
-      {
-        section: 'care_goal',
-        focus: hasMeaningfulLongitudinalEvidence(longitudinal)
-          ? buildCareGoalSummary(longitudinal)
-          : '尚待補充更明確的就醫目標與期待。'
-      }
-    ],
+    composition_sections: compositionSections,
     observation_candidates: observationCandidates,
     symptom_evidence_track: symptomEvidenceTrack,
     symptom_inference_track: symptomInferenceTrack,
-    clinical_alerts: [...longitudinal.riskFlags, ...normalizeArray(normalizeObjectState(state, 'red_flag_payload', {}).warning_tags)].slice(0, 4),
+    clinical_alerts: clinicalAlerts,
     questionnaire_targets: questionnaireTargets,
-    hamd_formal_targets: buildFormalFhirTargets(formalAssessment),
+    hamd_formal_targets: formalTargets,
     patient_review_required: 'yes',
-    export_blockers: normalizeArray(normalizeObjectState(state, 'patient_authorization_state', {}).review_blockers),
+    export_blockers: exportBlockers,
     notes: longitudinal.draftSummary || '本草稿已依整段對話整理主要困擾、功能受損與 HAM-D 線索，仍需病人審閱與臨床確認。'
   };
 }

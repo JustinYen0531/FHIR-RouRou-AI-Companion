@@ -93,8 +93,47 @@ async function testOutputCaching() {
   assert.strictEqual(after, middle);
 }
 
+async function testStructuredObservationRewritingAndLeanFhirDraft() {
+  const modelClient = createStubModelClient();
+  const engine = new AICompanionEngine({ modelClient, apiKey: 'fake' });
+  await engine.handleMessage({
+    message: '我以前對美食的欲望已經消失了，現在也不想跟其他人一起吃飯，而且上台報告時會突然很害怕。',
+    user: 'demo',
+    conversation_id: 'conv-output-2'
+  });
+
+  const clinician = await engine.generateOutput({
+    conversation_id: 'conv-output-2',
+    user: 'demo',
+    output_type: 'clinician_summary'
+  });
+  const fhir = await engine.generateOutput({
+    conversation_id: 'conv-output-2',
+    user: 'demo',
+    output_type: 'fhir_delivery'
+  });
+
+  assert.ok(
+    clinician.output.symptom_observations.some((item) => item.includes('食慾下降') || item.includes('焦慮') || item.includes('社交退縮')),
+    'symptom observations should be rewritten into structured observations'
+  );
+  assert.ok(
+    clinician.output.symptom_observations.every((item) => !String(item).includes('我')),
+    'symptom observations should avoid raw first-person phrasing'
+  );
+  assert.ok(
+    Array.isArray(fhir.output.composition_sections) && fhir.output.composition_sections.length > 0,
+    'FHIR draft should keep only meaningful composition sections'
+  );
+  assert.ok(
+    fhir.output.composition_sections.every((item) => String(item.focus || '').trim() && !String(item.focus || '').includes('尚待補充')),
+    'FHIR draft sections should not contain placeholder filler text'
+  );
+}
+
 async function run() {
   await testOutputCaching();
+  await testStructuredObservationRewritingAndLeanFhirDraft();
   console.log('AI companion output tests passed.');
 }
 
