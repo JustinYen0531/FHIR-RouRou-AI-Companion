@@ -3666,7 +3666,7 @@ function normalizeSessionExportForDelivery(sessionExport = {}) {
     : [];
   const fallbackNarrative = fallbackMessages.length
     ? fallbackMessages.slice(-3).join('；')
-    : '本次對話內容較少，先保留最小交付摘要供後續醫療端確認。';
+    : '';
   const extractedConcerns = [];
   const extractedSignals = [];
   const extractedObservations = [];
@@ -3699,10 +3699,10 @@ function normalizeSessionExportForDelivery(sessionExport = {}) {
       if (!extractedSignals.includes('insomnia')) extractedSignals.push('insomnia');
       if (!extractedObservations.includes('睡眠中斷或入睡困難持續出現。')) extractedObservations.push('睡眠中斷或入睡困難持續出現。');
     }
-    if (/(焦慮|緊張|心悸|不安|胃痛|胸悶)/i.test(text)) {
+    if (/(焦慮|緊張|心悸|不安|胃痛|肚子痛|腹痛|發冷|手腳冰冷|胸悶)/i.test(text)) {
       if (!extractedConcerns.includes('焦慮與身體緊繃')) extractedConcerns.push('焦慮與身體緊繃');
       if (!extractedSignals.includes('somatic_anxiety')) extractedSignals.push('somatic_anxiety');
-      if (!extractedObservations.includes('對話內容顯示焦慮感與身體緊繃反應。')) extractedObservations.push('對話內容顯示焦慮感與身體緊繃反應。');
+      if (!extractedObservations.includes('對話內容顯示焦慮感與身體化反應（含腸胃不適或發冷）。')) extractedObservations.push('對話內容顯示焦慮感與身體化反應（含腸胃不適或發冷）。');
     }
     if (/(自責|怪自己|絕望|活著沒有意義|想消失|傷痕|自傷)/i.test(text)) {
       if (!extractedConcerns.includes('自責、無望或自傷風險線索')) extractedConcerns.push('自責、無望或自傷風險線索');
@@ -3745,7 +3745,7 @@ function normalizeSessionExportForDelivery(sessionExport = {}) {
   const resolvedSignals = hamdSignals.length ? hamdSignals : inferredSignals;
 
   if (!Array.isArray(clinician.chief_concerns) || !clinician.chief_concerns.length) {
-    clinician.chief_concerns = extractedConcerns.length ? extractedConcerns : [fallbackNarrative];
+    clinician.chief_concerns = extractedConcerns.length ? extractedConcerns : [];
   }
 
   if (!Array.isArray(clinician.symptom_observations) || !clinician.symptom_observations.length) {
@@ -3753,23 +3753,23 @@ function normalizeSessionExportForDelivery(sessionExport = {}) {
       ? inferredObservationSummaries
       : symptomObservations.length
         ? symptomObservations
-        : (extractedObservations.length ? extractedObservations : [fallbackNarrative]);
+        : (extractedObservations.length ? extractedObservations : []);
   }
 
   if (!Array.isArray(clinician.followup_needs) || !clinician.followup_needs.length) {
-    clinician.followup_needs = ['建議於正式看診時補充本次情緒、睡眠與功能影響。'];
+    clinician.followup_needs = [];
   }
 
   if (!Array.isArray(clinician.safety_flags) || !clinician.safety_flags.length) {
-    clinician.safety_flags = ['本次為最小送出資料，需由醫療端再確認風險與症狀細節。'];
+    clinician.safety_flags = [];
   }
 
   if (!Array.isArray(clinician.hamd_signals) || !clinician.hamd_signals.length) {
-    clinician.hamd_signals = resolvedSignals.length ? resolvedSignals : (extractedSignals.length ? extractedSignals : ['depressed_mood']);
+    clinician.hamd_signals = resolvedSignals.length ? resolvedSignals : (extractedSignals.length ? extractedSignals : []);
   }
 
   if (!String(clinician.draft_summary || '').trim()) {
-    clinician.draft_summary = fallbackNarrative;
+    clinician.draft_summary = '';
   }
 
   if (!normalized.hamd_progress_state || typeof normalized.hamd_progress_state !== 'object') {
@@ -3777,7 +3777,7 @@ function normalizeSessionExportForDelivery(sessionExport = {}) {
   }
 
   if (!Array.isArray(normalized.hamd_progress_state.covered_dimensions) || !normalized.hamd_progress_state.covered_dimensions.length) {
-    normalized.hamd_progress_state.covered_dimensions = resolvedSignals.length ? resolvedSignals : ['depressed_mood'];
+    normalized.hamd_progress_state.covered_dimensions = resolvedSignals.length ? resolvedSignals : [];
   }
 
   if (!Array.isArray(normalized.hamd_progress_state.supported_dimensions) || !normalized.hamd_progress_state.supported_dimensions.length) {
@@ -3789,11 +3789,11 @@ function normalizeSessionExportForDelivery(sessionExport = {}) {
   if (!Array.isArray(normalized.hamd_progress_state.recent_evidence) || !normalized.hamd_progress_state.recent_evidence.length) {
     normalized.hamd_progress_state.recent_evidence = clinician.symptom_observations.length
       ? [...clinician.symptom_observations]
-      : [fallbackNarrative];
+      : [];
   }
 
   if (!normalized.hamd_progress_state.next_recommended_dimension) {
-    normalized.hamd_progress_state.next_recommended_dimension = normalized.hamd_progress_state.covered_dimensions[0] || 'depressed_mood';
+    normalized.hamd_progress_state.next_recommended_dimension = normalized.hamd_progress_state.covered_dimensions[0] || '';
   }
 
   if (!normalized.delivery_readiness_state || typeof normalized.delivery_readiness_state !== 'object') {
@@ -3801,11 +3801,7 @@ function normalizeSessionExportForDelivery(sessionExport = {}) {
   }
 
   if (!normalized.delivery_readiness_state.readiness_status) {
-    normalized.delivery_readiness_state.readiness_status = 'ready_for_backend_mapping';
-  }
-
-  if (normalized.delivery_readiness_state.readiness_status !== 'ready_for_backend_mapping') {
-    normalized.delivery_readiness_state.readiness_status = 'ready_for_backend_mapping';
+    normalized.delivery_readiness_state.readiness_status = '';
   }
 
   return normalized;

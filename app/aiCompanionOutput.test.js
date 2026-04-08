@@ -56,6 +56,37 @@ function createStubModelClient() {
     if (systemPrompt.includes('統一的摘要草稿 JSON')) {
       return { text: JSON.stringify({ draft_summary: '最近很累。', active_mode: 'mode_5_natural' }) };
     }
+    if (systemPrompt.includes('原句證據軌 + 症狀推論軌')) {
+      return {
+        text: JSON.stringify({
+          bridge_version: 'p1_symptom_bridge_v1',
+          evidence_track: [
+            {
+              evidence_id: 'e1',
+              speaker: 'user',
+              source_text: userPrompt || '最近很累',
+              symptom_candidate: '疲憊與睡眠困擾',
+              category: 'sleep',
+              confidence: 'high'
+            }
+          ],
+          inference_track: [
+            {
+              symptom_label: '疲憊與睡眠困擾',
+              summary: '近期持續疲憊，並有睡眠困擾。',
+              category: 'sleep',
+              hamd_signal: 'insomnia',
+              severity_hint: 'moderate',
+              functional_impact: '影響白天功能',
+              timeframe: 'recent_weeks',
+              evidence_refs: ['e1'],
+              confidence: 'high'
+            }
+          ],
+          excluded_messages: []
+        })
+      };
+    }
     if (systemPrompt.includes('可交付給醫師或臨床團隊閱讀')) {
       return { text: JSON.stringify({ summary_version: 'v1', draft_summary: '最近很累。' }) };
     }
@@ -138,6 +169,37 @@ function createRawClinicianStubModelClient() {
     if (systemPrompt.includes('統一的摘要草稿 JSON')) {
       return { text: JSON.stringify({ draft_summary: userPrompt, active_mode: 'mode_5_natural' }) };
     }
+    if (systemPrompt.includes('原句證據軌 + 症狀推論軌')) {
+      return {
+        text: JSON.stringify({
+          bridge_version: 'p1_symptom_bridge_v1',
+          evidence_track: [
+            {
+              evidence_id: 'e1',
+              speaker: 'user',
+              source_text: userPrompt || '最近很焦慮',
+              symptom_candidate: '焦慮與課業壓力',
+              category: 'anxiety',
+              confidence: 'high'
+            }
+          ],
+          inference_track: [
+            {
+              symptom_label: '焦慮與課業壓力',
+              summary: '在課堂與表現情境出現焦慮與回避反應。',
+              category: 'anxiety',
+              hamd_signal: 'somatic_anxiety',
+              severity_hint: 'moderate',
+              functional_impact: '影響課堂功能',
+              timeframe: 'recent_weeks',
+              evidence_refs: ['e1'],
+              confidence: 'high'
+            }
+          ],
+          excluded_messages: []
+        })
+      };
+    }
     if (systemPrompt.includes('可交付給醫師或臨床團隊閱讀')) {
       return {
         text: JSON.stringify({
@@ -206,6 +268,37 @@ function createRawPatientAnalysisStubModelClient() {
     if (systemPrompt.includes('低能量與認知負擔偵測器')) return { text: 'continue_auto' };
     if (systemPrompt.includes('像真人的朋友')) return { text: '我在。' };
     if (systemPrompt.includes('統一的摘要草稿 JSON')) return { text: JSON.stringify({ draft_summary: '最近很累。', active_mode: 'mode_5_natural' }) };
+    if (systemPrompt.includes('原句證據軌 + 症狀推論軌')) {
+      return {
+        text: JSON.stringify({
+          bridge_version: 'p1_symptom_bridge_v1',
+          evidence_track: [
+            {
+              evidence_id: 'e1',
+              speaker: 'user',
+              source_text: '最近睡不好而且白天一直提不起勁。',
+              symptom_candidate: '睡眠與低動力',
+              category: 'sleep',
+              confidence: 'high'
+            }
+          ],
+          inference_track: [
+            {
+              symptom_label: '睡眠與低動力',
+              summary: '近期睡眠困擾並伴隨白天低動力。',
+              category: 'sleep',
+              hamd_signal: 'insomnia',
+              severity_hint: 'moderate',
+              functional_impact: '影響白天狀態',
+              timeframe: 'recent_weeks',
+              evidence_refs: ['e1'],
+              confidence: 'high'
+            }
+          ],
+          excluded_messages: []
+        })
+      };
+    }
     if (systemPrompt.includes('可交付給醫師或臨床團隊閱讀')) return { text: JSON.stringify({ summary_version: 'v1', draft_summary: '最近很累。' }) };
     if (systemPrompt.includes('給病人自己審閱')) return { text: JSON.stringify({ packet_version: 'v1', patient_facing_summary: '最近很累。' }) };
     if (systemPrompt.includes('病人審閱 / 授權狀態')) return { text: JSON.stringify({ state_version: 'v1', authorization_status: 'ready_for_consent' }) };
@@ -245,6 +338,37 @@ function createPatientAnalysisContainsSupportPhraseModelClient() {
     if (systemPrompt.includes('低能量與認知負擔偵測器')) return { text: 'continue_auto' };
     if (systemPrompt.includes('像真人的朋友')) return { text: '我在。' };
     if (systemPrompt.includes('統一的摘要草稿 JSON')) return { text: JSON.stringify({ draft_summary: '最近很焦慮。', active_mode: 'mode_5_natural' }) };
+    if (systemPrompt.includes('原句證據軌 + 症狀推論軌')) {
+      return {
+        text: JSON.stringify({
+          bridge_version: 'p1_symptom_bridge_v1',
+          evidence_track: [
+            {
+              evidence_id: 'e1',
+              speaker: 'user',
+              source_text: '最近壓力很大，想到工作就胸口悶。',
+              symptom_candidate: '焦慮與壓力反應',
+              category: 'anxiety',
+              confidence: 'high'
+            }
+          ],
+          inference_track: [
+            {
+              symptom_label: '焦慮與壓力反應',
+              summary: '壓力情境下出現焦慮與身體不適反應。',
+              category: 'anxiety',
+              hamd_signal: 'somatic_anxiety',
+              severity_hint: 'moderate',
+              functional_impact: '影響工作準備',
+              timeframe: 'recent_weeks',
+              evidence_refs: ['e1'],
+              confidence: 'high'
+            }
+          ],
+          excluded_messages: []
+        })
+      };
+    }
     if (systemPrompt.includes('可交付給醫師或臨床團隊閱讀')) return { text: JSON.stringify({ summary_version: 'v1', draft_summary: '最近很焦慮。' }) };
     if (systemPrompt.includes('給病人自己審閱')) return { text: JSON.stringify({ packet_version: 'v1', patient_facing_summary: '最近很焦慮。' }) };
     if (systemPrompt.includes('病人審閱 / 授權狀態')) return { text: JSON.stringify({ state_version: 'v1', authorization_status: 'ready_for_consent' }) };
@@ -280,7 +404,9 @@ async function testOutputCaching() {
   assert.deepStrictEqual(first.output, second.output);
   assert.ok(Array.isArray(first.output.hamd_item_scores));
   assert.ok(middle >= before);
-  assert.strictEqual(after, middle);
+  assert.ok(after > middle, 'clinician_summary should always rerun AI model');
+  assert.strictEqual(first.metadata.output_source, 'fresh');
+  assert.strictEqual(second.metadata.output_source, 'fresh');
 }
 
 async function testForceRefreshBypassesOutputCache() {
