@@ -910,7 +910,7 @@ function buildSignalCategory(signal) {
 
 function summarizeConcernBundle(chiefConcerns = []) {
   const concerns = normalizeArray(chiefConcerns);
-  if (!concerns.length) return '尚待補充主要困擾';
+  if (!concerns.length) return '';
   if (concerns.length === 1) return concerns[0];
   if (concerns.length === 2) return `${concerns[0]}，並伴隨${concerns[1]}`;
   return `${concerns[0]}、${concerns[1]}，並延伸到${concerns[2]}`;
@@ -1364,7 +1364,7 @@ function buildSummaryDraftState(state, longitudinal, message = '') {
   const progress = normalizeObjectState(state, 'hamd_progress_state', {});
   const draftSummary = !isGenericDraftText(longitudinal.draftSummary)
     ? longitudinal.draftSummary
-    : (String(message || '').trim() || '目前尚在整理這段對話的主要症狀與功能影響。');
+    : String(message || '').trim();
 
   return {
     active_mode: state.active_mode,
@@ -1792,7 +1792,7 @@ function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAsses
 
   const narrativeSummary = hasMeaningfulLongitudinalEvidence(longitudinal)
     ? (longitudinal.draftSummary || clinicianDraft?.draft_summary || summarizeConcernBundle(chiefConcerns))
-    : '尚待補充主要困擾';
+    : '';
 
   const compositionSections = [];
   if (chiefConcerns.length) {
@@ -1855,7 +1855,7 @@ function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAsses
     hamd_formal_targets: formalTargets,
     patient_review_required: 'yes',
     export_blockers: exportBlockers,
-    notes: longitudinal.draftSummary || '本草稿已依整段對話整理主要困擾、功能受損與 HAM-D 線索，仍需病人審閱與臨床確認。'
+    notes: longitudinal.draftSummary || ''
   };
 }
 
@@ -1866,6 +1866,15 @@ function buildPatientAnalysis(state, fallbackMessage = '') {
   const burden = normalizeObjectState(state, 'burden_level_state', {});
   const hamdProgress = normalizeObjectState(state, 'hamd_progress_state', {});
   const therapeuticProfile = normalizeObjectState(state, 'therapeutic_profile', {});
+  const symptomBridge = normalizeObjectState(state, 'symptom_bridge_state', {});
+  const conversationEvidence = sanitizeSymptomEvidenceTrack(symptomBridge.evidence_track)
+    .map((item) => String(item.source_text || '').trim().replace(/\s+/g, ' '))
+    .filter(Boolean)
+    .slice(0, 3);
+  const evidenceHighlights = conversationEvidence.map((item) => {
+    const clipped = item.length > 38 ? `${item.slice(0, 38)}...` : item;
+    return `「${clipped}」`;
+  });
   const concerns = normalizeArray(clinician.chief_concerns).slice(0, 3);
   const observations = normalizeArray(clinician.symptom_observations).slice(0, 3);
   const followupNeeds = normalizeArray(clinician.followup_needs).slice(0, 3);
@@ -1888,19 +1897,36 @@ function buildPatientAnalysis(state, fallbackMessage = '') {
     clinician.draft_summary ||
     fallbackMessage ||
     '目前還沒有足夠內容可以整理成給病人的分析。';
+  const hasStructuredEvidence = Boolean(
+    concerns.length ||
+    observations.length ||
+    followupNeeds.length ||
+    stressors.length ||
+    keyThemes.length ||
+    supportedDimensions.length ||
+    recentEvidence.length ||
+    sentimentTags.length ||
+    cognitiveTags.length ||
+    behavioralTags.length ||
+    evidenceHighlights.length
+  );
   const stateUnderstanding = [];
   if (sentimentTags.length) stateUnderstanding.push(`你最近的情緒線索比較靠近「${sentimentTags.join('、')}」`);
   if (burden.burden_level === 'high') stateUnderstanding.push('你現在的互動負擔偏高，可能不太適合一次處理太多問題');
   if (burden.burden_level === 'medium') stateUnderstanding.push('你現在還撐得住對話，但可能已經有點疲累，需要比較溫和的整理節奏');
   if (supportedDimensions.length) stateUnderstanding.push(`目前對話已經碰到的狀態面向包含 ${supportedDimensions.map(humanizeHamdDimension).join('、')}`);
   if (keyThemes.length) stateUnderstanding.push(`這段對話反覆繞著 ${keyThemes.join('、')} 這幾個主題`);
-  if (!stateUnderstanding.length) stateUnderstanding.push('目前資料還偏少，但已經能看出你不是單純想抱怨，而是在試著整理自己的狀態');
+  if (!stateUnderstanding.length && evidenceHighlights.length) {
+    stateUnderstanding.push(`我有抓到你提過的內容，像是 ${evidenceHighlights.join('、')}，可以再往這些線索深入。`);
+  }
+  if (!stateUnderstanding.length) stateUnderstanding.push('我目前沒有拿到足夠的「一般對話內容」來做分析（目前看起來多半是操作指令）。');
 
   const pressurePoints = [];
   if (concerns.length) pressurePoints.push(...concerns.map((item) => `你明顯在意的事包括：${item}`));
   if (stressors.length) pressurePoints.push(...stressors.map((item) => `可能正在拉扯你的壓力來源之一是：${item}`));
   if (observations.length) pressurePoints.push(...observations.map((item) => `我注意到一個具體表現是：${item}`));
   if (recentEvidence.length) pressurePoints.push(...recentEvidence.map((item) => `最近浮出的線索像是：${item}`));
+  if (evidenceHighlights.length) pressurePoints.push(`你最近提到的原始線索包含：${evidenceHighlights.join('、')}`);
   if (cognitiveTags.length) pressurePoints.push(`你的想法裡可能也帶著 ${cognitiveTags.join('、')} 這類認知壓力`);
   if (behavioralTags.length) pressurePoints.push(`行為線索上有 ${behavioralTags.join('、')} 的傾向`);
   const dedupedPressurePoints = Array.from(new Set(pressurePoints)).slice(0, 4);
@@ -1931,12 +1957,16 @@ function buildPatientAnalysis(state, fallbackMessage = '') {
   if (burden.burden_level === 'high') {
     nextSteps.unshift('如果你現在很沒力，也可以只回一小句，像「最難受的是什麼」或「我最卡在哪裡」。');
   }
+  if (!hasStructuredEvidence) {
+    nextSteps.unshift('先補一段「一般對話」再按分析：例如「我最近最卡的是___，它影響到___」。');
+  }
 
   const bullets = Array.from(new Set([
     ...concerns,
     ...observations,
     ...stressors,
-    ...keyThemes
+    ...keyThemes,
+    ...evidenceHighlights
   ])).slice(0, 5);
   const markdown = [
     '## 給你的分析',
@@ -2574,13 +2604,21 @@ class AICompanionEngine {
     return answer;
   }
 
-  async updateSummaryChain(session, message) {
+  async updateSummaryChain(session, message, options = {}) {
+    const strictAi = Boolean(options.strictAi);
     const state = session.state;
     const baseLongitudinal = buildLongitudinalEvidence(session);
     const bridgeBase = buildSymptomBridgeFallback(baseLongitudinal);
+    if (strictAi && baseLongitudinal.userMessages.length === 0) {
+      const error = new Error('目前沒有可供分析的臨床對話內容，無法執行 AI 症狀對接。');
+      error.code = 'no_clinical_messages_for_ai';
+      error.status = 422;
+      throw error;
+    }
     if (baseLongitudinal.userMessages.length > 0) {
       const generatedBridge = await this.runJsonTask('symptomBridgeBuilder', session, message, {
         fallback: bridgeBase,
+        requireValidJson: strictAi,
         extraContext: {
           deterministic_longitudinal: baseLongitudinal,
           transcript_window: this.buildTranscriptWindow(session)
@@ -2614,6 +2652,7 @@ class AICompanionEngine {
     if (longitudinal.userMessages.length > 0) {
       const generatedSummaryDraft = await this.runJsonTask('summaryDraftBuilder', session, message, {
         fallback: baseSummaryDraft,
+        requireValidJson: strictAi,
         extraContext: {
           deterministic_summary: baseSummaryDraft,
           longitudinal_evidence: longitudinal
@@ -2623,6 +2662,7 @@ class AICompanionEngine {
 
       const generatedClinicianSummary = await this.runJsonTask('clinicianSummaryBuilder', session, message, {
         fallback: baseClinicianSummary,
+        requireValidJson: strictAi,
         extraContext: {
           deterministic_summary: state.summary_draft_state,
           longitudinal_evidence: longitudinal,
@@ -2638,6 +2678,7 @@ class AICompanionEngine {
       const reviewBase = buildPatientReviewPacket(state.clinician_summary_draft);
       const generatedReviewPacket = await this.runJsonTask('patientReviewBuilder', session, message, {
         fallback: reviewBase,
+        requireValidJson: strictAi,
         extraContext: {
           clinician_summary_draft: state.clinician_summary_draft,
           longitudinal_evidence: longitudinal
@@ -2648,6 +2689,7 @@ class AICompanionEngine {
       const authBase = buildPatientAuthorizationState(state.clinician_summary_draft, state.patient_review_packet);
       const generatedAuthState = await this.runJsonTask('patientAuthorizationBuilder', session, message, {
         fallback: authBase,
+        requireValidJson: strictAi,
         extraContext: {
           clinician_summary_draft: state.clinician_summary_draft,
           patient_review_packet: state.patient_review_packet
@@ -2658,6 +2700,7 @@ class AICompanionEngine {
       const fhirBase = buildFhirDeliveryDraft(state.clinician_summary_draft, longitudinal, state, formalAssessment);
       const generatedFhirDraft = await this.runJsonTask('fhirDeliveryBuilder', session, message, {
         fallback: fhirBase,
+        requireValidJson: strictAi,
         extraContext: {
           clinician_summary_draft: state.clinician_summary_draft,
           patient_review_packet: state.patient_review_packet,
@@ -2689,6 +2732,7 @@ class AICompanionEngine {
       const readinessBase = buildDeliveryReadinessState(state.fhir_delivery_draft, state.patient_authorization_state);
       const generatedReadiness = await this.runJsonTask('deliveryReadinessBuilder', session, message, {
         fallback: readinessBase,
+        requireValidJson: strictAi,
         extraContext: {
           clinician_summary_draft: state.clinician_summary_draft,
           patient_authorization_state: state.patient_authorization_state,
@@ -2718,7 +2762,9 @@ class AICompanionEngine {
       session.memory_snapshot.last_user_message ||
       session.history.slice().reverse().find((item) => item.role === 'user' && isDraftRelevantHistoryItem(item))?.content ||
       '';
-    await this.updateSummaryChain(session, triggerMessage);
+    await this.updateSummaryChain(session, triggerMessage, {
+      strictAi: Boolean(options.strictAi)
+    });
     session.structured_revision = session.revision;
   }
 
@@ -2745,7 +2791,8 @@ class AICompanionEngine {
     }
     const cacheKey = outputType;
     const cached = session.output_cache[cacheKey];
-    const forceRefresh = Boolean(payload.force_refresh) || outputType === 'patient_analysis';
+    const shouldBypassCache = outputType === 'patient_analysis' || outputType === 'clinician_summary' || outputType === 'fhir_delivery';
+    const forceRefresh = Boolean(payload.force_refresh) || shouldBypassCache;
     const currentLongitudinal = buildLongitudinalEvidence(
       session,
       normalizeObjectState(session.state, 'symptom_bridge_state', {})
@@ -2762,14 +2809,17 @@ class AICompanionEngine {
     );
 
     if (!forceRefresh && cached && cached.revision === session.revision && !hasInvalidStructuredState) {
-      return cached.value;
+      const cachedValue = Object.assign({}, cached.value || {});
+      cachedValue.metadata = Object.assign({}, cachedValue.metadata || {}, { output_source: 'cache' });
+      return cachedValue;
     }
     if (hasInvalidStructuredState || forceRefresh) {
       delete session.output_cache[cacheKey];
     }
 
     await this.ensureStructuredOutputs(session, instruction, {
-      forceRefresh: forceRefresh || hasInvalidStructuredState
+      forceRefresh: forceRefresh || hasInvalidStructuredState,
+      strictAi: outputType === 'clinician_summary' || outputType === 'patient_analysis' || outputType === 'fhir_delivery'
     });
 
     let output;
@@ -2802,6 +2852,7 @@ class AICompanionEngine {
       session_export: defaultSessionExport(session),
       metadata: {
         output_type: outputType,
+        output_source: 'fresh',
         active_mode: session.state.active_mode,
         risk_flag: session.state.risk_flag,
         latest_tag_payload: normalizeObjectState(session.state, 'latest_tag_payload', {}),
@@ -2910,6 +2961,13 @@ class AICompanionEngine {
       extraContext: options.extraContext
     ,}));
     const parsed = tryParseJson(text, null);
+    if (!parsed && options.requireValidJson) {
+      const error = new Error(`AI task ${promptKey} did not return valid JSON.`);
+      error.code = 'ai_invalid_json_output';
+      error.status = 502;
+      error.prompt_key = promptKey;
+      throw error;
+    }
     return parsed || options.fallback || {};
   }
 
