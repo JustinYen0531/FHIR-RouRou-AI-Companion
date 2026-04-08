@@ -821,10 +821,28 @@ function isMeaningfulDraftText(value = '') {
   return text && !isPlaceholderDraftText(text);
 }
 
+function cleanClinicalDisplayText(value = '') {
+  let text = String(value || '').trim();
+  if (!text) return '';
+  text = text
+    .replace(/\brecent_dialogue\b/gi, '')
+    .replace(/(?:對話中提及\s*){2,}/g, '對話中提及')
+    .replace(/([。．！？!?])\1+/g, '$1')
+    .replace(/，{2,}/g, '，')
+    .replace(/\s+/g, ' ')
+    .replace(/^對話中提及\s*對話中提及/, '對話中提及')
+    .replace(/^\s*[，。；;:\-]+\s*/g, '')
+    .replace(/\s*[，。；;:\-]+\s*$/g, '')
+    .trim();
+  if (!text) return '';
+  if (/請幫我準備\s*FHIR\s*草稿|請幫我生成\s*FHIR\s*草稿|^output:/i.test(text)) return '';
+  return text;
+}
+
 function getMeaningfulItems(items = []) {
   if (!Array.isArray(items)) return [];
   return items
-    .map((item) => String(item || '').trim())
+    .map((item) => cleanClinicalDisplayText(item))
     .filter((item, index, arr) => item && !isPlaceholderDraftText(item) && arr.indexOf(item) === index);
 }
 
@@ -929,9 +947,9 @@ function buildFhirSnippet(fhirDraft = {}, deliveryResult = null) {
 }
 
 function renderClinicalInsights(summary) {
-  const concerns = Array.isArray(summary?.chief_concerns) ? summary.chief_concerns : [];
-  const observations = Array.isArray(summary?.symptom_observations) ? summary.symptom_observations : [];
-  const hamdSignals = Array.isArray(summary?.hamd_signals) ? summary.hamd_signals : [];
+  const concerns = getMeaningfulItems(summary?.chief_concerns || []);
+  const observations = getMeaningfulItems(summary?.symptom_observations || []);
+  const hamdSignals = getMeaningfulItems(summary?.hamd_signals || []);
   const combined = [
     ...concerns.map((item) => ({ title: '主要困擾', body: item, icon: 'priority_high' })),
     ...observations.map((item) => ({ title: '症狀觀察', body: item, icon: 'visibility' })),
@@ -969,7 +987,7 @@ function renderPatientAnalysisMarkdown(analysis) {
     .replace(/\\r\\n/g, '\n')
     .replace(/\\n/g, '\n');
 
-  return renderMessageMarkdown(markdown);
+  return `<div class="markdown-body report-markdown">${renderMessageMarkdown(markdown)}</div>`;
 }
 
 function normalizeFhirBaseUrl(baseUrl) {
@@ -2787,13 +2805,25 @@ async function appendMessage(role, text, options = {}) {
   scrollChatToBottom();
 }
 
-function appendSystemNotice(text) {
+function appendSystemNotice(text, options = {}) {
   const container = document.getElementById('chat-messages');
   if (!container) return;
+  const noticeKey = String(options.replaceKey || '').trim();
+  const existing = noticeKey
+    ? container.querySelector(`.sensor-badge[data-notice-key="${noticeKey}"]`)
+    : null;
+  const noticeMarkup = `<span>${escapeHtml(text)}</span><span class="mat-icon fill" style="font-size:14px">tune</span>`;
+  if (existing) {
+    existing.innerHTML = noticeMarkup;
+    return existing;
+  }
 
   const notice = document.createElement('div');
   notice.className = 'sensor-badge';
-  notice.innerHTML = `<span>${escapeHtml(text)}</span><span class="mat-icon fill" style="font-size:14px">tune</span>`;
+  notice.innerHTML = noticeMarkup;
+  if (noticeKey) {
+    notice.setAttribute('data-notice-key', noticeKey);
+  }
 
   const firstNode = container.firstElementChild;
   if (firstNode) {
@@ -2801,6 +2831,7 @@ function appendSystemNotice(text) {
   } else {
     container.appendChild(notice);
   }
+  return notice;
 }
 
 function formatChatError(payload = {}) {
@@ -4681,6 +4712,21 @@ async function requestOutput(outputType, options = {}) {
   closeMicroInterventionDetail();
   appendSystemNotice(`正在產生 ${definition.label}...`);
   setTyping(true);
+  const countdownKey = outputType === 'fhir_delivery' ? 'fhir-draft-countdown' : '';
+  let countdownTimer = null;
+  if (countdownKey) {
+    let remaining = 60;
+    appendSystemNotice(`FHIR 草稿 AI 分析中，可能需要約 ${remaining} 秒。`, { replaceKey: countdownKey });
+    countdownTimer = setInterval(() => {
+      remaining -= 1;
+      if (remaining < 0) return;
+      appendSystemNotice(`FHIR 草稿 AI 分析中，可能需要約 ${remaining} 秒。`, { replaceKey: countdownKey });
+      if (remaining === 0 && countdownTimer) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+      }
+    }, 1000);
+  }
 
   try {
     const payload = await fetchOutputPayload(outputType, definition.instruction);
@@ -4703,6 +4749,13 @@ async function requestOutput(outputType, options = {}) {
     storeOutputResult(finalPayload);
     evaluateMicroIntervention(finalPayload, { fromOutput: true });
     setTyping(false);
+    if (countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+    if (countdownKey) {
+      appendSystemNotice('FHIR 草稿分析完成。', { replaceKey: countdownKey });
+    }
     appendSystemNotice(`${definition.label} 已更新，請到 Reports 查看。`);
     if (options.fromChatCommand || options.fromShortcut) {
       await appendMessage('ai', `${definition.label} 已更新。你可以到 Reports 頁面查看最新內容。`, { animate: true });
@@ -4716,6 +4769,13 @@ async function requestOutput(outputType, options = {}) {
     }
   } catch (error) {
     setTyping(false);
+    if (countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+    if (countdownKey) {
+      appendSystemNotice(`FHIR 草稿分析失敗：${error.message || '未知錯誤'}`, { replaceKey: countdownKey });
+    }
     await appendMessage('ai', error.message || '目前無法產生輸出。', { animate: true });
   } finally {
     APP_STATE.isSending = false;

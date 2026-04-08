@@ -1023,10 +1023,31 @@ function isEmptyFhirDraft(draft = {}) {
   );
 }
 
+function normalizeClinicalNarrativeText(value = '') {
+  let text = String(value || '').trim();
+  if (!text) return '';
+  text = text
+    .replace(/\brecent_dialogue\b/gi, '')
+    .replace(/(?:對話中提及\s*){2,}/g, '對話中提及')
+    .replace(/([。．！？!?])\1+/g, '$1')
+    .replace(/，{2,}/g, '，')
+    .replace(/\s+/g, ' ')
+    .replace(/^對話中提及\s*對話中提及/, '對話中提及')
+    .replace(/^\s*[，。；;:\-]+\s*/g, '')
+    .replace(/\s*[，。；;:\-]+\s*$/g, '')
+    .trim();
+  if (!text) return '';
+  if (isPureControlLikeInstruction(text)) return '';
+  if (/請幫我準備\s*FHIR\s*草稿|請幫我生成\s*FHIR\s*草稿|請分析我|整理給醫(師|生)/i.test(text) && !hasClinicalNarrativeCue(text)) {
+    return '';
+  }
+  return text;
+}
+
 function sanitizeSymptomEvidenceTrack(track = []) {
   return normalizeArray(track).map((item, index) => {
     const evidenceId = String(item?.evidence_id || `evidence_${index + 1}`).trim();
-    const sourceText = String(item?.source_text || item?.quote || '').trim();
+    const sourceText = normalizeClinicalNarrativeText(item?.source_text || item?.quote || '');
     return {
       evidence_id: evidenceId,
       speaker: String(item?.speaker || 'user').trim() || 'user',
@@ -1040,8 +1061,8 @@ function sanitizeSymptomEvidenceTrack(track = []) {
 
 function sanitizeSymptomInferenceTrack(track = []) {
   return normalizeArray(track).map((item) => ({
-    symptom_label: String(item?.symptom_label || item?.label || '').trim(),
-    summary: String(item?.summary || item?.focus || '').trim(),
+    symptom_label: normalizeClinicalNarrativeText(item?.symptom_label || item?.label || ''),
+    summary: normalizeClinicalNarrativeText(item?.summary || item?.focus || ''),
     category: String(item?.category || 'patient_report').trim() || 'patient_report',
     hamd_signal: String(item?.hamd_signal || item?.signal || '').trim(),
     severity_hint: String(item?.severity_hint || '').trim(),
@@ -1098,10 +1119,11 @@ const OBSERVATION_REWRITE_RULES = [
 ];
 
 function stripObservationNoise(value = '') {
-  return String(value || '')
+  return normalizeClinicalNarrativeText(value)
     .replace(/[；;]+/g, '，')
     .replace(/\s+/g, '')
     .replace(/^(我(覺得|發現|知道|自己)?|現在|最近|以前|另外|可是|而且|只是|就是)+/g, '')
+    .replace(/^(對話中提及)+/g, '')
     .replace(/(因為|所以|但是|然後|例如|比如|比方說)/g, '，')
     .replace(/，{2,}/g, '，')
     .replace(/^，+|，+$/g, '')
@@ -1121,9 +1143,10 @@ function rewriteObservationText(value = '') {
     .replace(/^有/, '')
     .replace(/^在/, '')
     .replace(/^自己/, '')
+    .replace(/^(對話中提及)+/g, '')
     .trim();
   if (!normalized) return '';
-  return `對話中提及${normalized}。`;
+  return normalizeClinicalNarrativeText(`對話中提及${normalized}。`);
 }
 
 function rewriteConcernText(value = '') {
@@ -1133,7 +1156,7 @@ function rewriteConcernText(value = '') {
   if (matchedRules.length) {
     return uniqueStrings(matchedRules.map((rule) => rule.concern), 2).join('、');
   }
-  const normalized = text.replace(/[。！？]+$/g, '').trim();
+  const normalized = normalizeClinicalNarrativeText(text).replace(/[。！？]+$/g, '').trim();
   return normalized || '';
 }
 
@@ -2635,6 +2658,7 @@ class AICompanionEngine {
 
   async updateSummaryChain(session, message, options = {}) {
     const strictAi = Boolean(options.strictAi);
+    const includePatientAnalysis = options.includePatientAnalysis !== false;
     const state = session.state;
     const baseLongitudinal = buildLongitudinalEvidence(session);
     const bridgeBase = buildSymptomBridgeFallback(baseLongitudinal);
@@ -2739,24 +2763,26 @@ class AICompanionEngine {
       });
       state.fhir_delivery_draft = mergeFhirDeliveryDraft(fhirBase, generatedFhirDraft);
 
-      const basePatientAnalysisOutput = buildPatientAnalysis(state, message);
-      const generatedPatientAnalysisText = await this.runTextTask('patientAnalysisBuilder', session, message, {
-        model: this.model,
-        fetchImpl: this.fetchImpl,
-        apiKey: this.apiKey,
-        baseUrl: this.baseUrl,
-        extraContext: {
-          clinician_summary_draft: state.clinician_summary_draft,
-          patient_review_packet: state.patient_review_packet,
-          hamd_progress_state: state.hamd_progress_state,
-          burden_level_state: state.burden_level_state,
-          longitudinal_evidence: longitudinal
-        }
-      });
-      const generatedPatientAnalysis = tryParseJson(generatedPatientAnalysisText, null);
-      state.patient_analysis = generatedPatientAnalysis && typeof generatedPatientAnalysis === 'object'
-        ? mergePatientAnalysis(basePatientAnalysisOutput, generatedPatientAnalysis)
-        : buildPatientAnalysisFromRawModelText(generatedPatientAnalysisText, basePatientAnalysisOutput);
+      if (includePatientAnalysis) {
+        const basePatientAnalysisOutput = buildPatientAnalysis(state, message);
+        const generatedPatientAnalysisText = await this.runTextTask('patientAnalysisBuilder', session, message, {
+          model: this.model,
+          fetchImpl: this.fetchImpl,
+          apiKey: this.apiKey,
+          baseUrl: this.baseUrl,
+          extraContext: {
+            clinician_summary_draft: state.clinician_summary_draft,
+            patient_review_packet: state.patient_review_packet,
+            hamd_progress_state: state.hamd_progress_state,
+            burden_level_state: state.burden_level_state,
+            longitudinal_evidence: longitudinal
+          }
+        });
+        const generatedPatientAnalysis = tryParseJson(generatedPatientAnalysisText, null);
+        state.patient_analysis = generatedPatientAnalysis && typeof generatedPatientAnalysis === 'object'
+          ? mergePatientAnalysis(basePatientAnalysisOutput, generatedPatientAnalysis)
+          : buildPatientAnalysisFromRawModelText(generatedPatientAnalysisText, basePatientAnalysisOutput);
+      }
 
       const readinessBase = buildDeliveryReadinessState(state.fhir_delivery_draft, state.patient_authorization_state);
       const generatedReadiness = await this.runJsonTask('deliveryReadinessBuilder', session, message, {
@@ -2773,7 +2799,9 @@ class AICompanionEngine {
       state.summary_draft_state = baseSummaryDraft;
       state.clinician_summary_draft = baseClinicianSummary;
       state.patient_review_packet = basePatientReview;
-      state.patient_analysis = basePatientAnalysis;
+      if (includePatientAnalysis) {
+        state.patient_analysis = basePatientAnalysis;
+      }
       state.patient_authorization_state = basePatientAuth;
       state.fhir_delivery_draft = baseFhirDelivery;
       state.delivery_readiness_state = baseDeliveryReadiness;
@@ -2792,7 +2820,8 @@ class AICompanionEngine {
       session.history.slice().reverse().find((item) => item.role === 'user' && isDraftRelevantHistoryItem(item))?.content ||
       '';
     await this.updateSummaryChain(session, triggerMessage, {
-      strictAi: Boolean(options.strictAi)
+      strictAi: Boolean(options.strictAi),
+      includePatientAnalysis: options.includePatientAnalysis !== false
     });
     session.structured_revision = session.revision;
   }
@@ -2860,7 +2889,8 @@ class AICompanionEngine {
 
     await this.ensureStructuredOutputs(session, instruction, {
       forceRefresh: forceRefresh || hasInvalidStructuredState,
-      strictAi: outputType === 'clinician_summary' || outputType === 'patient_analysis' || outputType === 'fhir_delivery'
+      strictAi: outputType === 'clinician_summary' || outputType === 'patient_analysis' || outputType === 'fhir_delivery',
+      includePatientAnalysis: outputType === 'patient_analysis'
     });
 
     let output;
