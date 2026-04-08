@@ -209,6 +209,69 @@ function createStubModelClient() {
   };
 }
 
+function createPollutedBridgeModelClient() {
+  const fallbackClient = createStubModelClient();
+  return async (payload) => {
+    const systemPrompt = String(payload?.systemPrompt || '');
+    if (systemPrompt.includes('原句證據軌 + 症狀推論軌')) {
+      return {
+        text: JSON.stringify({
+          bridge_version: 'p1_symptom_bridge_v1',
+          evidence_track: [
+            {
+              evidence_id: 'bad_cmd',
+              speaker: 'user',
+              source_text: '請幫我準備FHIR草稿。',
+              symptom_candidate: '整體睡眠品質明顯不佳',
+              category: 'patient_report',
+              confidence: 'medium'
+            },
+            {
+              evidence_id: 'good_1',
+              speaker: 'user',
+              source_text: '我最近常常睡不好，而且肚子一直咕嚕咕嚕又悶痛。',
+              symptom_candidate: '睡眠與腸胃壓力反應',
+              category: 'patient_report',
+              confidence: 'high'
+            }
+          ],
+          inference_track: [
+            {
+              symptom_label: '睡眠與生理症狀困擾',
+              summary: '對話中提及recent_dialogue，整體睡眠品質明顯不佳。。',
+              category: 'sleep',
+              hamd_signal: 'insomnia',
+              severity_hint: '',
+              functional_impact: '',
+              timeframe: 'recent_dialogue',
+              evidence_refs: ['bad_cmd'],
+              confidence: 'medium'
+            },
+            {
+              symptom_label: '睡眠與生理症狀困擾',
+              summary: '最近睡眠品質不佳並伴隨腹部不適。',
+              category: 'sleep_or_function',
+              hamd_signal: 'insomnia',
+              severity_hint: '中度困擾',
+              functional_impact: '影響日常生活',
+              timeframe: 'recent_weeks',
+              evidence_refs: ['good_1'],
+              confidence: 'high'
+            }
+          ],
+          excluded_messages: [
+            {
+              text: '請幫我準備FHIR草稿。',
+              reason: 'output_control_or_mode_switch_or_non_clinical'
+            }
+          ]
+        })
+      };
+    }
+    return fallbackClient(payload);
+  };
+}
+
 async function testCommandRouting() {
   const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
   const result = await engine.handleMessage({ message: 'auto', user: 'demo', conversation_id: 'conv-1' });
@@ -302,6 +365,29 @@ async function testSomaticSymptomsAreRetainedInDraftOutputs() {
   assert.ok(/腹部不適|腸胃症狀|發冷|自律神經/.test(combinedText));
 }
 
+async function testPollutedBridgeArtifactsAreSanitized() {
+  const engine = new AICompanionEngine({ modelClient: createPollutedBridgeModelClient(), apiKey: 'fake' });
+  await engine.handleMessage({
+    message: '我最近常常睡不好，而且肚子一直咕嚕咕嚕又悶痛。',
+    user: 'demo',
+    conversation_id: 'conv-polluted'
+  });
+  const result = await engine.handleMessage({
+    message: '請幫我準備FHIR草稿。',
+    user: 'demo',
+    conversation_id: 'conv-polluted'
+  });
+  const draft = result.session_export?.fhir_delivery_draft || {};
+  const clinician = result.session_export?.clinician_summary_draft || {};
+  const combined = JSON.stringify({ draft, clinician });
+  const bridge = JSON.stringify(result.session_export?.symptom_bridge_state || {});
+  assert.ok(!combined.includes('recent_dialogue'));
+  assert.ok(!combined.includes('請幫我準備FHIR草稿'));
+  assert.ok(!combined.includes('。。'));
+  assert.ok(/肚子|腹部|腸胃/.test(combined));
+  assert.ok(bridge.includes('excluded_messages'));
+}
+
 async function testReuseLatestSessionByUserWhenConversationIdMissing() {
   const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
   const first = await engine.handleMessage({ message: '最近很累', user: 'demo-user' });
@@ -393,6 +479,7 @@ async function run() {
   await testOutputCommandBuildsStructuredDrafts();
   await testFhirDraftCarriesEvidenceAndInferenceTracks();
   await testSomaticSymptomsAreRetainedInDraftOutputs();
+  await testPollutedBridgeArtifactsAreSanitized();
   await testReuseLatestSessionByUserWhenConversationIdMissing();
   await testForceNewSessionCreatesSeparateConversation();
   await testCorruptedInputIsRejectedBeforePersist();

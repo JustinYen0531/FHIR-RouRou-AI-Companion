@@ -749,9 +749,8 @@ function isPureControlLikeInstruction(text = '') {
     || OUTPUT_CONTROL_PATTERNS.some((pattern) => pattern.test(normalized))
     || MODE_SWITCH_PATTERNS.some((pattern) => pattern.test(normalized));
   if (!hasOutputKeyword) return false;
-  const compact = normalized.replace(/\s+/g, '');
-  const looksNarrative = /[。；，\n]/.test(normalized) || compact.length > 36 || hasClinicalNarrativeCue(normalized);
-  return !looksNarrative;
+  if (hasClinicalNarrativeCue(normalized)) return false;
+  return true;
 }
 
 function isDraftRelevantInstruction(message) {
@@ -1027,10 +1026,13 @@ function normalizeClinicalNarrativeText(value = '') {
   let text = String(value || '').trim();
   if (!text) return '';
   text = text
-    .replace(/\brecent_dialogue\b/gi, '')
+    .replace(/\b(?:recent_dialogue|recent_weeks|recent_days|recent_session|current_session|this_session|recent_context)\b/gi, '')
     .replace(/(?:對話中提及\s*){2,}/g, '對話中提及')
+    .replace(/^對話中提及\s*[，,;；:：\-]*/g, '')
     .replace(/([。．！？!?])\1+/g, '$1')
+    .replace(/[。．！？!?]\s*[。．！？!?]+/g, '$1')
     .replace(/，{2,}/g, '，')
+    .replace(/，\s*([。．！？!?])/g, '$1')
     .replace(/\s+/g, ' ')
     .replace(/^對話中提及\s*對話中提及/, '對話中提及')
     .replace(/^\s*[，。；;:\-]+\s*/g, '')
@@ -1044,33 +1046,96 @@ function normalizeClinicalNarrativeText(value = '') {
   return text;
 }
 
+function buildNarrativeFingerprint(value = '') {
+  const normalized = normalizeClinicalNarrativeText(value);
+  return String(normalized || '')
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/[，。；;:：！？!?'"`~\-]/g, '')
+    .trim();
+}
+
+function normalizeInferenceTimeframe(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/\b(?:recent_dialogue|recent_weeks|recent_days|recent_session|current_session|this_session|recent_context|recent|latest|current)\b/i.test(raw)) {
+    return '近期';
+  }
+  if (/(today|今日|今天)/i.test(raw)) return '今天';
+  if (/(this\s*week|本週|這週)/i.test(raw)) return '本週';
+  if (/(this\s*month|本月|這個月)/i.test(raw)) return '本月';
+  const normalized = normalizeClinicalNarrativeText(raw);
+  if (!normalized) return '';
+  if (/^[a-z0-9_\- ]+$/i.test(normalized)) return '';
+  return normalized;
+}
+
 function sanitizeSymptomEvidenceTrack(track = []) {
-  return normalizeArray(track).map((item, index) => {
+  const sanitized = normalizeArray(track).map((item, index) => {
     const evidenceId = String(item?.evidence_id || `evidence_${index + 1}`).trim();
     const sourceText = normalizeClinicalNarrativeText(item?.source_text || item?.quote || '');
+    const symptomCandidate = normalizeClinicalNarrativeText(item?.symptom_candidate || item?.symptom_label || '');
     return {
       evidence_id: evidenceId,
       speaker: String(item?.speaker || 'user').trim() || 'user',
       source_text: sourceText,
-      symptom_candidate: String(item?.symptom_candidate || item?.symptom_label || '').trim(),
+      symptom_candidate: symptomCandidate,
       category: String(item?.category || 'patient_report').trim() || 'patient_report',
       confidence: String(item?.confidence || 'medium').trim() || 'medium'
     };
   }).filter((item) => item.source_text);
+  const deduped = [];
+  sanitized.forEach((item) => {
+    const sourceFingerprint = buildNarrativeFingerprint(item.source_text);
+    if (!sourceFingerprint) return;
+    const dedupeKey = `${item.speaker}::${sourceFingerprint}`;
+    if (deduped.some((entry) => {
+      const entryKey = `${entry.speaker}::${buildNarrativeFingerprint(entry.source_text)}`;
+      return entryKey === dedupeKey;
+    })) {
+      return;
+    }
+    deduped.push(item);
+  });
+  return deduped;
 }
 
 function sanitizeSymptomInferenceTrack(track = []) {
-  return normalizeArray(track).map((item) => ({
+  const sanitized = normalizeArray(track).map((item) => ({
     symptom_label: normalizeClinicalNarrativeText(item?.symptom_label || item?.label || ''),
     summary: normalizeClinicalNarrativeText(item?.summary || item?.focus || ''),
     category: String(item?.category || 'patient_report').trim() || 'patient_report',
     hamd_signal: String(item?.hamd_signal || item?.signal || '').trim(),
-    severity_hint: String(item?.severity_hint || '').trim(),
-    functional_impact: String(item?.functional_impact || '').trim(),
-    timeframe: String(item?.timeframe || '').trim(),
+    severity_hint: normalizeClinicalNarrativeText(item?.severity_hint || ''),
+    functional_impact: normalizeClinicalNarrativeText(item?.functional_impact || ''),
+    timeframe: normalizeInferenceTimeframe(item?.timeframe || ''),
     evidence_refs: uniqueStrings(item?.evidence_refs, 6),
     confidence: String(item?.confidence || 'medium').trim() || 'medium'
   })).filter((item) => item.summary || item.symptom_label);
+  const deduped = [];
+  sanitized.forEach((item) => {
+    const dedupeKey = [
+      String(item.hamd_signal || '').trim(),
+      buildNarrativeFingerprint(item.symptom_label),
+      buildNarrativeFingerprint(item.summary),
+      buildNarrativeFingerprint(item.functional_impact),
+      normalizeInferenceTimeframe(item.timeframe)
+    ].join('::');
+    if (deduped.some((entry) => {
+      const entryKey = [
+        String(entry.hamd_signal || '').trim(),
+        buildNarrativeFingerprint(entry.symptom_label),
+        buildNarrativeFingerprint(entry.summary),
+        buildNarrativeFingerprint(entry.functional_impact),
+        normalizeInferenceTimeframe(entry.timeframe)
+      ].join('::');
+      return entryKey === dedupeKey;
+    })) {
+      return;
+    }
+    deduped.push(item);
+  });
+  return deduped;
 }
 
 function sanitizeExcludedMessages(track = []) {
@@ -1162,8 +1227,9 @@ function rewriteConcernText(value = '') {
 
 function buildStructuredObservationSet(observations = [], inferenceTrack = [], evidenceTrack = [], limit = 8) {
   const fromInference = sanitizeSymptomInferenceTrack(inferenceTrack).map((item) => {
+    const normalizedTimeframe = normalizeInferenceTimeframe(item.timeframe);
     const pieces = [
-      item.timeframe ? `${item.timeframe}` : '',
+      normalizedTimeframe ? `${normalizedTimeframe}` : '',
       item.summary || item.symptom_label || '',
       item.functional_impact || ''
     ].filter(Boolean);
@@ -1197,7 +1263,7 @@ function buildSymptomBridgeFallback(longitudinal) {
     hamd_signal: longitudinal.hamdSignals[index] || '',
     severity_hint: '',
     functional_impact: '',
-    timeframe: 'recent_dialogue',
+    timeframe: '近期',
     evidence_refs: evidenceTrack[index] ? [evidenceTrack[index].evidence_id] : [],
     confidence: 'medium'
   }));
@@ -1217,8 +1283,12 @@ function mergeSymptomBridgeState(baseState, generatedState) {
   ]);
   const uniqueEvidenceTrack = [];
   evidenceTrack.forEach((item) => {
-    const dedupeKey = `${item.evidence_id}::${item.source_text}`;
-    if (uniqueEvidenceTrack.some((entry) => `${entry.evidence_id}::${entry.source_text}` === dedupeKey)) return;
+    const dedupeKey = `${item.speaker}::${buildNarrativeFingerprint(item.source_text)}::${buildNarrativeFingerprint(item.symptom_candidate)}`;
+    if (!dedupeKey.trim()) return;
+    if (uniqueEvidenceTrack.some((entry) => {
+      const entryKey = `${entry.speaker}::${buildNarrativeFingerprint(entry.source_text)}::${buildNarrativeFingerprint(entry.symptom_candidate)}`;
+      return entryKey === dedupeKey;
+    })) return;
     uniqueEvidenceTrack.push(item);
   });
 
@@ -1228,8 +1298,12 @@ function mergeSymptomBridgeState(baseState, generatedState) {
   ]);
   const uniqueInferenceTrack = [];
   inferenceTrack.forEach((item) => {
-    const dedupeKey = `${item.symptom_label}::${item.summary}::${item.hamd_signal}`;
-    if (uniqueInferenceTrack.some((entry) => `${entry.symptom_label}::${entry.summary}::${entry.hamd_signal}` === dedupeKey)) return;
+    const dedupeKey = `${String(item.hamd_signal || '').trim()}::${buildNarrativeFingerprint(item.symptom_label)}::${buildNarrativeFingerprint(item.summary)}::${buildNarrativeFingerprint(item.functional_impact)}::${normalizeInferenceTimeframe(item.timeframe)}`;
+    if (!dedupeKey.trim()) return;
+    if (uniqueInferenceTrack.some((entry) => {
+      const entryKey = `${String(entry.hamd_signal || '').trim()}::${buildNarrativeFingerprint(entry.symptom_label)}::${buildNarrativeFingerprint(entry.summary)}::${buildNarrativeFingerprint(entry.functional_impact)}::${normalizeInferenceTimeframe(entry.timeframe)}`;
+      return entryKey === dedupeKey;
+    })) return;
     uniqueInferenceTrack.push(item);
   });
   const excludedMessages = sanitizeExcludedMessages([
@@ -1246,12 +1320,12 @@ function mergeSymptomBridgeState(baseState, generatedState) {
 
 function applySymptomBridgeToLongitudinal(baseLongitudinal, symptomBridgeState = {}) {
   const evidenceTrack = sanitizeSymptomEvidenceTrack(symptomBridgeState.evidence_track);
-  const inferenceTrack = sanitizeSymptomInferenceTrack(symptomBridgeState.inference_track);
+  const rawInferenceTrack = sanitizeSymptomInferenceTrack(symptomBridgeState.inference_track);
   const excludedMessages = sanitizeExcludedMessages([
     ...normalizeArray(baseLongitudinal.excludedMessages),
     ...normalizeArray(symptomBridgeState.excluded_messages)
   ]);
-  if (!inferenceTrack.length) {
+  if (!rawInferenceTrack.length) {
     return Object.assign({}, baseLongitudinal, {
       symptomEvidenceTrack: evidenceTrack,
       symptomInferenceTrack: [],
@@ -1263,6 +1337,24 @@ function applySymptomBridgeToLongitudinal(baseLongitudinal, symptomBridgeState =
     acc[item.evidence_id] = item;
     return acc;
   }, {});
+  const inferenceTrack = rawInferenceTrack
+    .map((item) => Object.assign({}, item, {
+      evidence_refs: uniqueStrings(
+        normalizeArray(item.evidence_refs).filter((ref) => Boolean(evidenceById[String(ref).trim()])),
+        6
+      )
+    }))
+    .filter((item) => {
+      if (!evidenceTrack.length) return true;
+      return item.evidence_refs.length > 0;
+    });
+  if (!inferenceTrack.length) {
+    return Object.assign({}, baseLongitudinal, {
+      symptomEvidenceTrack: evidenceTrack,
+      symptomInferenceTrack: [],
+      excludedMessages
+    });
+  }
   const aiSymptomObservations = uniqueStrings(inferenceTrack.map((item) => item.summary || item.symptom_label), 8);
   const aiChiefConcerns = uniqueStrings(inferenceTrack.map((item) => item.symptom_label || item.summary), 6);
   const aiHamdSignals = uniqueStrings(inferenceTrack.map((item) => item.hamd_signal).filter(Boolean), 6);
@@ -1527,7 +1619,7 @@ function normalizeFhirCompositionSections(sections = []) {
   return normalizeArray(sections)
     .map((section) => ({
       section: String(section?.section || '').trim(),
-      focus: String(section?.focus || '').trim()
+      focus: normalizeClinicalNarrativeText(section?.focus || '')
     }))
     .filter((section) => section.section && section.focus && !isPlaceholderSection(section.focus));
 }
@@ -1540,7 +1632,7 @@ function normalizeObservationCandidates(candidates = [], evidenceTrack = []) {
       signal: String(candidate?.signal || '').trim(),
       status: String(candidate?.status || 'preliminary').trim() || 'preliminary',
       evidence_refs: uniqueStrings(candidate?.evidence_refs, 6),
-      inference_basis: String(candidate?.inference_basis || '').trim()
+      inference_basis: normalizeClinicalNarrativeText(candidate?.inference_basis || '')
     }))
     .filter((candidate) => candidate.focus)
     .slice(0, 8);
@@ -1673,10 +1765,12 @@ function mergeFhirDeliveryDraft(baseDraft, generatedDraft) {
       ? generated.questionnaire_targets
       : baseDraft.questionnaire_targets
   );
-  const narrativeSummary = chooseStructuredText(generated.narrative_summary, baseDraft.narrative_summary);
+  const narrativeSummaryRaw = chooseStructuredText(generated.narrative_summary, baseDraft.narrative_summary);
+  const narrativeSummary = normalizeClinicalNarrativeText(narrativeSummaryRaw) || narrativeSummaryRaw;
   const clinicalAlerts = mergeUniqueTexts(baseDraft.clinical_alerts, generated.clinical_alerts, 6);
   const exportBlockers = mergeUniqueTexts(baseDraft.export_blockers, generated.export_blockers, 6);
-  const notes = chooseStructuredText(generated.notes, baseDraft.notes);
+  const notesRaw = chooseStructuredText(generated.notes, baseDraft.notes);
+  const notes = normalizeClinicalNarrativeText(notesRaw) || notesRaw;
 
   return Object.assign({}, baseDraft, generated, {
     narrative_summary: narrativeSummary,
@@ -1842,9 +1936,10 @@ function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAsses
         reason: (evidenceBySignal[signal] || []).join('；') || `需補足 ${signal} 的正式量表資訊`
       })).filter((item) => item.reason);
 
-  const narrativeSummary = hasMeaningfulLongitudinalEvidence(longitudinal)
+  const narrativeSummaryRaw = hasMeaningfulLongitudinalEvidence(longitudinal)
     ? (longitudinal.draftSummary || clinicianDraft?.draft_summary || summarizeConcernBundle(chiefConcerns))
     : '';
+  const narrativeSummary = normalizeClinicalNarrativeText(narrativeSummaryRaw) || narrativeSummaryRaw;
 
   const compositionSections = [];
   if (chiefConcerns.length) {
@@ -1907,7 +2002,7 @@ function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAsses
     hamd_formal_targets: formalTargets,
     patient_review_required: 'yes',
     export_blockers: exportBlockers,
-    notes: longitudinal.draftSummary || ''
+    notes: normalizeClinicalNarrativeText(longitudinal.draftSummary || '')
   };
 }
 
