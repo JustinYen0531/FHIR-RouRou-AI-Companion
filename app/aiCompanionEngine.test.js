@@ -248,6 +248,9 @@ async function testNaturalFlowBuildsSessionExport() {
   assert.strictEqual(result.session_export.burden_level_state.burden_level, 'medium');
   assert.strictEqual(result.session_export.hamd_formal_assessment.scale_version, 'HAM-D17');
   assert.ok(result.session_export.hamd_formal_assessment.items.some((item) => typeof item.ai_suggested_score === 'number'));
+  assert.ok(Array.isArray(result.session_export.hamd_progress_state.covered_dimensions));
+  assert.ok(Array.isArray(result.session_export.hamd_progress_state.missing_dimensions));
+  assert.ok(typeof result.session_export.hamd_progress_state.status_summary === 'string');
   assert.deepStrictEqual(result.session_export.clinician_summary_draft, {});
   assert.deepStrictEqual(result.session_export.delivery_readiness_state, {});
 }

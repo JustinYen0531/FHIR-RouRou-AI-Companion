@@ -708,56 +708,6 @@ function syncRealTimeLabels() {
   });
 }
 
-function getHamdSummary(summary) {
-  const signalCount = Array.isArray(summary?.hamd_signals) ? summary.hamd_signals.length : 0;
-  const concerns = Array.isArray(summary?.chief_concerns) ? summary.chief_concerns : [];
-  const observations = Array.isArray(summary?.symptom_observations) ? summary.symptom_observations : [];
-  const pendingTopics = [...new Set([...concerns, ...observations])].slice(0, 3);
-
-  if (signalCount >= 4) {
-    return {
-      progressPercent: 75,
-      progressLabel: '已整理較多情緒線索',
-      trend: '仍需人工評估後才能下定論',
-      primaryStatLabel: '目前完成',
-      primaryStatValue: '75%',
-      secondaryStatLabel: '仍需評估',
-      secondaryStatValue: pendingTopics.join('、') || '安全風險與症狀變化'
-    };
-  }
-  if (signalCount >= 2) {
-    return {
-      progressPercent: 55,
-      progressLabel: '已完成初步整理',
-      trend: '還需要更多對話確認脈絡',
-      primaryStatLabel: '目前完成',
-      primaryStatValue: '55%',
-      secondaryStatLabel: '仍需評估',
-      secondaryStatValue: pendingTopics.join('、') || '情緒波動與生活功能'
-    };
-  }
-  if (signalCount >= 1) {
-    return {
-      progressPercent: 35,
-      progressLabel: '已記錄本次重點',
-      trend: '目前僅能視為初步訊號整理',
-      primaryStatLabel: '目前完成',
-      primaryStatValue: '35%',
-      secondaryStatLabel: '仍需評估',
-      secondaryStatValue: pendingTopics.join('、') || '情緒低落、壓力來源、睡眠與動機'
-    };
-  }
-  return {
-    progressPercent: 20,
-    progressLabel: '尚未形成足夠評估依據',
-    trend: '目前以一般聊天記錄為主',
-    primaryStatLabel: '目前完成',
-    primaryStatValue: '20%',
-    secondaryStatLabel: '仍需評估',
-    secondaryStatValue: '需要更多描述才能整理成醫療摘要'
-  };
-}
-
 const HAMD_SIGNAL_LABELS = {
   depressed_mood: '憂鬱情緒',
   guilt: '罪惡感 / 自責',
@@ -771,6 +721,99 @@ const HAMD_SIGNAL_LABELS = {
   appetite_loss: '食慾下降',
   fatigue: '疲倦 / 無力'
 };
+
+const HAMD_PROGRESS_DIMENSIONS = [
+  'depressed_mood',
+  'guilt',
+  'work_interest',
+  'retardation',
+  'agitation',
+  'somatic_anxiety',
+  'insomnia'
+];
+
+function getHamdSummary(summary = {}, progress = {}, formalAssessment = {}) {
+  const concerns = getMeaningfulItems(summary?.chief_concerns);
+  const observations = getMeaningfulItems(summary?.symptom_observations);
+  const evidence = getMeaningfulItems(progress?.recent_evidence);
+  const signalCandidates = [
+    ...getMeaningfulItems(summary?.hamd_signals),
+    ...getMeaningfulItems(progress?.covered_dimensions),
+    ...getMeaningfulItems(progress?.supported_dimensions)
+  ];
+  const coveredDimensions = [...new Set(signalCandidates.filter((item) => HAMD_PROGRESS_DIMENSIONS.includes(item)))];
+  const missingDimensionCount = Math.max(0, HAMD_PROGRESS_DIMENSIONS.length - coveredDimensions.length);
+
+  const formalItems = Array.isArray(formalAssessment?.items) ? formalAssessment.items : [];
+  const ratedItems = formalItems.filter((item) => Number.isFinite(Number(item?.clinician_final_score)) || Number.isFinite(Number(item?.ai_suggested_score)));
+  const clinicianRatedItems = formalItems.filter((item) => Number.isFinite(Number(item?.clinician_final_score)));
+  const evidenceBackedItems = formalItems.filter((item) => {
+    const evidenceType = String(item?.evidence_type || '').trim();
+    return evidenceType && evidenceType !== 'none';
+  });
+
+  const evidencePoolCount = [...new Set([...concerns, ...observations, ...evidence])].length;
+  const dimensionScore = (coveredDimensions.length / HAMD_PROGRESS_DIMENSIONS.length) * 50;
+  const evidenceScore = (Math.min(evidencePoolCount, 10) / 10) * 25;
+  const formalScore = formalItems.length ? (ratedItems.length / formalItems.length) * 25 : 0;
+  const momentumBonus = coveredDimensions.length >= 2 && evidencePoolCount >= 2 ? 5 : 0;
+
+  let progressPercent = Math.round(dimensionScore + evidenceScore + formalScore + momentumBonus);
+  if (!coveredDimensions.length && !evidencePoolCount && !ratedItems.length) {
+    progressPercent = 12;
+  } else {
+    progressPercent = Math.max(12, Math.min(96, progressPercent));
+  }
+
+  if (formalItems.length && clinicianRatedItems.length === formalItems.length) {
+    progressPercent = 100;
+  } else if (formalItems.length && clinicianRatedItems.length > 0) {
+    const clinicianReviewFloor = 72 + Math.round((clinicianRatedItems.length / formalItems.length) * 24);
+    progressPercent = Math.max(progressPercent, Math.min(99, clinicianReviewFloor));
+  }
+
+  let progressLabel = '剛開始蒐集 HAM-D 線索';
+  if (progressPercent >= 85) {
+    progressLabel = '接近完整，可供人工覆核';
+  } else if (progressPercent >= 65) {
+    progressLabel = '已形成較完整評估草稿';
+  } else if (progressPercent >= 45) {
+    progressLabel = '已覆蓋多個重點面向';
+  } else if (progressPercent >= 25) {
+    progressLabel = '已有初步症狀對應';
+  }
+
+  let trend = '目前仍以自然對話蒐集線索，還需要更多可映射描述。';
+  if (formalItems.length && clinicianRatedItems.length) {
+    trend = `正式題項已由人工確認 ${clinicianRatedItems.length}/${formalItems.length} 題，剩餘題項可再逐步補齊。`;
+  } else if (formalItems.length && ratedItems.length) {
+    trend = `正式題項草稿已建立 ${ratedItems.length}/${formalItems.length} 題，仍需人工覆核與補問。`;
+  } else if (coveredDimensions.length) {
+    trend = `目前已覆蓋 ${coveredDimensions.length}/${HAMD_PROGRESS_DIMENSIONS.length} 個核心維度，尚缺 ${missingDimensionCount} 個維度。`;
+  }
+
+  const secondaryStatLabel = formalItems.length ? '正式題項草稿' : 'HAM-D 維度';
+  const secondaryStatValue = formalItems.length
+    ? `${ratedItems.length}/${formalItems.length}`
+    : `${coveredDimensions.length}/${HAMD_PROGRESS_DIMENSIONS.length}`;
+
+  const supportingStatLabel = evidenceBackedItems.length ? '已有證據題項' : '可用證據';
+  const supportingStatValue = evidenceBackedItems.length
+    ? `${evidenceBackedItems.length} 題`
+    : `${evidencePoolCount} 則`;
+
+  return {
+    progressPercent,
+    progressLabel,
+    trend,
+    primaryStatLabel: '目前完整度',
+    primaryStatValue: `${progressPercent}%`,
+    secondaryStatLabel,
+    secondaryStatValue,
+    supportingStatLabel,
+    supportingStatValue
+  };
+}
 
 function isMeaningfulDraftText(value = '') {
   const text = String(value || '').trim();
@@ -1268,8 +1311,9 @@ function renderReportOutputs() {
   const fhirDeliveryResult = APP_STATE.reportOutputs.fhir_delivery_result || APP_STATE.pendingConsent.deliveryResult || null;
   const sessionExport = APP_STATE.pendingConsent.sessionExport || APP_STATE.reportOutputs.session_export || {};
   const hamdProgress = sessionExport?.hamd_progress_state || {};
+  const hamdFormalAssessment = sessionExport?.hamd_formal_assessment || {};
   const updatedAt = APP_STATE.reportOutputs.updatedAt;
-  const hamd = getHamdSummary(clinician);
+  const hamd = getHamdSummary(clinician, hamdProgress, hamdFormalAssessment);
   const doctorSummaryState = renderDoctorSummary(clinician);
 
   const intro = document.getElementById('report-auto-intro');

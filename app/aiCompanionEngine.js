@@ -79,6 +79,8 @@ const HAMD_DIMENSION_TO_ITEM_CODES = {
   insomnia: ['insomnia_early', 'insomnia_middle', 'insomnia_late']
 };
 
+const HAMD_PROGRESS_DIMENSIONS = Object.keys(HAMD_DIMENSION_TO_ITEM_CODES);
+
 const COMMAND_MAP = {
   auto: {
     routing_mode_override: 'auto',
@@ -1136,16 +1138,36 @@ function buildLongitudinalEvidence(session, symptomBridgeState = {}) {
 
 function enrichHamdProgressState(progress, longitudinal) {
   const next = progress && typeof progress === 'object' ? Object.assign({}, progress) : {};
-  next.covered_dimensions = longitudinal.hamdSignals.slice(0, 6);
-  next.supported_dimensions = longitudinal.hamdSignals.slice(0, 6);
+  const coveredDimensions = longitudinal.hamdSignals
+    .filter((item, index, arr) => item && arr.indexOf(item) === index && HAMD_PROGRESS_DIMENSIONS.includes(item))
+    .slice(0, HAMD_PROGRESS_DIMENSIONS.length);
+  next.covered_dimensions = coveredDimensions;
+  next.supported_dimensions = coveredDimensions;
+  next.missing_dimensions = HAMD_PROGRESS_DIMENSIONS.filter((item) => !coveredDimensions.includes(item));
   next.recent_evidence = longitudinal.symptomObservations.slice(0, 8);
-  next.current_focus = longitudinal.hamdSignals[0] || next.current_focus || 'depressed_mood';
-  if (longitudinal.hamdSignals.includes('somatic_anxiety') && !longitudinal.hamdSignals.includes('guilt')) {
+  next.current_focus = coveredDimensions[0] || next.current_focus || 'depressed_mood';
+  if (coveredDimensions.length >= 5) {
+    next.progress_stage = 'advanced';
+  } else if (coveredDimensions.length >= 3) {
+    next.progress_stage = 'focused';
+  } else if (coveredDimensions.length >= 1) {
+    next.progress_stage = 'initial';
+  } else {
+    next.progress_stage = next.progress_stage || 'initial';
+  }
+  if (coveredDimensions.includes('somatic_anxiety') && !coveredDimensions.includes('guilt')) {
     next.next_recommended_dimension = 'guilt';
-  } else if (longitudinal.hamdSignals.includes('insomnia') && !longitudinal.hamdSignals.includes('work_interest')) {
+  } else if (coveredDimensions.includes('insomnia') && !coveredDimensions.includes('work_interest')) {
     next.next_recommended_dimension = 'work_interest';
   } else {
-    next.next_recommended_dimension = longitudinal.hamdSignals[1] || longitudinal.hamdSignals[0] || next.next_recommended_dimension || 'depressed_mood';
+    next.next_recommended_dimension = coveredDimensions[1] || coveredDimensions[0] || next.next_recommended_dimension || 'depressed_mood';
+  }
+  if (!String(next.status_summary || '').trim()) {
+    if (!coveredDimensions.length) {
+      next.status_summary = '尚未收斂出足夠的 HAM-D 維度線索。';
+    } else {
+      next.status_summary = `目前已收斂 ${coveredDimensions.length}/${HAMD_PROGRESS_DIMENSIONS.length} 個 HAM-D 維度。`;
+    }
   }
   return next;
 }
