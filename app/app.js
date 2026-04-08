@@ -12,6 +12,7 @@ const DEFAULT_PROVIDER = 'google';
 const RUNTIME_CONFIG_SOURCE_KEY = 'rourou.aiConfigSource';
 const LEGACY_LOCAL_SESSION_ARCHIVE_KEY = 'rourou.localSessionArchive';
 const LOCAL_SESSION_ARCHIVE_KEY = 'rourou.singleSessionArchive.v2';
+const REPORT_OUTPUT_CACHE_KEY = 'rourou.reportOutputsCache.v1';
 const PINNED_SESSION_STORAGE_KEY = 'rourou.pinnedSession.v1';
 const PINNED_SESSION_EXAMPLE_PROMPTS = [
   '我現在很亂，先用樹洞模式接住我，不要急著給建議。',
@@ -451,15 +452,7 @@ const APP_STATE = {
   pendingFreshSession: false,
   lastChatMetadata: null,
   customShortcuts: loadCustomShortcuts(),
-  reportOutputs: {
-    clinician_summary: null,
-    patient_analysis: null,
-    patient_review: null,
-    fhir_delivery: null,
-    fhir_delivery_result: null,
-    session_export: null,
-    updatedAt: ''
-  },
+  reportOutputs: createEmptyReportOutputs(),
   fhirReportHistory: loadFhirReportHistory(),
   recentSessions: [],
   pinnedSession: loadPinnedSession(),
@@ -776,6 +769,64 @@ const OUTPUT_COUNTDOWN_CONFIG = {
     failedPrefix: '醫師摘要整理失敗'
   }
 };
+
+function createEmptyReportOutputs() {
+  return {
+    clinician_summary: null,
+    patient_analysis: null,
+    patient_review: null,
+    fhir_delivery: null,
+    fhir_delivery_result: null,
+    session_export: null,
+    updatedAt: ''
+  };
+}
+
+function normalizeCachedReportOutputs(source = {}) {
+  const base = createEmptyReportOutputs();
+  const payload = source && typeof source === 'object' ? source : {};
+  const reportOutputs = payload.reportOutputs && typeof payload.reportOutputs === 'object'
+    ? payload.reportOutputs
+    : payload;
+  return {
+    ...base,
+    ...reportOutputs,
+    updatedAt: String(reportOutputs.updatedAt || '').trim()
+  };
+}
+
+function saveReportOutputsToCache() {
+  try {
+    localStorage.setItem(REPORT_OUTPUT_CACHE_KEY, JSON.stringify({
+      reportOutputs: APP_STATE.reportOutputs || createEmptyReportOutputs(),
+      conversationId: APP_STATE.conversationId || '',
+      savedAt: new Date().toISOString()
+    }));
+  } catch (error) {
+    console.warn('Unable to cache report outputs:', error);
+  }
+}
+
+function restoreReportOutputsFromCache() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(REPORT_OUTPUT_CACHE_KEY) || 'null');
+    if (!parsed || typeof parsed !== 'object') return;
+    APP_STATE.reportOutputs = normalizeCachedReportOutputs(parsed);
+    if (APP_STATE.reportOutputs.session_export && typeof APP_STATE.reportOutputs.session_export === 'object') {
+      syncReportOutputsFromSessionExport(APP_STATE.reportOutputs.session_export);
+      syncTherapeuticMemoryFromSessionExport(APP_STATE.reportOutputs.session_export);
+    }
+    if (isValidFhirDraftOutput(APP_STATE.reportOutputs.fhir_delivery)) {
+      APP_STATE.reportFhirDraft = {
+        isLoading: false,
+        error: '',
+        emptyReason: ''
+      };
+    }
+  } catch (error) {
+    console.warn('Unable to restore report outputs cache:', error);
+  }
+}
 
 const OUTPUT_COMMANDS = [
   { type: 'clinician_summary', patterns: [/幫我整理給醫生/, /整理給醫師/, /整理成.*給醫(師|生).*(重點|摘要|版本)?/i, /醫師摘要/, /clinician summary/i, /doctor summary/i] },
@@ -1742,6 +1793,7 @@ function storeOutputResult(payload) {
   APP_STATE.reportOutputs.updatedAt = formatTimeLabel(new Date());
   renderReportOutputs();
   updateModeLabels();
+  saveReportOutputsToCache();
   saveCurrentSessionToLocalArchive();
 }
 
@@ -3493,6 +3545,7 @@ function applySessionRecord(session = {}, fallbackSessionId = '') {
   renderChatHistory(APP_STATE.chatHistory);
   updateModeLabels();
   renderReportOutputs();
+  saveReportOutputsToCache();
   saveCurrentSessionToLocalArchive();
   showScreen('screen-chat');
 }
@@ -3504,15 +3557,7 @@ function resetConversationState() {
   APP_STATE.runtimeMode = '';
   APP_STATE.lastChatMetadata = null;
   APP_STATE.chatHistory = [];
-  APP_STATE.reportOutputs = {
-    clinician_summary: null,
-    patient_analysis: null,
-    patient_review: null,
-    fhir_delivery: null,
-    fhir_delivery_result: null,
-    session_export: null,
-    updatedAt: ''
-  };
+  APP_STATE.reportOutputs = createEmptyReportOutputs();
   APP_STATE.pendingConsent = {
     sessionExport: null,
     fhirDraft: null,
@@ -3524,6 +3569,7 @@ function resetConversationState() {
     error: '',
     emptyReason: ''
   };
+  saveReportOutputsToCache();
 }
 
 function buildConversationRequestState() {
@@ -4754,6 +4800,7 @@ async function sendMessage() {
     APP_STATE.turnCount++;
     updateModeLabels();
     renderReportOutputs();
+    saveReportOutputsToCache();
     setTyping(false);
     await appendMessage('ai', payload.answer || '我有收到你的訊息，但這次沒有拿到完整回覆。', { animate: true });
     saveCurrentSessionToLocalArchive();
@@ -5116,6 +5163,7 @@ async function authorizeAndSendReport() {
     APP_STATE.pendingConsent.deliveryResult = payload;
     APP_STATE.reportOutputs.fhir_delivery_result = payload;
     APP_STATE.reportOutputs.updatedAt = formatTimeLabel(new Date());
+    saveReportOutputsToCache();
     recordFhirDeliveryHistory(
       payload,
       APP_STATE.reportOutputs.fhir_delivery || APP_STATE.pendingConsent.fhirDraft || null,
@@ -5174,6 +5222,7 @@ async function authorizeAndSendReport() {
         switchReportTab('auto');
         switchAutoAudience('doctor');
         closeConsentPreview();
+        saveReportOutputsToCache();
       } catch (uiError) {
         console.error('Report UI refresh failed after successful delivery.', uiError);
         appendSystemNotice(`FHIR 已送出，但報表畫面更新失敗：${uiError.message || '未知錯誤'}`);
@@ -5216,6 +5265,7 @@ function deleteFhirDraft() {
   };
 
   renderReportOutputs();
+  saveReportOutputsToCache();
   appendSystemNotice('已刪除目前這份 FHIR 草稿。');
 }
 
@@ -5510,6 +5560,7 @@ function injectRuntimeSettings() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   initializeRuntimeConfig();
+  restoreReportOutputsFromCache();
   showScreen('screen-home');
   wireHomeGuide();
   wireHomeSessionControls();
