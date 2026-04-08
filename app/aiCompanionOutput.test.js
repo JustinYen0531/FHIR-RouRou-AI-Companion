@@ -219,6 +219,54 @@ function createRawPatientAnalysisStubModelClient() {
   return client;
 }
 
+function createPatientAnalysisContainsSupportPhraseModelClient() {
+  const client = async ({ systemPrompt }) => {
+    if (systemPrompt.includes('根據本輪使用者輸入，輸出簡短 JSON 字串')) {
+      return {
+        text: JSON.stringify({
+          route_type: 'normal',
+          source_mode: 'mode_5_natural',
+          followup_status: 'resolved',
+          sentiment_tags: ['anxious'],
+          behavioral_tags: [],
+          cognitive_tags: [],
+          warning_tags: [],
+          summary: '最近很焦慮'
+        })
+      };
+    }
+    if (systemPrompt.includes('判斷病人的互動負擔')) {
+      return { text: JSON.stringify({ burden_level: 'medium', response_style: 'natural', followup_budget: '1', burden_note: 'stub' }) };
+    }
+    if (systemPrompt.includes('更新 HAM-D 線索狀態')) {
+      return { text: JSON.stringify({ progress_stage: 'initial', current_focus: 'somatic_anxiety', supported_dimensions: ['somatic_anxiety'], covered_dimensions: ['somatic_anxiety'], missing_dimensions: ['insomnia'], next_recommended_dimension: 'insomnia', recent_evidence: ['胸口悶'], needs_clarification: 'no', status_summary: 'stub' }) };
+    }
+    if (systemPrompt.includes('你是意圖分類器')) return { text: 'mode_5_natural' };
+    if (systemPrompt.includes('低能量與認知負擔偵測器')) return { text: 'continue_auto' };
+    if (systemPrompt.includes('像真人的朋友')) return { text: '我在。' };
+    if (systemPrompt.includes('統一的摘要草稿 JSON')) return { text: JSON.stringify({ draft_summary: '最近很焦慮。', active_mode: 'mode_5_natural' }) };
+    if (systemPrompt.includes('可交付給醫師或臨床團隊閱讀')) return { text: JSON.stringify({ summary_version: 'v1', draft_summary: '最近很焦慮。' }) };
+    if (systemPrompt.includes('給病人自己審閱')) return { text: JSON.stringify({ packet_version: 'v1', patient_facing_summary: '最近很焦慮。' }) };
+    if (systemPrompt.includes('病人審閱 / 授權狀態')) return { text: JSON.stringify({ state_version: 'v1', authorization_status: 'ready_for_consent' }) };
+    if (systemPrompt.includes('FHIR / TW Core 映射草稿')) return { text: JSON.stringify({ draft_version: 'v1', delivery_status: 'ready_for_mapping' }) };
+    if (systemPrompt.includes('交付 readiness 狀態')) return { text: JSON.stringify({ state_version: 'v1', readiness_status: 'ready_for_backend_mapping' }) };
+    if (systemPrompt.includes('給病人自己看的分析')) {
+      return {
+        text: JSON.stringify({
+          version: 'p4_patient_analysis_v3',
+          status: 'ready',
+          plain_summary: '你最近的壓力和焦慮已經開始互相放大，身體也在提醒你。',
+          key_points: ['焦慮感升高', '身體緊繃', '需要支持但不想被說教'],
+          reminder: '這份內容是依據目前對話整理的陪伴式理解，不是醫療診斷。',
+          markdown: '## 給你的分析\n\n你最近的壓力和焦慮已經開始互相放大，身體也在提醒你。\n\n### 我怎麼理解你現在的狀態\n- 你不是在矯情，而是真的快被壓力推到極限。\n\n### 我目前注意到你卡住的地方\n- 一想到事情就會胸口悶，然後更不敢開始。\n\n### 你現在比較需要的支持方式\n- 你需要支持，但不想被命令或被空話安慰。\n\n### 接下來可以怎麼做\n- 先挑一件最容易卡住的事，拆成五分鐘內能做的第一步。\n\n### 提醒\n這份內容是依據目前對話整理的陪伴式理解，不是醫療診斷。'
+        })
+      };
+    }
+    return { text: 'stub' };
+  };
+  return client;
+}
+
 async function testOutputCaching() {
   const modelClient = createStubModelClient();
   const engine = new AICompanionEngine({ modelClient, apiKey: 'fake' });
@@ -334,12 +382,33 @@ async function testPatientAnalysisFallsBackToRawModelTextWhenJsonInvalid() {
   assert.ok(!analysis.output.markdown.includes('depressed_mood'));
 }
 
+async function testPatientAnalysisKeepsGeneratedMarkdownWithSupportPhrase() {
+  const modelClient = createPatientAnalysisContainsSupportPhraseModelClient();
+  const engine = new AICompanionEngine({ modelClient, apiKey: 'fake' });
+  await engine.handleMessage({
+    message: '最近壓力很大，想到工作就胸口悶。',
+    user: 'demo',
+    conversation_id: 'conv-output-patient-support-phrase'
+  });
+
+  const analysis = await engine.generateOutput({
+    conversation_id: 'conv-output-patient-support-phrase',
+    user: 'demo',
+    output_type: 'patient_analysis',
+    force_refresh: true
+  });
+
+  assert.ok(analysis.output.markdown.includes('你需要支持，但不想被命令'));
+  assert.ok(!analysis.output.markdown.includes('目前資料還偏少'));
+}
+
 async function run() {
   await testOutputCaching();
   await testForceRefreshBypassesOutputCache();
   await testStructuredObservationRewritingAndLeanFhirDraft();
   await testPatientAnalysisUsesMeaningfulNarrative();
   await testPatientAnalysisFallsBackToRawModelTextWhenJsonInvalid();
+  await testPatientAnalysisKeepsGeneratedMarkdownWithSupportPhrase();
   console.log('AI companion output tests passed.');
 }
 

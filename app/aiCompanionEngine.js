@@ -770,6 +770,13 @@ const GENERIC_DRAFT_PHRASES = [
   '目前對話中沒有提供具體的症狀或情況描述'
 ];
 
+const PATIENT_ANALYSIS_PLACEHOLDER_PATTERNS = [
+  '目前資料還偏少，但已經能看出你不是單純想抱怨',
+  '目前還需要更多對話，才能整理出更具體的卡點',
+  '如果你想要的是被理解，可以繼續補充最近最卡的一件事，讓分析不要只停在表面。',
+  '如果你想把這些內容整理成比較正式的看診材料，可以按「整理給醫師」。'
+];
+
 const CLINICAL_SIGNAL_RULES = [
   {
     key: 'depression',
@@ -933,6 +940,13 @@ function isGenericDraftText(value) {
   const text = String(value || '').trim();
   if (!text) return true;
   return GENERIC_DRAFT_PHRASES.some((phrase) => text.includes(phrase));
+}
+
+function isPatientAnalysisPlaceholderText(value) {
+  const text = String(value || '').trim();
+  if (!text) return true;
+  const matched = PATIENT_ANALYSIS_PLACEHOLDER_PATTERNS.filter((pattern) => text.includes(pattern)).length;
+  return matched >= 2;
 }
 
 function isPlaceholderSection(value) {
@@ -1967,14 +1981,14 @@ function mergePatientAnalysis(baseOutput, generatedOutput) {
   merged.reminder = String(generated.reminder || base.reminder || '這份內容是依據目前對話整理的陪伴式理解，不是醫療診斷。').trim();
   merged.key_points = Array.from(new Set(normalizeArray(generated.key_points).concat(normalizeArray(base.key_points)))).slice(0, 6);
   const markdown = String(generated.markdown || '').trim();
-  merged.markdown = markdown && !isGenericDraftText(markdown) ? markdown : String(base.markdown || '').trim();
+  merged.markdown = markdown && !isPatientAnalysisPlaceholderText(markdown) ? markdown : String(base.markdown || '').trim();
   return merged;
 }
 
 function buildPatientAnalysisFromRawModelText(rawText, baseOutput) {
   const base = baseOutput && typeof baseOutput === 'object' ? baseOutput : {};
   const text = String(rawText || '').trim();
-  if (!text || isGenericDraftText(text)) {
+  if (!text || isPatientAnalysisPlaceholderText(text)) {
     return Object.assign({}, base, {
       status: String(base.status || 'ready').trim() || 'ready'
     });
