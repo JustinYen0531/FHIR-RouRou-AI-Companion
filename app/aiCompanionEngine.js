@@ -235,7 +235,7 @@ const HIGH_RISK_PATTERNS = [
 ];
 
 const OUTPUT_COMMAND_PATTERNS = [
-  { type: 'clinician_summary', patterns: [/幫我整理給醫生/, /整理給醫師/, /醫師摘要/, /clinician summary/i, /doctor summary/i] },
+  { type: 'clinician_summary', patterns: [/幫我整理給醫生/, /整理給醫師/, /整理成.*給醫(師|生).*(重點|摘要|版本)?/i, /醫師摘要/, /clinician summary/i, /doctor summary/i] },
   { type: 'patient_analysis', patterns: [/請分析我/, /分析我/, /給我分析/, /給我病人版本/, /patient analysis/i] },
   { type: 'patient_review', patterns: [/病人審閱稿/, /patient review/i] },
   { type: 'patient_authorization', patterns: [/授權狀態/, /病人授權稿/, /patient authorization/i] },
@@ -265,6 +265,7 @@ const OUTPUT_CONTROL_PATTERNS = [
   /^output:/i,
   /請幫我.*(生成|產生|準備).*(fhir|草稿|摘要)/i,
   /幫我整理給醫(師|生)/i,
+  /整理成.*給醫(師|生).*(重點|摘要|版本)?/i,
   /病人審閱稿/i,
   /授權狀態/i,
   /session export/i,

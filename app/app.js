@@ -639,7 +639,7 @@ const OUTPUT_DEFINITIONS = {
 };
 
 const OUTPUT_COMMANDS = [
-  { type: 'clinician_summary', patterns: [/幫我整理給醫生/, /整理給醫師/, /醫師摘要/, /clinician summary/i, /doctor summary/i] },
+  { type: 'clinician_summary', patterns: [/幫我整理給醫生/, /整理給醫師/, /整理成.*給醫(師|生).*(重點|摘要|版本)?/i, /醫師摘要/, /clinician summary/i, /doctor summary/i] },
   { type: 'patient_analysis', patterns: [/請分析我/, /分析我/, /給我分析/, /給我病人版本/, /patient analysis/i] },
   { type: 'patient_review', patterns: [/病人審閱稿/, /patient review/i] },
   { type: 'fhir_delivery', patterns: [/fhir draft/i, /\bfhir\b/i, /產生fhir/i] }
@@ -654,6 +654,7 @@ const MODE_SWITCH_PATTERNS = [
 const UI_CONTROL_PATTERNS = [
   /^output:/i,
   /幫我整理給醫(師|生)/i,
+  /整理成.*給醫(師|生).*(重點|摘要|版本)?/i,
   /病人審閱稿/i,
   /授權狀態/i,
   /請幫我.*(生成|產生|準備).*(fhir|草稿|摘要)/i,
@@ -3673,37 +3674,40 @@ function normalizeSessionExportForDelivery(sessionExport = {}) {
   fallbackMessages.slice(-12).forEach((message) => {
     const text = String(message || '').trim();
     if (!text) return;
-    const clipped = text.length > 90 ? `${text.slice(0, 90)}...` : text;
     if (/(憂鬱|低落|沮喪|空虛|沒意義|提不起勁)/i.test(text)) {
       if (!extractedConcerns.includes('持續低落與憂鬱感')) extractedConcerns.push('持續低落與憂鬱感');
       if (!extractedSignals.includes('depressed_mood')) extractedSignals.push('depressed_mood');
+      if (!extractedObservations.includes('對話內容顯示持續低落與動機下降。')) extractedObservations.push('對話內容顯示持續低落與動機下降。');
     }
     if (/(工作|上班|打工|沒動力|摸魚|無意義|自我實踐)/i.test(text)) {
       if (!extractedConcerns.includes('工作動力與意義感下降')) extractedConcerns.push('工作動力與意義感下降');
       if (!extractedSignals.includes('work_interest')) extractedSignals.push('work_interest');
+      if (!extractedObservations.includes('近期工作或課業投入度下降，功能受影響。')) extractedObservations.push('近期工作或課業投入度下降，功能受影響。');
     }
     if (/(易怒|暴躁|煩躁|朋友|遠離|疏離|孤單)/i.test(text)) {
       if (!extractedConcerns.includes('易怒與人際疏離')) extractedConcerns.push('易怒與人際疏離');
       if (!extractedSignals.includes('agitation')) extractedSignals.push('agitation');
+      if (!extractedObservations.includes('人際互動耐受度下降，伴隨疏離傾向。')) extractedObservations.push('人際互動耐受度下降，伴隨疏離傾向。');
     }
     if (/(心不在焉|變慢|拖住|專心|注意力)/i.test(text)) {
       if (!extractedConcerns.includes('注意力下降或思考拖慢')) extractedConcerns.push('注意力下降或思考拖慢');
       if (!extractedSignals.includes('retardation')) extractedSignals.push('retardation');
+      if (!extractedObservations.includes('注意力維持困難，思考與反應速度下降。')) extractedObservations.push('注意力維持困難，思考與反應速度下降。');
     }
     if (/(睡不著|失眠|半夜醒|早醒|睡眠)/i.test(text)) {
       if (!extractedConcerns.includes('睡眠困擾')) extractedConcerns.push('睡眠困擾');
       if (!extractedSignals.includes('insomnia')) extractedSignals.push('insomnia');
+      if (!extractedObservations.includes('睡眠中斷或入睡困難持續出現。')) extractedObservations.push('睡眠中斷或入睡困難持續出現。');
     }
     if (/(焦慮|緊張|心悸|不安|胃痛|胸悶)/i.test(text)) {
       if (!extractedConcerns.includes('焦慮與身體緊繃')) extractedConcerns.push('焦慮與身體緊繃');
       if (!extractedSignals.includes('somatic_anxiety')) extractedSignals.push('somatic_anxiety');
+      if (!extractedObservations.includes('對話內容顯示焦慮感與身體緊繃反應。')) extractedObservations.push('對話內容顯示焦慮感與身體緊繃反應。');
     }
     if (/(自責|怪自己|絕望|活著沒有意義|想消失|傷痕|自傷)/i.test(text)) {
       if (!extractedConcerns.includes('自責、無望或自傷風險線索')) extractedConcerns.push('自責、無望或自傷風險線索');
       if (!extractedSignals.includes('guilt')) extractedSignals.push('guilt');
-    }
-    if (extractedObservations.length < 8) {
-      extractedObservations.push(clipped);
+      if (!extractedObservations.includes('出現自責或無望相關敘述，需持續風險釐清。')) extractedObservations.push('出現自責或無望相關敘述，需持續風險釐清。');
     }
   });
 
