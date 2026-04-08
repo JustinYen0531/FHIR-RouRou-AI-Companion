@@ -1925,6 +1925,28 @@ function mergePatientAnalysis(baseOutput, generatedOutput) {
   return merged;
 }
 
+function buildPatientAnalysisFromRawModelText(rawText, baseOutput) {
+  const base = baseOutput && typeof baseOutput === 'object' ? baseOutput : {};
+  const text = String(rawText || '').trim();
+  if (!text || isGenericDraftText(text)) {
+    return Object.assign({}, base, {
+      status: String(base.status || 'ready').trim() || 'ready'
+    });
+  }
+  const markdown = text.includes('## ')
+    ? text
+    : ['## 給你的分析', '', text, '', '### 提醒', '這份內容是依據目前對話整理的陪伴式理解，不是醫療診斷。'].join('\n');
+  const plainSummary = String(base.plain_summary || '').trim() && !isGenericDraftText(base.plain_summary)
+    ? String(base.plain_summary || '').trim()
+    : text.split('\n').map((item) => item.trim()).filter(Boolean).slice(0, 2).join(' ');
+  return Object.assign({}, base, {
+    version: 'p4_patient_analysis_v3',
+    status: 'ready',
+    plain_summary: plainSummary || String(base.plain_summary || '').trim(),
+    markdown: markdown
+  });
+}
+
 function createEmptyRetrievalAudit(kind) {
   return {
     retrieval_status: 'empty',
@@ -2586,8 +2608,11 @@ class AICompanionEngine {
       state.fhir_delivery_draft = mergeFhirDeliveryDraft(fhirBase, generatedFhirDraft);
 
       const basePatientAnalysisOutput = buildPatientAnalysis(state, message);
-      const generatedPatientAnalysis = await this.runJsonTask('patientAnalysisBuilder', session, message, {
-        fallback: basePatientAnalysisOutput,
+      const generatedPatientAnalysisText = await this.runTextTask('patientAnalysisBuilder', session, message, {
+        model: this.model,
+        fetchImpl: this.fetchImpl,
+        apiKey: this.apiKey,
+        baseUrl: this.baseUrl,
         extraContext: {
           clinician_summary_draft: state.clinician_summary_draft,
           patient_review_packet: state.patient_review_packet,
@@ -2596,7 +2621,10 @@ class AICompanionEngine {
           longitudinal_evidence: longitudinal
         }
       });
-      state.patient_analysis = mergePatientAnalysis(basePatientAnalysisOutput, generatedPatientAnalysis);
+      const generatedPatientAnalysis = tryParseJson(generatedPatientAnalysisText, null);
+      state.patient_analysis = generatedPatientAnalysis && typeof generatedPatientAnalysis === 'object'
+        ? mergePatientAnalysis(basePatientAnalysisOutput, generatedPatientAnalysis)
+        : buildPatientAnalysisFromRawModelText(generatedPatientAnalysisText, basePatientAnalysisOutput);
 
       const readinessBase = buildDeliveryReadinessState(state.fhir_delivery_draft, state.patient_authorization_state);
       const generatedReadiness = await this.runJsonTask('deliveryReadinessBuilder', session, message, {
