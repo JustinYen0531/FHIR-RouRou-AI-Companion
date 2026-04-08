@@ -719,6 +719,23 @@ function formatTranscriptEntry(item) {
   return `${role}：${content}`;
 }
 
+function normalizeClientHistoryForHydration(history = [], limit = 48) {
+  return normalizeArray(history)
+    .map((item) => {
+      const rawRole = String(item?.role || '').trim().toLowerCase();
+      const role = rawRole === 'ai' ? 'assistant' : rawRole;
+      const content = String(item?.content || '').trim();
+      if (!content) return null;
+      if (role !== 'user' && role !== 'assistant') return null;
+      if (role === 'user' && !isDraftRelevantInstruction(content)) {
+        return { role, content, kind: 'output' };
+      }
+      return { role, content, kind: 'chat' };
+    })
+    .filter(Boolean)
+    .slice(-limit);
+}
+
 function hasClinicalNarrativeCue(text = '') {
   return /(失眠|睡不好|睡不著|腹瀉|肚子痛|腹痛|胃痛|發冷|盜汗|心悸|胸悶|焦慮|低落|沮喪|抓狂|易怒|噁心|食慾|頭痛|頭暈|上課|老師|同學|壓力)/i.test(text);
 }
@@ -2793,6 +2810,18 @@ class AICompanionEngine {
       forceNewSession: payload.force_new_session
     });
     this.syncTherapeuticProfile(session, payload.therapeutic_profile);
+    if (Array.isArray(payload.client_history) && payload.client_history.length && (!Array.isArray(session.history) || session.history.length === 0)) {
+      const hydratedHistory = normalizeClientHistoryForHydration(payload.client_history, MAX_TRANSCRIPT_TURNS_FOR_RETRIEVAL);
+      if (hydratedHistory.length) {
+        session.history = hydratedHistory;
+        const lastUserMessage = hydratedHistory.slice().reverse().find((item) => item.role === 'user' && item.kind === 'chat');
+        if (lastUserMessage) {
+          session.memory_snapshot.last_user_message = lastUserMessage.content;
+        }
+        const userChatCount = hydratedHistory.filter((item) => item.role === 'user' && item.kind === 'chat').length;
+        session.revision = Math.max(Number(session.revision || 0), userChatCount);
+      }
+    }
     const outputType = String(payload.output_type || '').trim();
     const instruction = String(payload.instruction || '').trim();
     if (!outputType) {

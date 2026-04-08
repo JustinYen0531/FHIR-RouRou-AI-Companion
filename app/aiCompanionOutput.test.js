@@ -528,6 +528,24 @@ async function testPatientAnalysisKeepsGeneratedMarkdownWithSupportPhrase() {
   assert.ok(!analysis.output.markdown.includes('目前資料還偏少'));
 }
 
+async function testOutputHydratesFromClientHistoryWhenServerSessionEmpty() {
+  const modelClient = createStubModelClient();
+  const engine = new AICompanionEngine({ modelClient, apiKey: 'fake' });
+  const result = await engine.generateOutput({
+    conversation_id: 'conv-output-client-history-hydration',
+    user: 'demo',
+    output_type: 'fhir_delivery',
+    force_refresh: true,
+    client_history: [
+      { role: 'user', content: '我最近失眠很嚴重，肚子痛又發冷，情緒也很差。' },
+      { role: 'assistant', content: '我聽到了，我們可以一起整理重點。' }
+    ]
+  });
+  assert.strictEqual(result.metadata.output_source, 'fresh');
+  assert.ok(Array.isArray(result.output.observation_candidates));
+  assert.ok(result.output.observation_candidates.length > 0);
+}
+
 async function run() {
   await testOutputCaching();
   await testForceRefreshBypassesOutputCache();
@@ -535,6 +553,7 @@ async function run() {
   await testPatientAnalysisUsesMeaningfulNarrative();
   await testPatientAnalysisFallsBackToRawModelTextWhenJsonInvalid();
   await testPatientAnalysisKeepsGeneratedMarkdownWithSupportPhrase();
+  await testOutputHydratesFromClientHistoryWhenServerSessionEmpty();
   console.log('AI companion output tests passed.');
 }
 

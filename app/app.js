@@ -3324,6 +3324,27 @@ function buildConversationRequestState() {
   };
 }
 
+function buildClientHistorySnapshot(limit = 48) {
+  return (Array.isArray(APP_STATE.chatHistory) ? APP_STATE.chatHistory : [])
+    .map((item) => {
+      const role = item?.role === 'ai' ? 'assistant' : String(item?.role || '').trim().toLowerCase();
+      const content = String(item?.content || '').trim();
+      if (!content) return null;
+      if (role !== 'user' && role !== 'assistant') return null;
+      if (
+        role === 'user'
+        && detectOutputCommand(content)
+        && !/[。；，\n]/.test(content)
+        && content.replace(/\s+/g, '').length <= 24
+      ) {
+        return null;
+      }
+      return { role, content };
+    })
+    .filter(Boolean)
+    .slice(-limit);
+}
+
 function finalizeConversationRequest(payload = {}) {
   APP_STATE.conversationId = payload.conversation_id || APP_STATE.conversationId;
   if (APP_STATE.conversationId) {
@@ -4341,6 +4362,7 @@ async function fetchOutputPayload(outputType, instructionOverride = '') {
       conversation_id: conversationState.conversation_id,
       force_new_session: conversationState.force_new_session,
       force_refresh: true,
+      client_history: buildClientHistorySnapshot(),
       therapeutic_profile: conversationState.therapeutic_profile,
       user: config.userId,
       output_type: outputType,
