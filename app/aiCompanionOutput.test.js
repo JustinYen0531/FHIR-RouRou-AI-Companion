@@ -196,6 +196,22 @@ async function testOutputCaching() {
   assert.strictEqual(after, middle);
 }
 
+async function testForceRefreshBypassesOutputCache() {
+  const modelClient = createStubModelClient();
+  const engine = new AICompanionEngine({ modelClient, apiKey: 'fake' });
+  await engine.handleMessage({ message: '最近很累', user: 'demo', conversation_id: 'conv-output-refresh' });
+  await engine.generateOutput({ conversation_id: 'conv-output-refresh', user: 'demo', output_type: 'clinician_summary' });
+  const before = modelClient.getCalls();
+  await engine.generateOutput({
+    conversation_id: 'conv-output-refresh',
+    user: 'demo',
+    output_type: 'clinician_summary',
+    force_refresh: true
+  });
+  const after = modelClient.getCalls();
+  assert.ok(after > before, 'force_refresh should trigger regeneration instead of cached output');
+}
+
 async function testStructuredObservationRewritingAndLeanFhirDraft() {
   const modelClient = createRawClinicianStubModelClient();
   const engine = new AICompanionEngine({ modelClient, apiKey: 'fake' });
@@ -260,6 +276,7 @@ async function testPatientAnalysisUsesMeaningfulNarrative() {
 
 async function run() {
   await testOutputCaching();
+  await testForceRefreshBypassesOutputCache();
   await testStructuredObservationRewritingAndLeanFhirDraft();
   await testPatientAnalysisUsesMeaningfulNarrative();
   console.log('AI companion output tests passed.');

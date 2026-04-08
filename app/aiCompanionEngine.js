@@ -2169,7 +2169,8 @@ class AICompanionEngine {
         conversation_id: session.id,
         user: session.user,
         output_type: outputType,
-        instruction: message
+        instruction: message,
+        force_refresh: true
       });
       session.history.push({ role: 'assistant', content: outputResult.formatted_text, kind: 'output' });
       this.updateMemorySnapshot(session, outputResult.formatted_text);
@@ -2655,7 +2656,7 @@ class AICompanionEngine {
     }
     const cacheKey = outputType;
     const cached = session.output_cache[cacheKey];
-    const forceRefresh = Boolean(payload.force_refresh);
+    const forceRefresh = Boolean(payload.force_refresh) || outputType === 'patient_analysis';
     const currentLongitudinal = buildLongitudinalEvidence(
       session,
       normalizeObjectState(session.state, 'symptom_bridge_state', {})
@@ -2674,7 +2675,7 @@ class AICompanionEngine {
     if (!forceRefresh && cached && cached.revision === session.revision && !hasInvalidStructuredState) {
       return cached.value;
     }
-    if (hasInvalidStructuredState) {
+    if (hasInvalidStructuredState || forceRefresh) {
       delete session.output_cache[cacheKey];
     }
 
