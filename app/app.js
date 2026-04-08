@@ -645,6 +645,22 @@ const OUTPUT_COMMANDS = [
   { type: 'fhir_delivery', patterns: [/fhir draft/i, /\bfhir\b/i, /產生fhir/i] }
 ];
 
+const MODE_SWITCH_PATTERNS = [
+  /切回.*auto/i,
+  /切換到.*(auto|void|soulmate|mission|option|natural|clarify)/i,
+  /模式$/i
+];
+
+const UI_CONTROL_PATTERNS = [
+  /^output:/i,
+  /幫我整理給醫(師|生)/i,
+  /病人審閱稿/i,
+  /授權狀態/i,
+  /請幫我.*(生成|產生|準備).*(fhir|草稿|摘要)/i,
+  /準備授權預覽/i,
+  /session export/i
+];
+
 function detectOutputCommand(text) {
   const normalized = String(text || '').trim();
   for (const item of OUTPUT_COMMANDS) {
@@ -1178,6 +1194,15 @@ function getPreferredFhirSummaryText() {
     return String(clinician.draft_summary || '').trim();
   }
   return '';
+}
+
+function isClinicalFallbackMessage(text) {
+  const normalized = String(text || '').trim();
+  if (!normalized) return false;
+  if (detectOutputCommand(normalized)) return false;
+  if (MODE_SWITCH_PATTERNS.some((pattern) => pattern.test(normalized))) return false;
+  if (UI_CONTROL_PATTERNS.some((pattern) => pattern.test(normalized))) return false;
+  return true;
 }
 
 function syncReportOutputsFromSessionExport(sessionExport = {}) {
@@ -3592,7 +3617,7 @@ function normalizeSessionExportForDelivery(sessionExport = {}) {
     ? APP_STATE.chatHistory
         .filter((item) => item && item.role === 'user' && item.content)
         .map((item) => String(item.content).trim())
-        .filter(Boolean)
+        .filter((item) => item && isClinicalFallbackMessage(item))
     : [];
   const fallbackNarrative = fallbackMessages.length
     ? fallbackMessages.slice(-3).join('；')
@@ -3641,6 +3666,12 @@ function normalizeSessionExportForDelivery(sessionExport = {}) {
   const symptomObservations = Array.isArray(clinician.symptom_observations)
     ? clinician.symptom_observations.filter(Boolean)
     : [];
+  const symptomInferenceTrack = Array.isArray(clinician.symptom_inference_track)
+    ? clinician.symptom_inference_track.filter(Boolean)
+    : [];
+  const inferredObservationSummaries = symptomInferenceTrack
+    .map((item) => String(item.summary || item.symptom_label || '').trim())
+    .filter(Boolean);
   const hamdSignals = Array.isArray(clinician.hamd_signals)
     ? clinician.hamd_signals.filter(Boolean)
     : [];
@@ -3670,9 +3701,11 @@ function normalizeSessionExportForDelivery(sessionExport = {}) {
   }
 
   if (!Array.isArray(clinician.symptom_observations) || !clinician.symptom_observations.length) {
-    clinician.symptom_observations = symptomObservations.length
-      ? symptomObservations
-      : (extractedObservations.length ? extractedObservations : [fallbackNarrative]);
+    clinician.symptom_observations = inferredObservationSummaries.length
+      ? inferredObservationSummaries
+      : symptomObservations.length
+        ? symptomObservations
+        : (extractedObservations.length ? extractedObservations : [fallbackNarrative]);
   }
 
   if (!Array.isArray(clinician.followup_needs) || !clinician.followup_needs.length) {

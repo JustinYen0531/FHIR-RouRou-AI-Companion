@@ -100,6 +100,16 @@
     "description": "Unified pre-summary state for future clinician draft generation"
   },
   {
+    "name": "symptom_bridge_state",
+    "selector": [
+      "conversation",
+      "symptom_bridge_state"
+    ],
+    "default_value": "none",
+    "value_type": "string",
+    "description": "AI dual-track symptom bridge linking quoted evidence to inferred symptom summaries"
+  },
+  {
     "name": "clinician_summary_draft",
     "selector": [
       "conversation",

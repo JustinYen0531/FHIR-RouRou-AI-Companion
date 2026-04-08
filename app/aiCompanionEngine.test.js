@@ -65,19 +65,78 @@ function createStubModelClient() {
         })
       };
     }
+    if (systemPrompt.includes('原句證據軌 + 症狀推論軌')) {
+      return {
+        text: JSON.stringify({
+          bridge_version: 'p1_symptom_bridge_v1',
+          evidence_track: [
+            {
+              evidence_id: 'e1',
+              speaker: 'user',
+              source_text: '最近很累，而且晚上一直做惡夢，白天上班也被影響。',
+              symptom_candidate: '睡眠困擾與疲憊',
+              category: 'sleep',
+              confidence: 'high'
+            }
+          ],
+          inference_track: [
+            {
+              symptom_label: '睡眠困擾與白天疲憊',
+              summary: '近期持續出現惡夢與疲憊，並已影響白天工作功能。',
+              category: 'sleep',
+              hamd_signal: 'insomnia',
+              severity_hint: 'moderate',
+              functional_impact: '影響白天上班',
+              timeframe: 'recent_weeks',
+              evidence_refs: ['e1'],
+              confidence: 'high'
+            }
+          ],
+          excluded_messages: [
+            {
+              text: '請幫我生成FHIR草稿',
+              reason: 'output_control_or_mode_switch'
+            }
+          ]
+        })
+      };
+    }
     if (systemPrompt.includes('可交付給醫師或臨床團隊閱讀')) {
       return {
         text: JSON.stringify({
           summary_version: 'p1_clinician_draft_v1',
           active_mode: 'mode_5_natural',
           risk_level: 'watch',
-          chief_concerns: ['最近很累'],
-          symptom_observations: ['疲累'],
-          hamd_signals: ['depressed_mood'],
+          chief_concerns: ['睡眠困擾與白天疲憊'],
+          symptom_observations: ['近期持續出現惡夢與疲憊，並已影響白天工作功能。'],
+          symptom_evidence_track: [
+            {
+              evidence_id: 'e1',
+              speaker: 'user',
+              source_text: '最近很累，而且晚上一直做惡夢，白天上班也被影響。',
+              symptom_candidate: '睡眠困擾與疲憊',
+              category: 'sleep',
+              confidence: 'high'
+            }
+          ],
+          symptom_inference_track: [
+            {
+              symptom_label: '睡眠困擾與白天疲憊',
+              summary: '近期持續出現惡夢與疲憊，並已影響白天工作功能。',
+              category: 'sleep',
+              hamd_signal: 'insomnia',
+              severity_hint: 'moderate',
+              functional_impact: '影響白天上班',
+              timeframe: 'recent_weeks',
+              evidence_refs: ['e1'],
+              confidence: 'high'
+            }
+          ],
+          hamd_signals: ['insomnia'],
           followup_needs: [],
           safety_flags: [],
           patient_tone: 'low_energy',
-          draft_summary: '最近很累。'
+          draft_summary: '近期持續出現惡夢與疲憊，並已影響白天工作功能。'
         })
       };
     }
@@ -115,7 +174,16 @@ function createStubModelClient() {
           delivery_status: 'ready_for_mapping',
           consent_gate: 'ready_for_consent',
           resources: [],
-          narrative_summary: '最近很累。'
+          narrative_summary: '近期持續出現惡夢與疲憊，並已影響白天工作功能。',
+          observation_candidates: [
+            {
+              focus: '近期持續出現惡夢與疲憊，並已影響白天工作功能。',
+              category: 'sleep',
+              status: 'preliminary',
+              evidence_refs: ['e1'],
+              inference_basis: '睡眠困擾與白天疲憊'
+            }
+          ]
         })
       };
     }
@@ -186,14 +254,31 @@ async function testNaturalFlowBuildsSessionExport() {
 
 async function testOutputCommandBuildsStructuredDrafts() {
   const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
-  await engine.handleMessage({ message: '最近很累', user: 'demo', conversation_id: 'conv-4' });
+  await engine.handleMessage({ message: '最近很累，而且晚上一直做惡夢，白天上班也被影響。', user: 'demo', conversation_id: 'conv-4' });
   const result = await engine.handleMessage({ message: '幫我整理給醫生', user: 'demo', conversation_id: 'conv-4' });
   assert.strictEqual(result.metadata.route, 'output');
   assert.strictEqual(result.metadata.output_type, 'clinician_summary');
   assert.ok(result.answer.includes('醫師摘要'));
   assert.ok(Array.isArray(result.session_export.clinician_summary_draft.hamd_item_scores));
   assert.ok(Array.isArray(result.session_export.clinician_summary_draft.hamd_evidence_table));
+  assert.ok(Array.isArray(result.session_export.clinician_summary_draft.symptom_evidence_track));
+  assert.ok(Array.isArray(result.session_export.clinician_summary_draft.symptom_inference_track));
+  assert.ok(
+    result.session_export.clinician_summary_draft.symptom_observations.every((item) => !String(item).includes('FHIR草稿'))
+  );
   assert.strictEqual(result.session_export.delivery_readiness_state.readiness_status, 'ready_for_backend_mapping');
+}
+
+async function testFhirDraftCarriesEvidenceAndInferenceTracks() {
+  const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
+  await engine.handleMessage({ message: '最近很累，而且晚上一直做惡夢，白天上班也被影響。', user: 'demo', conversation_id: 'conv-5' });
+  const result = await engine.handleMessage({ message: '請幫我生成FHIR草稿', user: 'demo', conversation_id: 'conv-5' });
+  const draft = result.session_export.fhir_delivery_draft;
+  assert.ok(Array.isArray(draft.symptom_evidence_track));
+  assert.ok(Array.isArray(draft.symptom_inference_track));
+  assert.ok(Array.isArray(draft.observation_candidates));
+  assert.ok(draft.observation_candidates[0].evidence_refs.includes('e1'));
+  assert.ok(!JSON.stringify(draft).includes('請幫我生成FHIR草稿'));
 }
 
 async function testReuseLatestSessionByUserWhenConversationIdMissing() {
@@ -285,6 +370,7 @@ async function run() {
   await testSelfHarmStatementRoutesToSafety();
   await testNaturalFlowBuildsSessionExport();
   await testOutputCommandBuildsStructuredDrafts();
+  await testFhirDraftCarriesEvidenceAndInferenceTracks();
   await testReuseLatestSessionByUserWhenConversationIdMissing();
   await testForceNewSessionCreatesSeparateConversation();
   await testCorruptedInputIsRejectedBeforePersist();

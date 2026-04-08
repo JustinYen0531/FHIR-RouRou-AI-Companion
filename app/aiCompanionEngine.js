@@ -17,6 +17,7 @@ const PROMPT_FILES = {
   riskStructurer: '風險結構化器.md',
   safetyResponse: '安全回應器.md',
   summaryDraftBuilder: '摘要草稿建構器.md',
+  symptomBridgeBuilder: '症狀對接建構器.md',
   clinicianSummaryBuilder: '醫師摘要建構器.md',
   patientReviewBuilder: '病人審閱建構器.md',
   patientAuthorizationBuilder: '病人授權建構器.md',
@@ -211,8 +212,36 @@ const OUTPUT_LABELS = {
   session_export: 'Session Export'
 };
 
+const MODE_SWITCH_PATTERNS = [
+  /切回.*auto/i,
+  /切換到.*(auto|void|soulmate|mission|option|natural|clarify)/i,
+  /^mode[:：]/i,
+  /模式$/i
+];
+
+const OUTPUT_CONTROL_PATTERNS = [
+  /^output:/i,
+  /請幫我.*(生成|產生|準備).*(fhir|草稿|摘要)/i,
+  /幫我整理給醫(師|生)/i,
+  /病人審閱稿/i,
+  /授權狀態/i,
+  /session export/i,
+  /準備授權預覽/i,
+  /fhir draft/i
+];
+
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function uniqueStrings(values = [], limit = 8) {
+  const result = [];
+  normalizeArray(values).forEach((value) => {
+    const text = String(value || '').trim();
+    if (!text || result.includes(text) || result.length >= limit) return;
+    result.push(text);
+  });
+  return result;
 }
 
 function tryParseJson(value, fallback = null) {
@@ -339,6 +368,7 @@ function defaultSessionExport(session) {
     patient_review_packet: normalizeObjectState(session.state, 'patient_review_packet', {}),
     fhir_delivery_draft: normalizeObjectState(session.state, 'fhir_delivery_draft', {}),
     summary_draft_state: normalizeObjectState(session.state, 'summary_draft_state', {}),
+    symptom_bridge_state: normalizeObjectState(session.state, 'symptom_bridge_state', {}),
     therapeutic_profile: normalizeObjectState(session.state, 'therapeutic_profile', normalizeTherapeuticProfile({}, session.user))
   };
 }
@@ -635,9 +665,7 @@ function buildFormalFhirTargets(formalAssessment) {
 }
 
 function isDraftRelevantHistoryItem(item) {
-  if (!item || typeof item !== 'object') return false;
-  const kind = String(item.kind || 'chat').trim();
-  return kind !== 'command' && kind !== 'output';
+  return classifyDraftHistoryItem(item).include;
 }
 
 function formatTranscriptEntry(item) {
@@ -655,7 +683,35 @@ function isDraftRelevantInstruction(message) {
   if (Object.prototype.hasOwnProperty.call(COMMAND_MAP, normalized)) {
     return false;
   }
-  return !OUTPUT_COMMAND_PATTERNS.some((item) => item.patterns.some((pattern) => pattern.test(text)));
+  if (OUTPUT_COMMAND_PATTERNS.some((item) => item.patterns.some((pattern) => pattern.test(text)))) {
+    return false;
+  }
+  if (MODE_SWITCH_PATTERNS.some((pattern) => pattern.test(text))) {
+    return false;
+  }
+  if (OUTPUT_CONTROL_PATTERNS.some((pattern) => pattern.test(text))) {
+    return false;
+  }
+  return true;
+}
+
+function classifyDraftHistoryItem(item) {
+  if (!item || typeof item !== 'object') {
+    return { include: false, reason: 'invalid_item', content: '' };
+  }
+  const kind = String(item.kind || 'chat').trim();
+  const role = String(item.role || '').trim();
+  const content = String(item.content || '').trim();
+  if (!content) {
+    return { include: false, reason: 'empty_content', role, content };
+  }
+  if (kind === 'command' || kind === 'output') {
+    return { include: false, reason: 'command_or_output_kind', role, content };
+  }
+  if (role === 'user' && !isDraftRelevantInstruction(content)) {
+    return { include: false, reason: 'output_control_or_mode_switch', role, content };
+  }
+  return { include: true, reason: 'clinical_candidate', role, content, kind };
 }
 
 const GENERIC_DRAFT_PHRASES = [
@@ -864,13 +920,152 @@ function isEmptyFhirDraft(draft = {}) {
   );
 }
 
-function buildLongitudinalEvidence(session) {
+function sanitizeSymptomEvidenceTrack(track = []) {
+  return normalizeArray(track).map((item, index) => {
+    const evidenceId = String(item?.evidence_id || `evidence_${index + 1}`).trim();
+    const sourceText = String(item?.source_text || item?.quote || '').trim();
+    return {
+      evidence_id: evidenceId,
+      speaker: String(item?.speaker || 'user').trim() || 'user',
+      source_text: sourceText,
+      symptom_candidate: String(item?.symptom_candidate || item?.symptom_label || '').trim(),
+      category: String(item?.category || 'patient_report').trim() || 'patient_report',
+      confidence: String(item?.confidence || 'medium').trim() || 'medium'
+    };
+  }).filter((item) => item.source_text);
+}
+
+function sanitizeSymptomInferenceTrack(track = []) {
+  return normalizeArray(track).map((item) => ({
+    symptom_label: String(item?.symptom_label || item?.label || '').trim(),
+    summary: String(item?.summary || item?.focus || '').trim(),
+    category: String(item?.category || 'patient_report').trim() || 'patient_report',
+    hamd_signal: String(item?.hamd_signal || item?.signal || '').trim(),
+    severity_hint: String(item?.severity_hint || '').trim(),
+    functional_impact: String(item?.functional_impact || '').trim(),
+    timeframe: String(item?.timeframe || '').trim(),
+    evidence_refs: uniqueStrings(item?.evidence_refs, 6),
+    confidence: String(item?.confidence || 'medium').trim() || 'medium'
+  })).filter((item) => item.summary || item.symptom_label);
+}
+
+function sanitizeExcludedMessages(track = []) {
+  return normalizeArray(track).map((item) => ({
+    text: String(item?.text || item?.content || '').trim(),
+    reason: String(item?.reason || 'filtered').trim() || 'filtered'
+  })).filter((item) => item.text);
+}
+
+function buildSymptomBridgeFallback(longitudinal) {
+  const evidenceTrack = longitudinal.userMessages.slice(0, 8).map((message, index) => ({
+    evidence_id: `user_msg_${index + 1}`,
+    speaker: 'user',
+    source_text: message,
+    symptom_candidate: longitudinal.symptomObservations[index] || longitudinal.chiefConcerns[index] || '',
+    category: 'patient_report',
+    confidence: 'medium'
+  }));
+  const inferenceTrack = longitudinal.symptomObservations.slice(0, 6).map((summary, index) => ({
+    symptom_label: longitudinal.chiefConcerns[index] || summary,
+    summary,
+    category: longitudinal.hamdSignals[index] ? buildSignalCategory(longitudinal.hamdSignals[index]) : 'patient_report',
+    hamd_signal: longitudinal.hamdSignals[index] || '',
+    severity_hint: '',
+    functional_impact: '',
+    timeframe: 'recent_dialogue',
+    evidence_refs: evidenceTrack[index] ? [evidenceTrack[index].evidence_id] : [],
+    confidence: 'medium'
+  }));
+  return {
+    bridge_version: 'p1_symptom_bridge_v1',
+    evidence_track: evidenceTrack,
+    inference_track: inferenceTrack,
+    excluded_messages: sanitizeExcludedMessages(longitudinal.excludedMessages)
+  };
+}
+
+function mergeSymptomBridgeState(baseState, generatedState) {
+  const generated = generatedState && typeof generatedState === 'object' ? generatedState : {};
+  const evidenceTrack = sanitizeSymptomEvidenceTrack(
+    normalizeArray(generated.evidence_track).length ? generated.evidence_track : baseState.evidence_track
+  );
+  const inferenceTrack = sanitizeSymptomInferenceTrack(
+    normalizeArray(generated.inference_track).length ? generated.inference_track : baseState.inference_track
+  );
+  const excludedMessages = sanitizeExcludedMessages([
+    ...normalizeArray(baseState.excluded_messages),
+    ...normalizeArray(generated.excluded_messages)
+  ]);
+  return {
+    bridge_version: String(generated.bridge_version || baseState.bridge_version || 'p1_symptom_bridge_v1').trim(),
+    evidence_track: evidenceTrack,
+    inference_track: inferenceTrack,
+    excluded_messages: excludedMessages
+  };
+}
+
+function applySymptomBridgeToLongitudinal(baseLongitudinal, symptomBridgeState = {}) {
+  const evidenceTrack = sanitizeSymptomEvidenceTrack(symptomBridgeState.evidence_track);
+  const inferenceTrack = sanitizeSymptomInferenceTrack(symptomBridgeState.inference_track);
+  const excludedMessages = sanitizeExcludedMessages([
+    ...normalizeArray(baseLongitudinal.excludedMessages),
+    ...normalizeArray(symptomBridgeState.excluded_messages)
+  ]);
+  if (!inferenceTrack.length) {
+    return Object.assign({}, baseLongitudinal, {
+      symptomEvidenceTrack: evidenceTrack,
+      symptomInferenceTrack: [],
+      excludedMessages
+    });
+  }
+
+  const evidenceById = evidenceTrack.reduce((acc, item) => {
+    acc[item.evidence_id] = item;
+    return acc;
+  }, {});
+  const aiSymptomObservations = uniqueStrings(inferenceTrack.map((item) => item.summary || item.symptom_label), 8);
+  const aiChiefConcerns = uniqueStrings(inferenceTrack.map((item) => item.symptom_label || item.summary), 6);
+  const aiHamdSignals = uniqueStrings(inferenceTrack.map((item) => item.hamd_signal).filter(Boolean), 6);
+  const aiEvidenceBySignal = {};
+
+  inferenceTrack.forEach((item) => {
+    if (!item.hamd_signal) return;
+    const linkedEvidence = uniqueStrings(item.evidence_refs.map((ref) => evidenceById[ref]?.source_text).filter(Boolean), 4);
+    if (linkedEvidence.length) {
+      aiEvidenceBySignal[item.hamd_signal] = linkedEvidence;
+    }
+  });
+
+  const draftSummary = aiSymptomObservations.length
+    ? `AI 已根據原句證據整理出：${aiSymptomObservations.slice(0, 3).join('；')}。`
+    : baseLongitudinal.draftSummary;
+
+  return Object.assign({}, baseLongitudinal, {
+    chiefConcerns: aiChiefConcerns.length ? aiChiefConcerns : baseLongitudinal.chiefConcerns,
+    symptomObservations: aiSymptomObservations.length ? aiSymptomObservations : baseLongitudinal.symptomObservations,
+    hamdSignals: aiHamdSignals.length ? aiHamdSignals : baseLongitudinal.hamdSignals,
+    evidenceBySignal: Object.keys(aiEvidenceBySignal).length
+      ? Object.assign({}, baseLongitudinal.evidenceBySignal, aiEvidenceBySignal)
+      : baseLongitudinal.evidenceBySignal,
+    draftSummary: chooseStructuredText(draftSummary, baseLongitudinal.draftSummary),
+    symptomEvidenceTrack: evidenceTrack,
+    symptomInferenceTrack: inferenceTrack,
+    excludedMessages
+  });
+}
+
+function buildLongitudinalEvidence(session, symptomBridgeState = {}) {
   const history = Array.isArray(session?.history) ? session.history : [];
-  const userMessages = history
-    .filter((item) => item && item.role === 'user' && isDraftRelevantHistoryItem(item))
-    .map((item) => String(item.content || '').trim())
+  const classifiedHistory = history.map((item) => Object.assign({}, classifyDraftHistoryItem(item), { item }));
+  const userMessages = classifiedHistory
+    .filter((entry) => entry.include && entry.role === 'user')
+    .map((entry) => entry.content)
     .filter(Boolean)
     .slice(-24);
+  const excludedMessages = classifiedHistory
+    .filter((entry) => !entry.include && entry.role === 'user' && entry.content)
+    .map((entry) => ({ text: entry.content, reason: entry.reason }))
+    .slice(-12);
 
   const chiefConcerns = [];
   const symptomObservations = [];
@@ -921,7 +1116,7 @@ function buildLongitudinalEvidence(session) {
     draftSummaryParts.push(`目前已觸及的 HAM-D 線索包含 ${hamdSignals.slice(0, 4).join('、')}。`);
   }
 
-  return {
+  return applySymptomBridgeToLongitudinal({
     userMessages,
     matchedRuleKeys,
     chiefConcerns,
@@ -932,8 +1127,11 @@ function buildLongitudinalEvidence(session) {
     riskFlags,
     returnVisitGoal: hasReturnVisitGoal,
     patientTone: tone,
-    draftSummary: draftSummaryParts.join(' ').trim()
-  };
+    draftSummary: draftSummaryParts.join(' ').trim(),
+    excludedMessages,
+    symptomEvidenceTrack: [],
+    symptomInferenceTrack: []
+  }, symptomBridgeState);
 }
 
 function enrichHamdProgressState(progress, longitudinal) {
@@ -1059,6 +1257,12 @@ function mergeSummaryDraftState(baseDraft, generatedDraft) {
 
 function mergeClinicianSummaryDraft(baseDraft, generatedDraft, formalAssessment) {
   const generated = generatedDraft && typeof generatedDraft === 'object' ? generatedDraft : {};
+  const evidenceTrack = sanitizeSymptomEvidenceTrack(
+    normalizeArray(generated.symptom_evidence_track).length ? generated.symptom_evidence_track : baseDraft.symptom_evidence_track
+  );
+  const inferenceTrack = sanitizeSymptomInferenceTrack(
+    normalizeArray(generated.symptom_inference_track).length ? generated.symptom_inference_track : baseDraft.symptom_inference_track
+  );
   const merged = Object.assign({}, baseDraft, generated, {
     chief_concerns: mergeUniqueTexts(baseDraft.chief_concerns, generated.chief_concerns, 6),
     symptom_observations: mergeUniqueTexts(baseDraft.symptom_observations, generated.symptom_observations, 8),
@@ -1074,7 +1278,9 @@ function mergeClinicianSummaryDraft(baseDraft, generatedDraft, formalAssessment)
       : normalizeArray(baseDraft.hamd_review_required_items),
     hamd_total_score_ai: typeof generated.hamd_total_score_ai === 'number' ? generated.hamd_total_score_ai : baseDraft.hamd_total_score_ai,
     hamd_total_score_clinician: typeof generated.hamd_total_score_clinician === 'number' ? generated.hamd_total_score_clinician : baseDraft.hamd_total_score_clinician,
-    hamd_severity_band: String(generated.hamd_severity_band || '').trim() || baseDraft.hamd_severity_band
+    hamd_severity_band: String(generated.hamd_severity_band || '').trim() || baseDraft.hamd_severity_band,
+    symptom_evidence_track: evidenceTrack,
+    symptom_inference_track: inferenceTrack
   });
   return Object.assign({}, merged, buildFormalClinicianFields(formalAssessment), {
     chief_concerns: merged.chief_concerns.length ? merged.chief_concerns : normalizeArray(baseDraft.chief_concerns),
@@ -1131,7 +1337,13 @@ function mergeFhirDeliveryDraft(baseDraft, generatedDraft) {
     hamd_formal_targets: normalizeArray(generated.hamd_formal_targets).length
       ? normalizeArray(generated.hamd_formal_targets)
       : normalizeArray(baseDraft.hamd_formal_targets),
-    resources: normalizeArray(generated.resources).length ? normalizeArray(generated.resources) : normalizeArray(baseDraft.resources)
+    resources: normalizeArray(generated.resources).length ? normalizeArray(generated.resources) : normalizeArray(baseDraft.resources),
+    symptom_evidence_track: sanitizeSymptomEvidenceTrack(
+      normalizeArray(generated.symptom_evidence_track).length ? generated.symptom_evidence_track : baseDraft.symptom_evidence_track
+    ),
+    symptom_inference_track: sanitizeSymptomInferenceTrack(
+      normalizeArray(generated.symptom_inference_track).length ? generated.symptom_inference_track : baseDraft.symptom_inference_track
+    )
   });
 }
 
@@ -1161,6 +1373,8 @@ function buildClinicianSummaryDraft(longitudinal, state, formalAssessment, previ
       symptom_observations: longitudinal.symptomObservations
         .filter((item) => !isGenericDraftText(item))
         .slice(0, 8),
+      symptom_evidence_track: sanitizeSymptomEvidenceTrack(longitudinal.symptomEvidenceTrack).slice(0, 8),
+      symptom_inference_track: sanitizeSymptomInferenceTrack(longitudinal.symptomInferenceTrack).slice(0, 8),
       hamd_signals: longitudinal.hamdSignals.slice(0, 6),
       followup_needs: longitudinal.followupNeeds.slice(0, 5),
       safety_flags: [...longitudinal.riskFlags, ...explicitRiskFlags].slice(0, 4),
@@ -1185,6 +1399,16 @@ function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAsses
   const symptomObservations = normalizeArray(longitudinal?.symptomObservations).length
     ? normalizeArray(longitudinal.symptomObservations)
     : normalizeArray(clinicianDraft?.symptom_observations);
+  const symptomEvidenceTrack = sanitizeSymptomEvidenceTrack(
+    normalizeArray(longitudinal?.symptomEvidenceTrack).length
+      ? longitudinal.symptomEvidenceTrack
+      : clinicianDraft?.symptom_evidence_track
+  );
+  const symptomInferenceTrack = sanitizeSymptomInferenceTrack(
+    normalizeArray(longitudinal?.symptomInferenceTrack).length
+      ? longitudinal.symptomInferenceTrack
+      : clinicianDraft?.symptom_inference_track
+  );
   const hamdSignals = normalizeArray(longitudinal?.hamdSignals).length
     ? normalizeArray(longitudinal.hamdSignals)
     : normalizeArray(clinicianDraft?.hamd_signals);
@@ -1200,12 +1424,23 @@ function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAsses
       { resource_type: 'ClinicalImpression', resourceType: 'ClinicalImpression', display: 'ClinicalImpression / Risk And Context', status: 'preliminary', purpose: 'risk_and_context' },
       { resource_type: 'QuestionnaireResponse', resourceType: 'QuestionnaireResponse', display: 'QuestionnaireResponse / Dialogue Mapping', status: 'preliminary', purpose: 'dialogue_to_scale_mapping' }
   ];
-  const observationCandidates = hamdSignals.map((signal) => ({
-    focus: (evidenceBySignal[signal] || []).join('；') || `已捕捉 ${signal} 相關對話線索`,
-    category: buildSignalCategory(signal),
-    signal,
-    status: 'preliminary'
-  }));
+  const observationCandidates = symptomInferenceTrack.length
+    ? symptomInferenceTrack.map((item) => ({
+        focus: item.summary || item.symptom_label,
+        category: item.category || buildSignalCategory(item.hamd_signal),
+        signal: item.hamd_signal || '',
+        status: 'preliminary',
+        evidence_refs: uniqueStrings(item.evidence_refs, 6),
+        inference_basis: item.symptom_label || item.summary
+      }))
+    : hamdSignals.map((signal) => ({
+        focus: (evidenceBySignal[signal] || []).join('；') || `已捕捉 ${signal} 相關對話線索`,
+        category: buildSignalCategory(signal),
+        signal,
+        status: 'preliminary',
+        evidence_refs: [],
+        inference_basis: signal
+      }));
   symptomObservations.forEach((item) => {
     if (observationCandidates.length >= 8) return;
     if (observationCandidates.some((entry) => entry.focus === item)) return;
@@ -1213,13 +1448,20 @@ function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAsses
       focus: item,
       category: 'patient_report',
       signal: '',
-      status: 'preliminary'
+      status: 'preliminary',
+      evidence_refs: [],
+      inference_basis: item
     });
   });
-  const questionnaireTargets = hamdSignals.map((signal) => ({
-    dimension: signal,
-    reason: (evidenceBySignal[signal] || []).join('；') || `需補足 ${signal} 的正式量表資訊`
-  }));
+  const questionnaireTargets = symptomInferenceTrack.length
+    ? symptomInferenceTrack.map((item) => {
+        const label = item.hamd_signal || item.symptom_label || item.summary;
+        return `${label}：${item.summary || item.symptom_label}`;
+      }).slice(0, 8)
+    : hamdSignals.map((signal) => ({
+        dimension: signal,
+        reason: (evidenceBySignal[signal] || []).join('；') || `需補足 ${signal} 的正式量表資訊`
+      }));
 
   const narrativeSummary = hasMeaningfulLongitudinalEvidence(longitudinal)
     ? (longitudinal.draftSummary || clinicianDraft?.draft_summary || summarizeConcernBundle(chiefConcerns))
@@ -1257,6 +1499,8 @@ function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAsses
       }
     ],
     observation_candidates: observationCandidates,
+    symptom_evidence_track: symptomEvidenceTrack,
+    symptom_inference_track: symptomInferenceTrack,
     clinical_alerts: [...longitudinal.riskFlags, ...normalizeArray(normalizeObjectState(state, 'red_flag_payload', {}).warning_tags)].slice(0, 4),
     questionnaire_targets: questionnaireTargets,
     hamd_formal_targets: buildFormalFhirTargets(formalAssessment),
@@ -1733,6 +1977,7 @@ class AICompanionEngine {
       }
     });
     state.latest_tag_payload = tags;
+    const currentBridge = normalizeObjectState(state, 'symptom_bridge_state', {});
 
     const burden = await this.runJsonTask('burdenLevelBuilder', session, message, {
       fallback: {
@@ -1757,7 +2002,7 @@ class AICompanionEngine {
         status_summary: 'Fallback HAM-D state.'
       }
     });
-    state.hamd_progress_state = enrichHamdProgressState(hamd, buildLongitudinalEvidence(session));
+    state.hamd_progress_state = enrichHamdProgressState(hamd, buildLongitudinalEvidence(session, currentBridge));
     await this.updateFormalAssessment(session, message);
   }
 
@@ -1945,7 +2190,21 @@ class AICompanionEngine {
 
   async updateSummaryChain(session, message) {
     const state = session.state;
-    const longitudinal = buildLongitudinalEvidence(session);
+    const baseLongitudinal = buildLongitudinalEvidence(session);
+    const bridgeBase = buildSymptomBridgeFallback(baseLongitudinal);
+    if (baseLongitudinal.userMessages.length > 0) {
+      const generatedBridge = await this.runJsonTask('symptomBridgeBuilder', session, message, {
+        fallback: bridgeBase,
+        extraContext: {
+          deterministic_longitudinal: baseLongitudinal,
+          transcript_window: this.buildTranscriptWindow(session)
+        }
+      });
+      state.symptom_bridge_state = mergeSymptomBridgeState(bridgeBase, generatedBridge);
+    } else {
+      state.symptom_bridge_state = bridgeBase;
+    }
+    const longitudinal = buildLongitudinalEvidence(session, state.symptom_bridge_state);
     
     // JS Fallbacks / Base states (ensure safe structure)
     state.hamd_progress_state = enrichHamdProgressState(
@@ -2083,7 +2342,10 @@ class AICompanionEngine {
     }
     const cacheKey = outputType;
     const cached = session.output_cache[cacheKey];
-    const currentLongitudinal = buildLongitudinalEvidence(session);
+    const currentLongitudinal = buildLongitudinalEvidence(
+      session,
+      normalizeObjectState(session.state, 'symptom_bridge_state', {})
+    );
     const currentClinicianDraft = normalizeObjectState(session.state, 'clinician_summary_draft', {});
     const currentPatientAnalysis = normalizeObjectState(session.state, 'patient_analysis', {});
     const currentFhirDraft = normalizeObjectState(session.state, 'fhir_delivery_draft', {});
@@ -2177,11 +2439,17 @@ class AICompanionEngine {
   }
 
   buildDraftRelevantHistory(session) {
-    return session.history.filter((item) => isDraftRelevantHistoryItem(item));
+    return session.history.filter((item) => classifyDraftHistoryItem(item).include);
   }
 
   buildTranscriptWindow(session) {
-    const relevantHistory = this.buildDraftRelevantHistory(session);
+    const classifiedHistory = (Array.isArray(session?.history) ? session.history : [])
+      .map((item) => Object.assign({}, classifyDraftHistoryItem(item), { item }));
+    const relevantHistory = classifiedHistory.filter((entry) => entry.include).map((entry) => entry.item);
+    const excludedMessages = classifiedHistory
+      .filter((entry) => !entry.include && entry.content)
+      .map((entry) => ({ role: entry.role, content: entry.content, reason: entry.reason }))
+      .slice(-12);
     const recentTurns = relevantHistory.slice(-MAX_RECENT_TRANSCRIPT_TURNS);
     const olderTurns = relevantHistory.slice(
       Math.max(0, relevantHistory.length - MAX_TRANSCRIPT_TURNS_FOR_RETRIEVAL),
@@ -2196,6 +2464,7 @@ class AICompanionEngine {
       })),
       recent_chat_history_text: recentTurns.map(formatTranscriptEntry).filter(Boolean).join('\n'),
       longitudinal_dialogue: olderTurns.map(formatTranscriptEntry).filter(Boolean).join('\n'),
+      excluded_messages: excludedMessages,
       context_rule: 'Ignore mode-switch, command, and output-control turns. Treat only real chat content as clinical draft evidence.'
     };
   }

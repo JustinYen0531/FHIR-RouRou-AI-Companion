@@ -23,7 +23,9 @@
     {"resource_type":"QuestionnaireResponse","status":"preliminary","purpose":"dialogue_to_scale_mapping"}
   ],
   "composition_sections":[{"section":"...","focus":"..."}],
-  "observation_candidates":[{"focus":"...","category":"...","status":"preliminary"}],
+  "observation_candidates":[{"focus":"...","category":"...","status":"preliminary","evidence_refs":["..."],"inference_basis":"..."}],
+  "symptom_evidence_track":[{"evidence_id":"...","speaker":"...","source_text":"...","symptom_candidate":"...","category":"...","confidence":"..."}],
+  "symptom_inference_track":[{"symptom_label":"...","summary":"...","category":"...","hamd_signal":"...","severity_hint":"...","functional_impact":"...","timeframe":"...","evidence_refs":["..."],"confidence":"..."}],
   "clinical_alerts":["..."],
   "questionnaire_targets":["..."],
   "hamd_formal_targets":[{"item_code":"...","evidence_type":"...","status":"preliminary"}],
@@ -43,12 +45,15 @@
 8. notes 說明這仍是交付前 draft，不是最終正式醫療文件。
 9. composition_sections、observation_candidates 與 questionnaire_targets 應根據整段對話整合，不要只反映最後一句。
 10. 請避免把逐字原句整段貼入；優先轉成可交付、可讀的整理句。
+11. observation_candidates 要盡量保留 evidence_refs 與 inference_basis，讓後續 FHIR 映射可追溯。
+12. 不可把操作指令、快捷鍵、模式切換、FHIR 輸出控制語句當成症狀內容。
 clinician_summary_draft：{{#conversation.clinician_summary_draft#}}
 patient_review_packet：{{#conversation.patient_review_packet#}}
 patient_authorization_state：{{#conversation.patient_authorization_state#}}
 red_flag_payload：{{#conversation.red_flag_payload#}}
 hamd_progress_state：{{#conversation.hamd_progress_state#}}
 hamd_formal_assessment：{{#conversation.hamd_formal_assessment#}}
+symptom_bridge_state：{{#conversation.symptom_bridge_state#}}
 recent_chat_history：{{#retrieval.recent_chat_history_text#}}
 longitudinal_dialogue：{{#retrieval.longitudinal_dialogue#}}
 只輸出 JSON，不要加解釋。
