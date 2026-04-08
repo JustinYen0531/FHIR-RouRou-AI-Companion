@@ -541,6 +541,8 @@ function normalizePinnedSessionRecord(record = {}) {
     has_fhir_draft: Boolean(source.has_fhir_draft),
     has_corrupted_history: Boolean(source.has_corrupted_history),
     message_count: Number.isFinite(Number(source.message_count)) ? Number(source.message_count) : 0,
+    pinned_summary: String(source.pinned_summary || '').trim(),
+    pinned_sub: String(source.pinned_sub || '').trim(),
     pinnedAt: source.pinnedAt || new Date().toISOString()
   };
 }
@@ -575,6 +577,23 @@ function getPinCandidateSession() {
   return fromRecent || null;
 }
 
+function buildPinnedSessionSnapshot(session = {}) {
+  const summary = pickReadableSessionText(
+    [session.last_user_message, session.last_assistant_message, session.latest_tag_summary],
+    '這段釘選對話目前還沒有可讀摘要。'
+  );
+  const sub = pickReadableSessionText(
+    [session.last_assistant_message, session.last_user_message, session.latest_tag_summary],
+    '點進去可以直接展示這段對話。'
+  );
+  return {
+    ...session,
+    pinned_summary: summary,
+    pinned_sub: sub,
+    pinnedAt: new Date().toISOString()
+  };
+}
+
 function syncPinnedSessionButtonState() {
   const pinButton = document.getElementById('chat-pin-session');
   if (!pinButton) return;
@@ -605,10 +624,7 @@ function togglePinnedSession() {
     return;
   }
 
-  savePinnedSession({
-    ...candidate,
-    pinnedAt: new Date().toISOString()
-  });
+  savePinnedSession(buildPinnedSessionSnapshot(candidate));
   appendSystemNotice('已釘選這段對話，首頁最上方會固定顯示給評審先看。');
   syncPinnedSessionButtonState();
   if (APP_STATE.currentScreen === 'screen-home') {
@@ -3441,13 +3457,6 @@ function saveCurrentSessionToLocalArchive() {
   const records = loadLocalSessionArchiveRecords().filter((item) => item.id !== record.id);
   records.unshift(record);
   saveLocalSessionArchiveRecords(records);
-
-  if (APP_STATE.pinnedSession?.id === record.id) {
-    savePinnedSession({
-      ...summarizeSessionRecord(record),
-      pinnedAt: APP_STATE.pinnedSession.pinnedAt || new Date().toISOString()
-    });
-  }
   syncPinnedSessionButtonState();
 }
 
@@ -3631,11 +3640,11 @@ function renderRecentSessions() {
 
   const pinnedHtml = pinned ? (() => {
     const summary = pickReadableSessionText(
-      [pinned.latest_tag_summary, pinned.last_user_message, pinned.last_assistant_message],
+      [pinned.pinned_summary, pinned.last_user_message, pinned.last_assistant_message, pinned.latest_tag_summary],
       '這段釘選對話目前還沒有可讀摘要。'
     );
     const sub = pickReadableSessionText(
-      [pinned.last_assistant_message, pinned.last_user_message],
+      [pinned.pinned_sub, pinned.last_assistant_message, pinned.last_user_message, pinned.latest_tag_summary],
       '點進去可以直接展示這段對話。'
     );
     const flags = [
