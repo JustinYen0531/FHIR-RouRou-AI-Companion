@@ -62,6 +62,18 @@ function createStubModelClient() {
     if (systemPrompt.includes('給病人自己審閱')) {
       return { text: JSON.stringify({ packet_version: 'v1', patient_facing_summary: '最近很累。' }) };
     }
+    if (systemPrompt.includes('給病人自己看的分析')) {
+      return {
+        text: JSON.stringify({
+          version: 'p4_patient_analysis_v3',
+          status: 'ready',
+          plain_summary: '你最近的狀態不只是累，而是已經開始影響情緒和生活節奏。',
+          key_points: ['情緒低落', '睡眠被打亂', '需要更溫和的整理節奏'],
+          reminder: '這份內容是依據目前對話整理的陪伴式理解，不是醫療診斷。',
+          markdown: '## 給你的分析\n\n你最近的狀態不只是累，而是已經開始影響情緒和生活節奏。\n\n### 我怎麼理解你現在的狀態\n- 你一直在撐。\n\n### 我目前注意到你卡住的地方\n- 睡眠和情緒互相拉扯。\n\n### 你現在比較需要的支持方式\n- 先慢慢整理，不要一次逼自己講很多。\n\n### 接下來可以怎麼做\n- 先從最近最卡的一件事開始。\n\n### 提醒\n這份內容是依據目前對話整理的陪伴式理解，不是醫療診斷。'
+        })
+      };
+    }
     if (systemPrompt.includes('病人審閱 / 授權狀態')) {
       return { text: JSON.stringify({ state_version: 'v1', authorization_status: 'ready_for_consent' }) };
     }
@@ -131,9 +143,30 @@ async function testStructuredObservationRewritingAndLeanFhirDraft() {
   );
 }
 
+async function testPatientAnalysisUsesMeaningfulNarrative() {
+  const modelClient = createStubModelClient();
+  const engine = new AICompanionEngine({ modelClient, apiKey: 'fake' });
+  await engine.handleMessage({
+    message: '我最近晚上一直睡不好，白天做事也很沒勁，心情很低。',
+    user: 'demo',
+    conversation_id: 'conv-output-3'
+  });
+
+  const analysis = await engine.generateOutput({
+    conversation_id: 'conv-output-3',
+    user: 'demo',
+    output_type: 'patient_analysis'
+  });
+
+  assert.ok(analysis.output.plain_summary.includes('影響'));
+  assert.ok(!analysis.output.markdown.includes('depressed_mood'));
+  assert.ok(analysis.output.markdown.includes('## 給你的分析'));
+}
+
 async function run() {
   await testOutputCaching();
   await testStructuredObservationRewritingAndLeanFhirDraft();
+  await testPatientAnalysisUsesMeaningfulNarrative();
   console.log('AI companion output tests passed.');
 }
 

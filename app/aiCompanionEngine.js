@@ -19,6 +19,7 @@ const PROMPT_FILES = {
   summaryDraftBuilder: '摘要草稿建構器.md',
   symptomBridgeBuilder: '症狀對接建構器.md',
   clinicianSummaryBuilder: '醫師摘要建構器.md',
+  patientAnalysisBuilder: '病人分析建構器.md',
   patientReviewBuilder: '病人審閱建構器.md',
   patientAuthorizationBuilder: '病人授權建構器.md',
   fhirDeliveryBuilder: 'FHIR交付建構器.md',
@@ -81,6 +82,16 @@ const HAMD_DIMENSION_TO_ITEM_CODES = {
 
 const HAMD_PROGRESS_DIMENSIONS = Object.keys(HAMD_DIMENSION_TO_ITEM_CODES);
 
+const HAMD_DIMENSION_LABELS_ZH = {
+  depressed_mood: '情緒低落',
+  guilt: '自責或罪惡感',
+  work_interest: '工作或興趣下降',
+  retardation: '思考或動作變慢',
+  agitation: '坐立難安或煩躁',
+  somatic_anxiety: '焦慮與身體緊繃',
+  insomnia: '睡眠困擾'
+};
+
 const FHIR_RESOURCE_DEFINITIONS = {
   Patient: { resource_type: 'Patient', resourceType: 'Patient', display: 'Patient / Subject Of Care', status: 'preliminary', purpose: 'subject_identity' },
   Encounter: { resource_type: 'Encounter', resourceType: 'Encounter', display: 'Encounter / Conversation Session', status: 'preliminary', purpose: 'session_context' },
@@ -103,6 +114,11 @@ function buildControlledFhirResourceList(options = {}) {
     options.includeDocumentReference ? FHIR_RESOURCE_DEFINITIONS.DocumentReference : null,
     FHIR_RESOURCE_DEFINITIONS.Provenance
   ].filter(Boolean).map((item) => Object.assign({}, item));
+}
+
+function humanizeHamdDimension(value = '') {
+  const key = String(value || '').trim();
+  return HAMD_DIMENSION_LABELS_ZH[key] || key;
 }
 
 const COMMAND_MAP = {
@@ -1380,6 +1396,66 @@ function mergeUniqueTexts(primary, secondary, limit = 8) {
   return merged;
 }
 
+function normalizeClinicianObservationItems(primary, secondary, evidenceTrack, limit = 8) {
+  return buildStructuredObservationSet(
+    mergeUniqueTexts(primary, secondary, limit),
+    [],
+    evidenceTrack,
+    limit
+  );
+}
+
+function normalizeClinicianConcernItems(primary, secondary, observations, evidenceTrack, limit = 6) {
+  return buildStructuredConcernSet(
+    mergeUniqueTexts(primary, secondary, limit),
+    observations,
+    evidenceTrack,
+    limit
+  );
+}
+
+function normalizeFhirCompositionSections(sections = []) {
+  return normalizeArray(sections)
+    .map((section) => ({
+      section: String(section?.section || '').trim(),
+      focus: String(section?.focus || '').trim()
+    }))
+    .filter((section) => section.section && section.focus && !isPlaceholderSection(section.focus));
+}
+
+function normalizeObservationCandidates(candidates = [], evidenceTrack = []) {
+  return normalizeArray(candidates)
+    .map((candidate) => ({
+      focus: rewriteObservationText(candidate?.focus || ''),
+      category: String(candidate?.category || 'patient_report').trim() || 'patient_report',
+      signal: String(candidate?.signal || '').trim(),
+      status: String(candidate?.status || 'preliminary').trim() || 'preliminary',
+      evidence_refs: uniqueStrings(candidate?.evidence_refs, 6),
+      inference_basis: String(candidate?.inference_basis || '').trim()
+    }))
+    .filter((candidate) => candidate.focus)
+    .slice(0, 8);
+}
+
+function normalizeQuestionnaireTargets(targets = []) {
+  return normalizeArray(targets)
+    .map((target) => {
+      if (typeof target === 'string') {
+        const text = String(target).trim();
+        if (!text) return '';
+        const [label, detail] = text.split('：');
+        const normalizedDetail = rewriteObservationText(detail || label || '');
+        return normalizedDetail ? `${label || '觀察'}：${normalizedDetail}` : '';
+      }
+      const dimension = String(target?.dimension || '').trim();
+      const reason = rewriteObservationText(target?.reason || '');
+      if (!dimension || !reason) return '';
+      return `${dimension}：${reason}`;
+    })
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
 function mergeSummaryDraftState(baseDraft, generatedDraft) {
   const generated = generatedDraft && typeof generatedDraft === 'object' ? generatedDraft : {};
   return Object.assign({}, baseDraft, generated, {
@@ -1398,9 +1474,22 @@ function mergeClinicianSummaryDraft(baseDraft, generatedDraft, formalAssessment)
   const inferenceTrack = sanitizeSymptomInferenceTrack(
     normalizeArray(generated.symptom_inference_track).length ? generated.symptom_inference_track : baseDraft.symptom_inference_track
   );
+  const normalizedObservations = normalizeClinicianObservationItems(
+    baseDraft.symptom_observations,
+    generated.symptom_observations,
+    evidenceTrack,
+    8
+  );
+  const normalizedConcerns = normalizeClinicianConcernItems(
+    baseDraft.chief_concerns,
+    generated.chief_concerns,
+    normalizedObservations,
+    evidenceTrack,
+    6
+  );
   const merged = Object.assign({}, baseDraft, generated, {
-    chief_concerns: mergeUniqueTexts(baseDraft.chief_concerns, generated.chief_concerns, 6),
-    symptom_observations: mergeUniqueTexts(baseDraft.symptom_observations, generated.symptom_observations, 8),
+    chief_concerns: normalizedConcerns,
+    symptom_observations: normalizedObservations,
     hamd_signals: mergeUniqueTexts(baseDraft.hamd_signals, generated.hamd_signals, 6),
     followup_needs: mergeUniqueTexts(baseDraft.followup_needs, generated.followup_needs, 5),
     safety_flags: mergeUniqueTexts(baseDraft.safety_flags, generated.safety_flags, 4),
@@ -1447,40 +1536,54 @@ function mergePatientAuthorizationState(baseState, generatedState) {
 
 function mergeFhirDeliveryDraft(baseDraft, generatedDraft) {
   const generated = generatedDraft && typeof generatedDraft === 'object' ? generatedDraft : {};
-  const mergedSections = Array.isArray(baseDraft.composition_sections)
-    ? baseDraft.composition_sections.map((section, index) => {
-        const generatedSection = normalizeArray(generated.composition_sections)[index] || {};
-        return {
-          section: section.section,
-          focus: chooseStructuredText(generatedSection.focus, section.focus)
-        };
-      })
-    : [];
+  const evidenceTrack = sanitizeSymptomEvidenceTrack(
+    normalizeArray(generated.symptom_evidence_track).length ? generated.symptom_evidence_track : baseDraft.symptom_evidence_track
+  );
+  const mergedSections = normalizeFhirCompositionSections(
+    Array.isArray(baseDraft.composition_sections)
+      ? baseDraft.composition_sections.map((section, index) => {
+          const generatedSection = normalizeArray(generated.composition_sections)[index] || {};
+          return {
+            section: section.section,
+            focus: chooseStructuredText(generatedSection.focus, section.focus)
+          };
+        })
+      : []
+  );
+  const observationCandidates = normalizeObservationCandidates(
+    normalizeArray(generated.observation_candidates).length
+      ? generated.observation_candidates
+      : baseDraft.observation_candidates,
+    evidenceTrack
+  );
+  const questionnaireTargets = normalizeQuestionnaireTargets(
+    normalizeArray(generated.questionnaire_targets).length
+      ? generated.questionnaire_targets
+      : baseDraft.questionnaire_targets
+  );
+  const narrativeSummary = chooseStructuredText(generated.narrative_summary, baseDraft.narrative_summary);
+  const clinicalAlerts = mergeUniqueTexts(baseDraft.clinical_alerts, generated.clinical_alerts, 6);
+  const exportBlockers = mergeUniqueTexts(baseDraft.export_blockers, generated.export_blockers, 6);
+  const notes = chooseStructuredText(generated.notes, baseDraft.notes);
 
   return Object.assign({}, baseDraft, generated, {
-    narrative_summary: chooseStructuredText(generated.narrative_summary, baseDraft.narrative_summary),
+    narrative_summary: narrativeSummary,
     composition_sections: mergedSections.length ? mergedSections : normalizeArray(baseDraft.composition_sections),
-    observation_candidates: normalizeArray(generated.observation_candidates).length
-      ? normalizeArray(generated.observation_candidates)
-      : normalizeArray(baseDraft.observation_candidates),
-    questionnaire_targets: normalizeArray(generated.questionnaire_targets).length
-      ? normalizeArray(generated.questionnaire_targets)
-      : normalizeArray(baseDraft.questionnaire_targets),
-    clinical_alerts: mergeUniqueTexts(baseDraft.clinical_alerts, generated.clinical_alerts, 6),
-    export_blockers: mergeUniqueTexts(baseDraft.export_blockers, generated.export_blockers, 6),
-    notes: chooseStructuredText(generated.notes, baseDraft.notes),
+    observation_candidates: observationCandidates,
+    questionnaire_targets: questionnaireTargets,
+    clinical_alerts: clinicalAlerts,
+    export_blockers: exportBlockers,
+    notes,
     hamd_formal_targets: normalizeArray(generated.hamd_formal_targets).length
       ? normalizeArray(generated.hamd_formal_targets)
       : normalizeArray(baseDraft.hamd_formal_targets),
     resources: buildControlledFhirResourceList({
-      includeQuestionnaire: normalizeArray(baseDraft.questionnaire_targets).length || normalizeArray(baseDraft.hamd_formal_targets).length,
-      includeObservation: normalizeArray(baseDraft.observation_candidates).length,
-      includeClinicalImpression: normalizeArray(baseDraft.clinical_alerts).length || String(baseDraft.narrative_summary || '').trim() || normalizeArray(baseDraft.composition_sections).length,
-      includeDocumentReference: String(baseDraft.narrative_summary || '').trim() || String(baseDraft.notes || '').trim()
+      includeQuestionnaire: questionnaireTargets.length || normalizeArray(baseDraft.hamd_formal_targets).length,
+      includeObservation: observationCandidates.length,
+      includeClinicalImpression: clinicalAlerts.length || String(narrativeSummary || '').trim() || mergedSections.length,
+      includeDocumentReference: String(narrativeSummary || '').trim() || String(notes || '').trim()
     }),
-    symptom_evidence_track: sanitizeSymptomEvidenceTrack(
-      normalizeArray(generated.symptom_evidence_track).length ? generated.symptom_evidence_track : baseDraft.symptom_evidence_track
-    ),
+    symptom_evidence_track: evidenceTrack,
     symptom_inference_track: sanitizeSymptomInferenceTrack(
       normalizeArray(generated.symptom_inference_track).length ? generated.symptom_inference_track : baseDraft.symptom_inference_track
     )
@@ -1728,7 +1831,7 @@ function buildPatientAnalysis(state, fallbackMessage = '') {
   if (sentimentTags.length) stateUnderstanding.push(`你最近的情緒線索比較靠近「${sentimentTags.join('、')}」`);
   if (burden.burden_level === 'high') stateUnderstanding.push('你現在的互動負擔偏高，可能不太適合一次處理太多問題');
   if (burden.burden_level === 'medium') stateUnderstanding.push('你現在還撐得住對話，但可能已經有點疲累，需要比較溫和的整理節奏');
-  if (supportedDimensions.length) stateUnderstanding.push(`目前對話已經碰到的狀態面向包含 ${supportedDimensions.join('、')}`);
+  if (supportedDimensions.length) stateUnderstanding.push(`目前對話已經碰到的狀態面向包含 ${supportedDimensions.map(humanizeHamdDimension).join('、')}`);
   if (keyThemes.length) stateUnderstanding.push(`這段對話反覆繞著 ${keyThemes.join('、')} 這幾個主題`);
   if (!stateUnderstanding.length) stateUnderstanding.push('目前資料還偏少，但已經能看出你不是單純想抱怨，而是在試著整理自己的狀態');
 
@@ -1751,7 +1854,7 @@ function buildPatientAnalysis(state, fallbackMessage = '') {
     supportSuggestions.push(`如果要再往下聊，優先可以放在：${followupNeeds.join('、')}`);
   }
   if (hamdProgress.next_recommended_dimension) {
-    supportSuggestions.push(`下一步如果要更理解你的狀態，可以再補一點和「${hamdProgress.next_recommended_dimension}」有關的感受或例子。`);
+    supportSuggestions.push(`下一步如果要更理解你的狀態，可以再補一點和「${humanizeHamdDimension(hamdProgress.next_recommended_dimension)}」有關的感受或例子。`);
   }
   if (positiveAnchors.length) {
     supportSuggestions.push(`你不是只有困住的部分，像 ${positiveAnchors.join('、')} 這些也可能是幫你穩住自己的資源。`);
@@ -1805,6 +1908,20 @@ function buildPatientAnalysis(state, fallbackMessage = '') {
     reminder: '這份內容是依據目前對話整理的陪伴式理解，不是醫療診斷。',
     markdown
   };
+}
+
+function mergePatientAnalysis(baseOutput, generatedOutput) {
+  const base = baseOutput && typeof baseOutput === 'object' ? baseOutput : {};
+  const generated = generatedOutput && typeof generatedOutput === 'object' ? generatedOutput : {};
+  const merged = Object.assign({}, base, generated);
+  merged.version = String(generated.version || base.version || 'p4_patient_analysis_v3').trim();
+  merged.status = String(generated.status || base.status || 'ready').trim() || 'ready';
+  merged.plain_summary = String(generated.plain_summary || base.plain_summary || '').trim();
+  merged.reminder = String(generated.reminder || base.reminder || '這份內容是依據目前對話整理的陪伴式理解，不是醫療診斷。').trim();
+  merged.key_points = Array.from(new Set(normalizeArray(generated.key_points).concat(normalizeArray(base.key_points)))).slice(0, 6);
+  const markdown = String(generated.markdown || '').trim();
+  merged.markdown = markdown && !isGenericDraftText(markdown) ? markdown : String(base.markdown || '').trim();
+  return merged;
 }
 
 function createEmptyRetrievalAudit(kind) {
@@ -2466,7 +2583,18 @@ class AICompanionEngine {
       });
       state.fhir_delivery_draft = mergeFhirDeliveryDraft(fhirBase, generatedFhirDraft);
 
-      state.patient_analysis = buildPatientAnalysis(state, message);
+      const basePatientAnalysisOutput = buildPatientAnalysis(state, message);
+      const generatedPatientAnalysis = await this.runJsonTask('patientAnalysisBuilder', session, message, {
+        fallback: basePatientAnalysisOutput,
+        extraContext: {
+          clinician_summary_draft: state.clinician_summary_draft,
+          patient_review_packet: state.patient_review_packet,
+          hamd_progress_state: state.hamd_progress_state,
+          burden_level_state: state.burden_level_state,
+          longitudinal_evidence: longitudinal
+        }
+      });
+      state.patient_analysis = mergePatientAnalysis(basePatientAnalysisOutput, generatedPatientAnalysis);
 
       const readinessBase = buildDeliveryReadinessState(state.fhir_delivery_draft, state.patient_authorization_state);
       const generatedReadiness = await this.runJsonTask('deliveryReadinessBuilder', session, message, {
