@@ -1,9 +1,9 @@
-const fs = require('fs');
+﻿const fs = require('fs');
 const path = require('path');
 
 const ROOT = process.cwd();
-const SOURCE_DIR = path.join(ROOT, 'flowise', 'source');
-const OUTPUT_DIR = path.join(ROOT, 'flowise');
+const SOURCE_DIR = path.join(ROOT, 'ai_assets', 'source');
+const OUTPUT_DIR = path.join(ROOT, 'ai_assets');
 const PROMPTS_DIR = path.join(OUTPUT_DIR, 'prompts');
 const FLOWS_DIR = path.join(OUTPUT_DIR, 'flows');
 
@@ -44,7 +44,7 @@ function mapNodeType(type) {
 }
 
 function buildPromptMarkdown(node) {
-  const sections = [`# ${node.title}`, '', `- Dify id: \`${node.id}\``, `- Dify type: \`${node.type}\``, `- Flowise mapping: ${mapNodeType(node.type)}`, ''];
+  const sections = [`# ${node.title}`, '', `- Dify id: \`${node.id}\``, `- Dify type: \`${node.type}\``, `- Chatflow mapping: ${mapNodeType(node.type)}`, ''];
   if (node.instruction) {
     sections.push('## Instruction', '', node.instruction.trim(), '');
   }
@@ -67,17 +67,17 @@ function buildFlowBlueprint(nodes, edges, stateSchema, assigners) {
       id: node.id,
       title: node.title,
       type: node.type,
-      prompt_file: `flowise/prompts/${slugify(node.title)}.md`
+      prompt_file: `ai_assets/prompts/${slugify(node.title)}.md`
     }));
 
   return {
-    name: 'AI Companion Flowise Blueprint',
+    name: 'AI Companion Chatflow Blueprint',
     source: 'AI_Chat_Companion_New_Skeleton (4).yml',
     generated_at: new Date().toISOString(),
     architecture: {
-      orchestration: 'Node proxy + Flowise chatflow runtime',
-      memory: 'Flowise sessionId + Node-side business state',
-      rag: 'Local file corpus + Flowise retriever'
+      orchestration: 'Node proxy + chatflow runtime',
+      memory: 'Chatflow sessionId + Node-side business state',
+      rag: 'Local file corpus + chatflow retriever'
     },
     state_variables: stateSchema.map((item) => ({
       name: item.name,
@@ -89,7 +89,7 @@ function buildFlowBlueprint(nodes, edges, stateSchema, assigners) {
       id: node.id,
       title: node.title,
       type: node.type,
-      flowise_component: mapNodeType(node.type)
+      chatflow_component: mapNodeType(node.type)
     })),
     prompt_nodes: promptNodes,
     assigners: assigners.map((assigner) => ({
@@ -119,10 +119,10 @@ function main() {
     id: node.id,
     title: node.title,
     type: node.type,
-    flowise_component: mapNodeType(node.type)
+    chatflow_component: mapNodeType(node.type)
   }));
   fs.writeFileSync(
-    path.join(OUTPUT_DIR, 'FLOWISE_DIFY_NODE_MAP.json'),
+    path.join(OUTPUT_DIR, 'DIFY_NODE_MAP.json'),
     JSON.stringify(nodeMap, null, 2)
   );
 
@@ -134,7 +134,7 @@ function main() {
     description: item.description
   }));
   fs.writeFileSync(
-    path.join(OUTPUT_DIR, 'FLOWISE_STATE_SCHEMA.json'),
+    path.join(OUTPUT_DIR, 'AI_STATE_SCHEMA.json'),
     JSON.stringify(normalizedState, null, 2)
   );
 
@@ -149,11 +149,12 @@ function main() {
 
   const blueprint = buildFlowBlueprint(nodes, edges, stateSchema, assigners);
   fs.writeFileSync(
-    path.join(FLOWS_DIR, 'AI_Companion_Flowise_Blueprint.json'),
+    path.join(FLOWS_DIR, 'AI_Companion_Chatflow_Blueprint.json'),
     JSON.stringify(blueprint, null, 2)
   );
 
-  console.log('Flowise assets generated.');
+  console.log('AI asset bundle generated.');
 }
 
 main();
+

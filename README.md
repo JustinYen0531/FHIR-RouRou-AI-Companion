@@ -1,4 +1,4 @@
-# 星澄遠征軍｜Rou Rou AI Companion
+﻿# 星澄遠征軍｜Rou Rou AI Companion
 
 ## 評審請先看這裡
 
@@ -244,7 +244,7 @@ GROQ_API_KEY=YOUR_GROQ_API_KEY
 - [競賽文件入口](./競賽文件入口)：給評審與老師快速查閱的主要交付入口
 - [工程文件入口](./工程文件入口)：較完整的內部工程文件、技術整理與開發脈絡
 - [app](./app)：前端、Node 伺服器、FHIR 與 AI 引擎主程式
-- [flowise](./flowise)：過往 Flowise 相關資產與轉換資料
+- [ai_assets](./ai_assets)：AI 提示資產、狀態 schema、chatflow 藍圖與轉換資料
 - [tools](./tools)：開發用工具腳本
 
 ## 補充說明
@@ -256,3 +256,4 @@ GROQ_API_KEY=YOUR_GROQ_API_KEY
 ## License / 使用說明
 
 本 repository 主要作為競賽展示、技術驗證與開發紀錄使用。若需進一步引用或延伸使用，建議先聯絡作者確認。
+

@@ -1,428 +1,428 @@
-[
+﻿[
   {
     "id": "start",
     "title": "Start",
     "type": "start",
-    "flowise_component": "Chatflow input / Start"
+    "chatflow_component": "Chatflow input / Start"
   },
   {
     "id": "command-detector",
     "title": "Command Detector",
     "type": "question-classifier",
-    "flowise_component": "Custom JS Function + If Else + Set Variable"
+    "chatflow_component": "Custom JS Function + If Else + Set Variable"
   },
   {
     "id": "risk-detector",
     "title": "Risk Detector",
     "type": "question-classifier",
-    "flowise_component": "Custom JS Function + If Else + Set Variable"
+    "chatflow_component": "Custom JS Function + If Else + Set Variable"
   },
   {
     "id": "mission-retrieval-audit",
     "title": "Mission Retrieval Audit",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "save-mission-retrieval-audit",
     "title": "Save Mission Retrieval Audit",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "risk-structurer",
     "title": "Risk Structurer",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "set-risk-state",
     "title": "Set Risk State",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "clear-risk-state",
     "title": "Clear Risk State",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "safety-response",
     "title": "Safety Response",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "summary-draft-builder",
     "title": "Summary Draft Builder",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "save-summary-draft",
     "title": "Save Summary Draft",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "clinician-summary-builder",
     "title": "Clinician Summary Builder",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "save-clinician-summary",
     "title": "Save Clinician Summary",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "patient-review-builder",
     "title": "Patient Review Builder",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "save-patient-review",
     "title": "Save Patient Review",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "patient-authorization-builder",
     "title": "Patient Authorization Builder",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "save-patient-authorization",
     "title": "Save Patient Authorization",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "fhir-delivery-builder",
     "title": "FHIR Delivery Builder",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "delivery-readiness-builder",
     "title": "Delivery Readiness Builder",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "save-delivery-readiness",
     "title": "Save Delivery Readiness",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "save-fhir-delivery",
     "title": "Save FHIR Delivery",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "tag-structurer",
     "title": "Tag Structurer",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "save-tag-payload",
     "title": "Save Tag Payload",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "burden-level-builder",
     "title": "Burden Level Builder",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "save-burden-level",
     "title": "Save Burden Level",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "set-command-auto",
     "title": "Set Command Auto",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "set-command-void",
     "title": "Set Command Void",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "set-command-soulmate",
     "title": "Set Command Soulmate",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "set-command-mission",
     "title": "Set Command Mission",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "set-command-option",
     "title": "Set Command Option",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "set-command-natural",
     "title": "Set Command Natural",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "set-command-clarify",
     "title": "Set Command Clarify",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "set-mode-void",
     "title": "Set Active Mode Void",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "set-mode-soulmate",
     "title": "Set Active Mode Soulmate",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "set-mode-mission",
     "title": "Set Active Mode Mission",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "set-mode-option",
     "title": "Set Active Mode Option",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "set-mode-natural",
     "title": "Set Active Mode Natural",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "set-mode-clarify",
     "title": "Set Active Mode Clarify",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "override-gate",
     "title": "Override Gate",
     "type": "if-else",
-    "flowise_component": "If Else"
+    "chatflow_component": "If Else"
   },
   {
     "id": "followup-gate",
     "title": "Follow-up Gate",
     "type": "if-else",
-    "flowise_component": "If Else"
+    "chatflow_component": "If Else"
   },
   {
     "id": "followup-limit-gate",
     "title": "Follow-up Limit Gate",
     "type": "if-else",
-    "flowise_component": "If Else"
+    "chatflow_component": "If Else"
   },
   {
     "id": "classifier",
     "title": "Intent Classifier",
     "type": "question-classifier",
-    "flowise_component": "Custom JS Function + If Else + Set Variable"
+    "chatflow_component": "Custom JS Function + If Else + Set Variable"
   },
   {
     "id": "low-energy-detector",
     "title": "Low Energy Detector",
     "type": "question-classifier",
-    "flowise_component": "Custom JS Function + If Else + Set Variable"
+    "chatflow_component": "Custom JS Function + If Else + Set Variable"
   },
   {
     "id": "override-router",
     "title": "Override Router",
     "type": "question-classifier",
-    "flowise_component": "Custom JS Function + If Else + Set Variable"
+    "chatflow_component": "Custom JS Function + If Else + Set Variable"
   },
   {
     "id": "llm-void",
     "title": "Void Box",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "llm-soulmate",
     "title": "Soul Mate",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "retrieval-mission",
     "title": "Mission Retrieval",
     "type": "knowledge-retrieval",
-    "flowise_component": "Document Store + Retriever + QA Chain"
+    "chatflow_component": "Document Store + Retriever + QA Chain"
   },
   {
     "id": "hamd-progress-tracker",
     "title": "HAM-D Progress Tracker",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "save-hamd-progress",
     "title": "Save HAM-D Progress",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "llm-mission",
     "title": "Mission Guide",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "retrieval-option",
     "title": "Option Retrieval",
     "type": "knowledge-retrieval",
-    "flowise_component": "Document Store + Retriever + QA Chain"
+    "chatflow_component": "Document Store + Retriever + QA Chain"
   },
   {
     "id": "option-retrieval-audit",
     "title": "Option Retrieval Audit",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "save-option-retrieval-audit",
     "title": "Save Option Retrieval Audit",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "llm-option",
     "title": "Option Selector",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "llm-natural",
     "title": "Smart Hunter",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "followup-output-classifier",
     "title": "Follow-up Output Classifier",
     "type": "question-classifier",
-    "flowise_component": "Custom JS Function + If Else + Set Variable"
+    "chatflow_component": "Custom JS Function + If Else + Set Variable"
   },
   {
     "id": "llm-followup",
     "title": "Follow-up Resolver",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "llm-followup-final",
     "title": "Follow-up Finalizer",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "llm-clarify",
     "title": "Clarify Question",
     "type": "llm",
-    "flowise_component": "LLM / Prompt Chain"
+    "chatflow_component": "LLM / Prompt Chain"
   },
   {
     "id": "clear-pending",
     "title": "Clear Pending Question",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "save-pending",
     "title": "Save Pending Question",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "save-pending-followup",
     "title": "Save Follow-up Question",
     "type": "assigner",
-    "flowise_component": "Set Variable"
+    "chatflow_component": "Set Variable"
   },
   {
     "id": "answer-safety",
     "title": "Safety Answer",
     "type": "answer",
-    "flowise_component": "Final output node"
+    "chatflow_component": "Final output node"
   },
   {
     "id": "answer-void",
     "title": "Void Answer",
     "type": "answer",
-    "flowise_component": "Final output node"
+    "chatflow_component": "Final output node"
   },
   {
     "id": "answer-soulmate",
     "title": "Soulmate Answer",
     "type": "answer",
-    "flowise_component": "Final output node"
+    "chatflow_component": "Final output node"
   },
   {
     "id": "answer-mission",
     "title": "Mission Answer",
     "type": "answer",
-    "flowise_component": "Final output node"
+    "chatflow_component": "Final output node"
   },
   {
     "id": "answer-option",
     "title": "Option Answer",
     "type": "answer",
-    "flowise_component": "Final output node"
+    "chatflow_component": "Final output node"
   },
   {
     "id": "answer-natural",
     "title": "Natural Answer",
     "type": "answer",
-    "flowise_component": "Final output node"
+    "chatflow_component": "Final output node"
   },
   {
     "id": "answer-followup",
     "title": "Follow-up Answer",
     "type": "answer",
-    "flowise_component": "Final output node"
+    "chatflow_component": "Final output node"
   },
   {
     "id": "answer-clarify",
     "title": "Clarify Answer",
     "type": "answer",
-    "flowise_component": "Final output node"
+    "chatflow_component": "Final output node"
   },
   {
     "id": "answer-command",
     "title": "Command Answer",
     "type": "answer",
-    "flowise_component": "Final output node"
+    "chatflow_component": "Final output node"
   }
 ]

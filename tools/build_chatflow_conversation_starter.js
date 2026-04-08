@@ -1,10 +1,10 @@
-const fs = require('fs');
+﻿const fs = require('fs');
 const path = require('path');
 
 const ROOT = process.cwd();
-const flowsDir = path.join(ROOT, 'flowise', 'flows');
-const baseFile = path.join(flowsDir, 'AI_Companion_Flowise_Importable_Starter.json');
-const outFile = path.join(flowsDir, 'AI_Companion_Flowise_Importable_Conversation_Starter.json');
+const flowsDir = path.join(ROOT, 'ai_assets', 'flows');
+const baseFile = path.join(flowsDir, 'AI_Companion_Chatflow_Starter.json');
+const outFile = path.join(flowsDir, 'AI_Companion_Chatflow_Conversation_Starter.json');
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -149,3 +149,4 @@ function main() {
 }
 
 main();
+

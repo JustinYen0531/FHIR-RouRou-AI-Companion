@@ -1,8 +1,8 @@
-# AI Companion Node Engine
+﻿# AI Companion Node Engine
 
 ## Summary
 - 這套引擎目前的產品焦點，是支援**憂鬱症病患**在回診前進行情緒整理、HAM-D 線索蒐集與 FHIR 草稿生成。
-- 主聊天流程不再依賴 Dify 或 Flowise。
+- 主聊天流程不再依賴 Dify 或舊版 Chatflow 命名。
 - 現在由 Node server 直接管理：
   - session state
   - command routing
@@ -37,7 +37,7 @@
 - 模型 client: [app/llmChatClient.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/llmChatClient.js)
 
 ## State Schema
-- 來源: [FLOWISE_STATE_SCHEMA.json](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/flowise/FLOWISE_STATE_SCHEMA.json)
+- 來源: [AI_STATE_SCHEMA.json](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/ai_assets/AI_STATE_SCHEMA.json)
 - 引擎完整維護以下欄位：
   - `pending_question`
   - `risk_flag`
@@ -121,7 +121,7 @@
 
 ## FHIR Integration
 - 引擎輸出的 `session_export` 維持和 [sampleSessionExport.json](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/sampleSessionExport.json) 相容。
-- [fhirBundleBuilder.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/fhirBundleBuilder.js) 不需要知道 Dify/Flowise 是否存在。
+- [fhirBundleBuilder.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/fhirBundleBuilder.js) 不需要知道 Dify 或 chatflow 資產是否存在。
 
 ## Environment Variables
 - `LLM_PROVIDER`
@@ -137,4 +137,5 @@
 - [fhirBundleBuilder.test.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/fhirBundleBuilder.test.js)
 - [aiCompanionEngine.test.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/aiCompanionEngine.test.js)
 - [aiCompanionOutput.test.js](C:/Users/閻星澄/Desktop/FHIR-main/FHIR-main/app/aiCompanionOutput.test.js)
+
 

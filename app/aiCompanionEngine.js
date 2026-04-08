@@ -3,8 +3,8 @@ const path = require('path');
 const { completeChat, DEFAULT_GROQ_MODEL, DEFAULT_OPENROUTER_MODEL, DEFAULT_GOOGLE_MODEL } = require('./llmChatClient');
 
 const ROOT_DIR = path.join(__dirname, '..');
-const STATE_SCHEMA_PATH = path.join(ROOT_DIR, 'flowise', 'FLOWISE_STATE_SCHEMA.json');
-const PROMPTS_DIR = path.join(ROOT_DIR, 'flowise', 'prompts');
+const STATE_SCHEMA_PATH = path.join(ROOT_DIR, 'ai_assets', 'AI_STATE_SCHEMA.json');
+const PROMPTS_DIR = path.join(ROOT_DIR, 'ai_assets', 'prompts');
 const RAG_DIR = path.join(__dirname, 'rag');
 const RAG_TEXT_PATH = path.join(RAG_DIR, 'CompanionAI_RAG資料.txt');
 const DEFAULT_AUTHOR = 'AI Companion Node Engine';

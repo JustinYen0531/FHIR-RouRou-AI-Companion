@@ -1,4 +1,4 @@
-# AI 症狀對接與 FHIR 草稿優化實作計畫
+﻿# AI 症狀對接與 FHIR 草稿優化實作計畫
 
 ## 摘要
 將目前偏規則式的症狀整理流程改為「AI 語意抽取為主、規則保底為輔」的雙層架構，讓 FHIR 草稿中的症狀欄位不再混入操作指令，並新增「證據軌」與「推論軌」並行的輸出方式。  
@@ -20,7 +20,7 @@
 - `observation_candidates` 則同時保留推論結果與 evidence linkage，讓後續 FHIR 映射可追溯。
 
 3. 調整 prompt 與輸出契約
-- 更新 [flowise/prompts/醫師摘要建構器.md](C:\Users\閻星澄\Desktop\FHIR-main\FHIR-main\flowise\prompts\醫師摘要建構器.md) 與 [flowise/prompts/FHIR交付建構器.md](C:\Users\閻星澄\Desktop\FHIR-main\FHIR-main\flowise\prompts\FHIR交付建構器.md)。
+- 更新 [醫師摘要建構器.md](C:\Users\閻星澄\Desktop\FHIR-main\FHIR-main\ai_assets\prompts\醫師摘要建構器.md) 與 [FHIR交付建構器.md](C:\Users\閻星澄\Desktop\FHIR-main\FHIR-main\ai_assets\prompts\FHIR交付建構器.md)。
 - 明確要求模型：
   - 先判別是否為臨床相關訊息
   - 不可將輸出指令、快捷鍵、模式名稱、系統操作語句視為症狀
@@ -57,3 +57,4 @@
 - 既有規則引擎保留，但降級為 fallback/輔助訊號來源。
 - 審核通過後，文件存放位置預設為 `工程文件入口/計畫文件`。
 - 檔名預設採中文主題式，例如：`AI 症狀對接與 FHIR 草稿優化實作計畫.md`。
+
