@@ -284,6 +284,24 @@ async function testFhirDraftCarriesEvidenceAndInferenceTracks() {
   assert.ok(!JSON.stringify(draft).includes('請幫我生成FHIR草稿'));
 }
 
+async function testSomaticSymptomsAreRetainedInDraftOutputs() {
+  const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
+  await engine.handleMessage({
+    message: '我全身發冷，最近也一直肚子痛，壓力一大就更嚴重，而且失眠很嚴重。',
+    user: 'demo',
+    conversation_id: 'conv-somatic'
+  });
+  const result = await engine.handleMessage({
+    message: '請幫我生成FHIR草稿',
+    user: 'demo',
+    conversation_id: 'conv-somatic'
+  });
+  const clinicianObservations = result.session_export?.clinician_summary_draft?.symptom_observations || [];
+  const draftCandidates = result.session_export?.fhir_delivery_draft?.observation_candidates || [];
+  const combinedText = `${JSON.stringify(clinicianObservations)} ${JSON.stringify(draftCandidates)}`;
+  assert.ok(/腹部不適|腸胃症狀|發冷|自律神經/.test(combinedText));
+}
+
 async function testReuseLatestSessionByUserWhenConversationIdMissing() {
   const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
   const first = await engine.handleMessage({ message: '最近很累', user: 'demo-user' });
@@ -374,6 +392,7 @@ async function run() {
   await testNaturalFlowBuildsSessionExport();
   await testOutputCommandBuildsStructuredDrafts();
   await testFhirDraftCarriesEvidenceAndInferenceTracks();
+  await testSomaticSymptomsAreRetainedInDraftOutputs();
   await testReuseLatestSessionByUserWhenConversationIdMissing();
   await testForceNewSessionCreatesSeparateConversation();
   await testCorruptedInputIsRejectedBeforePersist();

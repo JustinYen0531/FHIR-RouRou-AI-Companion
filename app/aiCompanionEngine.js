@@ -811,6 +811,23 @@ const CLINICAL_SIGNAL_RULES = [
     followup: '釐清是否存在創傷相關經驗、觸發情境與迴避造成的功能代價。'
   },
   {
+    key: 'somatic_stress_response',
+    label: '壓力相關身體化反應（腹部不適／發冷）',
+    signals: ['somatic_anxiety'],
+    pattern: /(肚子痛|腹痛|胃痛|腸胃不適|胃不舒服|絞痛|脹氣|噁心|發冷|全身發冷|手腳冰冷|發抖)/i,
+    summarize(message) {
+      const details = [];
+      if (/(肚子痛|腹痛|胃痛|腸胃不適|胃不舒服|絞痛|脹氣|噁心)/i.test(message)) {
+        details.push('反覆出現腹部不適或腸胃症狀');
+      }
+      if (/(發冷|全身發冷|手腳冰冷|發抖)/i.test(message)) {
+        details.push('伴隨發冷或自律神經亢進反應');
+      }
+      return details.join('，') || '出現壓力相關的身體化反應';
+    },
+    followup: '釐清身體症狀的頻率、持續時間與壓力事件關聯，必要時同步評估身體疾病。'
+  },
+  {
     key: 'sleep_physical',
     label: '睡眠與生理症狀困擾',
     signals: ['insomnia', 'somatic_anxiety'],
@@ -1016,6 +1033,16 @@ const OBSERVATION_REWRITE_RULES = [
     concern: '興趣下降並影響社交參與'
   },
   {
+    pattern: /(肚子痛|腹痛|胃痛|腸胃不適|胃不舒服|絞痛|脹氣|噁心)/i,
+    observation: '在壓力情境下反覆出現腹部不適或腸胃症狀。',
+    concern: '壓力相關身體化反應（腸胃）'
+  },
+  {
+    pattern: /(發冷|全身發冷|手腳冰冷|發抖)/i,
+    observation: '情緒壓力升高時伴隨發冷或自律神經反應。',
+    concern: '壓力相關身體化反應（發冷／自律神經）'
+  },
+  {
     pattern: /(上台|發表|分數|表現|課堂|報告|同學|老師)/i,
     observation: '在課堂表現與評價情境中出現明顯壓力反應。',
     concern: '學業表現與評價壓力造成負擔'
@@ -1118,20 +1145,35 @@ function buildSymptomBridgeFallback(longitudinal) {
 
 function mergeSymptomBridgeState(baseState, generatedState) {
   const generated = generatedState && typeof generatedState === 'object' ? generatedState : {};
-  const evidenceTrack = sanitizeSymptomEvidenceTrack(
-    normalizeArray(generated.evidence_track).length ? generated.evidence_track : baseState.evidence_track
-  );
-  const inferenceTrack = sanitizeSymptomInferenceTrack(
-    normalizeArray(generated.inference_track).length ? generated.inference_track : baseState.inference_track
-  );
+  const evidenceTrack = sanitizeSymptomEvidenceTrack([
+    ...normalizeArray(baseState.evidence_track),
+    ...normalizeArray(generated.evidence_track)
+  ]);
+  const uniqueEvidenceTrack = [];
+  evidenceTrack.forEach((item) => {
+    const dedupeKey = `${item.evidence_id}::${item.source_text}`;
+    if (uniqueEvidenceTrack.some((entry) => `${entry.evidence_id}::${entry.source_text}` === dedupeKey)) return;
+    uniqueEvidenceTrack.push(item);
+  });
+
+  const inferenceTrack = sanitizeSymptomInferenceTrack([
+    ...normalizeArray(baseState.inference_track),
+    ...normalizeArray(generated.inference_track)
+  ]);
+  const uniqueInferenceTrack = [];
+  inferenceTrack.forEach((item) => {
+    const dedupeKey = `${item.symptom_label}::${item.summary}::${item.hamd_signal}`;
+    if (uniqueInferenceTrack.some((entry) => `${entry.symptom_label}::${entry.summary}::${entry.hamd_signal}` === dedupeKey)) return;
+    uniqueInferenceTrack.push(item);
+  });
   const excludedMessages = sanitizeExcludedMessages([
     ...normalizeArray(baseState.excluded_messages),
     ...normalizeArray(generated.excluded_messages)
   ]);
   return {
     bridge_version: String(generated.bridge_version || baseState.bridge_version || 'p1_symptom_bridge_v1').trim(),
-    evidence_track: evidenceTrack,
-    inference_track: inferenceTrack,
+    evidence_track: uniqueEvidenceTrack,
+    inference_track: uniqueInferenceTrack,
     excluded_messages: excludedMessages
   };
 }
@@ -1469,12 +1511,14 @@ function mergeSummaryDraftState(baseDraft, generatedDraft) {
 
 function mergeClinicianSummaryDraft(baseDraft, generatedDraft, formalAssessment) {
   const generated = generatedDraft && typeof generatedDraft === 'object' ? generatedDraft : {};
-  const evidenceTrack = sanitizeSymptomEvidenceTrack(
-    normalizeArray(generated.symptom_evidence_track).length ? generated.symptom_evidence_track : baseDraft.symptom_evidence_track
-  );
-  const inferenceTrack = sanitizeSymptomInferenceTrack(
-    normalizeArray(generated.symptom_inference_track).length ? generated.symptom_inference_track : baseDraft.symptom_inference_track
-  );
+  const evidenceTrack = sanitizeSymptomEvidenceTrack([
+    ...normalizeArray(baseDraft.symptom_evidence_track),
+    ...normalizeArray(generated.symptom_evidence_track)
+  ]);
+  const inferenceTrack = sanitizeSymptomInferenceTrack([
+    ...normalizeArray(baseDraft.symptom_inference_track),
+    ...normalizeArray(generated.symptom_inference_track)
+  ]);
   const normalizedObservations = normalizeClinicianObservationItems(
     baseDraft.symptom_observations,
     generated.symptom_observations,
@@ -1537,9 +1581,10 @@ function mergePatientAuthorizationState(baseState, generatedState) {
 
 function mergeFhirDeliveryDraft(baseDraft, generatedDraft) {
   const generated = generatedDraft && typeof generatedDraft === 'object' ? generatedDraft : {};
-  const evidenceTrack = sanitizeSymptomEvidenceTrack(
-    normalizeArray(generated.symptom_evidence_track).length ? generated.symptom_evidence_track : baseDraft.symptom_evidence_track
-  );
+  const evidenceTrack = sanitizeSymptomEvidenceTrack([
+    ...normalizeArray(baseDraft.symptom_evidence_track),
+    ...normalizeArray(generated.symptom_evidence_track)
+  ]);
   const mergedSections = normalizeFhirCompositionSections(
     Array.isArray(baseDraft.composition_sections)
       ? baseDraft.composition_sections.map((section, index) => {
@@ -1585,9 +1630,10 @@ function mergeFhirDeliveryDraft(baseDraft, generatedDraft) {
       includeDocumentReference: String(narrativeSummary || '').trim() || String(notes || '').trim()
     }),
     symptom_evidence_track: evidenceTrack,
-    symptom_inference_track: sanitizeSymptomInferenceTrack(
-      normalizeArray(generated.symptom_inference_track).length ? generated.symptom_inference_track : baseDraft.symptom_inference_track
-    )
+    symptom_inference_track: sanitizeSymptomInferenceTrack([
+      ...normalizeArray(baseDraft.symptom_inference_track),
+      ...normalizeArray(generated.symptom_inference_track)
+    ])
   });
 }
 
