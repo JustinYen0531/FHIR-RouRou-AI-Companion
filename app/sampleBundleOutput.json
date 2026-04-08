@@ -14,7 +14,7 @@
           },
           "identifier": [
             {
-              "system": "https://example.org/fhir/NamingSystem/ai-companion-patient-key",
+              "system": "https://rourou.ai/fhir/internal/NamingSystem/ai-companion-patient-key",
               "value": "patient-001"
             }
           ],
@@ -56,7 +56,7 @@
           },
           "identifier": [
             {
-              "system": "https://example.org/fhir/NamingSystem/ai-companion-session-key",
+              "system": "https://rourou.ai/fhir/internal/NamingSystem/ai-companion-session-key",
               "value": "session-001"
             }
           ]
@@ -77,22 +77,22 @@
           },
           "extension": [
             {
-              "url": "https://example.org/fhir/StructureDefinition/ai-companion-generated",
+              "url": "https://rourou.ai/fhir/internal/StructureDefinition/ai-companion-generated",
               "valueBoolean": true
             },
             {
-              "url": "https://example.org/fhir/StructureDefinition/patient-review-status",
+              "url": "https://rourou.ai/fhir/internal/StructureDefinition/patient-review-status",
               "valueCode": "ready_for_consent"
             },
             {
-              "url": "https://example.org/fhir/StructureDefinition/review-source",
+              "url": "https://rourou.ai/fhir/internal/StructureDefinition/review-source",
               "valueString": "ai_draft_with_patient_share_allowed"
             }
           ],
-          "questionnaire": "https://example.org/fhir/Questionnaire/ai-companion-previsit-hamd-lite-v1",
+          "questionnaire": "https://rourou.ai/fhir/internal/Questionnaire/ai-companion-previsit-hamd17-draft-v1",
           "identifier": [
             {
-              "system": "https://example.org/fhir/NamingSystem/ai-companion-questionnaire-response",
+              "system": "https://rourou.ai/fhir/internal/NamingSystem/ai-companion-questionnaire-response",
               "value": "session-001"
             }
           ],
@@ -177,21 +177,21 @@
           },
           "extension": [
             {
-              "url": "https://example.org/fhir/StructureDefinition/ai-companion-generated",
+              "url": "https://rourou.ai/fhir/internal/StructureDefinition/ai-companion-generated",
               "valueBoolean": true
             },
             {
-              "url": "https://example.org/fhir/StructureDefinition/patient-review-status",
+              "url": "https://rourou.ai/fhir/internal/StructureDefinition/patient-review-status",
               "valueCode": "ready_for_consent"
             },
             {
-              "url": "https://example.org/fhir/StructureDefinition/review-source",
+              "url": "https://rourou.ai/fhir/internal/StructureDefinition/review-source",
               "valueString": "ai_draft_with_patient_share_allowed"
             }
           ],
           "identifier": [
             {
-              "system": "https://example.org/fhir/NamingSystem/ai-companion-observation",
+              "system": "https://rourou.ai/fhir/internal/NamingSystem/ai-companion-observation",
               "value": "session-001:depressed_mood:0"
             }
           ],
@@ -210,7 +210,7 @@
           "code": {
             "coding": [
               {
-                "system": "https://example.org/fhir/CodeSystem/ai-companion-signals",
+                "system": "https://rourou.ai/fhir/internal/CodeSystem/ai-companion-signals",
                 "code": "depressed_mood",
                 "display": "Depressed mood"
               }
@@ -250,21 +250,21 @@
           },
           "extension": [
             {
-              "url": "https://example.org/fhir/StructureDefinition/ai-companion-generated",
+              "url": "https://rourou.ai/fhir/internal/StructureDefinition/ai-companion-generated",
               "valueBoolean": true
             },
             {
-              "url": "https://example.org/fhir/StructureDefinition/patient-review-status",
+              "url": "https://rourou.ai/fhir/internal/StructureDefinition/patient-review-status",
               "valueCode": "ready_for_consent"
             },
             {
-              "url": "https://example.org/fhir/StructureDefinition/review-source",
+              "url": "https://rourou.ai/fhir/internal/StructureDefinition/review-source",
               "valueString": "ai_draft_with_patient_share_allowed"
             }
           ],
           "identifier": [
             {
-              "system": "https://example.org/fhir/NamingSystem/ai-companion-observation",
+              "system": "https://rourou.ai/fhir/internal/NamingSystem/ai-companion-observation",
               "value": "session-001:work_interest:1"
             }
           ],
@@ -283,7 +283,7 @@
           "code": {
             "coding": [
               {
-                "system": "https://example.org/fhir/CodeSystem/ai-companion-signals",
+                "system": "https://rourou.ai/fhir/internal/CodeSystem/ai-companion-signals",
                 "code": "work_interest",
                 "display": "Work and interest decline"
               }
@@ -323,21 +323,21 @@
           },
           "extension": [
             {
-              "url": "https://example.org/fhir/StructureDefinition/ai-companion-generated",
+              "url": "https://rourou.ai/fhir/internal/StructureDefinition/ai-companion-generated",
               "valueBoolean": true
             },
             {
-              "url": "https://example.org/fhir/StructureDefinition/patient-review-status",
+              "url": "https://rourou.ai/fhir/internal/StructureDefinition/patient-review-status",
               "valueCode": "ready_for_consent"
             },
             {
-              "url": "https://example.org/fhir/StructureDefinition/review-source",
+              "url": "https://rourou.ai/fhir/internal/StructureDefinition/review-source",
               "valueString": "ai_draft_with_patient_share_allowed"
             }
           ],
           "identifier": [
             {
-              "system": "https://example.org/fhir/NamingSystem/ai-companion-observation",
+              "system": "https://rourou.ai/fhir/internal/NamingSystem/ai-companion-observation",
               "value": "session-001:insomnia:2"
             }
           ],
@@ -356,7 +356,7 @@
           "code": {
             "coding": [
               {
-                "system": "https://example.org/fhir/CodeSystem/ai-companion-signals",
+                "system": "https://rourou.ai/fhir/internal/CodeSystem/ai-companion-signals",
                 "code": "insomnia",
                 "display": "Insomnia"
               }
@@ -396,21 +396,21 @@
           },
           "extension": [
             {
-              "url": "https://example.org/fhir/StructureDefinition/ai-companion-generated",
+              "url": "https://rourou.ai/fhir/internal/StructureDefinition/ai-companion-generated",
               "valueBoolean": true
             },
             {
-              "url": "https://example.org/fhir/StructureDefinition/patient-review-status",
+              "url": "https://rourou.ai/fhir/internal/StructureDefinition/patient-review-status",
               "valueCode": "ready_for_consent"
             },
             {
-              "url": "https://example.org/fhir/StructureDefinition/review-source",
+              "url": "https://rourou.ai/fhir/internal/StructureDefinition/review-source",
               "valueString": "ai_draft_with_patient_share_allowed"
             }
           ],
           "identifier": [
             {
-              "system": "https://example.org/fhir/NamingSystem/ai-companion-observation",
+              "system": "https://rourou.ai/fhir/internal/NamingSystem/ai-companion-observation",
               "value": "session-001:passive_disappearance_ideation:3"
             }
           ],
@@ -429,7 +429,7 @@
           "code": {
             "coding": [
               {
-                "system": "https://example.org/fhir/CodeSystem/ai-companion-signals",
+                "system": "https://rourou.ai/fhir/internal/CodeSystem/ai-companion-signals",
                 "code": "passive_disappearance_ideation",
                 "display": "passive_disappearance_ideation"
               }
@@ -467,6 +467,127 @@
         }
       },
       {
+        "fullUrl": "urn:uuid:0dc2de83-0dc2-52d6-de83-0dc2de8352d6",
+        "resource": {
+          "resourceType": "ClinicalImpression",
+          "meta": {
+            "profile": [
+              "http://hl7.org/fhir/StructureDefinition/ClinicalImpression"
+            ]
+          },
+          "identifier": [
+            {
+              "system": "https://rourou.ai/fhir/internal/NamingSystem/ai-companion-clinical-impression",
+              "value": "session-001"
+            }
+          ],
+          "status": "preliminary",
+          "code": {
+            "text": "AI Companion risk and context impression"
+          },
+          "subject": {
+            "reference": "urn:uuid:f95c1274-f95c-e9ac-1274-f95c1274e9ac"
+          },
+          "encounter": {
+            "reference": "urn:uuid:d57322b3-d573-4df4-22b3-d57322b34df4"
+          },
+          "effectiveDateTime": "2026-03-29T09:30:00+08:00",
+          "date": "2026-03-29T09:30:00+08:00",
+          "assessor": {
+            "display": "AI Companion MVP"
+          },
+          "description": "近兩三週情緒低落",
+          "finding": [
+            {
+              "itemCodeableConcept": {
+                "text": "近兩三週情緒低落"
+              },
+              "basis": "情緒低落；興趣下降；睡眠中斷"
+            },
+            {
+              "itemCodeableConcept": {
+                "text": "睡著後容易醒"
+              },
+              "basis": "情緒低落；興趣下降；睡眠中斷"
+            },
+            {
+              "itemCodeableConcept": {
+                "text": "工作效率下降"
+              },
+              "basis": "情緒低落；興趣下降；睡眠中斷"
+            },
+            {
+              "itemCodeableConcept": {
+                "text": "情緒低落"
+              },
+              "basis": "情緒低落；興趣下降；睡眠中斷"
+            },
+            {
+              "itemCodeableConcept": {
+                "text": "興趣下降"
+              },
+              "basis": "情緒低落；興趣下降；睡眠中斷"
+            },
+            {
+              "itemCodeableConcept": {
+                "text": "睡眠中斷"
+              },
+              "basis": "情緒低落；興趣下降；睡眠中斷"
+            },
+            {
+              "itemCodeableConcept": {
+                "text": "HAM-D dimension: Depressed mood"
+              },
+              "basis": "情緒低落；興趣下降；睡眠中斷"
+            },
+            {
+              "itemCodeableConcept": {
+                "text": "HAM-D dimension: Work and interest decline"
+              },
+              "basis": "情緒低落；興趣下降；睡眠中斷"
+            }
+          ],
+          "supportingInfo": [
+            {
+              "reference": "urn:uuid:1595b6ab-1595-537e-b6ab-1595b6ab537e"
+            },
+            {
+              "reference": "urn:uuid:47648379-4764-24b9-8379-4764837924b9"
+            },
+            {
+              "reference": "urn:uuid:946b0681-946b-d1bf-0681-946b0681d1bf"
+            },
+            {
+              "reference": "urn:uuid:87a1fd00-87a1-dd19-fd00-87a1fd00dd19"
+            },
+            {
+              "reference": "urn:uuid:e2a99997-e2a9-a11d-9997-e2a99997a11d"
+            }
+          ],
+          "note": [
+            {
+              "text": "曾表達如果消失就好了"
+            },
+            {
+              "text": "否認立即自傷計畫"
+            },
+            {
+              "text": "被動消失想法"
+            },
+            {
+              "text": "目前否認立即自傷計畫"
+            }
+          ],
+          "protocol": [
+            "urn:uuid:1595b6ab-1595-537e-b6ab-1595b6ab537e"
+          ]
+        },
+        "request": {
+          "method": "POST",
+          "url": "ClinicalImpression"
+        }
+      },
+      {
         "fullUrl": "urn:uuid:8291c8aa-8291-6945-c8aa-8291c8aa6945",
         "resource": {
           "resourceType": "Composition",
@@ -477,21 +598,21 @@
           },
           "extension": [
             {
-              "url": "https://example.org/fhir/StructureDefinition/ai-companion-generated",
+              "url": "https://rourou.ai/fhir/internal/StructureDefinition/ai-companion-generated",
               "valueBoolean": true
             },
             {
-              "url": "https://example.org/fhir/StructureDefinition/patient-review-status",
+              "url": "https://rourou.ai/fhir/internal/StructureDefinition/patient-review-status",
               "valueCode": "ready_for_consent"
             },
             {
-              "url": "https://example.org/fhir/StructureDefinition/review-source",
+              "url": "https://rourou.ai/fhir/internal/StructureDefinition/review-source",
               "valueString": "ai_draft_with_patient_share_allowed"
             }
           ],
           "identifier": [
             {
-              "system": "https://example.org/fhir/NamingSystem/ai-companion-composition",
+              "system": "https://rourou.ai/fhir/internal/NamingSystem/ai-companion-composition",
               "value": "session-001"
             }
           ],
@@ -621,13 +742,12 @@
                 "title": "AI Companion clinician summary draft",
                 "data": "ewogICJjaGllZl9jb25jZXJucyI6IFsKICAgICLov5HlhankuInpgLHmg4Xnt5LkvY7okL0iLAogICAgIuedoeiRl+W+jOWuueaYk+mGkiIsCiAgICAi5bel5L2c5pWI546H5LiL6ZmNIgogIF0sCiAgInN5bXB0b21fb2JzZXJ2YXRpb25zIjogWwogICAgIuaDhee3kuS9juiQvSIsCiAgICAi6IiI6Laj5LiL6ZmNIiwKICAgICLnnaHnnKDkuK3mlrciCiAgXSwKICAiZm9sbG93dXBfbmVlZHMiOiBbCiAgICAi6L+96Lmk6Lqr6auU54Sm5oWuIiwKICAgICLnorroqo3ooqvli5XmtojlpLHlv7XpoK3poLvnjociCiAgXSwKICAic2FmZXR5X2ZsYWdzIjogWwogICAgIuiiq+WLlea2iOWkseaDs+azlSIsCiAgICAi55uu5YmN5ZCm6KqN56uL5Y2z6Ieq5YK36KiI55WrIgogIF0sCiAgImhhbWRfc2lnbmFscyI6IFsKICAgICJkZXByZXNzZWRfbW9vZCIsCiAgICAid29ya19pbnRlcmVzdCIsCiAgICAiaW5zb21uaWEiCiAgXQp9"
               }
-            }
-          ],
-          "relatesTo": [
+            },
             {
-              "code": "appends",
-              "target": {
-                "reference": "urn:uuid:8291c8aa-8291-6945-c8aa-8291c8aa6945"
+              "attachment": {
+                "contentType": "application/json",
+                "title": "AI Companion full export payload",
+                "data": "ewogICJjbGluaWNpYW5fc3VtbWFyeV9kcmFmdCI6IHsKICAgICJjaGllZl9jb25jZXJucyI6IFsKICAgICAgIui/keWFqeS4iemAseaDhee3kuS9juiQvSIsCiAgICAgICLnnaHokZflvozlrrnmmJPphpIiLAogICAgICAi5bel5L2c5pWI546H5LiL6ZmNIgogICAgXSwKICAgICJzeW1wdG9tX29ic2VydmF0aW9ucyI6IFsKICAgICAgIuaDhee3kuS9juiQvSIsCiAgICAgICLoiIjotqPkuIvpmY0iLAogICAgICAi552h55yg5Lit5pa3IgogICAgXSwKICAgICJmb2xsb3d1cF9uZWVkcyI6IFsKICAgICAgIui/vei5pOi6q+mrlOeEpuaFriIsCiAgICAgICLnorroqo3ooqvli5XmtojlpLHlv7XpoK3poLvnjociCiAgICBdLAogICAgInNhZmV0eV9mbGFncyI6IFsKICAgICAgIuiiq+WLlea2iOWkseaDs+azlSIsCiAgICAgICLnm67liY3lkKboqo3nq4vljbPoh6rlgrfoqIjnlasiCiAgICBdLAogICAgImhhbWRfc2lnbmFscyI6IFsKICAgICAgImRlcHJlc3NlZF9tb29kIiwKICAgICAgIndvcmtfaW50ZXJlc3QiLAogICAgICAiaW5zb21uaWEiCiAgICBdCiAgfSwKICAicGF0aWVudF9hbmFseXNpcyI6IHt9LAogICJwYXRpZW50X3Jldmlld19wYWNrZXQiOiB7fSwKICAiZmhpcl9kZWxpdmVyeV9kcmFmdCI6IHt9LAogICJoYW1kX2Zvcm1hbF9hc3Nlc3NtZW50Ijoge30sCiAgImFjdGl2ZV9tb2RlIjogIiIsCiAgInJpc2tfZmxhZyI6ICIiLAogICJsYXRlc3RfdGFnX3BheWxvYWQiOiB7fSwKICAiYnVyZGVuX2xldmVsX3N0YXRlIjoge30KfQ=="
               }
             }
           ]
@@ -650,6 +770,9 @@
           "target": [
             {
               "reference": "urn:uuid:1595b6ab-1595-537e-b6ab-1595b6ab537e"
+            },
+            {
+              "reference": "urn:uuid:0dc2de83-0dc2-52d6-de83-0dc2de8352d6"
             },
             {
               "reference": "urn:uuid:8291c8aa-8291-6945-c8aa-8291c8aa6945"
@@ -728,6 +851,9 @@
       "urn:uuid:946b0681-946b-d1bf-0681-946b0681d1bf",
       "urn:uuid:87a1fd00-87a1-dd19-fd00-87a1fd00dd19",
       "urn:uuid:e2a99997-e2a9-a11d-9997-e2a99997a11d"
+    ],
+    "ClinicalImpression": [
+      "urn:uuid:0dc2de83-0dc2-52d6-de83-0dc2de8352d6"
     ],
     "Composition": [
       "urn:uuid:8291c8aa-8291-6945-c8aa-8291c8aa6945"

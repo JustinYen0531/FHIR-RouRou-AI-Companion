@@ -10,6 +10,7 @@
     Encounter: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Encounter-twcore',
     QuestionnaireResponse: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/QuestionnaireResponse-twcore',
     Observation: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Observation-screening-assessment-twcore',
+    ClinicalImpression: 'http://hl7.org/fhir/StructureDefinition/ClinicalImpression',
     Composition: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Composition-twcore',
     DocumentReference: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/DocumentReference-twcore',
     Provenance: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Provenance-twcore'
@@ -32,7 +33,7 @@
     const expectedProfile = REQUIRED_PROFILES[resource.resourceType];
     const profiles = resource.meta && Array.isArray(resource.meta.profile) ? resource.meta.profile : [];
     if (expectedProfile && profiles.indexOf(expectedProfile) === -1) {
-      pushIssue(report, 'error', 'missing_profile', resource.resourceType + ' is missing expected TW Core profile.', 'entry[' + index + '].resource.meta.profile');
+      pushIssue(report, 'error', 'missing_profile', resource.resourceType + ' is missing expected profile.', 'entry[' + index + '].resource.meta.profile');
     }
   }
 
@@ -96,6 +97,21 @@
     }
   }
 
+  function validateClinicalImpression(report, resource, index) {
+    if (!resource.subject || !resource.subject.reference) {
+      pushIssue(report, 'error', 'clinical_impression_subject_missing', 'ClinicalImpression.subject.reference is required.', 'entry[' + index + '].resource.subject.reference');
+    }
+    if (!resource.encounter || !resource.encounter.reference) {
+      pushIssue(report, 'warning', 'clinical_impression_encounter_missing', 'ClinicalImpression.encounter.reference is recommended.', 'entry[' + index + '].resource.encounter.reference');
+    }
+    if (!resource.status) {
+      pushIssue(report, 'error', 'clinical_impression_status_missing', 'ClinicalImpression.status is required.', 'entry[' + index + '].resource.status');
+    }
+    if (!resource.description && !resource.summary) {
+      pushIssue(report, 'error', 'clinical_impression_summary_missing', 'ClinicalImpression.description or summary is required.', 'entry[' + index + '].resource.description');
+    }
+  }
+
   function validateDocumentReference(report, resource, index) {
     if (!resource.subject || !resource.subject.reference) {
       pushIssue(report, 'error', 'document_reference_subject_missing', 'DocumentReference.subject.reference is required.', 'entry[' + index + '].resource.subject.reference');
@@ -145,6 +161,7 @@
       if (resource.resourceType === 'Encounter') validateEncounter(report, resource, index);
       if (resource.resourceType === 'QuestionnaireResponse') validateQuestionnaireResponse(report, resource, index);
       if (resource.resourceType === 'Observation') validateObservation(report, resource, index);
+      if (resource.resourceType === 'ClinicalImpression') validateClinicalImpression(report, resource, index);
       if (resource.resourceType === 'Composition') validateComposition(report, resource, index);
       if (resource.resourceType === 'DocumentReference') validateDocumentReference(report, resource, index);
       if (resource.resourceType === 'Provenance') validateProvenance(report, resource, index);

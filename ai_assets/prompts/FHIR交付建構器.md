@@ -17,10 +17,14 @@
   "delivery_status":"pre_review_or_ready_for_mapping_orblocked",
   "consent_gate":"review_required_or_ready_for_consent_orblocked",
   "resources":[
-    {"resource_type":"Composition","status":"preliminary","purpose":"clinical_summary"},
-    {"resource_type":"Observation","status":"preliminary","purpose":"hamd_signal_tracking"},
+    {"resource_type":"Patient","status":"preliminary","purpose":"subject_identity"},
+    {"resource_type":"Encounter","status":"preliminary","purpose":"session_context"},
+    {"resource_type":"QuestionnaireResponse","status":"preliminary","purpose":"dialogue_to_scale_mapping"},
+    {"resource_type":"Observation","status":"preliminary","purpose":"symptom_tracking"},
     {"resource_type":"ClinicalImpression","status":"preliminary","purpose":"risk_and_context"},
-    {"resource_type":"QuestionnaireResponse","status":"preliminary","purpose":"dialogue_to_scale_mapping"}
+    {"resource_type":"Composition","status":"preliminary","purpose":"clinical_summary"},
+    {"resource_type":"DocumentReference","status":"preliminary","purpose":"summary_export"},
+    {"resource_type":"Provenance","status":"preliminary","purpose":"generation_traceability"}
   ],
   "composition_sections":[{"section":"...","focus":"..."}],
   "observation_candidates":[{"focus":"...","category":"...","status":"preliminary","evidence_refs":["..."],"inference_basis":"..."}],
@@ -34,7 +38,7 @@
   "notes":"..."
 }
 規則：
-1. resources 先固定用 preliminary，因為尚未病人最終授權。
+1. resources 只能列出目前實際會被 bundle builder 輸出的資源，全部先固定用 preliminary。
 2. composition_sections 整理會放進摘要文件的段落。
 3. observation_candidates 整理情緒、行為、認知、睡眠、焦慮等可映射 Observation 的重點。
 4. clinical_alerts 整理風險與需要醫師注意的事項。

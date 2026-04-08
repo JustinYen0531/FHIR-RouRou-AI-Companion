@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { buildSessionExportBundle } = require('./fhirBundleBuilder');
+const { buildSessionExportBundle, INTERNAL_CANONICALS } = require('./fhirBundleBuilder');
 
 function createValidInput() {
   return {
@@ -64,6 +64,16 @@ function createValidInput() {
       authorization_prompt: '請在審閱後授權我們將這些資訊提供給醫師。'
     },
     fhir_delivery_draft: {
+      resources: [
+        { resource_type: 'Patient', status: 'preliminary', purpose: 'subject_identity' },
+        { resource_type: 'Encounter', status: 'preliminary', purpose: 'session_context' },
+        { resource_type: 'QuestionnaireResponse', status: 'preliminary', purpose: 'dialogue_to_scale_mapping' },
+        { resource_type: 'Observation', status: 'preliminary', purpose: 'symptom_tracking' },
+        { resource_type: 'ClinicalImpression', status: 'preliminary', purpose: 'risk_and_context' },
+        { resource_type: 'Composition', status: 'preliminary', purpose: 'clinical_summary' },
+        { resource_type: 'DocumentReference', status: 'preliminary', purpose: 'summary_export' },
+        { resource_type: 'Provenance', status: 'preliminary', purpose: 'generation_traceability' }
+      ],
       composition_sections: [
         { section: '患者近期感到疲憊並且睡眠不佳。', focus: '臨床摘要' }
       ],
@@ -153,6 +163,7 @@ function testBuildsBundleForValidInput() {
   assert.ok(result.resource_index.Encounter.length === 1, 'bundle should include one Encounter');
   assert.ok(result.resource_index.QuestionnaireResponse.length === 1, 'bundle should include one QuestionnaireResponse');
   assert.ok(result.resource_index.Observation.length >= 1, 'bundle should include observations');
+  assert.ok(result.resource_index.ClinicalImpression.length === 1, 'bundle should include one ClinicalImpression');
   assert.ok(result.resource_index.Composition.length === 1, 'bundle should include one Composition');
   assert.ok(result.resource_index.DocumentReference.length === 1, 'bundle should include one DocumentReference');
   assert.ok(result.resource_index.Provenance.length === 1, 'bundle should include one Provenance');
@@ -183,7 +194,7 @@ function testBlocksWhenReadinessIsBlocked() {
   input.delivery_readiness_state.readiness_status = 'blocked';
   const result = buildSessionExportBundle(input);
   assert.strictEqual(result.bundle_json, null);
-  assert.ok(result.blocking_reasons.includes('delivery_readiness_state is not ready_for_backend_mapping.'));
+  assert.ok(result.blocking_reasons.includes('delivery_readiness_state is not ready_for_backend_mapping, so the builder will not emit a delivery bundle.'));
 }
 
 function testReferencesAreConnected() {
@@ -194,6 +205,7 @@ function testReferencesAreConnected() {
   const questionnaire = entries.find((entry) => entry.resource.resourceType === 'QuestionnaireResponse');
   const composition = entries.find((entry) => entry.resource.resourceType === 'Composition');
   const observation = entries.find((entry) => entry.resource.resourceType === 'Observation');
+  const clinicalImpression = entries.find((entry) => entry.resource.resourceType === 'ClinicalImpression');
   const documentReference = entries.find((entry) => entry.resource.resourceType === 'DocumentReference');
   const provenance = entries.find((entry) => entry.resource.resourceType === 'Provenance');
 
@@ -202,6 +214,8 @@ function testReferencesAreConnected() {
   assert.strictEqual(questionnaire.resource.encounter.reference, encounter.fullUrl);
   assert.strictEqual(observation.resource.subject.reference, patient.fullUrl);
   assert.strictEqual(observation.resource.encounter.reference, encounter.fullUrl);
+  assert.strictEqual(clinicalImpression.resource.subject.reference, patient.fullUrl);
+  assert.strictEqual(clinicalImpression.resource.encounter.reference, encounter.fullUrl);
   assert.strictEqual(composition.resource.subject.reference, patient.fullUrl);
   assert.strictEqual(composition.resource.encounter.reference, encounter.fullUrl);
   assert.strictEqual(observation.resource.derivedFrom[0].reference, questionnaire.fullUrl);
@@ -215,19 +229,22 @@ function testClinicalContentIsEnriched() {
   const questionnaire = entries.find((entry) => entry.resource.resourceType === 'QuestionnaireResponse');
   const composition = entries.find((entry) => entry.resource.resourceType === 'Composition');
   const observation = entries.find((entry) => entry.resource.resourceType === 'Observation');
+  const clinicalImpression = entries.find((entry) => entry.resource.resourceType === 'ClinicalImpression');
   const documentReference = entries.find((entry) => entry.resource.resourceType === 'DocumentReference');
 
-  assert.strictEqual(questionnaire.resource.questionnaire, 'https://example.org/fhir/Questionnaire/ai-companion-previsit-hamd17-draft-v1');
+  assert.strictEqual(questionnaire.resource.questionnaire, INTERNAL_CANONICALS.questionnaires.previsitHamd17Draft);
   assert.ok(Array.isArray(questionnaire.resource.extension) && questionnaire.resource.extension.length >= 2);
   assert.ok(questionnaire.resource.item.some((item) => item.linkId === 'patient_confirm_0'));
   assert.ok(questionnaire.resource.item.some((item) => item.linkId === 'questionnaire_target_0'));
+  assert.ok(clinicalImpression.resource.description);
+  assert.ok(Array.isArray(clinicalImpression.resource.finding) && clinicalImpression.resource.finding.length >= 1);
   assert.strictEqual(composition.resource.confidentiality, 'R');
   assert.ok(composition.resource.section.some((section) => section.code && section.code.text === 'chief-concerns'));
   assert.ok(composition.resource.section.some((section) => section.code && section.code.text === 'hamd-evidence-table'));
   assert.ok(composition.resource.section.some((section) => section.code && section.code.text === 'patient-analysis'));
   assert.ok(composition.resource.section.some((section) => section.code && section.code.text === 'patient-review-packet'));
   assert.ok(composition.resource.section.some((section) => section.code && section.code.text === 'clinical-alerts'));
-  assert.ok(observation.resource.extension.some((extension) => extension.url.indexOf('patient-review-status') !== -1));
+  assert.ok(observation.resource.extension.some((extension) => extension.url === INTERNAL_CANONICALS.structureDefinitions.patientReviewStatus));
   assert.strictEqual(documentReference.resource.docStatus, 'preliminary');
   assert.ok(documentReference.resource.content[0].attachment.data);
   assert.ok(documentReference.resource.content[1].attachment.data);

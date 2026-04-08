@@ -981,7 +981,7 @@ function buildFhirResourceLinks(deliveryResult) {
   const entries = Array.isArray(deliveryResult?.transaction_response?.body?.entry)
     ? deliveryResult.transaction_response.body.entry
     : [];
-  const preferredOrder = ['Patient', 'Encounter', 'QuestionnaireResponse', 'Observation', 'Composition', 'DocumentReference', 'Provenance'];
+  const preferredOrder = ['Patient', 'Encounter', 'QuestionnaireResponse', 'Observation', 'ClinicalImpression', 'Composition', 'DocumentReference', 'Provenance'];
 
   if (!baseUrl || !entries.length) return [];
 

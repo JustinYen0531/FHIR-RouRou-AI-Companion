@@ -81,6 +81,30 @@ const HAMD_DIMENSION_TO_ITEM_CODES = {
 
 const HAMD_PROGRESS_DIMENSIONS = Object.keys(HAMD_DIMENSION_TO_ITEM_CODES);
 
+const FHIR_RESOURCE_DEFINITIONS = {
+  Patient: { resource_type: 'Patient', resourceType: 'Patient', display: 'Patient / Subject Of Care', status: 'preliminary', purpose: 'subject_identity' },
+  Encounter: { resource_type: 'Encounter', resourceType: 'Encounter', display: 'Encounter / Conversation Session', status: 'preliminary', purpose: 'session_context' },
+  QuestionnaireResponse: { resource_type: 'QuestionnaireResponse', resourceType: 'QuestionnaireResponse', display: 'QuestionnaireResponse / Dialogue Mapping', status: 'preliminary', purpose: 'dialogue_to_scale_mapping' },
+  Observation: { resource_type: 'Observation', resourceType: 'Observation', display: 'Observation / Symptom Tracking', status: 'preliminary', purpose: 'symptom_tracking' },
+  ClinicalImpression: { resource_type: 'ClinicalImpression', resourceType: 'ClinicalImpression', display: 'ClinicalImpression / Risk And Context', status: 'preliminary', purpose: 'risk_and_context' },
+  Composition: { resource_type: 'Composition', resourceType: 'Composition', display: 'Composition / Clinical Summary', status: 'preliminary', purpose: 'clinical_summary' },
+  DocumentReference: { resource_type: 'DocumentReference', resourceType: 'DocumentReference', display: 'DocumentReference / Summary Export', status: 'preliminary', purpose: 'summary_export' },
+  Provenance: { resource_type: 'Provenance', resourceType: 'Provenance', display: 'Provenance / Draft Traceability', status: 'preliminary', purpose: 'generation_traceability' }
+};
+
+function buildControlledFhirResourceList(options = {}) {
+  return [
+    FHIR_RESOURCE_DEFINITIONS.Patient,
+    FHIR_RESOURCE_DEFINITIONS.Encounter,
+    options.includeQuestionnaire ? FHIR_RESOURCE_DEFINITIONS.QuestionnaireResponse : null,
+    options.includeObservation ? FHIR_RESOURCE_DEFINITIONS.Observation : null,
+    options.includeClinicalImpression ? FHIR_RESOURCE_DEFINITIONS.ClinicalImpression : null,
+    FHIR_RESOURCE_DEFINITIONS.Composition,
+    options.includeDocumentReference ? FHIR_RESOURCE_DEFINITIONS.DocumentReference : null,
+    FHIR_RESOURCE_DEFINITIONS.Provenance
+  ].filter(Boolean).map((item) => Object.assign({}, item));
+}
+
 const COMMAND_MAP = {
   auto: {
     routing_mode_override: 'auto',
@@ -1448,7 +1472,12 @@ function mergeFhirDeliveryDraft(baseDraft, generatedDraft) {
     hamd_formal_targets: normalizeArray(generated.hamd_formal_targets).length
       ? normalizeArray(generated.hamd_formal_targets)
       : normalizeArray(baseDraft.hamd_formal_targets),
-    resources: normalizeArray(generated.resources).length ? normalizeArray(generated.resources) : normalizeArray(baseDraft.resources),
+    resources: buildControlledFhirResourceList({
+      includeQuestionnaire: normalizeArray(baseDraft.questionnaire_targets).length || normalizeArray(baseDraft.hamd_formal_targets).length,
+      includeObservation: normalizeArray(baseDraft.observation_candidates).length,
+      includeClinicalImpression: normalizeArray(baseDraft.clinical_alerts).length || String(baseDraft.narrative_summary || '').trim() || normalizeArray(baseDraft.composition_sections).length,
+      includeDocumentReference: String(baseDraft.narrative_summary || '').trim() || String(baseDraft.notes || '').trim()
+    }),
     symptom_evidence_track: sanitizeSymptomEvidenceTrack(
       normalizeArray(generated.symptom_evidence_track).length ? generated.symptom_evidence_track : baseDraft.symptom_evidence_track
     ),
@@ -1629,18 +1658,19 @@ function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAsses
     });
   }
 
-  const resources = [
-    { resource_type: 'Composition', resourceType: 'Composition', display: 'Composition / Clinical Summary', status: 'preliminary', purpose: 'clinical_summary' },
-    observationCandidates.length
-      ? { resource_type: 'Observation', resourceType: 'Observation', display: 'Observation / Symptom Tracking', status: 'preliminary', purpose: 'symptom_tracking' }
-      : null,
-    (questionnaireTargets.length || normalizeArray(buildFormalFhirTargets(formalAssessment)).length)
-      ? { resource_type: 'QuestionnaireResponse', resourceType: 'QuestionnaireResponse', display: 'QuestionnaireResponse / Dialogue Mapping', status: 'preliminary', purpose: 'dialogue_to_scale_mapping' }
-      : null,
+  const hasClinicalImpressionContent = Boolean(
     narrativeSummary
-      ? { resource_type: 'DocumentReference', resourceType: 'DocumentReference', display: 'DocumentReference / Summary Export', status: 'preliminary', purpose: 'summary_export' }
-      : null
-  ].filter(Boolean);
+    || chiefConcerns.length
+    || symptomObservations.length
+    || normalizeArray(normalizeObjectState(state, 'red_flag_payload', {}).warning_tags).length
+  );
+
+  const resources = buildControlledFhirResourceList({
+    includeQuestionnaire: questionnaireTargets.length || normalizeArray(buildFormalFhirTargets(formalAssessment)).length,
+    includeObservation: observationCandidates.length,
+    includeClinicalImpression: hasClinicalImpressionContent,
+    includeDocumentReference: narrativeSummary
+  });
 
   const formalTargets = buildFormalFhirTargets(formalAssessment);
   const clinicalAlerts = [...longitudinal.riskFlags, ...normalizeArray(normalizeObjectState(state, 'red_flag_payload', {}).warning_tags)].slice(0, 4);

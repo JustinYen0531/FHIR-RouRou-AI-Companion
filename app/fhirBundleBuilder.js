@@ -15,11 +15,34 @@
     provenance: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Provenance-twcore'
   };
 
-  const AI_COMPANION_EXTENSIONS = {
-    aiGenerated: 'https://example.org/fhir/StructureDefinition/ai-companion-generated',
-    patientReviewStatus: 'https://example.org/fhir/StructureDefinition/patient-review-status',
-    reviewSource: 'https://example.org/fhir/StructureDefinition/review-source'
+  const INTERNAL_CANONICAL_BASE = 'https://rourou.ai/fhir/internal';
+
+  const INTERNAL_CANONICALS = {
+    structureDefinitions: {
+      aiGenerated: INTERNAL_CANONICAL_BASE + '/StructureDefinition/ai-companion-generated',
+      patientReviewStatus: INTERNAL_CANONICAL_BASE + '/StructureDefinition/patient-review-status',
+      reviewSource: INTERNAL_CANONICAL_BASE + '/StructureDefinition/review-source'
+    },
+    namingSystems: {
+      patientKey: INTERNAL_CANONICAL_BASE + '/NamingSystem/ai-companion-patient-key',
+      sessionKey: INTERNAL_CANONICAL_BASE + '/NamingSystem/ai-companion-session-key',
+      questionnaireResponse: INTERNAL_CANONICAL_BASE + '/NamingSystem/ai-companion-questionnaire-response',
+      observation: INTERNAL_CANONICAL_BASE + '/NamingSystem/ai-companion-observation',
+      composition: INTERNAL_CANONICAL_BASE + '/NamingSystem/ai-companion-composition',
+      clinicalImpression: INTERNAL_CANONICAL_BASE + '/NamingSystem/ai-companion-clinical-impression'
+    },
+    questionnaires: {
+      previsitHamd17Draft: INTERNAL_CANONICAL_BASE + '/Questionnaire/ai-companion-previsit-hamd17-draft-v1'
+    },
+    codeSystems: {
+      signals: INTERNAL_CANONICAL_BASE + '/CodeSystem/ai-companion-signals'
+    },
+    note: 'Internal canonical namespace pending formal governance'
   };
+
+  const AI_COMPANION_EXTENSIONS = INTERNAL_CANONICALS.structureDefinitions;
+
+  const CLINICAL_IMPRESSION_PROFILE = 'http://hl7.org/fhir/StructureDefinition/ClinicalImpression';
 
   const DIMENSION_LABELS = {
     depressed_mood: 'Depressed mood',
@@ -111,6 +134,17 @@
     return asArray(value).map(function (item) {
       return String(item).trim();
     }).filter(Boolean);
+  }
+
+  function dedupeStrings(values, limit) {
+    const max = typeof limit === 'number' && limit > 0 ? limit : Infinity;
+    const result = [];
+    normalizeSummaryArray(values).forEach(function (item) {
+      if (result.indexOf(item) !== -1) return;
+      if (result.length >= max) return;
+      result.push(item);
+    });
+    return result;
   }
 
   function collectQuestionnaireItems(input, hamdProgress, formalAssessment, clinicianSummary, patientReviewPacket, fhirDeliveryDraft) {
@@ -331,7 +365,7 @@
       meta: { profile: [TW_CORE_PROFILES.patient] },
       identifier: [
         {
-          system: input.patient.system || 'https://example.org/fhir/NamingSystem/ai-companion-patient-key',
+          system: input.patient.system || INTERNAL_CANONICALS.namingSystems.patientKey,
           value: input.patient.key
         }
       ],
@@ -363,7 +397,7 @@
         : undefined,
       identifier: [
         {
-          system: input.session.system || 'https://example.org/fhir/NamingSystem/ai-companion-session-key',
+          system: input.session.system || INTERNAL_CANONICALS.namingSystems.sessionKey,
           value: input.session.encounterKey
         }
       ]
@@ -377,10 +411,10 @@
       resourceType: 'QuestionnaireResponse',
       meta: { profile: [TW_CORE_PROFILES.questionnaireResponse] },
       extension: createReviewExtensions(input),
-      questionnaire: 'https://example.org/fhir/Questionnaire/ai-companion-previsit-hamd17-draft-v1',
+      questionnaire: INTERNAL_CANONICALS.questionnaires.previsitHamd17Draft,
       identifier: [
         {
-          system: 'https://example.org/fhir/NamingSystem/ai-companion-questionnaire-response',
+          system: INTERNAL_CANONICALS.namingSystems.questionnaireResponse,
           value: input.session.encounterKey
         }
       ],
@@ -406,7 +440,7 @@
           extension: createReviewExtensions(input),
           identifier: [
             {
-              system: 'https://example.org/fhir/NamingSystem/ai-companion-observation',
+              system: INTERNAL_CANONICALS.namingSystems.observation,
               value: input.session.encounterKey + ':' + candidate.focus + ':' + index
             }
           ],
@@ -425,7 +459,7 @@
           code: {
             coding: [
               {
-                system: 'https://example.org/fhir/CodeSystem/ai-companion-signals',
+                system: INTERNAL_CANONICALS.codeSystems.signals,
                 code: candidate.focus,
                 display: candidate.label
               }
@@ -646,7 +680,7 @@
       extension: createReviewExtensions(input),
       identifier: [
         {
-          system: 'https://example.org/fhir/NamingSystem/ai-companion-composition',
+          system: INTERNAL_CANONICALS.namingSystems.composition,
           value: input.session.encounterKey
         }
       ],
@@ -666,6 +700,69 @@
       relatesTo: questionnaireFullUrl
         ? [{ code: 'appends', targetReference: { reference: questionnaireFullUrl } }]
         : undefined
+    };
+  }
+
+  function buildClinicalImpressionResource(input, patientFullUrl, encounterFullUrl, questionnaireFullUrl, observationEntries, clinicianSummary, hamdProgress, redFlag, fhirDeliveryDraft) {
+    const chiefConcerns = dedupeStrings(clinicianSummary.chief_concerns, 4);
+    const symptomObservations = dedupeStrings(clinicianSummary.symptom_observations, 4);
+    const clinicalAlerts = dedupeStrings(fhirDeliveryDraft.clinical_alerts, 4);
+    const safetySignals = dedupeStrings(asArray(redFlag.signals).concat(clinicianSummary.safety_flags), 4);
+    const coveredDimensions = dedupeStrings(hamdProgress.covered_dimensions, 4);
+    const summaryParts = dedupeStrings([
+      clinicianSummary.draft_summary,
+      fhirDeliveryDraft.narrative_summary,
+      fhirDeliveryDraft.notes
+    ], 3);
+    const description = summaryParts[0]
+      || chiefConcerns[0]
+      || symptomObservations[0]
+      || 'AI companion derived pre-visit clinical impression draft.';
+    const findingTexts = dedupeStrings(
+      chiefConcerns
+        .concat(symptomObservations)
+        .concat(clinicalAlerts)
+        .concat(coveredDimensions.map(function (dimension) {
+          return 'HAM-D dimension: ' + (DIMENSION_LABELS[dimension] || dimension);
+        })),
+      8
+    );
+    const supportingRefs = [];
+    if (questionnaireFullUrl) supportingRefs.push({ reference: questionnaireFullUrl });
+    observationEntries.slice(0, 6).forEach(function (entry) {
+      supportingRefs.push({ reference: entry.fullUrl });
+    });
+
+    return {
+      resourceType: 'ClinicalImpression',
+      meta: { profile: [CLINICAL_IMPRESSION_PROFILE] },
+      identifier: [
+        {
+          system: INTERNAL_CANONICALS.namingSystems.clinicalImpression,
+          value: input.session.encounterKey
+        }
+      ],
+      status: 'preliminary',
+      code: {
+        text: 'AI Companion risk and context impression'
+      },
+      subject: { reference: patientFullUrl },
+      encounter: { reference: encounterFullUrl },
+      effectiveDateTime: input.session.endedAt || input.session.startedAt || new Date().toISOString(),
+      date: input.session.endedAt || input.session.startedAt || new Date().toISOString(),
+      assessor: input.author ? { display: input.author } : undefined,
+      description: description,
+      finding: findingTexts.map(function (text) {
+        return {
+          itemCodeableConcept: { text: text },
+          basis: dedupeStrings(symptomObservations.concat(safetySignals), 3).join('；') || undefined
+        };
+      }),
+      supportingInfo: supportingRefs.length ? supportingRefs : undefined,
+      note: safetySignals.length
+        ? safetySignals.map(function (item) { return { text: item }; })
+        : undefined,
+      protocol: questionnaireFullUrl ? [questionnaireFullUrl] : undefined
     };
   }
 
@@ -799,7 +896,7 @@
       return entry.resource.resourceType;
     });
 
-    ['Patient', 'Encounter', 'QuestionnaireResponse', 'Composition'].forEach(function (resourceType) {
+    ['Patient', 'Encounter', 'QuestionnaireResponse', 'ClinicalImpression', 'Composition', 'DocumentReference', 'Provenance'].forEach(function (resourceType) {
       if (resourceTypes.indexOf(resourceType) === -1) {
         validationErrors.push(resourceType + ' resource is missing from bundle.');
       }
@@ -865,7 +962,7 @@
 
     const readinessStatus = input.delivery_readiness_state.readiness_status;
     if (readinessStatus !== 'ready_for_backend_mapping') {
-      blockingReasons.push('delivery_readiness_state is not ready_for_backend_mapping.');
+      blockingReasons.push('delivery_readiness_state is not ready_for_backend_mapping, so the builder will not emit a delivery bundle.');
     }
 
     if (validationErrors.length || blockingReasons.length) {
@@ -882,6 +979,7 @@
     const encounterFullUrl = createUrn('encounter', input.session.encounterKey);
     const questionnaireFullUrl = createUrn('questionnaire-response', input.session.encounterKey);
     const compositionFullUrl = createUrn('composition', input.session.encounterKey);
+    const clinicalImpressionFullUrl = createUrn('clinical-impression', input.session.encounterKey);
     const documentReferenceFullUrl = createUrn('document-reference', input.session.encounterKey);
     const provenanceFullUrl = createUrn('provenance', input.session.encounterKey);
 
@@ -936,6 +1034,21 @@
       )
     };
 
+    const clinicalImpressionEntry = {
+      fullUrl: clinicalImpressionFullUrl,
+      resource: buildClinicalImpressionResource(
+        input,
+        patientFullUrl,
+        encounterFullUrl,
+        questionnaireFullUrl,
+        observationEntries,
+        input.clinician_summary_draft,
+        input.hamd_progress_state,
+        input.red_flag_payload,
+        input.fhir_delivery_draft
+      )
+    };
+
     const documentReferenceEntry = {
       fullUrl: documentReferenceFullUrl,
       resource: buildDocumentReferenceResource(
@@ -959,6 +1072,7 @@
         encounterFullUrl,
         [
           questionnaireFullUrl,
+          clinicalImpressionFullUrl,
           compositionFullUrl,
           documentReferenceFullUrl
         ].concat(observationEntries.map(function (entry) {
@@ -969,7 +1083,7 @@
 
     const entries = [patientEntry, encounterEntry, questionnaireEntry]
       .concat(observationEntries)
-      .concat([compositionEntry, documentReferenceEntry, provenanceEntry]);
+      .concat([clinicalImpressionEntry, compositionEntry, documentReferenceEntry, provenanceEntry]);
 
     const bundle = buildBundle(entries);
     basicValidation(bundle, input, validationErrors);
@@ -992,6 +1106,7 @@
 
   return {
     TW_CORE_PROFILES: TW_CORE_PROFILES,
+    INTERNAL_CANONICALS: INTERNAL_CANONICALS,
     buildSessionExportBundle: buildSessionExportBundle
   };
 });
