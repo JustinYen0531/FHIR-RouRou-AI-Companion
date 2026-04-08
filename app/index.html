@@ -377,6 +377,35 @@
       </section>
 
       <section class="section">
+        <h3 class="section-heading">醫師摘要</h3>
+        <div class="note-card doctor-summary-card">
+          <div id="report-doctor-summary" class="note-text">尚未產生醫師摘要。按下「整理給醫師」後，這裡會顯示醫師實際會先看到的重點。</div>
+          <div class="note-footer" id="report-doctor-summary-meta">目前狀態：尚未生成</div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h3 class="section-heading">症狀整理</h3>
+        <div id="report-symptom-summary" class="report-readable-list">
+          <p class="report-empty-copy">尚未整理出可讀的症狀摘要。</p>
+        </div>
+      </section>
+
+      <section class="section">
+        <h3 class="section-heading">分類邏輯</h3>
+        <div id="report-classification-logic" class="report-readable-list">
+          <p class="report-empty-copy">目前還沒有足夠線索可以顯示分類邏輯。</p>
+        </div>
+      </section>
+
+      <section class="section">
+        <h3 class="section-heading">HAM-D Mapping</h3>
+        <div id="report-hamd-mapping" class="report-readable-list">
+          <p class="report-empty-copy">尚未整理出可顯示的 HAM-D 對應項目。</p>
+        </div>
+      </section>
+
+      <section class="section">
         <h3 class="section-heading">給醫師的補充筆記</h3>
         <div class="textarea-wrap">
           <textarea id="report-clinician-note" placeholder="還有什麼想告訴醫師的嗎？例如藥物副作用或是特殊的觸發事件..."></textarea>
@@ -385,10 +414,17 @@
       </section>
 
         <section class="section">
-          <h3 class="section-heading">FHIR 草稿</h3>
+          <h3 class="section-heading">FHIR 交付示意</h3>
           <div class="note-card">
-            <p class="note-text" id="report-fhir-summary">尚未產生 FHIR 草稿。按下「FHIR 草稿」後，這裡會顯示可交付摘要。</p>
+            <p class="note-text" id="report-fhir-summary">系統會轉換為 FHIR JSON 並傳送至 Server。</p>
             <div class="note-footer"><span id="report-fhir-status">尚未生成</span> · <span id="report-fhir-resources">FHIR 資源數：0</span></div>
+          </div>
+          <div class="fhir-sample-card">
+            <div class="fhir-sample-kicker">技術示意</div>
+            <pre id="report-fhir-snippet" class="fhir-sample-snippet">{
+  "resourceType": "Bundle",
+  "type": "transaction"
+}</pre>
           </div>
           <div class="report-fhir-actions">
             <button id="report-delete-fhir-draft" class="ghost-btn report-delete-fhir-draft" type="button" onclick="deleteFhirDraft()">刪除草稿</button>
@@ -816,7 +852,7 @@
       </div>
       <div id="consent-preview-scroll" class="consent-preview-scroll">
         <div class="consent-preview-intro">
-          請先完整查看以下即將送出的內容。滑到最下方後，才會解鎖最後的送出按鈕。
+          請先完整查看以下摘要內容。滑到最下方後，才會解鎖最後的送出按鈕。
         </div>
         <div id="consent-preview-body" class="consent-preview-body"></div>
         <div class="consent-preview-bottom">

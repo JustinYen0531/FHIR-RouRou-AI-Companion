@@ -3911,6 +3911,30 @@ body.micro-detail-open {
   word-break: break-word;
 }
 
+.consent-preview-json-compact {
+  margin-top: 12px;
+}
+
+.consent-preview-details summary {
+  cursor: pointer;
+  font-family: 'Manrope', sans-serif;
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: #203038;
+  list-style: none;
+}
+
+.consent-preview-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.consent-preview-details-body {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 .consent-preview-bottom {
   margin-top: 14px;
   padding: 16px 18px;
@@ -4078,6 +4102,82 @@ body.micro-detail-open {
 /* Report tabs 三欄自適應 */
 .report-tabs { display: flex; gap: 4px; }
 .report-tab { flex: 1; min-width: 0; font-size: 11px; }
+
+.doctor-summary-card p + p {
+  margin-top: 10px;
+}
+
+.report-readable-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.report-readable-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.92);
+  border: 1px solid rgba(68,102,85,0.1);
+  box-shadow: var(--shadow-card);
+}
+
+.report-readable-item .mat-icon {
+  font-size: 18px;
+  color: var(--primary);
+  margin-top: 1px;
+}
+
+.report-readable-item strong {
+  display: block;
+  color: var(--on-surface);
+  font-size: 0.95rem;
+}
+
+.report-readable-item p {
+  margin-top: 4px;
+  color: var(--on-surface-variant);
+  line-height: 1.6;
+}
+
+.report-empty-copy {
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: rgba(238,244,249,0.82);
+  color: var(--on-surface-variant);
+  line-height: 1.7;
+}
+
+.fhir-sample-card {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.92);
+  border: 1px dashed rgba(68,102,85,0.22);
+}
+
+.fhir-sample-kicker {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+
+.fhir-sample-snippet {
+  margin: 0;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(24, 36, 43, 0.94);
+  color: #eaf3f8;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 
 /* FHIR Therapeutic Memory Observations */
 .fhir-profile-section {

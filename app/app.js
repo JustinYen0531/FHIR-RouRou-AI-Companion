@@ -742,6 +742,132 @@ function getHamdSummary(summary) {
   };
 }
 
+const HAMD_SIGNAL_LABELS = {
+  depressed_mood: '憂鬱情緒',
+  guilt: '罪惡感 / 自責',
+  suicide: '自殺意念',
+  insomnia: '睡眠障礙',
+  work_interest: '工作與興趣下降',
+  agitation: '激躁 / 坐立難安',
+  retardation: '遲滯 / 注意力拖慢',
+  somatic_anxiety: '身體化焦慮',
+  psychic_anxiety: '心理焦慮',
+  appetite_loss: '食慾下降',
+  fatigue: '疲倦 / 無力'
+};
+
+function isMeaningfulDraftText(value = '') {
+  const text = String(value || '').trim();
+  return text && !isPlaceholderDraftText(text);
+}
+
+function getMeaningfulItems(items = []) {
+  if (!Array.isArray(items)) return [];
+  return items
+    .map((item) => String(item || '').trim())
+    .filter((item, index, arr) => item && !isPlaceholderDraftText(item) && arr.indexOf(item) === index);
+}
+
+function formatHamdSignalLabel(signal) {
+  const key = String(signal || '').trim();
+  return HAMD_SIGNAL_LABELS[key] || key.replace(/_/g, ' ');
+}
+
+function buildReadableListMarkup(items = [], emptyText = '目前沒有可顯示內容。') {
+  const normalized = getMeaningfulItems(items);
+  if (!normalized.length) {
+    return `<p class="report-empty-copy">${escapeHtml(emptyText)}</p>`;
+  }
+  return normalized.map((item) => `
+    <div class="report-readable-item">
+      <span class="mat-icon">check_circle</span>
+      <div>${escapeHtml(item)}</div>
+    </div>
+  `).join('');
+}
+
+function renderDoctorSummary(summary = {}) {
+  const parts = [
+    String(summary?.draft_summary || '').trim(),
+    ...getMeaningfulItems(summary?.chief_concerns).slice(0, 2),
+    ...getMeaningfulItems(summary?.symptom_observations).slice(0, 2)
+  ].filter((item, index, arr) => item && arr.indexOf(item) === index);
+
+  if (!parts.length) {
+    return {
+      html: '<p class="report-empty-copy">尚未產生醫師摘要。按下「整理給醫師」後，這裡會顯示醫師實際會先看到的重點。</p>',
+      meta: '目前狀態：尚未生成'
+    };
+  }
+
+  return {
+    html: parts.map((item) => `<p>${escapeHtml(item)}</p>`).join(''),
+    meta: `目前狀態：已整理 ${parts.length} 段重點`
+  };
+}
+
+function renderClassificationLogic(summary = {}) {
+  const concerns = getMeaningfulItems(summary?.chief_concerns);
+  const observations = getMeaningfulItems(summary?.symptom_observations);
+  const followups = getMeaningfulItems(summary?.followup_needs);
+  const safetyFlags = getMeaningfulItems(summary?.safety_flags);
+  const lines = [];
+
+  if (concerns.length) {
+    lines.push(`主訴重點：${concerns.join('、')}`);
+  }
+  if (observations.length) {
+    lines.push(`症狀證據：${observations.join('、')}`);
+  }
+  if (followups.length) {
+    lines.push(`需補問 / 複核：${followups.join('、')}`);
+  }
+  if (safetyFlags.length) {
+    lines.push(`安全提醒：${safetyFlags.join('、')}`);
+  }
+
+  return buildReadableListMarkup(lines, '目前還沒有足夠線索可以顯示分類邏輯。');
+}
+
+function renderHamdMapping(summary = {}, progress = {}) {
+  const mappedSignals = getMeaningfulItems(summary?.hamd_signals);
+  const supported = getMeaningfulItems(progress?.covered_dimensions);
+  const evidence = getMeaningfulItems(progress?.recent_evidence);
+  const combined = mappedSignals.length ? mappedSignals : supported;
+
+  if (!combined.length) {
+    return '<p class="report-empty-copy">尚未整理出可顯示的 HAM-D 對應項目。</p>';
+  }
+
+  return combined.map((signal, index) => {
+    const evidenceText = evidence[index] || evidence[0] || '等待更多對話證據補齊';
+    return `
+      <div class="report-readable-item mapping">
+        <span class="mat-icon">monitor_heart</span>
+        <div>
+          <strong>${escapeHtml(formatHamdSignalLabel(signal))}</strong>
+          <p>${escapeHtml(evidenceText)}</p>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function buildFhirSnippet(fhirDraft = {}, deliveryResult = null) {
+  const resources = Array.isArray(fhirDraft?.resources) ? fhirDraft.resources : [];
+  const resourceType = resources[0]?.resourceType || resources[0]?.type || 'Bundle';
+  const signal = getMeaningfulItems(fhirDraft?.questionnaire_targets || fhirDraft?.observation_candidates)[0] || 'clinician_summary';
+  const status = deliveryResult?.delivery_status || fhirDraft?.delivery_status || 'draft';
+  return [
+    '{',
+    `  "resourceType": "${resourceType}",`,
+    '  "type": "transaction",',
+    `  "focus": "${String(signal).replace(/"/g, '\\"')}",`,
+    `  "status": "${String(status).replace(/"/g, '\\"')}"`,
+    '}'
+  ].join('\n');
+}
+
 function renderClinicalInsights(summary) {
   const concerns = Array.isArray(summary?.chief_concerns) ? summary.chief_concerns : [];
   const observations = Array.isArray(summary?.symptom_observations) ? summary.symptom_observations : [];
@@ -1115,8 +1241,11 @@ function renderReportOutputs() {
   const patientReview = APP_STATE.reportOutputs.patient_review || {};
   const fhirDelivery = APP_STATE.reportOutputs.fhir_delivery || {};
   const fhirDeliveryResult = APP_STATE.reportOutputs.fhir_delivery_result || APP_STATE.pendingConsent.deliveryResult || null;
+  const sessionExport = APP_STATE.pendingConsent.sessionExport || APP_STATE.reportOutputs.session_export || {};
+  const hamdProgress = sessionExport?.hamd_progress_state || {};
   const updatedAt = APP_STATE.reportOutputs.updatedAt;
   const hamd = getHamdSummary(clinician);
+  const doctorSummaryState = renderDoctorSummary(clinician);
 
   const intro = document.getElementById('report-auto-intro');
   const heading = document.getElementById('report-hamd-heading');
@@ -1132,9 +1261,15 @@ function renderReportOutputs() {
   const note = document.getElementById('report-clinician-note');
   const patientAnalysisMarkdown = document.getElementById('report-patient-analysis-markdown');
   const patientAnalysisMeta = document.getElementById('report-patient-analysis-meta');
+  const doctorSummary = document.getElementById('report-doctor-summary');
+  const doctorSummaryMeta = document.getElementById('report-doctor-summary-meta');
+  const symptomSummary = document.getElementById('report-symptom-summary');
+  const classificationLogic = document.getElementById('report-classification-logic');
+  const hamdMapping = document.getElementById('report-hamd-mapping');
   const fhirStatus = document.getElementById('report-fhir-status');
   const fhirSummary = document.getElementById('report-fhir-summary');
   const fhirResources = document.getElementById('report-fhir-resources');
+  const fhirSnippet = document.getElementById('report-fhir-snippet');
   const fhirLinks = document.getElementById('report-fhir-links');
   const authNote = document.getElementById('report-auth-note');
   const deleteDraftButton = document.getElementById('report-delete-fhir-draft');
@@ -1176,6 +1311,29 @@ function renderReportOutputs() {
       : '目前狀態：尚未生成';
   }
 
+  if (doctorSummary) {
+    doctorSummary.innerHTML = doctorSummaryState.html;
+  }
+
+  if (doctorSummaryMeta) {
+    doctorSummaryMeta.textContent = doctorSummaryState.meta;
+  }
+
+  if (symptomSummary) {
+    symptomSummary.innerHTML = buildReadableListMarkup(
+      clinician?.symptom_observations,
+      '尚未整理出可讀的症狀摘要。'
+    );
+  }
+
+  if (classificationLogic) {
+    classificationLogic.innerHTML = renderClassificationLogic(clinician);
+  }
+
+  if (hamdMapping) {
+    hamdMapping.innerHTML = renderHamdMapping(clinician, hamdProgress);
+  }
+
   if (fhirStatus) {
     if (APP_STATE.reportFhirDraft.isLoading && !isValidFhirDraftOutput(fhirDelivery)) {
       fhirStatus.textContent = '生成中';
@@ -1189,18 +1347,21 @@ function renderReportOutputs() {
   }
 
   if (fhirSummary) {
-    const preferredSummary = getPreferredFhirSummaryText();
-    if (preferredSummary) {
-      fhirSummary.textContent = preferredSummary;
+    if (isValidFhirDraftOutput(fhirDelivery) || isValidClinicianSummaryOutput(clinician)) {
+      fhirSummary.textContent = '系統會轉換為 FHIR JSON 並傳送至 Server。';
     } else if (APP_STATE.reportFhirDraft.isLoading) {
-      fhirSummary.textContent = '正在依據這段對話重新整理 FHIR 草稿，完成後這裡會顯示新的可交付摘要。';
+      fhirSummary.textContent = '正在依據這段對話整理交付內容，完成後會顯示精簡的 FHIR 示意。';
     } else if (APP_STATE.reportFhirDraft.error) {
       fhirSummary.textContent = `FHIR 草稿建立失敗：${APP_STATE.reportFhirDraft.error}`;
     } else if (APP_STATE.reportFhirDraft.emptyReason) {
       fhirSummary.textContent = APP_STATE.reportFhirDraft.emptyReason;
     } else {
-      fhirSummary.textContent = '尚未重新生成，請重新整理 FHIR 草稿。';
+      fhirSummary.textContent = '系統會轉換為 FHIR JSON 並傳送至 Server。';
     }
+  }
+
+  if (fhirSnippet) {
+    fhirSnippet.textContent = buildFhirSnippet(fhirDelivery, fhirDeliveryResult);
   }
 
   if (fhirResources) {
@@ -3642,6 +3803,7 @@ function buildConsentPreviewHtml(sessionExport, fhirDraft) {
   const previewPatientIdentifier = getPreviewPatientIdentifier(sessionExport, deliveryTargetUrl);
   const resourceList = Array.isArray(fhirDraft?.resources) ? fhirDraft.resources : [];
   const resourceLabels = resourceList.map((item) => item.display || item.type || item.resourceType || 'Unknown');
+  const snippet = buildFhirSnippet(fhirDraft, APP_STATE.reportOutputs.fhir_delivery_result || APP_STATE.pendingConsent.deliveryResult || null);
   const payloadBlocks = [
     sessionExport?.clinician_summary_draft ? 'clinician_summary_draft' : '',
     sessionExport?.patient_analysis ? 'patient_analysis' : '',
@@ -3678,37 +3840,42 @@ function buildConsentPreviewHtml(sessionExport, fhirDraft) {
       <p>${escapeHtml(deliveryTargetUrl ? `FHIR 端點：${deliveryTargetUrl}` : 'FHIR 端點尚未確認')}</p>
     </section>
     <section class="consent-preview-section">
-      <h4>醫師摘要草稿</h4>
-      <p>${escapeHtml(clinician.draft_summary || '尚未產生摘要內容。')}</p>
+      <h4>醫師摘要</h4>
+      <p>${escapeHtml(isMeaningfulDraftText(clinician.draft_summary) ? clinician.draft_summary : '尚未產生摘要內容。')}</p>
     </section>
     <section class="consent-preview-section">
-      <h4>主要關注事項</h4>
-      ${formatArrayForList(clinician.chief_concerns, '尚未整理出主要關注事項。')}
-    </section>
-    <section class="consent-preview-section">
-      <h4>症狀觀察</h4>
+      <h4>症狀整理</h4>
       ${formatArrayForList(clinician.symptom_observations, '尚未整理出症狀觀察。')}
     </section>
     <section class="consent-preview-section">
-      <h4>HAM-D 線索</h4>
-      ${formatArrayForList(hamd.covered_dimensions, '目前尚未收斂出 HAM-D 維度。')}
+      <h4>分類邏輯</h4>
+      ${formatArrayForList(clinician.chief_concerns, '尚未整理出主要關注事項。')}
     </section>
     <section class="consent-preview-section">
-      <h4>FHIR Draft 摘要</h4>
-      <p>${escapeHtml(isValidFhirDraftOutput(fhirDraft) ? (fhirDraft?.narrative_summary || '') : (isValidClinicianSummaryOutput(clinician) ? clinician.draft_summary : '尚未重新生成 FHIR 草稿摘要。'))}</p>
+      <h4>HAM-D Mapping</h4>
+      ${formatArrayForList(
+        getMeaningfulItems(hamd.covered_dimensions).map((item) => formatHamdSignalLabel(item)),
+        '目前尚未收斂出 HAM-D 維度。'
+      )}
+    </section>
+    <section class="consent-preview-section">
+      <h4>FHIR 交付方式</h4>
+      <p>系統會轉換為 FHIR JSON 並傳送至 Server。</p>
+      <pre class="consent-preview-json consent-preview-json-compact">${escapeHtml(snippet)}</pre>
     </section>
     <section class="consent-preview-section">
       <h4>即將送出的資源</h4>
       ${formatArrayForList(resourceLabels, '目前沒有可送出的 FHIR 資源。')}
     </section>
-    <section class="consent-preview-section">
-      <h4>已合併進送出 payload 的草稿區塊</h4>
-      ${formatArrayForList(payloadBlocks, '目前只有最小必要欄位。')}
-    </section>
-    <section class="consent-preview-section">
-      <h4>Session Export JSON</h4>
-      <pre class="consent-preview-json">${escapeHtml(JSON.stringify(sessionExport, null, 2))}</pre>
-    </section>
+    <details class="consent-preview-section consent-preview-details">
+      <summary>查看技術明細</summary>
+      <div class="consent-preview-details-body">
+        <h4>已合併進送出 payload 的草稿區塊</h4>
+        ${formatArrayForList(payloadBlocks, '目前只有最小必要欄位。')}
+        <h4>Session Export JSON</h4>
+        <pre class="consent-preview-json">${escapeHtml(JSON.stringify(sessionExport, null, 2))}</pre>
+      </div>
+    </details>
   `;
 }
 
