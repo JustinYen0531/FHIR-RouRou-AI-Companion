@@ -40,6 +40,19 @@ function loadLocalEnvFile(filePath) {
     return;
   }
 
+  const preferLocalKeys = new Set([
+    'LLM_PROVIDER',
+    'LLM_MODEL',
+    'GROQ_API_KEY',
+    'GROQ_API_BASE_URL',
+    'OPENROUTER_API_KEY',
+    'OPENROUTER_API_BASE_URL',
+    'GOOGLE_API_KEY',
+    'GOOGLE_API_BASE_URL',
+    'FHIR_SERVER_URL',
+    'AI_COMPANION_SESSION_STORE'
+  ]);
+
   const content = fs.readFileSync(filePath, 'utf8');
   for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim();
@@ -48,7 +61,9 @@ function loadLocalEnvFile(filePath) {
     if (separatorIndex <= 0) continue;
 
     const key = line.slice(0, separatorIndex).trim();
-    if (!key || Object.prototype.hasOwnProperty.call(process.env, key)) continue;
+    if (!key) continue;
+    const shouldPreferLocal = preferLocalKeys.has(key);
+    if (!shouldPreferLocal && Object.prototype.hasOwnProperty.call(process.env, key)) continue;
 
     const value = stripWrappingQuotes(line.slice(separatorIndex + 1));
     process.env[key] = value;
