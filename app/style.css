@@ -3934,6 +3934,34 @@ body.micro-detail-open {
   transition: width 0.6s linear;
 }
 
+.consent-quick-check-result {
+  margin: 0 20px 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  border: 1px solid transparent;
+}
+
+.consent-quick-check-result.ready {
+  background: rgba(224, 243, 233, 0.9);
+  border-color: rgba(88, 152, 111, 0.34);
+  color: #204531;
+}
+
+.consent-quick-check-result.blocked,
+.consent-quick-check-result.error {
+  background: rgba(255, 236, 236, 0.92);
+  border-color: rgba(201, 108, 108, 0.35);
+  color: #6a2424;
+}
+
+.consent-quick-check-result.checking {
+  background: rgba(235, 244, 252, 0.92);
+  border-color: rgba(117, 154, 190, 0.33);
+  color: #22415c;
+}
+
 .consent-preview-kicker {
   font-size: 11px;
   letter-spacing: 0.08em;

@@ -170,6 +170,72 @@ function buildCreatedResourceMap(transactionBody) {
   }, {});
 }
 
+function summarizeQuickCheck(bundleResult, options = {}) {
+  const blockingReasons = Array.isArray(bundleResult?.blocking_reasons)
+    ? bundleResult.blocking_reasons.filter(Boolean)
+    : [];
+  const validationErrors = Array.isArray(bundleResult?.validation_errors)
+    ? bundleResult.validation_errors.filter(Boolean)
+    : [];
+  const validationIssues = Array.isArray(bundleResult?.validation_report?.issues)
+    ? bundleResult.validation_report.issues
+    : [];
+  const issueMessages = validationIssues
+    .map((issue) => issue?.message || issue?.code || '')
+    .filter(Boolean);
+
+  const canDeliver = Boolean(bundleResult?.bundle_json) && (!bundleResult?.validation_report || bundleResult.validation_report.valid);
+  const mode = options.fhirBaseUrl ? 'transaction' : 'dry_run';
+  const reasons = blockingReasons.length
+    ? blockingReasons
+    : (validationErrors.length ? validationErrors : issueMessages).slice(0, 5);
+
+  return {
+    can_deliver: canDeliver,
+    mode,
+    mode_label: mode === 'transaction' ? '會送到 FHIR 伺服器' : '只做 dry-run 檢查',
+    target: options.fhirBaseUrl || '',
+    target_label: options.fhirBaseUrl || '未設定 FHIR_SERVER_URL（目前為 dry-run）',
+    reason_count: reasons.length,
+    reasons,
+    validation: {
+      issue_count: Number(bundleResult?.validation_report?.issue_count || 0),
+      errors: Number(bundleResult?.validation_report?.errors || 0),
+      warnings: Number(bundleResult?.validation_report?.warnings || 0)
+    },
+    summary: canDeliver
+      ? (mode === 'transaction' ? '可送出，按下同意送出即可上傳。' : '可送出（dry-run），欄位與驗證已通過。')
+      : '目前不可送出，請先修正阻擋原因。',
+    next_action: canDeliver
+      ? '可直接按「同意送出」。'
+      : (reasons[0] || '請先補齊必要欄位後再檢查一次。')
+  };
+}
+
+async function processDeliveryCheckPayload(payload, options = {}) {
+  const deliveryPayload = preparePayloadForDeliveryTarget(payload, options.fhirBaseUrl);
+  const bundleResult = buildSessionExportBundle(deliveryPayload);
+  const quickCheck = summarizeQuickCheck(bundleResult, options);
+
+  appendDeliveryDebugLog({
+    phase: 'quick_check',
+    deliveryStatus: quickCheck.can_deliver ? 'ready' : 'blocked',
+    fhirBaseUrl: options.fhirBaseUrl || '',
+    patientKey: deliveryPayload?.patient?.key || '',
+    encounterKey: deliveryPayload?.session?.encounterKey || '',
+    reasons: quickCheck.reasons || [],
+    validation: quickCheck.validation || {}
+  });
+
+  return {
+    statusCode: 200,
+    body: {
+      ok: true,
+      quick_check: quickCheck
+    }
+  };
+}
+
 async function processExportPayload(payload, options = {}) {
   const deliveryPayload = preparePayloadForDeliveryTarget(payload, options.fhirBaseUrl);
   const bundleResult = buildSessionExportBundle(deliveryPayload);
@@ -613,7 +679,7 @@ function createServer(options = {}) {
       return;
     }
 
-    if (!['POST', 'PATCH'].includes(req.method) || !['/api/fhir/bundle', '/api/chat/message', '/api/chat/output', '/api/chat/session'].includes(parsedUrl.pathname)) {
+    if (!['POST', 'PATCH'].includes(req.method) || !['/api/fhir/bundle', '/api/fhir/check', '/api/chat/message', '/api/chat/output', '/api/chat/session'].includes(parsedUrl.pathname)) {
       sendJson(res, 404, { error: 'Not found' });
       return;
     }
@@ -662,7 +728,9 @@ function createServer(options = {}) {
           ? await processChatPayload(payload, Object.assign({}, options, { engine: sharedEngine, sessions: sharedSessions }))
           : parsedUrl.pathname === '/api/chat/output'
             ? await processOutputPayload(payload, Object.assign({}, options, { engine: sharedEngine, sessions: sharedSessions }))
-            : await processExportPayload(payload, options);
+            : parsedUrl.pathname === '/api/fhir/check'
+              ? await processDeliveryCheckPayload(payload, options)
+              : await processExportPayload(payload, options);
       sendJson(res, result.statusCode, result.body);
     });
   });
@@ -704,6 +772,7 @@ if (require.main === module) {
 
 module.exports = {
   processExportPayload,
+  processDeliveryCheckPayload,
   processChatPayload,
   processOutputPayload,
   createServer

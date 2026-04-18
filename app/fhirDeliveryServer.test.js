@@ -2,7 +2,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-const { processExportPayload, processChatPayload, processOutputPayload, createServer } = require('./fhirDeliveryServer');
+const { processExportPayload, processDeliveryCheckPayload, processChatPayload, processOutputPayload, createServer } = require('./fhirDeliveryServer');
 
 function getSamplePayload() {
   return JSON.parse(
@@ -24,6 +24,25 @@ async function testBlockedDelivery() {
   const result = await processExportPayload(payload, {});
   assert.strictEqual(result.statusCode, 422);
   assert.strictEqual(result.body.delivery_status, 'blocked');
+}
+
+async function testQuickCheckReady() {
+  const result = await processDeliveryCheckPayload(getSamplePayload(), {});
+  assert.strictEqual(result.statusCode, 200);
+  assert.strictEqual(result.body.ok, true);
+  assert.strictEqual(result.body.quick_check.can_deliver, true);
+  assert.strictEqual(result.body.quick_check.mode, 'dry_run');
+}
+
+async function testQuickCheckBlocked() {
+  const payload = getSamplePayload();
+  payload.patient_authorization_state.share_with_clinician = 'no';
+  const result = await processDeliveryCheckPayload(payload, {});
+  assert.strictEqual(result.statusCode, 200);
+  assert.strictEqual(result.body.ok, true);
+  assert.strictEqual(result.body.quick_check.can_deliver, false);
+  assert.ok(Array.isArray(result.body.quick_check.reasons));
+  assert.ok(result.body.quick_check.reasons.some((reason) => String(reason).includes('does not allow clinician sharing')));
 }
 
 async function testTransactionDelivery() {
@@ -354,9 +373,35 @@ async function testSessionPatchEndpoint() {
   assert.deepStrictEqual(sessions.get('conv-a').state.therapeutic_profile.stressors, [{ label: '工作壓力' }]);
 }
 
+async function testQuickCheckEndpoint() {
+  const server = createServer({});
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const payload = await new Promise((resolve, reject) => {
+    const req = http.request(`http://127.0.0.1:${port}/api/fhir/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    }, (res) => {
+      let raw = '';
+      res.on('data', (chunk) => { raw += chunk; });
+      res.on('end', () => resolve(JSON.parse(raw)));
+    });
+    req.on('error', reject);
+    req.write(JSON.stringify(getSamplePayload()));
+    req.end();
+  });
+
+  server.close();
+  assert.strictEqual(payload.ok, true);
+  assert.strictEqual(typeof payload.quick_check.can_deliver, 'boolean');
+}
+
 async function run() {
   await testDryRunDelivery();
   await testBlockedDelivery();
+  await testQuickCheckReady();
+  await testQuickCheckBlocked();
   await testTransactionDelivery();
   await testPublicHapiDeliveryUsesUniqueKeys();
   await testChatProxyDelivery();
@@ -367,6 +412,7 @@ async function run() {
   await testSessionDetailEndpoint();
   await testSessionDeleteEndpoint();
   await testSessionPatchEndpoint();
+  await testQuickCheckEndpoint();
   console.log('FHIR delivery server tests passed.');
 }
 

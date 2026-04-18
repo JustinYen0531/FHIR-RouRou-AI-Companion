@@ -3118,6 +3118,20 @@ function extractFhirDeliveryError(payload = {}) {
   return payload?.transaction_response?.error || payload?.error || 'FHIR 上傳失敗';
 }
 
+function setConsentQuickCheckResult(status = 'checking', summary = '', reasons = []) {
+  const resultEl = document.getElementById('consent-quick-check-result');
+  if (!resultEl) return;
+  const lines = [String(summary || '').trim()].filter(Boolean);
+  if (Array.isArray(reasons)) {
+    reasons.filter(Boolean).slice(0, 3).forEach((reason) => {
+      lines.push(`- ${String(reason).trim()}`);
+    });
+  }
+  resultEl.className = `consent-quick-check-result ${status}`;
+  resultEl.textContent = lines.join('\n');
+  resultEl.hidden = false;
+}
+
 function rememberFhirDeliveryDebug(debug = {}) {
   try {
     localStorage.setItem('rourou.lastFhirDeliveryDebug', JSON.stringify({
@@ -4307,17 +4321,28 @@ function resetConsentPreviewState() {
     progressText: ''
   };
   const confirmButton = document.getElementById('consent-preview-confirm');
+  const checkButton = document.getElementById('consent-preview-check');
   const scrollBody = document.getElementById('consent-preview-scroll');
   const previewBody = document.getElementById('consent-preview-body');
+  const quickCheckResult = document.getElementById('consent-quick-check-result');
   if (confirmButton) {
     confirmButton.disabled = true;
     confirmButton.textContent = '同意送出';
+  }
+  if (checkButton) {
+    checkButton.disabled = false;
+    checkButton.textContent = '一鍵檢查可否送出';
   }
   if (scrollBody) {
     scrollBody.scrollTop = 0;
   }
   if (previewBody) {
     previewBody.innerHTML = '';
+  }
+  if (quickCheckResult) {
+    quickCheckResult.hidden = true;
+    quickCheckResult.className = 'consent-quick-check-result';
+    quickCheckResult.textContent = '';
   }
   stopProgressAnimation('consent');
   setConsentPreviewProgress(0, '等待操作', '待命', { immediate: true });
@@ -4514,6 +4539,12 @@ async function openConsentPreview() {
   });
   appendSystemNotice('正在準備授權預覽...');
   setConsentPreviewProgress(8, '正在初始化授權預覽...', '初始化中');
+  const quickCheckResult = document.getElementById('consent-quick-check-result');
+  if (quickCheckResult) {
+    quickCheckResult.hidden = true;
+    quickCheckResult.className = 'consent-quick-check-result';
+    quickCheckResult.textContent = '';
+  }
 
   try {
     const existingFhirDraft = getExistingFhirDraft();
@@ -4691,6 +4722,74 @@ async function fetchOutputPayload(outputType, instructionOverride = '') {
   finalizeConversationRequest(payload);
   APP_STATE.lastChatMetadata = payload.metadata || APP_STATE.lastChatMetadata;
   return payload;
+}
+
+async function runDeliveryQuickCheck() {
+  if (APP_STATE.isSending) return;
+
+  if (!APP_STATE.pendingConsent.sessionExport) {
+    await openConsentPreview();
+    if (!APP_STATE.pendingConsent.sessionExport) return;
+  }
+
+  const checkButton = document.getElementById('consent-preview-check');
+  const originalText = checkButton ? checkButton.textContent : '一鍵檢查可否送出';
+  if (checkButton) {
+    checkButton.disabled = true;
+    checkButton.textContent = '檢查中...';
+  }
+  setConsentQuickCheckResult('checking', '正在快速檢查是否可送出...');
+
+  try {
+    const sessionExport = prepareSessionExportForDelivery(
+      APP_STATE.pendingConsent.sessionExport || {},
+      APP_STATE.pendingConsent.deliveryTargetUrl || ''
+    );
+    if (!sessionExport.session?.encounterKey) {
+      throw new Error('目前還沒有可送出的對話資料。');
+    }
+
+    sessionExport.patient_authorization_state = Object.assign(
+      {},
+      sessionExport.patient_authorization_state || {},
+      {
+        authorization_status: 'patient_authorized_manual_submit',
+        share_with_clinician: 'yes',
+        consent_note: `Quick check in UI at ${new Date().toISOString()}`
+      }
+    );
+
+    const response = await fetch('/api/fhir/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sessionExport)
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload?.ok) {
+      throw new Error(payload?.error || '快速檢查失敗');
+    }
+
+    const quick = payload.quick_check || {};
+    const reasons = Array.isArray(quick.reasons) ? quick.reasons : [];
+    if (quick.can_deliver) {
+      setConsentQuickCheckResult('ready', `可送出：${quick.summary || '檢查通過。'}`, [
+        `模式：${quick.mode_label || quick.mode || '-'}`,
+        `目標：${quick.target_label || quick.target || 'dry-run'}`
+      ]);
+      appendSystemNotice('一鍵檢查結果：可送出。', { replaceKey: 'delivery-quick-check' });
+    } else {
+      setConsentQuickCheckResult('blocked', `目前不可送出：${quick.summary || '有阻擋原因。'}`, reasons);
+      appendSystemNotice(`一鍵檢查結果：不可送出（${reasons[0] || '請看檢查結果'}）`, { replaceKey: 'delivery-quick-check' });
+    }
+  } catch (error) {
+    setConsentQuickCheckResult('error', `一鍵檢查失敗：${error.message || '未知錯誤'}`);
+    appendSystemNotice(`一鍵檢查失敗：${error.message || '未知錯誤'}`, { replaceKey: 'delivery-quick-check' });
+  } finally {
+    if (checkButton) {
+      checkButton.disabled = false;
+      checkButton.textContent = originalText || '一鍵檢查可否送出';
+    }
+  }
 }
 
 async function ensureModeSynced() {
@@ -5623,6 +5722,7 @@ window.removeCustomShortcut = removeCustomShortcut;
 window.saveModeSettings = saveModeSettings;
 window.refreshModeListUI = refreshModeListUI;
 window.openConsentPreview = openConsentPreview;
+window.runDeliveryQuickCheck = runDeliveryQuickCheck;
 window.authorizeAndSendReport = authorizeAndSendReport;
 window.saveReportForLater = saveReportForLater;
 window.deleteFhirDraft = deleteFhirDraft;

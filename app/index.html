@@ -857,6 +857,7 @@
           <div id="consent-preview-progress-bar" class="consent-preview-progress-bar" style="width:0%"></div>
         </div>
       </div>
+      <div id="consent-quick-check-result" class="consent-quick-check-result" hidden></div>
       <div id="consent-preview-scroll" class="consent-preview-scroll">
         <div class="consent-preview-intro">
           請先完整查看以下摘要內容。滑到最下方後，才會解鎖最後的送出按鈕。
@@ -868,6 +869,7 @@
       </div>
       <div class="consent-preview-actions">
         <button class="ghost-btn" type="button" onclick="closeConsentPreview()">返回修改</button>
+        <button id="consent-preview-check" class="ghost-btn" type="button" onclick="runDeliveryQuickCheck()">一鍵檢查可否送出</button>
         <button id="consent-preview-confirm" class="primary-btn" type="button" onclick="authorizeAndSendReport()" disabled>同意送出</button>
       </div>
     </div>
