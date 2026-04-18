@@ -197,6 +197,25 @@ function testBlocksWhenReadinessIsBlocked() {
   assert.ok(result.blocking_reasons.includes('delivery_readiness_state is not ready_for_backend_mapping, so the builder will not emit a delivery bundle.'));
 }
 
+function testAllowsAlternativeAuthorizationValues() {
+  const input = createValidInput();
+  input.patient_authorization_state.share_with_clinician = true;
+  input.delivery_readiness_state.readiness_status = 'ready_for_mapping';
+  const result = buildSessionExportBundle(input);
+  assert.ok(result.bundle_json, 'bundle_json should exist for normalized authorization/readiness values');
+  assert.deepStrictEqual(result.blocking_reasons, []);
+}
+
+function testAllowsAuthorizedStatusWithoutExplicitYes() {
+  const input = createValidInput();
+  input.patient_authorization_state.share_with_clinician = '';
+  input.patient_authorization_state.authorization_status = 'patient_authorized_manual_submit';
+  input.delivery_readiness_state.readiness_status = '';
+  const result = buildSessionExportBundle(input);
+  assert.ok(result.bundle_json, 'bundle_json should exist when authorization status implies sharing is allowed');
+  assert.deepStrictEqual(result.blocking_reasons, []);
+}
+
 function testReferencesAreConnected() {
   const result = buildSessionExportBundle(createValidInput());
   const entries = result.bundle_json.entry;
@@ -264,6 +283,8 @@ function run() {
   testBlocksWithoutClinicianSummary();
   testBlocksWhenSharingNotAllowed();
   testBlocksWhenReadinessIsBlocked();
+  testAllowsAlternativeAuthorizationValues();
+  testAllowsAuthorizedStatusWithoutExplicitYes();
   testReferencesAreConnected();
   testClinicalContentIsEnriched();
   testValidationReportHasExpectedShape();

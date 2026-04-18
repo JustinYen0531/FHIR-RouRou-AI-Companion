@@ -1726,14 +1726,120 @@ function mergePatientReviewPacket(basePacket, generatedPacket) {
   });
 }
 
+function normalizeDecisionToken(value) {
+  return String(value == null ? '' : value)
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+}
+
+function isAuthorizationStatusAllowingShare(status) {
+  const token = normalizeDecisionToken(status);
+  return [
+    'authorized',
+    'ready_for_consent',
+    'patient_authorized_manual_submit',
+    'consented',
+    'share_allowed',
+    'approved',
+    'allow_share'
+  ].includes(token);
+}
+
+function normalizeShareWithClinicianValue(value, authorizationStatus, fallback = 'no') {
+  if (typeof value === 'boolean') {
+    return value ? 'yes' : 'no';
+  }
+
+  const raw = String(value == null ? '' : value).trim();
+  const token = normalizeDecisionToken(raw);
+  const allowTokens = new Set([
+    'yes',
+    'y',
+    'true',
+    '1',
+    'allow',
+    'allowed',
+    'authorized',
+    'approved',
+    'consented',
+    'share_allowed'
+  ]);
+  const denyTokens = new Set([
+    'no',
+    'n',
+    'false',
+    '0',
+    'deny',
+    'denied',
+    'blocked',
+    'rejected',
+    'disallow'
+  ]);
+
+  if (allowTokens.has(token)) return 'yes';
+  if (denyTokens.has(token)) return 'no';
+
+  if (raw) {
+    if (/不同意|拒絕|不允許/.test(raw)) return 'no';
+    if (/同意|允許|可以/.test(raw)) return 'yes';
+  }
+
+  if (isAuthorizationStatusAllowingShare(authorizationStatus)) {
+    return 'yes';
+  }
+  return fallback === 'yes' ? 'yes' : 'no';
+}
+
+function normalizeReadinessStatusValue(value, shareWithClinician, fallback = 'ready_for_backend_mapping') {
+  if (typeof value === 'boolean') {
+    return value ? 'ready_for_backend_mapping' : 'blocked';
+  }
+  const token = normalizeDecisionToken(value);
+  if (!token) {
+    return shareWithClinician === 'yes' ? 'ready_for_backend_mapping' : fallback;
+  }
+
+  const readyTokens = new Set([
+    'ready_for_backend_mapping',
+    'ready_for_mapping',
+    'ready_for_delivery',
+    'ready_to_deliver',
+    'ready_to_export',
+    'ready_for_handoff',
+    'ready',
+    'deliverable'
+  ]);
+  const blockedTokens = new Set([
+    'blocked',
+    'not_ready',
+    'review_required',
+    'pending',
+    'pending_review',
+    'hold',
+    'waiting_for_consent',
+    'wait_for_consent'
+  ]);
+
+  if (readyTokens.has(token)) return 'ready_for_backend_mapping';
+  if (blockedTokens.has(token)) return 'blocked';
+  return shareWithClinician === 'yes' ? 'ready_for_backend_mapping' : fallback;
+}
+
 function mergePatientAuthorizationState(baseState, generatedState) {
   const generated = generatedState && typeof generatedState === 'object' ? generatedState : {};
+  const authorizationStatus = String(generated.authorization_status || '').trim() || baseState.authorization_status;
+  const shareWithClinician = normalizeShareWithClinicianValue(
+    Object.prototype.hasOwnProperty.call(generated, 'share_with_clinician') ? generated.share_with_clinician : '',
+    authorizationStatus,
+    baseState.share_with_clinician
+  );
   return Object.assign({}, baseState, generated, {
     review_blockers: mergeUniqueTexts(baseState.review_blockers, generated.review_blockers, 6),
     patient_actions: mergeUniqueTexts(baseState.patient_actions, generated.patient_actions, 6),
     consent_note: chooseStructuredText(generated.consent_note, baseState.consent_note),
-    share_with_clinician: generated.share_with_clinician === 'yes' ? 'yes' : baseState.share_with_clinician,
-    authorization_status: String(generated.authorization_status || '').trim() || baseState.authorization_status
+    share_with_clinician: shareWithClinician,
+    authorization_status: authorizationStatus
   });
 }
 
@@ -1799,7 +1905,17 @@ function mergeFhirDeliveryDraft(baseDraft, generatedDraft) {
 
 function mergeDeliveryReadinessState(baseState, generatedState) {
   const generated = generatedState && typeof generatedState === 'object' ? generatedState : {};
+  const shareWithClinician = normalizeShareWithClinicianValue(
+    baseState.share_with_clinician,
+    baseState.authorization_status,
+    baseState.share_with_clinician
+  );
   return Object.assign({}, baseState, generated, {
+    readiness_status: normalizeReadinessStatusValue(
+      generated.readiness_status,
+      shareWithClinician,
+      baseState.readiness_status
+    ),
     primary_blockers: mergeUniqueTexts(baseState.primary_blockers, generated.primary_blockers, 6),
     next_step: chooseStructuredText(generated.next_step, baseState.next_step),
     provenance_requirements: mergeUniqueTexts(baseState.provenance_requirements, generated.provenance_requirements, 6),

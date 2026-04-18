@@ -110,8 +110,107 @@
     }
   }
 
+  function normalizeDecisionToken(value) {
+    return String(value == null ? '' : value)
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
+  }
+
+  function isAuthorizationStatusAllowingShare(status) {
+    const token = normalizeDecisionToken(status);
+    return [
+      'authorized',
+      'ready_for_consent',
+      'patient_authorized_manual_submit',
+      'consented',
+      'share_allowed',
+      'approved',
+      'allow_share'
+    ].indexOf(token) !== -1;
+  }
+
+  function normalizeShareWithClinician(value, authorizationStatus) {
+    if (typeof value === 'boolean') {
+      return value ? 'yes' : 'no';
+    }
+    const raw = String(value == null ? '' : value).trim();
+    const token = normalizeDecisionToken(raw);
+    const allowTokens = {
+      yes: true,
+      y: true,
+      true: true,
+      '1': true,
+      allow: true,
+      allowed: true,
+      authorized: true,
+      approved: true,
+      consented: true,
+      share_allowed: true
+    };
+    const denyTokens = {
+      no: true,
+      n: true,
+      false: true,
+      '0': true,
+      deny: true,
+      denied: true,
+      blocked: true,
+      rejected: true,
+      disallow: true
+    };
+
+    if (allowTokens[token]) return 'yes';
+    if (denyTokens[token]) return 'no';
+
+    if (raw) {
+      if (/不同意|拒絕|不允許/.test(raw)) return 'no';
+      if (/同意|允許|可以/.test(raw)) return 'yes';
+    }
+
+    return isAuthorizationStatusAllowingShare(authorizationStatus) ? 'yes' : 'no';
+  }
+
+  function normalizeReadinessStatus(value, isShareAllowed) {
+    if (typeof value === 'boolean') {
+      return value ? 'ready_for_backend_mapping' : 'blocked';
+    }
+    const token = normalizeDecisionToken(value);
+    if (!token) {
+      return isShareAllowed ? 'ready_for_backend_mapping' : 'blocked';
+    }
+    const readyTokens = {
+      ready_for_backend_mapping: true,
+      ready_for_mapping: true,
+      ready_for_delivery: true,
+      ready_to_deliver: true,
+      ready_to_export: true,
+      ready_for_handoff: true,
+      ready: true,
+      deliverable: true
+    };
+    const blockedTokens = {
+      blocked: true,
+      not_ready: true,
+      review_required: true,
+      pending: true,
+      pending_review: true,
+      hold: true,
+      waiting_for_consent: true,
+      wait_for_consent: true
+    };
+
+    if (readyTokens[token]) return 'ready_for_backend_mapping';
+    if (blockedTokens[token]) return 'blocked';
+    return isShareAllowed ? 'ready_for_backend_mapping' : 'blocked';
+  }
+
   function createReviewExtensions(input) {
     const reviewStatus = input.patient_authorization_state.authorization_status || 'review_required';
+    const shareWithClinician = normalizeShareWithClinician(
+      input.patient_authorization_state.share_with_clinician,
+      reviewStatus
+    );
     return [
       {
         url: AI_COMPANION_EXTENSIONS.aiGenerated,
@@ -123,7 +222,7 @@
       },
       {
         url: AI_COMPANION_EXTENSIONS.reviewSource,
-        valueString: input.patient_authorization_state.share_with_clinician === 'yes'
+        valueString: shareWithClinician === 'yes'
           ? 'ai_draft_with_patient_share_allowed'
           : 'ai_draft_pending_patient_share'
       }
@@ -830,6 +929,10 @@
   }
 
   function buildProvenanceResource(input, patientFullUrl, encounterFullUrl, targetRefs) {
+    const shareWithClinician = normalizeShareWithClinician(
+      input.patient_authorization_state.share_with_clinician,
+      input.patient_authorization_state.authorization_status
+    );
     return {
       resourceType: 'Provenance',
       meta: { profile: [TW_CORE_PROFILES.provenance] },
@@ -851,7 +954,7 @@
         {
           role: 'source',
           what: {
-            display: input.patient_authorization_state.share_with_clinician === 'yes'
+            display: shareWithClinician === 'yes'
               ? 'AI draft with patient share allowed'
               : 'AI draft pending patient sharing permission'
           }
@@ -956,12 +1059,22 @@
       blockingReasons.push('hamd_progress_state is missing.');
     }
 
-    if (input.patient_authorization_state.share_with_clinician !== 'yes') {
+    const normalizedShareWithClinician = normalizeShareWithClinician(
+      input.patient_authorization_state.share_with_clinician,
+      input.patient_authorization_state.authorization_status
+    );
+    input.patient_authorization_state.share_with_clinician = normalizedShareWithClinician;
+    const normalizedReadinessStatus = normalizeReadinessStatus(
+      input.delivery_readiness_state.readiness_status,
+      normalizedShareWithClinician === 'yes'
+    );
+    input.delivery_readiness_state.readiness_status = normalizedReadinessStatus;
+
+    if (normalizedShareWithClinician !== 'yes') {
       blockingReasons.push('patient_authorization_state does not allow clinician sharing.');
     }
 
-    const readinessStatus = input.delivery_readiness_state.readiness_status;
-    if (readinessStatus !== 'ready_for_backend_mapping') {
+    if (normalizedReadinessStatus !== 'ready_for_backend_mapping') {
       blockingReasons.push('delivery_readiness_state is not ready_for_backend_mapping, so the builder will not emit a delivery bundle.');
     }
 
