@@ -117,7 +117,10 @@ async function testPatientRefreshDelivery() {
   const submittedPatient = JSON.parse(requestOptions.body);
   assert.strictEqual(result.statusCode, 200);
   assert.strictEqual(result.body.refresh_status, 'refreshed');
+  assert.strictEqual(result.body.build_result.valid, true);
+  assert.strictEqual(result.body.build_result.resource_json.resourceType, 'Patient');
   assert.strictEqual(result.body.resource_result.ok, true);
+  assert.strictEqual(result.body.resource_result.submitted_resource.resourceType, 'Patient');
   assert.strictEqual(requestUrl, 'https://example.org/fhir/Patient/131946130');
   assert.strictEqual(requestOptions.method, 'PUT');
   assert.strictEqual(submittedPatient.resourceType, 'Patient');
@@ -138,6 +141,23 @@ async function testPatientRefreshRejectsInvalidPath() {
   assert.strictEqual(result.statusCode, 422);
   assert.strictEqual(result.body.refresh_status, 'blocked');
   assert.ok(result.body.validation_errors.some((message) => message.includes('existing Patient')));
+}
+
+async function testPatientRefreshRejectsInvalidBuild() {
+  const payload = getSamplePayload();
+  payload.patient.key = '';
+  const result = await processResourceRefreshPayload({
+    resource_type: 'Patient',
+    resource_path: 'Patient/131946130',
+    session_export: payload
+  }, {
+    fhirBaseUrl: 'https://example.org/fhir'
+  });
+
+  assert.strictEqual(result.statusCode, 422);
+  assert.strictEqual(result.body.refresh_status, 'blocked');
+  assert.strictEqual(result.body.build_result.valid, false);
+  assert.ok(result.body.build_result.validation_errors.some((message) => message.includes('patient.key')));
 }
 
 async function testChatProxyDelivery() {
@@ -494,6 +514,7 @@ async function run() {
   await testPublicHapiDeliveryUsesUniqueKeys();
   await testPatientRefreshDelivery();
   await testPatientRefreshRejectsInvalidPath();
+  await testPatientRefreshRejectsInvalidBuild();
   await testChatProxyDelivery();
   await testChatProxyPassesForceNewSessionFlag();
   await testChatProxyMissingApiKey();

@@ -420,6 +420,7 @@ async function processResourceRefreshPayload(payload, options = {}) {
     resource_path: resourcePath,
     fhir_base_url: options.fhirBaseUrl || '',
     validation_errors: [],
+    build_result: null,
     resource_result: null
   };
 
@@ -455,6 +456,11 @@ async function processResourceRefreshPayload(payload, options = {}) {
     return {
       statusCode: 422,
       body: Object.assign(response, {
+        build_result: {
+          valid: false,
+          validation_errors: patientBuild.validation_errors || ['Unable to build Patient resource.'],
+          resource_json: null
+        },
         validation_errors: patientBuild.validation_errors || ['Unable to build Patient resource.']
       })
     };
@@ -478,6 +484,11 @@ async function processResourceRefreshPayload(payload, options = {}) {
   const [, resourceId = ''] = resourcePath.split('/');
   const patientResource = JSON.parse(JSON.stringify(patientBuild.resource_json));
   patientResource.id = resourceId;
+  response.build_result = {
+    valid: true,
+    validation_errors: [],
+    resource_json: patientResource
+  };
 
   try {
     const refreshResponse = await fetchImpl(requestUrl, {
@@ -501,17 +512,18 @@ async function processResourceRefreshPayload(payload, options = {}) {
 
     return {
       statusCode: refreshResponse.ok ? 200 : 502,
-      body: Object.assign(response, {
-        refresh_status: refreshResponse.ok ? 'refreshed' : 'refresh_failed',
-        resource_result: {
-          status: refreshResponse.status,
-          ok: refreshResponse.ok,
-          body: parsed,
-          label: resourcePath,
-          path: resourcePath,
-          url: requestUrl
-        }
-      })
+        body: Object.assign(response, {
+          refresh_status: refreshResponse.ok ? 'refreshed' : 'refresh_failed',
+          resource_result: {
+            status: refreshResponse.status,
+            ok: refreshResponse.ok,
+            body: parsed,
+            submitted_resource: patientResource,
+            label: resourcePath,
+            path: resourcePath,
+            url: requestUrl
+          }
+        })
     };
   } catch (error) {
     appendDeliveryDebugLog({
@@ -525,13 +537,14 @@ async function processResourceRefreshPayload(payload, options = {}) {
     });
     return {
       statusCode: 502,
-      body: Object.assign(response, {
-        refresh_status: 'refresh_failed',
-        resource_result: {
-          error: error.message
-        }
-      })
-    };
+        body: Object.assign(response, {
+          refresh_status: 'refresh_failed',
+          resource_result: {
+            error: error.message,
+            submitted_resource: patientResource
+          }
+        })
+      };
   }
 }
 

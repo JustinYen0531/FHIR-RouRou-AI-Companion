@@ -1689,6 +1689,19 @@ function extractFhirRefreshError(payload = {}) {
   return payload?.resource_result?.error || payload?.error || 'Patient 更新失敗';
 }
 
+function getFhirRefreshBuildSummary(payload = {}) {
+  const builtPatient = payload?.build_result?.resource_json;
+  if (!payload?.build_result?.valid || !builtPatient) return '';
+  const patientName = String(builtPatient?.name?.[0]?.text || builtPatient?.name?.text || '').trim();
+  const patientIdentifier = String(builtPatient?.identifier?.[0]?.value || '').trim();
+  const patientBirthDate = String(builtPatient?.birthDate || '').trim();
+  return [
+    patientName ? `姓名 ${patientName}` : '',
+    patientIdentifier ? `識別值 ${patientIdentifier}` : '',
+    patientBirthDate ? `生日 ${patientBirthDate}` : ''
+  ].filter(Boolean).join('，');
+}
+
 function markFhirHistoryResourceRefreshed(entryId, resourcePath, refreshPayload = null, refreshedAt = '') {
   if (!entryId) return;
   let changed = false;
@@ -1762,6 +1775,14 @@ async function refreshPatientResource(resourcePath, source = 'current', entryId 
     if (!response.ok) {
       throw new Error(extractFhirRefreshError(payload));
     }
+    if (
+      payload?.refresh_status !== 'refreshed' ||
+      payload?.build_result?.valid !== true ||
+      payload?.build_result?.resource_json?.resourceType !== 'Patient' ||
+      payload?.resource_result?.ok !== true
+    ) {
+      throw new Error('Patient builder 沒有成功重跑完成，這次更新不算數。');
+    }
 
     const refreshedAt = new Date().toISOString();
     if (APP_STATE.reportOutputs?.fhir_delivery_result) {
@@ -1774,7 +1795,12 @@ async function refreshPatientResource(resourcePath, source = 'current', entryId 
     markFhirHistoryResourceRefreshed(entryId, normalizedPath, refreshPayload, refreshedAt);
     saveReportOutputsToCache();
     renderReportOutputs();
-    appendSystemNotice(`已單獨更新 ${normalizedPath}。這次只重送 Patient，其他資源完全沒有動。`);
+    const buildSummary = getFhirRefreshBuildSummary(payload);
+    appendSystemNotice(
+      buildSummary
+        ? `已重新跑過 Patient builder，並更新 ${normalizedPath}（${buildSummary}）。這次只重送 Patient，其他資源完全沒有動。`
+        : `已重新跑過 Patient builder，並更新 ${normalizedPath}。這次只重送 Patient，其他資源完全沒有動。`
+    );
   } catch (error) {
     renderReportOutputs();
     appendSystemNotice(error.message || 'Patient 更新失敗');
