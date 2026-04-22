@@ -1216,10 +1216,44 @@
 
 
   function buildProvenanceResource(input, patientFullUrl, encounterFullUrl, targetRefs) {
-    const shareWithClinician = normalizeShareWithClinician(
-      input.patient_authorization_state.share_with_clinician,
-      input.patient_authorization_state.authorization_status
+    var authState = input.patient_authorization_state || {};
+    var shareWithClinician = normalizeShareWithClinician(
+      authState.share_with_clinician,
+      authState.authorization_status
     );
+
+    // ── 1. location：改為人類可讀的 session 說明 ─────────────────────────────
+    var sessionKey = (input.session && input.session.encounterKey) || 'unknown-session';
+    var sessionDate = (input.session && (input.session.endedAt || input.session.startedAt))
+      ? new Date(input.session.endedAt || input.session.startedAt).toISOString().slice(0, 10)
+      : new Date().toISOString().slice(0, 10);
+    var locationDisplay = 'AI Companion Platform – Session ' + sessionKey + ' (' + sessionDate + ')';
+
+    // ── 2. agent：加上 patient-reviewer ─────────────────────────────────────
+    var agents = [
+      {
+        type: { text: 'author' },
+        who: { display: input.author || 'AI Companion' }
+      }
+    ];
+    if (patientFullUrl) {
+      agents.push({
+        type: { text: 'patient-reviewer' },
+        who: { reference: patientFullUrl }
+      });
+    }
+
+    // ── 3. entity：人話說明授權狀態 ────────────────────────────────────────────
+    var shareDisplay = shareWithClinician === 'yes'
+      ? 'Patient has authorized sharing with clinician'
+      : shareWithClinician === 'no'
+        ? 'Patient has not authorized sharing with clinician'
+        : 'Patient sharing authorization pending review';
+
+    var authStatusDisplay = authState.authorization_status
+      ? 'Patient authorization status: ' + authState.authorization_status
+      : 'Patient authorization status: review_required';
+
     return {
       resourceType: 'Provenance',
       meta: { profile: [TW_CORE_PROFILES.provenance] },
@@ -1227,45 +1261,41 @@
       target: targetRefs.map(function (reference) {
         return { reference: reference };
       }),
-      agent: [
-        {
-          type: {
-            text: 'author'
-          },
-          who: {
-            display: input.author || 'AI Companion'
-          }
-        }
-      ],
+      agent: agents,
       entity: [
         {
           role: 'source',
           what: {
-            display: shareWithClinician === 'yes'
-              ? 'AI draft with patient share allowed'
-              : 'AI draft pending patient sharing permission'
+            display: 'AI companion conversation session (' + sessionDate + ')'
           }
         },
         {
           role: 'derivation',
           what: {
-            display: input.patient_authorization_state.authorization_status || 'review_required'
+            display: shareDisplay
+          }
+        },
+        {
+          role: 'quotation',
+          what: {
+            display: authStatusDisplay
           }
         }
       ],
       reason: [
         {
-          text: 'AI companion pre-visit summary generation and patient review tracking'
+          text: 'AI Companion pre-visit summary auto-generation for clinician handoff. This record traces the origin of the FHIR bundle, confirms patient-level review has been initiated, and documents the sharing authorization status at time of export.'
         }
       ],
       location: {
-        display: encounterFullUrl
+        display: locationDisplay
       },
       patient: {
         reference: patientFullUrl
       }
     };
   }
+
 
   function buildResourceIndex(entries) {
     return entries.reduce(function (acc, entry) {
