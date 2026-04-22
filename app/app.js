@@ -1632,6 +1632,9 @@ function buildFhirHistoryEntry({ type, draft = null, deliveryResult = null, sess
     fixedPatientValues,
     resourceLinks,
     patientRefreshPayload,
+    draftPayload: deepCloneSerializable(draft || null, null),
+    deliveryResultPayload: deepCloneSerializable(deliveryResult || null, null),
+    sessionExportPayload: deepCloneSerializable(sessionExport || null, null),
     resourceCount: resourceLinks.length || (Array.isArray(draft?.resources) ? draft.resources.length : 0),
     fingerprint,
     lastRefreshedAt: ''
@@ -1871,7 +1874,10 @@ function renderFhirHistorySection() {
                 <div class="fhir-history-time">建立時間：${escapeHtml(formatDateTimeLabel(item.createdAt))}</div>
                 ${item.lastRefreshedAt ? `<div class="fhir-history-time">最近更新：${escapeHtml(formatDateTimeLabel(item.lastRefreshedAt))}</div>` : ''}
               </div>
-              <button class="fhir-history-delete-btn" type="button" onclick="removeFhirHistoryEntry('${escapeHtml(item.id)}')">刪除這筆</button>
+              <div class="fhir-history-card-actions">
+                <button class="fhir-history-preview-btn" type="button" onclick="openFhirHistoryPreview('${escapeHtml(item.id)}')">預覽</button>
+                <button class="fhir-history-delete-btn" type="button" onclick="removeFhirHistoryEntry('${escapeHtml(item.id)}')">刪除這筆</button>
+              </div>
             </div>
             <div class="fhir-history-summary">${escapeHtml(item.summary || '無摘要')}</div>
             <div class="fhir-history-meta">
@@ -3978,6 +3984,119 @@ function summarizeSessionRecord(session = {}) {
   };
 }
 
+function buildFhirHistoryPreviewSessionExport(item = {}) {
+  const baseExport = deepCloneSerializable(item.sessionExportPayload || {}, {});
+  const refreshPayload = item.patientRefreshPayload && typeof item.patientRefreshPayload === 'object'
+    ? item.patientRefreshPayload
+    : {};
+
+  if ((!baseExport.patient || typeof baseExport.patient !== 'object') && refreshPayload.patient) {
+    baseExport.patient = deepCloneSerializable(refreshPayload.patient, {});
+  } else if (refreshPayload.patient) {
+    baseExport.patient = Object.assign({}, baseExport.patient, deepCloneSerializable(refreshPayload.patient, {}));
+  }
+
+  if ((!baseExport.session || typeof baseExport.session !== 'object') && refreshPayload.session) {
+    baseExport.session = deepCloneSerializable(refreshPayload.session, {});
+  } else if (refreshPayload.session) {
+    baseExport.session = Object.assign({}, baseExport.session, deepCloneSerializable(refreshPayload.session, {}));
+  }
+
+  if (!String(baseExport.__deliveryTargetUrl || '').trim() && item.targetUrl) {
+    baseExport.__deliveryTargetUrl = item.targetUrl;
+  }
+
+  return PatientProfile.applyToSessionExport(baseExport);
+}
+
+function buildFhirHistoryPreviewDraft(item = {}, sessionExport = {}) {
+  if (item.draftPayload && typeof item.draftPayload === 'object') {
+    return deepCloneSerializable(item.draftPayload, {});
+  }
+
+  const patientSummary = PatientProfile.buildReferenceSummary(sessionExport?.patient || {});
+  return {
+    delivery_status: item.deliveryStatus || 'pre_review',
+    narrative_summary: String(item.summary || '').trim() || '這筆記錄沒有保留完整草稿，以下先顯示當時可回推的 Patient 內容。',
+    resources: [{ resourceType: 'Patient', display: 'Patient / Subject Of Care' }],
+    patient_reference_summary: patientSummary
+  };
+}
+
+function setConsentPreviewChrome(options = {}) {
+  const kickerNode = document.getElementById('consent-preview-kicker');
+  const titleNode = document.getElementById('consent-preview-title');
+  const introNode = document.getElementById('consent-preview-intro');
+  const bottomNoteNode = document.getElementById('consent-preview-bottom-note');
+  const progressNode = document.getElementById('consent-preview-progress');
+  const backButton = document.getElementById('consent-preview-back');
+  const checkButton = document.getElementById('consent-preview-check');
+  const confirmButton = document.getElementById('consent-preview-confirm');
+
+  if (kickerNode) kickerNode.textContent = options.kicker || '送出前確認';
+  if (titleNode) titleNode.textContent = options.title || '即將送出的 FHIR 草稿';
+  if (introNode) introNode.textContent = options.intro || '請先完整查看以下摘要內容。滑到最下方後，才會解鎖最後的送出按鈕。';
+  if (bottomNoteNode) bottomNoteNode.textContent = options.bottomNote || '我已閱讀上方內容，理解這次送出會把目前摘要資料上傳到已設定的 FHIR 端點。';
+  if (progressNode) progressNode.hidden = options.showProgress === false;
+  if (backButton) backButton.textContent = options.backLabel || '返回修改';
+  if (checkButton) checkButton.hidden = options.showCheck === false;
+  if (confirmButton) confirmButton.hidden = options.showConfirm === false;
+}
+
+function openFhirHistoryPreview(entryId = '') {
+  const historyItem = (APP_STATE.fhirReportHistory || []).find((item) => item.id === entryId);
+  if (!historyItem) {
+    appendSystemNotice('這筆歷史記錄目前找不到可預覽內容。');
+    return;
+  }
+
+  const sessionExport = buildFhirHistoryPreviewSessionExport(historyItem);
+  const fhirDraft = buildFhirHistoryPreviewDraft(historyItem, sessionExport);
+  const previewBody = document.getElementById('consent-preview-body');
+  const overlay = document.getElementById('consent-preview-overlay');
+  const scrollBody = document.getElementById('consent-preview-scroll');
+  const quickCheckResult = document.getElementById('consent-quick-check-result');
+
+  setConsentPreviewChrome({
+    kicker: '歷史預覽',
+    title: historyItem.type === 'delivery' ? '已保存的 FHIR 交付內容' : '已保存的 FHIR 草稿內容',
+    intro: '這裡是這筆歷史記錄當時保留下來的預覽內容。你可以先檢查 patient 草稿與摘要，再決定要不要回去重建。',
+    bottomNote: historyItem.targetUrl
+      ? `這筆記錄原本對應的 FHIR 端點是 ${historyItem.targetUrl}。`
+      : '這是唯讀預覽，不會在這裡直接送出或修改資料。',
+    backLabel: '關閉預覽',
+    showProgress: false,
+    showCheck: false,
+    showConfirm: false
+  });
+
+  if (previewBody) {
+    previewBody.innerHTML = `
+      ${buildConsentPreviewHtml(sessionExport, fhirDraft, historyItem.deliveryResultPayload || null)}
+      <details class="consent-preview-section consent-preview-details">
+        <summary>查看這筆歷史記錄的原始保存內容</summary>
+        <div class="consent-preview-details-body">
+          <h4>FHIR History Entry JSON</h4>
+          <pre class="consent-preview-json">${escapeHtml(JSON.stringify(historyItem, null, 2))}</pre>
+        </div>
+      </details>
+    `;
+  }
+
+  if (quickCheckResult) {
+    quickCheckResult.hidden = true;
+    quickCheckResult.textContent = '';
+    quickCheckResult.className = 'consent-quick-check-result';
+  }
+  if (scrollBody) {
+    scrollBody.scrollTop = 0;
+  }
+  if (overlay) {
+    overlay.classList.add('active');
+    overlay.setAttribute('aria-hidden', 'false');
+  }
+}
+
 function scoreSessionRecordForRestore(session = {}) {
   const summary = summarizeSessionRecord(session);
   let score = 0;
@@ -4900,7 +5019,7 @@ async function fetchDeliveryTargetUrl() {
   }
 }
 
-function buildConsentPreviewHtml(sessionExport, fhirDraft) {
+function buildConsentPreviewHtml(sessionExport, fhirDraft, deliveryResultOverride = null) {
   const clinician = sessionExport?.clinician_summary_draft || {};
   const patient = sessionExport?.patient || {};
   const session = sessionExport?.session || {};
@@ -4909,7 +5028,10 @@ function buildConsentPreviewHtml(sessionExport, fhirDraft) {
   const previewPatientIdentifier = getPreviewPatientIdentifier(sessionExport, deliveryTargetUrl);
   const resourceList = Array.isArray(fhirDraft?.resources) ? fhirDraft.resources : [];
   const resourceLabels = resourceList.map((item) => item.display || item.type || item.resourceType || 'Unknown');
-  const snippet = buildFhirSnippet(fhirDraft, APP_STATE.reportOutputs.fhir_delivery_result || APP_STATE.pendingConsent.deliveryResult || null);
+  const snippet = buildFhirSnippet(
+    fhirDraft,
+    deliveryResultOverride || APP_STATE.reportOutputs.fhir_delivery_result || APP_STATE.pendingConsent.deliveryResult || null
+  );
   const payloadBlocks = [
     sessionExport?.clinician_summary_draft ? 'clinician_summary_draft' : '',
     sessionExport?.patient_analysis ? 'patient_analysis' : '',
@@ -5182,6 +5304,16 @@ function closeConsentPreview() {
   if (!overlay) return;
   overlay.classList.remove('active');
   overlay.setAttribute('aria-hidden', 'true');
+  setConsentPreviewChrome({
+    kicker: '送出前確認',
+    title: '即將送出的 FHIR 草稿',
+    intro: '請先完整查看以下摘要內容。滑到最下方後，才會解鎖最後的送出按鈕。',
+    bottomNote: '我已閱讀上方內容，理解這次送出會把目前摘要資料上傳到已設定的 FHIR 端點。',
+    backLabel: '返回修改',
+    showProgress: true,
+    showCheck: true,
+    showConfirm: true
+  });
   resetConsentPreviewState();
   resetReportConsentProgress();
 }
@@ -5201,6 +5333,16 @@ function handleConsentPreviewScroll() {
 async function openConsentPreview() {
   if (APP_STATE.isSending) return;
 
+  setConsentPreviewChrome({
+    kicker: '送出前確認',
+    title: '即將送出的 FHIR 草稿',
+    intro: '請先完整查看以下摘要內容。滑到最下方後，才會解鎖最後的送出按鈕。',
+    bottomNote: '我已閱讀上方內容，理解這次送出會把目前摘要資料上傳到已設定的 FHIR 端點。',
+    backLabel: '返回修改',
+    showProgress: true,
+    showCheck: true,
+    showConfirm: true
+  });
   APP_STATE.isSending = true;
   clearMicroInterventionCard();
   closeMicroInterventionDetail();
@@ -6424,6 +6566,7 @@ window.saveReportForLater = saveReportForLater;
 window.deleteFhirDraft = deleteFhirDraft;
 window.removeFhirHistoryEntry = removeFhirHistoryEntry;
 window.removeFhirHistoryResource = removeFhirHistoryResource;
+window.openFhirHistoryPreview = openFhirHistoryPreview;
 window.refreshPatientResource = refreshPatientResource;
 window.toggleFhirResourceLinks = toggleFhirResourceLinks;
 window.closeConsentPreview = closeConsentPreview;
