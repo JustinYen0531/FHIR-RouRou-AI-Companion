@@ -675,6 +675,34 @@
     };
   }
 
+  // ── Observation valueString 對映表 ──────────────────────────────────────────────
+  // 目的：把抽象的 'supported signal' 改為一句臨床可讀的描述
+  var OBSERVATION_VALUE_STRINGS = {
+    depressed_mood          : 'reports persistent low mood',
+    guilt                   : 'reports feelings of guilt or self-blame',
+    work_interest           : 'reports decline in work engagement and interest',
+    retardation             : 'reports psychomotor slowing',
+    agitation               : 'reports agitation or inner restlessness',
+    somatic_anxiety         : 'reports somatic anxiety symptoms',
+    insomnia                : 'reports sleep disruption or difficulty maintaining sleep',
+    passive_disappearance_ideation : 'reports passive ideation (evidence-limited; no confirmed plan)',
+    suicidal_ideation       : 'reports suicidal ideation (requires clinical verification)'
+  };
+
+  function buildObservationValueString(candidate) {
+    // 如果是數字分數 (formal HAM-D item)，不用 valueString
+    if (typeof candidate.score === 'number') return undefined;
+    // 對映到已知維度
+    var mapped = OBSERVATION_VALUE_STRINGS[candidate.focus];
+    if (mapped) return mapped;
+    // 其他維度：用 label 組合成可讀句
+    var label = String(candidate.label || candidate.focus).toLowerCase();
+    return candidate.supported
+      ? 'reports ' + label
+      : 'observed signal: ' + label;
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
+
   function buildObservationResources(input, patientFullUrl, encounterFullUrl, questionnaireFullUrl, candidates) {
     return candidates.map(function (candidate, index) {
       const valueInteger = typeof candidate.score === 'number' ? candidate.score : undefined;
@@ -719,13 +747,15 @@
           method: {
             text: 'AI companion conversation extraction'
           },
-          valueString: valueInteger == null ? (candidate.supported ? 'supported signal' : 'observed signal') : undefined,
+          valueString: buildObservationValueString(candidate),
           valueInteger: valueInteger,
-          note: asArray(candidate.evidence).length
-            ? asArray(candidate.evidence).map(function (entry) {
-                return { text: String(entry) };
-              })
-            : undefined
+          note: (function () {
+            // 只保留清洗後最多 2 筆最有代表性的 evidence
+            var cleaned = cleanEvidence(candidate.evidence, 2);
+            return cleaned.length
+              ? cleaned.map(function (entry) { return { text: entry }; })
+              : undefined;
+          })()
         }
       };
     });
