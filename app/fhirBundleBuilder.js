@@ -980,34 +980,90 @@
   }
 
   function buildClinicalImpressionResource(input, patientFullUrl, encounterFullUrl, questionnaireFullUrl, observationEntries, clinicianSummary, hamdProgress, redFlag, fhirDeliveryDraft) {
-    const chiefConcerns = dedupeStrings(clinicianSummary.chief_concerns, 4);
-    const symptomObservations = dedupeStrings(clinicianSummary.symptom_observations, 4);
-    const clinicalAlerts = dedupeStrings(fhirDeliveryDraft.clinical_alerts, 4);
-    const safetySignals = dedupeStrings(asArray(redFlag.signals).concat(clinicianSummary.safety_flags), 4);
-    const coveredDimensions = dedupeStrings(hamdProgress.covered_dimensions, 4);
-    const summaryParts = dedupeStrings([
-      clinicianSummary.draft_summary,
-      fhirDeliveryDraft.narrative_summary,
-      fhirDeliveryDraft.notes
-    ], 3);
-    const description = summaryParts[0]
-      || chiefConcerns[0]
-      || symptomObservations[0]
-      || 'AI companion derived pre-visit clinical impression draft.';
-    const findingTexts = dedupeStrings(
-      chiefConcerns
-        .concat(symptomObservations)
-        .concat(clinicalAlerts)
-        .concat(coveredDimensions.map(function (dimension) {
-          return 'HAM-D dimension: ' + (DIMENSION_LABELS[dimension] || dimension);
-        })),
-      8
+
+    // ── 1. 準備各來源資料（去重 + 上限）
+    var chiefConcerns       = dedupeStrings(clinicianSummary.chief_concerns, 3);
+    var symptomObservations = dedupeStrings(clinicianSummary.symptom_observations, 3);
+    var safetySignals       = dedupeStrings(
+      asArray(redFlag.signals).concat(asArray(clinicianSummary.safety_flags)), 3
     );
-    const supportingRefs = [];
+    var coveredDimensions   = dedupeStrings(hamdProgress.covered_dimensions, 4);
+
+    // ── 2. description：保守版，防止過度推論
+    // 高風險詞語：若沒有 safety signal 支撐，不直接寫入
+    var OVERREACH_PATTERNS = [
+      /自我傷害行為/,
+      /自傷行為表現/,
+      /有自殺/,
+      /已有計畫/
+    ];
+    var hasSafetyEvidence = safetySignals.length > 0;
+    var rawSummary = String(clinicianSummary.draft_summary || '').trim();
+    var description;
+    var hasOverreach = OVERREACH_PATTERNS.some(function (p) { return p.test(rawSummary); });
+    if (rawSummary && !(hasOverreach && !hasSafetyEvidence)) {
+      description = rawSummary;
+    } else if (chiefConcerns.length) {
+      description = 'Patient reports: ' + chiefConcerns.join('; ') + '.';
+    } else if (symptomObservations.length) {
+      description = 'Observed: ' + symptomObservations.join('; ') + '.';
+    } else {
+      description = 'AI companion derived pre-visit clinical impression draft.';
+    }
+
+    // ── 3. finding：各自綁定對應來源的 basis，上限 5 筆
+    var findings = [];
+
+    // 3a. 症狀觀察 findings
+    symptomObservations.forEach(function (obs) {
+      findings.push({
+        itemCodeableConcept: { text: obs },
+        basis: chiefConcerns.length ? chiefConcerns.join('；') : obs
+      });
+    });
+
+    // 3b. HAM-D 維度 findings
+    coveredDimensions.forEach(function (dimension) {
+      findings.push({
+        itemCodeableConcept: { text: 'HAM-D dimension: ' + (DIMENSION_LABELS[dimension] || dimension) },
+        basis: symptomObservations[0] || dimension
+      });
+    });
+
+    // 3c. 安全訊號 findings（加 evidence-limited 標記，不直接斷言）
+    safetySignals.forEach(function (signal) {
+      findings.push({
+        itemCodeableConcept: { text: signal + ' (evidence-limited)' },
+        basis: asArray(redFlag.signals).join('；') || signal
+      });
+    });
+
+    // finding 去重 + 上限 5 筆
+    var finalFindings = [];
+    var seenKeys = [];
+    findings.forEach(function (f) {
+      var key = f.itemCodeableConcept.text;
+      if (seenKeys.indexOf(key) !== -1) return;
+      if (finalFindings.length >= 5) return;
+      seenKeys.push(key);
+      finalFindings.push(f);
+    });
+
+    // ── 4. supportingInfo refs（上限 4 筆 Observation）
+    var supportingRefs = [];
     if (questionnaireFullUrl) supportingRefs.push({ reference: questionnaireFullUrl });
-    observationEntries.slice(0, 6).forEach(function (entry) {
+    observationEntries.slice(0, 4).forEach(function (entry) {
       supportingRefs.push({ reference: entry.fullUrl });
     });
+
+    // ── 5. note：加上風險等級明確標記
+    var notes = [];
+    if (safetySignals.length > 0) {
+      notes.push({ text: 'Risk signals noted (evidence-limited). Clinical verification required before escalation.' });
+      safetySignals.forEach(function (s) { notes.push({ text: s }); });
+    } else {
+      notes.push({ text: 'No immediate risk signals identified in this session.' });
+    }
 
     return {
       resourceType: 'ClinicalImpression',
@@ -1018,7 +1074,7 @@
           value: input.session.encounterKey
         }
       ],
-      status: 'completed',
+      status: 'preliminary',
       code: {
         text: 'AI Companion risk and context impression'
       },
@@ -1028,19 +1084,13 @@
       date: input.session.endedAt || input.session.startedAt || new Date().toISOString(),
       assessor: input.author ? { display: input.author } : undefined,
       description: description,
-      finding: findingTexts.map(function (text) {
-        return {
-          itemCodeableConcept: { text: text },
-          basis: dedupeStrings(symptomObservations.concat(safetySignals), 3).join('；') || undefined
-        };
-      }),
+      finding: finalFindings,
       supportingInfo: supportingRefs.length ? supportingRefs : undefined,
-      note: safetySignals.length
-        ? safetySignals.map(function (item) { return { text: item }; })
-        : undefined,
+      note: notes,
       protocol: questionnaireFullUrl ? [questionnaireFullUrl] : undefined
     };
   }
+
 
   function buildBundle(entries) {
     return {
