@@ -7,7 +7,11 @@ function createValidInput() {
       key: 'patient-001',
       name: 'Test Patient',
       gender: 'female',
-      birthDate: '1995-07-14'
+      birthDate: '1995-07-14',
+      phone: '0912-345-678',
+      email: 'patient@example.com',
+      emergencyName: '王小美',
+      emergencyPhone: '02-1234-5678'
     },
     session: {
       encounterKey: 'session-001',
@@ -287,6 +291,10 @@ function testBuildsStandalonePatientResource() {
   assert.strictEqual(result.resource_json.resourceType, 'Patient');
   assert.strictEqual(result.resource_json.identifier[0].value, input.patient.key);
   assert.strictEqual(result.resource_json.name[0].text, input.patient.name);
+  assert.strictEqual(result.resource_json.telecom[0].value, input.patient.phone);
+  assert.strictEqual(result.resource_json.telecom[1].value, input.patient.email);
+  assert.strictEqual(result.resource_json.contact[0].name.text, input.patient.emergencyName);
+  assert.strictEqual(result.resource_json.contact[0].telecom[0].value, input.patient.emergencyPhone);
 }
 
 function run() {

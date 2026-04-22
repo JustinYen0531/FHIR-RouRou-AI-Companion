@@ -21,15 +21,15 @@
       <h1 class="home-headline">今天想聊聊嗎？</h1>
       <p class="home-sub">Rou Rou 準備好聽你說了</p>
       
-      <div class="home-input-wrap" onclick="showScreen('screen-chat')">
+      <button id="home-entry-button" class="home-input-wrap" type="button" onclick="enterChatFromHome()">
         <div class="home-plus-btn">
           <span class="mat-icon">add</span>
         </div>
-        <div class="home-placeholder">跟 Rou Rou 說說心事...</div>
+        <div id="home-entry-placeholder" class="home-placeholder">跟 Rou Rou 說說心事...</div>
         <div class="home-send-indicator">
           <span class="mat-icon fill">arrow_forward</span>
         </div>
-      </div>
+      </button>
 
       <div id="home-history-section" class="home-history-section">
         <div class="home-history-header">
@@ -701,11 +701,15 @@
     <main class="page-scroll" style="padding-top:72px">
       <div class="settings-group-label">個人資料</div>
       <div class="settings-card">
-        <div class="profile-row">
+        <button id="settings-profile-trigger" class="profile-row profile-entry-btn" type="button" onclick="openPatientProfileModal()">
           <div class="avatar-profile"><span class="mat-icon fill" style="font-size:28px;color:#446655">person</span></div>
-          <div class="profile-info"><span class="profile-name">曉明</span><span class="profile-email">xiaoming.user@health.ia</span></div>
-          <button class="icon-btn"><span class="mat-icon">chevron_right</span></button>
-        </div>
+          <div class="profile-info">
+            <span id="settings-profile-name" class="profile-name">訪客模式</span>
+            <span id="settings-profile-subtitle" class="profile-email">先補齊基本資料，才會解鎖聊天與報表功能</span>
+          </div>
+          <span id="settings-profile-status" class="profile-status-badge incomplete">未完成</span>
+          <span class="mat-icon">chevron_right</span>
+        </button>
       </div>
 
       <div class="settings-group-label">AI 互動</div>
@@ -872,6 +876,74 @@
         <button id="consent-preview-check" class="ghost-btn" type="button" onclick="runDeliveryQuickCheck()">一鍵檢查可否送出</button>
         <button id="consent-preview-confirm" class="primary-btn" type="button" onclick="authorizeAndSendReport()" disabled>同意送出</button>
       </div>
+    </div>
+  </div>
+
+  <div id="patient-profile-overlay" class="patient-profile-overlay" aria-hidden="true">
+    <div class="patient-profile-panel">
+      <button class="icon-btn patient-profile-close" type="button" aria-label="關閉基本資料表單" onclick="closePatientProfileModal()">
+        <span class="mat-icon">close</span>
+      </button>
+      <div class="patient-profile-kicker">BASIC INTAKE</div>
+      <div class="patient-profile-title">先完成基本資料，Rou Rou 才能正式開始陪你</div>
+      <p class="patient-profile-subtitle">
+        這裡不是做帳號註冊，而是做最小必要的病人基本資料建檔。現在 Patient draft 的匿名策略已經比以前好很多，
+        但只要一直停在訪客階段，姓名、生日、性別這些本來可以填實的欄位就會一直被浪費掉。
+      </p>
+
+      <form id="patient-profile-form" class="patient-profile-form">
+        <div class="patient-profile-grid">
+          <label class="patient-profile-field">
+            <span>姓名 <strong>*</strong></span>
+            <input id="patient-profile-name" name="name" type="text" placeholder="例如：林小明" maxlength="80" required />
+          </label>
+
+          <label class="patient-profile-field">
+            <span>生日 <strong>*</strong></span>
+            <input id="patient-profile-birthDate" name="birthDate" type="date" required />
+          </label>
+
+          <label class="patient-profile-field">
+            <span>性別 <strong>*</strong></span>
+            <select id="patient-profile-gender" name="gender" required>
+              <option value="">請選擇</option>
+              <option value="male">男性</option>
+              <option value="female">女性</option>
+              <option value="other">其他</option>
+              <option value="unknown">不透露 / 尚未確認</option>
+            </select>
+          </label>
+
+          <label class="patient-profile-field">
+            <span>聯絡電話 <strong>*</strong></span>
+            <input id="patient-profile-phone" name="phone" type="tel" placeholder="09xx-xxx-xxx" maxlength="32" required />
+          </label>
+
+          <label class="patient-profile-field">
+            <span>Email</span>
+            <input id="patient-profile-email" name="email" type="email" placeholder="name@example.com" maxlength="120" />
+          </label>
+
+          <label class="patient-profile-field">
+            <span>緊急聯絡人</span>
+            <input id="patient-profile-emergencyName" name="emergencyName" type="text" placeholder="例如：母親 王小美" maxlength="80" />
+          </label>
+
+          <label class="patient-profile-field">
+            <span>緊急聯絡電話</span>
+            <input id="patient-profile-emergencyPhone" name="emergencyPhone" type="tel" placeholder="02-1234-5678" maxlength="32" />
+          </label>
+        </div>
+
+        <div id="patient-profile-error" class="patient-profile-error" hidden></div>
+        <div class="patient-profile-note">
+          必填欄位完成前，聊天、FHIR 草稿、報表與授權送出都會維持鎖定。
+        </div>
+        <div class="patient-profile-actions">
+          <button class="secondary-btn" type="button" onclick="closePatientProfileModal()">稍後再說</button>
+          <button class="primary-btn" type="submit">儲存並解鎖功能</button>
+        </div>
+      </form>
     </div>
   </div>
 

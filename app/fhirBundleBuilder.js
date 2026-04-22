@@ -459,6 +459,39 @@
   }
 
   function buildPatientResource(input, fullUrl) {
+    const telecom = Array.isArray(input.patient.telecom) && input.patient.telecom.length
+      ? input.patient.telecom.filter(Boolean)
+      : [
+          input.patient.phone
+            ? {
+                system: 'phone',
+                value: input.patient.phone,
+                use: 'mobile'
+              }
+            : null,
+          input.patient.email
+            ? {
+                system: 'email',
+                value: input.patient.email,
+                use: 'home'
+              }
+            : null
+        ].filter(Boolean);
+    const contact = Array.isArray(input.patient.contact) && input.patient.contact.length
+      ? input.patient.contact.filter(Boolean)
+      : ((input.patient.emergencyName || input.patient.emergencyPhone)
+          ? [{
+              relationship: [{ text: 'Emergency contact' }],
+              name: input.patient.emergencyName ? { text: input.patient.emergencyName } : undefined,
+              telecom: input.patient.emergencyPhone
+                ? [{
+                    system: 'phone',
+                    value: input.patient.emergencyPhone,
+                    use: 'mobile'
+                  }]
+                : undefined
+            }]
+          : []);
     return {
       resourceType: 'Patient',
       meta: { profile: [TW_CORE_PROFILES.patient] },
@@ -473,7 +506,9 @@
         ? [{ text: input.patient.name }]
         : undefined,
       gender: input.patient.gender || undefined,
-      birthDate: input.patient.birthDate || undefined
+      birthDate: input.patient.birthDate || undefined,
+      telecom: telecom.length ? telecom : undefined,
+      contact: contact.length ? contact : undefined
     };
   }
 

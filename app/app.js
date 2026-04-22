@@ -26,6 +26,7 @@ let SERVER_RUNTIME_CONFIG = {
   source: 'server'
 };
 const FHIR_REPORT_HISTORY_KEY = 'rourou.fhirReportHistory';
+const PATIENT_PROFILE_STORAGE_KEY = 'rourou.patientProfile.v1';
 const HOME_GUIDE_PAGES = [
   {
     icon: 'chat_bubble',
@@ -775,6 +776,299 @@ const OUTPUT_COUNTDOWN_CONFIG = {
   }
 };
 
+const PatientProfile = {
+  KEY: PATIENT_PROFILE_STORAGE_KEY,
+
+  get() {
+    try {
+      return this._normalize(JSON.parse(localStorage.getItem(this.KEY)));
+    } catch {
+      return this._normalize({});
+    }
+  },
+
+  save(profile) {
+    const current = this.get();
+    const nextProfile = this._normalize({
+      ...current,
+      ...(profile && typeof profile === 'object' ? profile : {})
+    });
+    const now = new Date().toISOString();
+    nextProfile.updatedAt = now;
+    nextProfile.createdAt = current.createdAt || nextProfile.createdAt || now;
+    nextProfile.profileKey = nextProfile.profileKey || current.profileKey || this._createProfileKey();
+    if (this.isComplete(nextProfile) && !nextProfile.completedAt) {
+      nextProfile.completedAt = now;
+    }
+    localStorage.setItem(this.KEY, JSON.stringify(nextProfile));
+    this.renderUI(nextProfile);
+    return nextProfile;
+  },
+
+  isComplete(profile = null) {
+    const target = profile || this.get();
+    return Boolean(
+      String(target.name || '').trim() &&
+      String(target.birthDate || '').trim() &&
+      String(target.gender || '').trim() &&
+      String(target.phone || '').trim()
+    );
+  },
+
+  applyToPatient(patient = {}) {
+    const basePatient = patient && typeof patient === 'object'
+      ? JSON.parse(JSON.stringify(patient))
+      : {};
+    const profile = this.get();
+    if (!this.isComplete(profile)) {
+      return basePatient;
+    }
+
+    const telecom = [
+      profile.phone
+        ? {
+            system: 'phone',
+            value: profile.phone,
+            use: 'mobile'
+          }
+        : null,
+      profile.email
+        ? {
+            system: 'email',
+            value: profile.email,
+            use: 'home'
+          }
+        : null
+    ].filter(Boolean);
+
+    const emergencyContact = (profile.emergencyName || profile.emergencyPhone)
+      ? [{
+          relationship: [{ text: 'Emergency contact' }],
+          name: profile.emergencyName ? { text: profile.emergencyName } : undefined,
+          telecom: profile.emergencyPhone
+            ? [{
+                system: 'phone',
+                value: profile.emergencyPhone,
+                use: 'mobile'
+              }]
+            : undefined
+        }]
+      : [];
+
+    return {
+      ...basePatient,
+      key: String(basePatient.key || '').trim() || profile.profileKey,
+      name: profile.name,
+      gender: profile.gender,
+      birthDate: profile.birthDate,
+      phone: profile.phone,
+      email: profile.email,
+      emergencyName: profile.emergencyName,
+      emergencyPhone: profile.emergencyPhone,
+      telecom,
+      contact: emergencyContact
+    };
+  },
+
+  applyToSessionExport(sessionExport = {}) {
+    const baseExport = sessionExport && typeof sessionExport === 'object'
+      ? JSON.parse(JSON.stringify(sessionExport))
+      : {};
+    baseExport.patient = this.applyToPatient(baseExport.patient || {});
+    return baseExport;
+  },
+
+  buildReferenceSummary(patient = {}) {
+    const source = patient && typeof patient === 'object' ? patient : {};
+    const lines = [
+      source.name ? { label: '姓名', value: source.name } : null,
+      source.birthDate ? { label: '生日', value: source.birthDate } : null,
+      source.gender ? { label: '性別', value: this._formatGender(source.gender) } : null,
+      source.phone ? { label: '聯絡電話', value: source.phone } : null,
+      source.email ? { label: 'Email', value: source.email } : null,
+      source.emergencyName ? { label: '緊急聯絡人', value: source.emergencyName } : null,
+      source.emergencyPhone ? { label: '緊急聯絡電話', value: source.emergencyPhone } : null
+    ].filter(Boolean);
+
+    return {
+      isComplete: Boolean(
+        String(source.name || '').trim() &&
+        String(source.birthDate || '').trim() &&
+        String(source.gender || '').trim() &&
+        String(source.phone || '').trim()
+      ),
+      lines
+    };
+  },
+
+  renderUI(profile = null) {
+    const current = profile || this.get();
+    const nameNode = document.getElementById('settings-profile-name');
+    const subtitleNode = document.getElementById('settings-profile-subtitle');
+    const statusNode = document.getElementById('settings-profile-status');
+
+    if (nameNode) {
+      nameNode.textContent = this.isComplete(current)
+        ? current.name
+        : '訪客模式';
+    }
+
+    if (subtitleNode) {
+      subtitleNode.textContent = this.isComplete(current)
+        ? (current.email || current.phone || 'Patient Draft 會優先引用這份基本資料')
+        : '先補齊基本資料，Patient Draft 才會帶入真實病人欄位';
+    }
+
+    if (statusNode) {
+      const complete = this.isComplete(current);
+      statusNode.textContent = complete ? '已完成' : '未完成';
+      statusNode.classList.toggle('complete', complete);
+      statusNode.classList.toggle('incomplete', !complete);
+    }
+
+    const form = document.getElementById('patient-profile-form');
+    if (form) {
+      form.querySelector('#patient-profile-name').value = current.name || '';
+      form.querySelector('#patient-profile-birthDate').value = current.birthDate || '';
+      form.querySelector('#patient-profile-gender').value = current.gender || '';
+      form.querySelector('#patient-profile-phone').value = current.phone || '';
+      form.querySelector('#patient-profile-email').value = current.email || '';
+      form.querySelector('#patient-profile-emergencyName').value = current.emergencyName || '';
+      form.querySelector('#patient-profile-emergencyPhone').value = current.emergencyPhone || '';
+    }
+  },
+
+  openModal() {
+    const overlay = document.getElementById('patient-profile-overlay');
+    if (!overlay) return;
+    this.renderUI();
+    this.setError('');
+    overlay.classList.add('active');
+    overlay.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  },
+
+  closeModal() {
+    const overlay = document.getElementById('patient-profile-overlay');
+    if (!overlay) return;
+    overlay.classList.remove('active');
+    overlay.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    this.setError('');
+  },
+
+  setError(message = '') {
+    const errorNode = document.getElementById('patient-profile-error');
+    if (!errorNode) return;
+    errorNode.hidden = !message;
+    errorNode.textContent = message || '';
+  },
+
+  wireForm() {
+    const overlay = document.getElementById('patient-profile-overlay');
+    const form = document.getElementById('patient-profile-form');
+    const birthDateInput = document.getElementById('patient-profile-birthDate');
+
+    if (birthDateInput && !birthDateInput.max) {
+      birthDateInput.max = new Date().toISOString().slice(0, 10);
+    }
+
+    if (overlay && !overlay.dataset.wired) {
+      overlay.dataset.wired = 'true';
+      overlay.addEventListener('click', (event) => {
+        if (event.target === overlay) {
+          this.closeModal();
+        }
+      });
+    }
+
+    if (form && !form.dataset.wired) {
+      form.dataset.wired = 'true';
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const formData = new FormData(form);
+        const payload = {
+          name: String(formData.get('name') || '').trim(),
+          birthDate: String(formData.get('birthDate') || '').trim(),
+          gender: String(formData.get('gender') || '').trim(),
+          phone: String(formData.get('phone') || '').trim(),
+          email: String(formData.get('email') || '').trim(),
+          emergencyName: String(formData.get('emergencyName') || '').trim(),
+          emergencyPhone: String(formData.get('emergencyPhone') || '').trim()
+        };
+
+        const error = this.validate(payload);
+        if (error) {
+          this.setError(error);
+          return;
+        }
+
+        const saved = this.save(payload);
+        if (APP_STATE.reportOutputs.session_export && typeof APP_STATE.reportOutputs.session_export === 'object') {
+          APP_STATE.reportOutputs.session_export = this.applyToSessionExport(APP_STATE.reportOutputs.session_export);
+        }
+        if (APP_STATE.pendingConsent.sessionExport && typeof APP_STATE.pendingConsent.sessionExport === 'object') {
+          APP_STATE.pendingConsent.sessionExport = this.applyToSessionExport(APP_STATE.pendingConsent.sessionExport);
+        }
+        if (isValidFhirDraftOutput(APP_STATE.reportOutputs.fhir_delivery)) {
+          APP_STATE.reportOutputs.fhir_delivery = normalizeFhirDraftPayload({
+            output: APP_STATE.reportOutputs.fhir_delivery,
+            session_export: APP_STATE.reportOutputs.session_export || APP_STATE.pendingConsent.sessionExport || {}
+          }).output;
+        }
+        renderReportOutputs();
+        saveReportOutputsToCache();
+        this.closeModal();
+        appendSystemNotice(`個人資料已儲存，Patient Draft 之後會優先引用 ${saved.name} 的基本資料。`);
+      });
+    }
+  },
+
+  validate(profile = {}) {
+    if (!String(profile.name || '').trim()) return '姓名是必填欄位。';
+    if (!String(profile.birthDate || '').trim()) return '生日是必填欄位。';
+    if (!String(profile.gender || '').trim()) return '性別是必填欄位。';
+    if (!String(profile.phone || '').trim()) return '聯絡電話是必填欄位。';
+    if (profile.birthDate && profile.birthDate > new Date().toISOString().slice(0, 10)) {
+      return '生日不能晚於今天。';
+    }
+    if (profile.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profile.email)) {
+      return 'Email 格式看起來不太對，幫我再確認一下。';
+    }
+    return '';
+  },
+
+  _formatGender(gender = '') {
+    const value = String(gender || '').trim().toLowerCase();
+    if (value === 'male') return '男性';
+    if (value === 'female') return '女性';
+    if (value === 'other') return '其他';
+    if (value === 'unknown') return '不透露 / 尚未確認';
+    return value || '未填寫';
+  },
+
+  _createProfileKey() {
+    return `patient-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  },
+
+  _normalize(profile) {
+    const source = profile && typeof profile === 'object' ? profile : {};
+    return {
+      profileKey: String(source.profileKey || '').trim(),
+      name: String(source.name || '').trim(),
+      birthDate: String(source.birthDate || '').trim(),
+      gender: String(source.gender || '').trim(),
+      phone: String(source.phone || '').trim(),
+      email: String(source.email || '').trim(),
+      emergencyName: String(source.emergencyName || '').trim(),
+      emergencyPhone: String(source.emergencyPhone || '').trim(),
+      createdAt: String(source.createdAt || '').trim(),
+      updatedAt: String(source.updatedAt || '').trim(),
+      completedAt: String(source.completedAt || '').trim()
+    };
+  }
+};
+
 function createEmptyReportOutputs() {
   return {
     clinician_summary: null,
@@ -818,6 +1112,7 @@ function restoreReportOutputsFromCache() {
     if (!parsed || typeof parsed !== 'object') return;
     APP_STATE.reportOutputs = normalizeCachedReportOutputs(parsed);
     if (APP_STATE.reportOutputs.session_export && typeof APP_STATE.reportOutputs.session_export === 'object') {
+      APP_STATE.reportOutputs.session_export = PatientProfile.applyToSessionExport(APP_STATE.reportOutputs.session_export);
       syncReportOutputsFromSessionExport(APP_STATE.reportOutputs.session_export);
       syncTherapeuticMemoryFromSessionExport(APP_STATE.reportOutputs.session_export);
     }
@@ -1634,21 +1929,22 @@ function isClinicalFallbackMessage(text) {
 
 function syncReportOutputsFromSessionExport(sessionExport = {}) {
   if (!sessionExport || typeof sessionExport !== 'object') return;
+  const normalizedSessionExport = PatientProfile.applyToSessionExport(sessionExport);
 
-  if (isValidClinicianSummaryOutput(sessionExport.clinician_summary_draft)) {
-    APP_STATE.reportOutputs.clinician_summary = JSON.parse(JSON.stringify(sessionExport.clinician_summary_draft));
+  if (isValidClinicianSummaryOutput(normalizedSessionExport.clinician_summary_draft)) {
+    APP_STATE.reportOutputs.clinician_summary = JSON.parse(JSON.stringify(normalizedSessionExport.clinician_summary_draft));
   }
 
-  if (isValidPatientAnalysisOutput(sessionExport.patient_analysis)) {
-    APP_STATE.reportOutputs.patient_analysis = JSON.parse(JSON.stringify(sessionExport.patient_analysis));
+  if (isValidPatientAnalysisOutput(normalizedSessionExport.patient_analysis)) {
+    APP_STATE.reportOutputs.patient_analysis = JSON.parse(JSON.stringify(normalizedSessionExport.patient_analysis));
   }
 
-  if (sessionExport.patient_review_packet && typeof sessionExport.patient_review_packet === 'object') {
-    APP_STATE.reportOutputs.patient_review = JSON.parse(JSON.stringify(sessionExport.patient_review_packet));
+  if (normalizedSessionExport.patient_review_packet && typeof normalizedSessionExport.patient_review_packet === 'object') {
+    APP_STATE.reportOutputs.patient_review = JSON.parse(JSON.stringify(normalizedSessionExport.patient_review_packet));
   }
 
-  if (isValidFhirDraftOutput(sessionExport.fhir_delivery_draft)) {
-    APP_STATE.reportOutputs.fhir_delivery = JSON.parse(JSON.stringify(sessionExport.fhir_delivery_draft));
+  if (isValidFhirDraftOutput(normalizedSessionExport.fhir_delivery_draft)) {
+    APP_STATE.reportOutputs.fhir_delivery = JSON.parse(JSON.stringify(normalizedSessionExport.fhir_delivery_draft));
   }
 }
 
@@ -1693,7 +1989,7 @@ function renderReportOutputs() {
   const patientReview = APP_STATE.reportOutputs.patient_review || {};
   const fhirDelivery = APP_STATE.reportOutputs.fhir_delivery || {};
   const fhirDeliveryResult = APP_STATE.reportOutputs.fhir_delivery_result || APP_STATE.pendingConsent.deliveryResult || null;
-  const sessionExport = APP_STATE.pendingConsent.sessionExport || APP_STATE.reportOutputs.session_export || {};
+  const sessionExport = PatientProfile.applyToSessionExport(APP_STATE.pendingConsent.sessionExport || APP_STATE.reportOutputs.session_export || {});
   const hamdProgress = sessionExport?.hamd_progress_state || {};
   const hamdFormalAssessment = sessionExport?.hamd_formal_assessment || {};
   const updatedAt = APP_STATE.reportOutputs.updatedAt;
@@ -1824,6 +2120,36 @@ function renderReportOutputs() {
       fhirResources.textContent = 'FHIR 資源數：整理中';
     } else {
       fhirResources.textContent = `FHIR 資源數：${totalCount}`;
+    }
+
+    let patientReferenceNode = document.getElementById('report-fhir-patient-reference');
+    if (!patientReferenceNode) {
+      const profileObsNode = document.getElementById('report-fhir-profile-obs');
+      if (profileObsNode?.parentNode) {
+        patientReferenceNode = document.createElement('div');
+        patientReferenceNode.id = 'report-fhir-patient-reference';
+        profileObsNode.parentNode.insertBefore(patientReferenceNode, profileObsNode);
+      }
+    }
+    const patientReference = fhirDelivery?.patient_reference_summary || PatientProfile.buildReferenceSummary(sessionExport?.patient || {});
+    if (patientReferenceNode) {
+      if (Array.isArray(patientReference?.lines) && patientReference.lines.length) {
+        patientReferenceNode.innerHTML = `
+          <div class="fhir-profile-section">
+            <div class="fhir-profile-title">
+              <span class="mat-icon fill" style="color:var(--primary)">badge</span>
+              Patient Draft 參考資料
+            </div>
+            ${patientReference.lines.map((item) => `
+              <div class="fhir-obs-item">
+                <span class="mat-icon" style="font-size:14px;color:var(--primary)">person</span>
+                <span><b>${escapeHtml(item.label)}</b>：${escapeHtml(item.value)}</span>
+              </div>
+            `).join('')}
+          </div>`;
+      } else {
+        patientReferenceNode.innerHTML = '';
+      }
     }
 
     // 附加心理畫像 Observations 清單（如果有）
@@ -1975,8 +2301,8 @@ function storeOutputResult(payload) {
     }
   }
   if (payload.session_export && typeof payload.session_export === 'object') {
-    APP_STATE.reportOutputs.session_export = payload.session_export;
-    syncReportOutputsFromSessionExport(payload.session_export);
+    APP_STATE.reportOutputs.session_export = PatientProfile.applyToSessionExport(payload.session_export);
+    syncReportOutputsFromSessionExport(APP_STATE.reportOutputs.session_export);
   }
   APP_STATE.lastChatMetadata = payload.metadata || APP_STATE.lastChatMetadata;
   APP_STATE.runtimeMode = payload.metadata?.active_mode || APP_STATE.runtimeMode;
@@ -2320,6 +2646,10 @@ function toggleModeExplainer() {
 function startChat() {
   showScreen('screen-chat');
   appendSystemNotice(`已切換為 ${MODE_DEFINITIONS[APP_STATE.selectedMode]?.display || '自然聊天'}。`);
+}
+
+function enterChatFromHome() {
+  startChat();
 }
 
 const DEFAULT_SHORTCUT_PAGE_ONE = [
@@ -3814,7 +4144,15 @@ function finalizeConversationRequest(payload = {}) {
 
 function normalizeFhirDraftPayload(payload) {
   const finalPayload = Object.assign({}, payload);
-  const enhanced = attachProfileToFhirResult(finalPayload.output || finalPayload);
+  const preparedSessionExport = PatientProfile.applyToSessionExport(
+    finalPayload.session_export || APP_STATE.pendingConsent.sessionExport || APP_STATE.reportOutputs.session_export || {}
+  );
+  const patientKey = String(preparedSessionExport?.patient?.key || '').trim();
+  const enhanced = attachProfileToFhirResult(finalPayload.output || finalPayload, {
+    patientRef: patientKey ? `Patient/${patientKey}` : '',
+    patient: preparedSessionExport?.patient || {}
+  });
+  finalPayload.session_export = preparedSessionExport;
   if (enhanced !== (finalPayload.output || finalPayload)) {
     finalPayload.output = enhanced;
   }
@@ -4061,7 +4399,7 @@ function renderChatHistory(history = []) {
 function buildSessionExportFromRecord(session = {}) {
   const restoreSource = String(session.__restoreSource || session.__source || '').trim();
   const trustStructuredOutputs = restoreSource === 'server';
-  return {
+  return PatientProfile.applyToSessionExport({
     patient: {
       key: session.user || APP_STATE.userId,
       name: session.user || APP_STATE.userId,
@@ -4090,7 +4428,7 @@ function buildSessionExportFromRecord(session = {}) {
     therapeutic_profile: session.state?.therapeutic_profile || {},
     __requiresRegeneration: !trustStructuredOutputs,
     __source: trustStructuredOutputs ? 'server_session' : 'local_archive'
-  };
+  });
 }
 
 async function syncLocalSessionRecordToServer(session = {}) {
@@ -4196,7 +4534,7 @@ function formatArrayForList(items = [], emptyText = '目前沒有可顯示內容
 }
 
 function normalizeSessionExportForDelivery(sessionExport = {}) {
-  const normalized = JSON.parse(JSON.stringify(sessionExport || {}));
+  const normalized = PatientProfile.applyToSessionExport(sessionExport || {});
   normalized.clinician_summary_draft = normalized.clinician_summary_draft && typeof normalized.clinician_summary_draft === 'object'
     ? normalized.clinician_summary_draft
     : {};
@@ -4910,6 +5248,9 @@ async function fetchOutputPayload(outputType, instructionOverride = '') {
     throw new Error(formatChatError(payload));
   }
   finalizeConversationRequest(payload);
+  if (payload.session_export && typeof payload.session_export === 'object') {
+    payload.session_export = PatientProfile.applyToSessionExport(payload.session_export);
+  }
   APP_STATE.lastChatMetadata = payload.metadata || APP_STATE.lastChatMetadata;
   return payload;
 }
@@ -5234,39 +5575,48 @@ function buildProfileFhirObservations(profile, patientRef) {
   return entries;
 }
 
-function attachProfileToFhirResult(fhirPayload) {
+function attachProfileToFhirResult(fhirPayload, options = {}) {
   const profile = TherapeuticMemory.get();
+  const patientSummary = PatientProfile.buildReferenceSummary(options.patient || {});
   const totalItems = profile.stressors.length + profile.triggers.length + profile.positiveAnchors.length;
-  if (!totalItems) return fhirPayload; // 沒有記憶資料就不附加
+  if (!totalItems && !patientSummary.lines.length) return fhirPayload; // 沒有可附加資料就跳過
 
-  const profileObservations = buildProfileFhirObservations(profile);
-  if (!profileObservations.length) return fhirPayload;
+  const profileObservations = totalItems
+    ? buildProfileFhirObservations(profile, options.patientRef)
+    : [];
 
   // 附加到 fhir_delivery 結果中（前端顯示用）
   const enhanced = Object.assign({}, fhirPayload);
-  enhanced.therapeutic_memory_observations = profileObservations;
-  enhanced.therapeutic_memory_summary = {
-    stressors: profile.stressors.map(s => s.label),
-    triggers: profile.triggers.map(t => t.keyword),
-    positiveAnchors: profile.positiveAnchors.map(a => a.label),
-    commsPreference: profile.copingProfile.preferredStyle,
-    sessionCount: profile.sessionCount,
-    lastUpdated: profile.lastUpdatedAt
-  };
+  if (profileObservations.length) {
+    enhanced.therapeutic_memory_observations = profileObservations;
+    enhanced.therapeutic_memory_summary = {
+      stressors: profile.stressors.map(s => s.label),
+      triggers: profile.triggers.map(t => t.keyword),
+      positiveAnchors: profile.positiveAnchors.map(a => a.label),
+      commsPreference: profile.copingProfile.preferredStyle,
+      sessionCount: profile.sessionCount,
+      lastUpdated: profile.lastUpdatedAt
+    };
+  }
+  if (patientSummary.lines.length) {
+    enhanced.patient_reference_summary = patientSummary;
+  }
   enhanced.narrative_summary = [
     enhanced.narrative_summary || '',
+    patientSummary.lines.length ? '【Patient Draft 參考資料】' : '',
+    ...patientSummary.lines.map((item) => `${item.label}：${item.value}`),
+    patientSummary.lines.length ? '' : '',
     '',
-    '【心理畫像摘要（Therapeutic Memory）】',
+    profileObservations.length ? '【心理畫像摘要（Therapeutic Memory）】' : '',
     profile.stressors.length ? `壓力來源：${profile.stressors.map(s => s.label).join('、')}` : '',
     profile.triggers.length ? `情緒觸發點：${profile.triggers.map(t => `「${t.keyword}」`).join(' ')}` : '',
     profile.copingProfile.preferredStyle ? `溝通偏好：${profile.copingProfile.preferredStyle}` : '',
     profile.positiveAnchors.length ? `正向錨點：${profile.positiveAnchors.map(a => a.label).join('、')}` : '',
-    `AI 陪伴次數：${profile.sessionCount} 次`
+    profileObservations.length ? `AI 陪伴次數：${profile.sessionCount} 次` : ''
   ].filter(Boolean).join('\n');
 
-  const obsCount = (Array.isArray(fhirPayload.resources) ? fhirPayload.resources.length : 0) + profileObservations.length;
   enhanced.resources = (Array.isArray(fhirPayload.resources) ? fhirPayload.resources : []).concat(
-    profileObservations.map((obs, i) => ({ type: 'Observation', code: obs.code.coding[0].code, display: obs.code.text }))
+    profileObservations.map((obs) => ({ type: 'Observation', code: obs.code.coding[0].code, display: obs.code.text }))
   );
   return enhanced;
 }
@@ -5587,6 +5937,8 @@ function checkSensitiveContent(text) {
 }
 
 function updateSettingsUI() {
+  PatientProfile.renderUI();
+
   // Voice Style
   const voiceGroup = document.getElementById('settings-voice-style');
   if (voiceGroup) {
@@ -5849,6 +6201,7 @@ function injectRuntimeSettings() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   initializeRuntimeConfig();
+  PatientProfile.wireForm();
   restoreReportOutputsFromCache();
   showScreen('screen-home');
   wireHomeGuide();
@@ -5861,6 +6214,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderReportOutputs();
   switchAutoAudience(APP_STATE.currentWeeklyAudience);
   TherapeuticMemory.renderProfileUI();
+  PatientProfile.renderUI();
   clearMicroInterventionCard();
   closeMicroInterventionDetail();
   wirePrivacyControls();
@@ -5896,6 +6250,7 @@ window.setPHQ = setPHQ;
 window.handleInput = handleInput;
 window.selectMode = selectMode;
 window.startChat = startChat;
+window.enterChatFromHome = enterChatFromHome;
 window.sendQuickReply = sendQuickReply;
 window.activateShortcut = activateShortcut;
 window.sendMessage = sendMessage;
@@ -5923,6 +6278,8 @@ window.toggleFhirResourceLinks = toggleFhirResourceLinks;
 window.closeConsentPreview = closeConsentPreview;
 window.saveUserPrompt = saveUserPrompt;
 window.closeShortcutBar = closeShortcutBar;
+window.openPatientProfileModal = () => PatientProfile.openModal();
+window.closePatientProfileModal = () => PatientProfile.closeModal();
 
 function toggleMemoryDrawer() {
   const drawer = document.getElementById('memory-drawer');
