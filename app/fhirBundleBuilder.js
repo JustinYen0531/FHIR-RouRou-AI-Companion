@@ -762,37 +762,71 @@
   }
 
   function buildCompositionResource(input, patientFullUrl, encounterFullUrl, questionnaireFullUrl, observationEntries, clinicianSummary, patientAnalysis, patientReviewPacket, fhirDeliveryDraft) {
-    const chiefConcerns = normalizeSummaryArray(clinicianSummary.chief_concerns);
-    const symptomObservations = normalizeSummaryArray(clinicianSummary.symptom_observations);
-    const safetyFlags = normalizeSummaryArray(clinicianSummary.safety_flags);
-    const followupNeeds = normalizeSummaryArray(clinicianSummary.followup_needs);
-    const hamdEvidenceTable = asArray(clinicianSummary.hamd_evidence_table);
-    const hamdReviewRequired = normalizeSummaryArray(clinicianSummary.hamd_review_required_items);
-    const compositionSections = asArray(fhirDeliveryDraft.composition_sections);
-    const clinicalAlerts = normalizeSummaryArray(fhirDeliveryDraft.clinical_alerts);
-    const exportBlockers = normalizeSummaryArray(fhirDeliveryDraft.export_blockers);
-    const patientKeyPoints = normalizeSummaryArray(patientAnalysis.key_points);
-    const patientConfirmItems = normalizeSummaryArray(patientReviewPacket.confirm_items);
-    const patientEditableItems = normalizeSummaryArray(patientReviewPacket.editable_items);
 
-    const sections = [];
+    // ── 1. 各來源資料：去重 + 上限 ────────────────────────────────────────────
+    var chiefConcerns       = dedupeStrings(clinicianSummary.chief_concerns, 4);
+    var symptomObservations = dedupeStrings(clinicianSummary.symptom_observations, 4);
+    var safetyFlags         = dedupeStrings(clinicianSummary.safety_flags, 3);
+    var followupNeeds       = dedupeStrings(clinicianSummary.followup_needs, 3);
+    var clinicalAlerts      = dedupeStrings(fhirDeliveryDraft.clinical_alerts, 3);
+    var exportBlockers      = dedupeStrings(fhirDeliveryDraft.export_blockers, 3);
+    var hamdEvidenceTable   = asArray(clinicianSummary.hamd_evidence_table);
+    var hamdReviewRequired  = dedupeStrings(clinicianSummary.hamd_review_required_items, 3);
+    var compositionSections = asArray(fhirDeliveryDraft.composition_sections);
+    var patientKeyPoints    = dedupeStrings(patientAnalysis.key_points, 3);
+    var patientConfirmItems = dedupeStrings(patientReviewPacket.confirm_items, 3);
+    var patientEditableItems = dedupeStrings(patientReviewPacket.editable_items, 3);
 
-    if (clinicianSummary.draft_summary) {
+    // ── 2. 高風險詞語保護（與 ClinicalImpression 同一套）───────────────────────
+    var OVERREACH_PATTERNS = [
+      /自我傷害行為/,
+      /自傷行為表現/,
+      /有自殺/,
+      /已有計畫/
+    ];
+    var hasSafetyEvidence = safetyFlags.length > 0 || clinicalAlerts.length > 0;
+
+    function isSafeToInclude(text) {
+      if (!text) return false;
+      var hasOverreach = OVERREACH_PATTERNS.some(function (p) { return p.test(String(text)); });
+      return !(hasOverreach && !hasSafetyEvidence);
+    }
+
+    // ── 3. Safety section：加「疑似」前綴保護 ──────────────────────────────────
+    var CONFIRMED_RISK_PATTERNS = [
+      /^自傷/,
+      /^自殺/,
+      /^有自我傷害/
+    ];
+    function guardSafetyText(text) {
+      var s = String(text);
+      var isConfirmedRisk = CONFIRMED_RISK_PATTERNS.some(function (p) { return p.test(s); });
+      if (isConfirmedRisk && !hasSafetyEvidence) {
+        return '疑似' + s + '（尚待臨床確認）';
+      }
+      return s;
+    }
+
+    // ── 4. 組裝 sections ────────────────────────────────────────────────────────
+    var sections = [];
+
+    // 4a. Clinician Draft Summary（加過度推論保護）
+    var rawDraftSummary = String(clinicianSummary.draft_summary || '').trim();
+    if (rawDraftSummary && isSafeToInclude(rawDraftSummary)) {
       sections.push({
         code: { text: 'clinician-draft-summary' },
         title: 'Clinician Draft Summary',
         text: {
           status: 'generated',
-          div: '<div xmlns="http://www.w3.org/1999/xhtml"><p>' + htmlEscape(clinicianSummary.draft_summary) + '</p></div>'
+          div: '<div xmlns="http://www.w3.org/1999/xhtml"><p>' + htmlEscape(rawDraftSummary) + '</p></div>'
         }
       });
     }
 
+    // 4b. Chief Concerns（去重後最多 4 點）
     if (chiefConcerns.length) {
       sections.push({
-        code: {
-          text: 'chief-concerns'
-        },
+        code: { text: 'chief-concerns' },
         title: 'Chief Concerns',
         text: {
           status: 'generated',
@@ -803,11 +837,15 @@
       });
     }
 
+    // 4c. Symptom Observations（去重後最多 4 點；entry 只放非風險 Observation）
     if (symptomObservations.length) {
+      var safeObservationEntries = observationEntries.filter(function (entry) {
+        var code = entry.resource && entry.resource.code && entry.resource.code.text;
+        var isRisk = /ideation|suicidal/i.test(String(code || ''));
+        return !isRisk;
+      });
       sections.push({
-        code: {
-          text: 'symptom-observations'
-        },
+        code: { text: 'symptom-observations' },
         title: 'Symptom Observations',
         text: {
           status: 'generated',
@@ -815,32 +853,30 @@
             return '<li>' + htmlEscape(item) + '</li>';
           }).join('') + '</ul></div>'
         },
-        entry: observationEntries.map(function (entry) {
+        entry: safeObservationEntries.map(function (entry) {
           return { reference: entry.fullUrl };
         })
       });
     }
 
+    // 4d. Safety（加保守化前綴）
     if (safetyFlags.length) {
       sections.push({
-        code: {
-          text: 'safety-flags'
-        },
+        code: { text: 'safety-flags' },
         title: 'Safety',
         text: {
           status: 'generated',
           div: '<div xmlns="http://www.w3.org/1999/xhtml"><ul>' + safetyFlags.map(function (item) {
-            return '<li>' + htmlEscape(item) + '</li>';
+            return '<li>' + htmlEscape(guardSafetyText(item)) + '</li>';
           }).join('') + '</ul></div>'
         }
       });
     }
 
+    // 4e. Follow-up Needs
     if (followupNeeds.length) {
       sections.push({
-        code: {
-          text: 'followup-needs'
-        },
+        code: { text: 'followup-needs' },
         title: 'Follow-up Needs',
         text: {
           status: 'generated',
@@ -851,11 +887,10 @@
       });
     }
 
+    // 4f. HAM-D Evidence Table（保留，資訊密度高）
     if (hamdEvidenceTable.length) {
       sections.push({
-        code: {
-          text: 'hamd-evidence-table'
-        },
+        code: { text: 'hamd-evidence-table' },
         title: 'HAM-D Evidence Table',
         text: {
           status: 'generated',
@@ -866,11 +901,10 @@
       });
     }
 
+    // 4g. HAM-D Review Required
     if (hamdReviewRequired.length) {
       sections.push({
-        code: {
-          text: 'hamd-review-required'
-        },
+        code: { text: 'hamd-review-required' },
         title: 'HAM-D Review Required',
         text: {
           status: 'generated',
@@ -881,20 +915,8 @@
       });
     }
 
-    if (compositionSections.length) {
-      sections.push({
-        code: { text: 'delivery-draft-sections' },
-        title: 'FHIR Delivery Draft Sections',
-        text: {
-          status: 'generated',
-          div: '<div xmlns="http://www.w3.org/1999/xhtml"><ul>' + compositionSections.map(function (item) {
-            return '<li><b>' + htmlEscape(item.focus || 'section') + ':</b> ' + htmlEscape(item.section || '') + '</li>';
-          }).join('') + '</ul></div>'
-        }
-      });
-    }
-
-    if (clinicalAlerts.length) {
+    // 4h. Clinical Alerts（有安全證據才加入，避免空洞警示）
+    if (clinicalAlerts.length && hasSafetyEvidence) {
       sections.push({
         code: { text: 'clinical-alerts' },
         title: 'Clinical Alerts',
@@ -907,6 +929,7 @@
       });
     }
 
+    // 4i. Patient Analysis（保留）
     if (patientAnalysis.plain_summary || patientKeyPoints.length) {
       sections.push({
         code: { text: 'patient-analysis' },
@@ -922,6 +945,7 @@
       });
     }
 
+    // 4j. Patient Review Packet（保留）
     if (patientReviewPacket.patient_facing_summary || patientConfirmItems.length || patientEditableItems.length) {
       sections.push({
         code: { text: 'patient-review-packet' },
@@ -937,6 +961,7 @@
       });
     }
 
+    // 4k. Export Blockers（去重收斂，最多 3 筆）
     if (exportBlockers.length) {
       sections.push({
         code: { text: 'export-blockers' },
@@ -945,6 +970,20 @@
           status: 'generated',
           div: '<div xmlns="http://www.w3.org/1999/xhtml"><ul>' + exportBlockers.map(function (item) {
             return '<li>' + htmlEscape(item) + '</li>';
+          }).join('') + '</ul></div>'
+        }
+      });
+    }
+
+    // 4l. FHIR Delivery Draft Sections（保留）
+    if (compositionSections.length) {
+      sections.push({
+        code: { text: 'delivery-draft-sections' },
+        title: 'FHIR Delivery Draft Sections',
+        text: {
+          status: 'generated',
+          div: '<div xmlns="http://www.w3.org/1999/xhtml"><ul>' + compositionSections.map(function (item) {
+            return '<li><b>' + htmlEscape(item.focus || 'section') + ':</b> ' + htmlEscape(item.section || '') + '</li>';
           }).join('') + '</ul></div>'
         }
       });
@@ -978,6 +1017,7 @@
         : undefined
     };
   }
+
 
   function buildClinicalImpressionResource(input, patientFullUrl, encounterFullUrl, questionnaireFullUrl, observationEntries, clinicianSummary, hamdProgress, redFlag, fhirDeliveryDraft) {
 
