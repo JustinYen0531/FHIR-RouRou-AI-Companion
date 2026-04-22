@@ -1150,17 +1150,35 @@
   }
 
   function buildDocumentReferenceResource(input, patientFullUrl, encounterFullUrl, compositionFullUrl, clinicianSummary, patientAnalysis, patientReviewPacket, fhirDeliveryDraft, formalAssessment) {
-    const exportPayload = {
-      clinician_summary_draft: clinicianSummary,
-      patient_analysis: patientAnalysis,
-      patient_review_packet: patientReviewPacket,
-      fhir_delivery_draft: fhirDeliveryDraft,
-      hamd_formal_assessment: formalAssessment,
-      active_mode: input.active_mode,
-      risk_flag: input.risk_flag,
-      latest_tag_payload: input.latest_tag_payload,
-      burden_level_state: input.burden_level_state
+
+    // ── 1. 閱讀版 payload（只含高品質臨床欄位，給醫師看）─────────────────────
+    var readablePayload = {
+      chief_concerns:       dedupeStrings(clinicianSummary.chief_concerns, 4),
+      symptom_observations: dedupeStrings(clinicianSummary.symptom_observations, 4),
+      safety_flags:         dedupeStrings(clinicianSummary.safety_flags, 3),
+      followup_needs:       dedupeStrings(clinicianSummary.followup_needs, 3),
+      hamd_signals:         dedupeStrings(clinicianSummary.hamd_signals || asArray(clinicianSummary.hamd_evidence_table).map(function (r) { return r.signal || r.item || ''; }), 6)
     };
+
+    // ── 2. 全量追蹤 payload（internal trace，不是對外閱讀版）──────────────────
+    var internalTracePayload = {
+      _note: 'Internal trace payload — not intended for clinical reading',
+      clinician_summary_draft: clinicianSummary,
+      patient_analysis:        patientAnalysis,
+      patient_review_packet:   patientReviewPacket,
+      fhir_delivery_draft:     fhirDeliveryDraft,
+      hamd_formal_assessment:  formalAssessment,
+      active_mode:             input.active_mode,
+      risk_flag:               input.risk_flag,
+      latest_tag_payload:      input.latest_tag_payload,
+      burden_level_state:      input.burden_level_state
+    };
+
+    // ── 3. 組裝 relatesTo（關聯 Composition）────────────────────────────────────
+    var relatesTo = compositionFullUrl
+      ? [{ code: 'transforms', targetReference: { reference: compositionFullUrl } }]
+      : undefined;
+
     return {
       resourceType: 'DocumentReference',
       meta: { profile: [TW_CORE_PROFILES.documentReference] },
@@ -1176,24 +1194,26 @@
       date: input.session.endedAt || input.session.startedAt || new Date().toISOString(),
       author: input.author ? [{ display: input.author }] : undefined,
       description: 'Clinician-facing AI Companion pre-visit summary draft',
+      relatesTo: relatesTo,
       content: [
         {
           attachment: {
             contentType: 'application/json',
-            title: 'AI Companion clinician summary draft',
-            data: Buffer.from(JSON.stringify(clinicianSummary, null, 2), 'utf8').toString('base64')
+            title: 'AI Companion clinician summary draft (readable)',
+            data: Buffer.from(JSON.stringify(readablePayload, null, 2), 'utf8').toString('base64')
           }
         },
         {
           attachment: {
             contentType: 'application/json',
-            title: 'AI Companion full export payload',
-            data: Buffer.from(JSON.stringify(exportPayload, null, 2), 'utf8').toString('base64')
+            title: 'AI Companion full internal trace payload',
+            data: Buffer.from(JSON.stringify(internalTracePayload, null, 2), 'utf8').toString('base64')
           }
         }
       ]
     };
   }
+
 
   function buildProvenanceResource(input, patientFullUrl, encounterFullUrl, targetRefs) {
     const shareWithClinician = normalizeShareWithClinician(
