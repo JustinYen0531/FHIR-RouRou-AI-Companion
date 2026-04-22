@@ -705,11 +705,46 @@
 
 ---
 
+### ✅ Composition 層（已完成）
+
+**Commit**：`fix(Composition): section去重上限、Safety保守化、clinicalAlerts有evidence才加、entry只放非風險Observation`
+
+#### 實作了什麼
+
+**① 所有 sections 套用 `dedupeStrings` 去重 + 上限**
+
+| section | 舊（無上限） | 新上限 |
+|---------|------------|--------|
+| `chief_concerns` | 無限 | **4 筆** |
+| `symptom_observations` | 無限 | **4 筆** |
+| `safety_flags` | 無限 | **3 筆** |
+| `followup_needs` | 無限 | **3 筆** |
+| `clinical_alerts` | 無限 | **3 筆** |
+| `export_blockers` | 無限 | **3 筆** |
+| `patient_key_points` | 無限 | **3 筆** |
+
+**② `clinician-draft-summary` 加過度推論保護**
+- 套用 `isSafeToInclude()`：若摘要包含高風險詞（`自我傷害行為` / `有自殺` 等），且沒有 safetyFlags 或 clinicalAlerts 支撐，則整段不輸出
+
+**③ Safety section 加保守化前綴**
+- `guardSafetyText()`：若句子以 `自傷` / `自殺` / `有自我傷害` 開頭，且無 safety evidence，自動加上「疑似…（尚待臨床確認）」
+
+**④ `Symptom Observations.entry` 只放非風險 Observation**
+- 過濾條件：`entry.resource.code.text` 不包含 `ideation` 或 `suicidal`
+- 風險相關 Observation 不出現在 Symptom section 的 reference 裡
+
+**⑤ `Clinical Alerts` section 加條件**
+- 舊：有 clinicalAlerts 就輸出
+- 新：`clinicalAlerts.length && hasSafetyEvidence` — 必須同時有安全訊號支撐才加入，避免空洞警示
+
+**⑥ `delivery-draft-sections` 移到最後輸出**（非核心 section 不搶前面位置）
+
+---
+
 ### 🔲 尚未完成
 
 | 層 | 狀態 |
 |----|------|
-| Composition | 待實作 |
 | DocumentReference | 待實作 |
 | Provenance | 待實作 |
 | Patient 匿名策略 | 待實作 |
