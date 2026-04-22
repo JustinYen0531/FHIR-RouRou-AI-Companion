@@ -741,11 +741,43 @@
 
 ---
 
+### ✅ DocumentReference 層（已完成）
+
+**Commit**：`fix(DocumentReference): 分離閱讀版與internal trace payload，補relatesTo關聯Composition`
+
+#### 實作了什麼
+
+**① 閱讀版 vs 追蹤版 attachment 明確分離**
+
+| 附件 | 舊 | 新 |
+|------|----|----|
+| attachment[0] title | `"AI Companion clinician summary draft"` | `"AI Companion clinician summary draft (readable)"` |
+| attachment[0] 內容 | 整個 `clinicianSummary`（含大量中繼欄位） | 只含 5 個高品質臨床欄位的 `readablePayload` |
+| attachment[1] title | `"AI Companion full export payload"` | `"AI Companion full internal trace payload"` |
+| attachment[1] 內容 | 無標示 | 加上 `_note: 'Internal trace payload — not intended for clinical reading'` |
+
+**② `readablePayload` 內容（閱讀版只含這些）**
+
+```json
+{
+  "chief_concerns":       [...最多4筆，去重],
+  "symptom_observations": [...最多4筆，去重],
+  "safety_flags":         [...最多3筆，去重],
+  "followup_needs":       [...最多3筆，去重],
+  "hamd_signals":         [...最多6個有效訊號維度]
+}
+```
+
+**③ 補上 `relatesTo` 關聯 Composition**
+- 若 `compositionFullUrl` 存在，補上 `{ code: 'transforms', targetReference: { reference: compositionFullUrl } }`
+- 讓 DocumentReference 與 Composition 之間有明確的 FHIR 依賴鏈
+
+---
+
 ### 🔲 尚未完成
 
 | 層 | 狀態 |
 |----|------|
-| DocumentReference | 待實作 |
 | Provenance | 待實作 |
 | Patient 匿名策略 | 待實作 |
 
