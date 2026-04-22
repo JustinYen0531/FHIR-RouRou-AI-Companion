@@ -1522,17 +1522,25 @@ function buildFhirResourceLinks(deliveryResult) {
 }
 
 function buildPatientRefreshSnapshot(sessionExport = null) {
-  if (!sessionExport || typeof sessionExport !== 'object' || !sessionExport.patient) return null;
-  const patientKey = String(sessionExport.patient.key || '').trim();
+  const normalizedSessionExport = PatientProfile.applyToSessionExport(sessionExport || {});
+  if (!normalizedSessionExport || typeof normalizedSessionExport !== 'object' || !normalizedSessionExport.patient) return null;
+  const patientKey = String(normalizedSessionExport.patient.key || '').trim();
   if (!patientKey) return null;
   return {
-    patient: JSON.parse(JSON.stringify(sessionExport.patient)),
+    patient: JSON.parse(JSON.stringify(normalizedSessionExport.patient)),
     session: {
-      encounterKey: String(sessionExport?.session?.encounterKey || '').trim()
+      encounterKey: String(normalizedSessionExport?.session?.encounterKey || '').trim()
     },
-    __deliveryTargetUrl: String(sessionExport?.__deliveryTargetUrl || '').trim(),
-    __deliverySuffix: String(sessionExport?.__deliverySuffix || '').trim()
+    __deliveryTargetUrl: String(normalizedSessionExport?.__deliveryTargetUrl || '').trim(),
+    __deliverySuffix: String(normalizedSessionExport?.__deliverySuffix || '').trim()
   };
+}
+
+function resolvePatientRefreshPayload(historyPayload = null) {
+  const basePayload = historyPayload && typeof historyPayload === 'object'
+    ? historyPayload
+    : buildCurrentPatientRefreshPayload();
+  return buildPatientRefreshSnapshot(basePayload);
 }
 
 function canRefreshFhirResource(link, refreshPayload = null) {
@@ -1747,7 +1755,7 @@ async function refreshPatientResource(resourcePath, source = 'current', entryId 
   const historyItem = source === 'history'
     ? (APP_STATE.fhirReportHistory || []).find((item) => item.id === entryId) || null
     : null;
-  const refreshPayload = historyItem?.patientRefreshPayload || buildCurrentPatientRefreshPayload();
+  const refreshPayload = resolvePatientRefreshPayload(historyItem?.patientRefreshPayload || null);
   if (!refreshPayload?.patient?.key) {
     appendSystemNotice('現在找不到可用的 Patient 草稿資料，先回到目前對話重新開一次 FHIR 預覽就可以了。');
     return;
