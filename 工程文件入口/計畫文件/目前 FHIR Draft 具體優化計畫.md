@@ -577,3 +577,98 @@
 
 3. `最後做 Composition 精簡化`  
 目標：讓這份輸出變得更像真正可展示的臨床摘要。
+
+---
+
+## 已完成實作紀錄
+
+> 更新日期：`2026-04-22`  
+> 實作位置：`app/fhirBundleBuilder.js`
+
+---
+
+### ✅ Encounter 層（已完成）
+
+**Commit**：`fix(Encounter): status 改為 finished 預設、period 分離 sessionStartedAt/sessionEndedAt、補 serviceType`
+
+#### 實作了什麼
+
+| 項目 | 修改前 | 修改後 |
+|------|--------|--------|
+| `status` | 永遠寫死 `"in-progress"` | 讀 `session.encounterStatus`，預設 `"finished"` |
+| `period.start` | 讀 `session.startedAt` | 優先讀 `session.sessionStartedAt`，退回 `startedAt` |
+| `period.end` | 讀 `session.endedAt` | 優先讀 `session.sessionEndedAt`，退回 `endedAt` |
+| `serviceType` | 無 | 補上，讀 `session.serviceType`，預設文字說明情境 |
+
+#### 新增函式
+- `resolveEncounterStatus(session)`：驗證並回傳合法的 FHIR Encounter status，不合法時預設 `finished`
+
+#### 如何傳入新欄位（input.session）
+```json
+{
+  "session": {
+    "encounterKey": "session-2026-04-22-001",
+    "encounterStatus": "finished",
+    "sessionStartedAt": "2026-04-22T14:00:00+08:00",
+    "sessionEndedAt": "2026-04-22T14:30:00+08:00",
+    "serviceType": "AI Companion pre-visit mental health screening"
+  }
+}
+```
+
+---
+
+### ✅ QuestionnaireResponse 層（已完成）
+
+**Commit**：`fix(QR): recent_evidence 套用清洗規則，移除操作句/求助句/過短句/重複句，上限5筆`
+
+#### 實作了什麼
+
+新增 `cleanEvidence(evidenceArray, maxCount)` 清洗函式，套用於 `recent_evidence` 欄位輸出：
+
+| 規則 | 說明 | 範例（被過濾） |
+|------|------|--------------|
+| ①過短句 | 少於 6 字元 | `"好"` `"嗯嗯"` |
+| ②操作句 | 帶系統操作意圖 | `"請幫我看看我現在的狀態"` `"繼續"` |
+| ③純求助句 | 只有「不知道怎麼辦」，無症狀訊號 | `"我現在不知道怎麼辦"` |
+| ④重複句 | 與前面已保留句完全相同 | 第二次出現的相同句子 |
+| ⑤上限 5 筆 | 保留清洗後最前面 5 筆 | 第 6 筆之後丟棄 |
+
+`linkId` 標題改為 `'Recent evidence (high-signal)'`，讓閱讀者知道這是清洗過的版本。
+
+---
+
+### ✅ Observation 層（已完成）
+
+**Commit**：`fix(Observation): valueString 改為可讀臨床摘要句，note 上限2筆並套用cleanEvidence`
+
+#### 實作了什麼
+
+**新增 `OBSERVATION_VALUE_STRINGS` 對映表** — 將抽象的 `"supported signal"` 替換為可讀摘要句：
+
+| focus（維度） | 舊 valueString | 新 valueString |
+|---|---|---|
+| `depressed_mood` | `"supported signal"` | `"reports persistent low mood"` |
+| `insomnia` | `"supported signal"` | `"reports sleep disruption or difficulty maintaining sleep"` |
+| `work_interest` | `"supported signal"` | `"reports decline in work engagement and interest"` |
+| `somatic_anxiety` | `"supported signal"` | `"reports somatic anxiety symptoms"` |
+| `passive_disappearance_ideation` | `"supported signal"` | `"reports passive ideation (evidence-limited; no confirmed plan)"` |
+| `suicidal_ideation` | `"supported signal"` | `"reports suicidal ideation (requires clinical verification)"` |
+| 未知維度 | `"supported signal"` | `"reports <label小寫>"` |
+
+**`note` 清洗**：
+- 舊：把所有 `candidate.evidence` 全部塞進 note
+- 新：重用 `cleanEvidence()` 過濾，最多保留 **2 筆**最有代表性的 evidence
+
+---
+
+### 🔲 尚未完成
+
+| 層 | 狀態 |
+|----|------|
+| ClinicalImpression | 待實作 |
+| Composition | 待實作 |
+| DocumentReference | 待實作 |
+| Provenance | 待實作 |
+| Patient 匿名策略 | 待實作 |
+
