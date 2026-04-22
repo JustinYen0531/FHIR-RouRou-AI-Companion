@@ -662,11 +662,53 @@
 
 ---
 
+### ✅ ClinicalImpression 層（已完成）
+
+**Commit**：`fix(ClinicalImpression): description保守化、finding各自綁basis、note加風險標記、status改preliminary`
+
+#### 實作了什麼
+
+**① description 保守化**
+
+新增 `OVERREACH_PATTERNS` 高風險詞語偵測，若 `draft_summary` 包含以下詞語，且沒有 `safetySignals` 支撐，則不使用，改用 chiefConcerns 組合保守描述：
+
+- `自我傷害行為` / `自傷行為表現` / `有自殺` / `已有計畫`
+
+| 情況 | description 產生方式 |
+|------|---------------------|
+| draft_summary 沒有高危詞 | 直接使用 draft_summary |
+| draft_summary 有高危詞 + 有 safetySignals 支撐 | 直接使用 draft_summary |
+| draft_summary 有高危詞 + 無 safetySignals 支撐 | 改為 `Patient reports: <chiefConcerns>.` |
+| 無任何摘要 | 預設保守文字 |
+
+**② finding 結構化，各自綁定獨立 basis**
+
+| finding 來源 | basis 來源 |
+|---|---|
+| 症狀觀察（symptomObservations） | chiefConcerns 串接 |
+| HAM-D 維度（coveredDimensions） | 第一筆 symptomObservation |
+| 安全訊號（safetySignals） | redFlag.signals 串接 |
+
+- finding 統一去重 + 上限 **5 筆**
+- safetySignals finding 加上 `(evidence-limited)` 標記，不直接斷言
+
+**③ note 補充風險等級標記**
+
+| 狀況 | note 內容 |
+|------|----------|
+| 有 safetySignals | `Risk signals noted (evidence-limited). Clinical verification required before escalation.` + 各訊號 |
+| 無 safetySignals | `No immediate risk signals identified in this session.` |
+
+**④ status 從 `completed` 改為 `preliminary`**（AI 草稿，待醫師確認）
+
+**⑤ supportingInfo Observation 上限從 6 改為 4**
+
+---
+
 ### 🔲 尚未完成
 
 | 層 | 狀態 |
 |----|------|
-| ClinicalImpression | 待實作 |
 | Composition | 待實作 |
 | DocumentReference | 待實作 |
 | Provenance | 待實作 |
