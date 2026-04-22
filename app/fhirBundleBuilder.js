@@ -534,29 +534,58 @@
     };
   }
 
+  function resolveEncounterStatus(session) {
+    // 優先使用 session 明確提供的狀態；預設為 finished（已完成的摘要交付）
+    const raw = session.encounterStatus;
+    if (!raw) return 'finished';
+    const token = String(raw).trim().toLowerCase();
+    const validStatuses = {
+      'planned': true,
+      'arrived': true,
+      'triaged': true,
+      'in-progress': true,
+      'onleave': true,
+      'finished': true,
+      'cancelled': true,
+      'entered-in-error': true,
+      'unknown': true
+    };
+    return validStatuses[token] ? token : 'finished';
+  }
+
   function buildEncounterResource(input, patientFullUrl) {
+    const session = input.session;
+
+    // period：優先用 sessionStartedAt 作為開始、sessionEndedAt 作為結束
+    // 避免 startedAt/endedAt 相同（都是輸出當下時間）的問題
+    const periodStart = session.sessionStartedAt || session.startedAt || undefined;
+    const periodEnd   = session.sessionEndedAt   || session.endedAt   || undefined;
+
     return {
       resourceType: 'Encounter',
       meta: { profile: [TW_CORE_PROFILES.encounter] },
-      status: 'in-progress',
+      status: resolveEncounterStatus(session),
       class: {
         system: 'http://terminology.hl7.org/CodeSystem/v3-ActCode',
         code: 'AMB',
         display: 'ambulatory'
       },
       subject: { reference: patientFullUrl },
-      period: input.session.startedAt || input.session.endedAt
+      period: (periodStart || periodEnd)
         ? {
-            start: input.session.startedAt || undefined,
-            end: input.session.endedAt || undefined
+            start: periodStart,
+            end: periodEnd
           }
         : undefined,
       identifier: [
         {
-          system: input.session.system || INTERNAL_CANONICALS.namingSystems.sessionKey,
-          value: input.session.encounterKey
+          system: session.system || INTERNAL_CANONICALS.namingSystems.sessionKey,
+          value: session.encounterKey
         }
-      ]
+      ],
+      serviceType: {
+        text: session.serviceType || 'AI Companion pre-visit mental health screening'
+      }
     };
   }
 
