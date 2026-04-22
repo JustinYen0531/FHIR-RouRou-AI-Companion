@@ -1,0 +1,21 @@
+## GitHub Repository
+
+本專案的主要程式碼、README、執行說明與相關開發內容，已上傳至以下 GitHub Repository：
+
+[JustinYen0531/FHIR-RouRou-AI-Companion](https://github.com/JustinYen0531/FHIR-RouRou-AI-Companion)
+
+## 說明
+
+此 Repository 主要包含：
+
+- 專案程式碼
+- 系統開發歷程中的實作內容
+- 可供展示與驗證的前後端功能
+- 部分與 FHIR 整合、摘要輸出與 AI 陪伴流程相關的核心邏輯
+
+## 作為競賽繳交項目的定位
+
+這一頁對應競賽要求中的：
+
+- **程式碼及執行結果**
+- **程式可能延伸應用等**（部分內容可透過 README 與實作架構說明）

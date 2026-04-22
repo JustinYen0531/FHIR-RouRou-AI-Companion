@@ -1,0 +1,191 @@
+# 💬 我的理解與講評
+
+我自己很喜歡 FHIR 問卷系統，因為它幾乎就是專門為這種「有問題、有回答」的互動而存在的。對我現在關注的主題來說，尤其是憂鬱症、情緒狀態與心理困擾的整理，問卷系統真的非常適合。因為每一次拋出問題、每一次收到回答，本質上都可以被理解成一次有結構的資料蒐集。
+
+而且在心理健康場景裡，題型不會只有一種，這也是我覺得 FHIR Questionnaire 很實用的原因。像是有些問題需要使用者自由描述現在的感受或症狀，這時就很適合用開放式文字；有些量表需要用數字表達程度，例如情緒強度、失眠嚴重度或壓力分數；也有一些題目適合用選項收斂答案；再更簡單一點的，像是「最近有沒有失眠」、「有沒有食慾下降」這種，就很適合用是／否來回答。也就是說，`string`、`integer`、`choice`、`boolean` 這些題型在真正的憂鬱症與心理狀態評估裡，其實都很有用，而且各自有非常清楚的使用場景。
+
+另外，我也覺得這類問卷系統很適合初學者理解。因為前端 JavaScript 的邏輯通常是一題對一個答案、一步一步收資料，看起來不會太複雜；但另一方面，FHIR 的結構還是要記清楚，尤其是 `Questionnaire` 和 `QuestionnaireResponse` 的區別、`linkId` 的對應關係，以及不同題型對應到不同的 `value` 欄位，這些都是不能混掉的地方。
+
+對我來說，FHIR 最迷人的地方之一，是它讓問卷不只是「填完就結束」的表單，而是能真正進入一個可查詢、可延續、可結構化整理的資料系統。以前像 Google 表單，也可以收到一份一份回覆；但 FHIR 更像是一個可以持續累積、查詢與串接的醫療資料庫。每一份問卷回覆都不只是單次答案，而是病人整體狀態的一部分。這也是我會覺得它特別適合用在心理健康、症狀追蹤與 AI 陪伴系統上的原因。
+
+# 🎯 核心
+
+**Questionnaire = 題目模板**  
+
+**QuestionnaireResponse = 使用者填完的答案**
+
+就像：
+
+- Google 表單 = Questionnaire
+- 回收的填答結果 = QuestionnaireResponse
+
+# 🧩 一、Questionnaire
+
+可以把它想成：
+
+👉「這份問卷長怎樣」
+
+## 🔑 最重要的欄位
+
+### 1️⃣ 基本資訊
+
+```json
+"id": "exercise-questionnaire",
+"status": "active",
+"subjectType": ["Patient"]
+```
+
+意思：
+
+- `id`：這份問卷叫什麼名字
+- `status`：現在能不能用（`active` 才能用）
+- `subjectType`：誰要填（通常是 `Patient`）
+
+### 2️⃣ 題目本體
+
+```json
+"item": [
+  {
+    "linkId": "q1",
+    "text": "你運動時會不舒服嗎？",
+    "type": "boolean"
+  }
+]
+```
+
+每一題都長這樣：
+
+| 欄位 | 意義 |
+| --- | --- |
+| `linkId` | 題號（唯一） |
+| `text` | 題目內容 |
+| `type` | 題型 |
+
+📌 常見題型（考試 / 實作會用）
+
+| 類型 | 用途 |
+| --- | --- |
+| `boolean` | 是 / 否 |
+| `string` | 文字 |
+| `choice` | 選項 |
+| `integer` | 數字 |
+
+# 🧾 二、QuestionnaireResponse
+
+把它想成：
+
+👉「某個人填完這份問卷的結果」
+
+## 🔑 核心結構
+
+```json
+{
+  "resourceType": "QuestionnaireResponse",
+  "questionnaire": "Questionnaire/exercise-questionnaire",
+  "status": "completed",
+  "subject": {
+    "reference": "Patient/123"
+  },
+  "authored": "2026-04-05",
+  "item": [
+    {
+      "linkId": "q1",
+      "answer": [
+        {
+          "valueBoolean": true
+        }
+      ]
+    }
+  ]
+}
+```
+
+## 🧠 重點理解（超重要）
+
+### 🔗 1️⃣ 一定會連回問卷
+
+```json
+"questionnaire": "Questionnaire/xxx"
+```
+
+👉 告訴你「這份答案是哪一份問卷的」
+
+### 👤 2️⃣ 一定有填寫的人
+
+```json
+"subject": {
+  "reference": "Patient/123"
+}
+```
+
+### 🧠 3️⃣ 答案長在 `item` 裡
+
+```json
+"item": [
+  {
+    "linkId": "q1",
+    "answer": [...]
+  }
+]
+```
+
+👉 用 `linkId` 對應題目！
+
+### 📌 4️⃣ 不同題型 → 不同 `value`
+
+| 題型 | 對應答案 |
+| --- | --- |
+| `boolean` | `valueBoolean` |
+| `string` | `valueString` |
+| `integer` | `valueInteger` |
+
+# 🔄 三、整個流程
+
+用一句話講流程：
+
+👉「先定義題目 → 再收答案 → 丟進 Server」
+
+## 🪜 Step by step
+
+1. 建立 `Questionnaire`：設計問卷
+2. 前端載入問卷：顯示給使用者
+3. 使用者填寫：UI 表單（網頁）
+4. 產生 `QuestionnaireResponse`：自動轉成 JSON
+5. 傳到 FHIR Server：`POST /QuestionnaireResponse`
+6. 查詢結果：`GET /QuestionnaireResponse`
+
+# 🌐 四、影片在做的事
+
+其實就是在示範：
+
+- 做一份運動問卷
+- 在網頁填
+- 把答案送到 FHIR Server
+- 再從 Server 查出來
+
+# 🧠 五、跳題邏輯
+
+## 🎯 概念
+
+👉「如果 A → 才問 B」
+
+## 白話例子
+
+Q1：你運動會不舒服嗎？  
+
+👉 如果 Yes → 問 Q2  
+
+👉 如果 No → 跳過
+
+💡 重點：FHIR 不是死問卷，**可以做智慧問卷**。
+
+# 🧠 六、這整套東西在幹嘛（真正價值）
+
+👉 讓問卷變成「醫療資料標準」
+
+## 🏥 可以用在
+
+- 健康問卷
+- 心理評估
+- 症狀追蹤
+- AI 聊天紀錄結構化

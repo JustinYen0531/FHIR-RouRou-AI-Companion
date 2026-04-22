@@ -1,0 +1,166 @@
+## 文件目的
+
+這份文件說明目前這個 AI Companion 軟體，實際上要怎麼接到 FHIR，並在台灣情境下對應到 TW Core。
+
+目前這套軟體的主要臨床情境，明確聚焦在 **憂鬱症病患的診前陪伴、整理與交付**。
+
+它回答五個實作上最重要的問題：
+
+- 這個產品最後要輸出什麼 FHIR 資源
+- 哪些部分應優先對到 TW Core，哪些只能先用 base FHIR
+- 目前 chatflow 裡的 state 怎麼映射到 Resource
+- 後端真的要送資料時，建議的 API / bundle 形狀是什麼
+- 哪些地方現在可以做，哪些地方還需要後端、UI、授權流程才能完成
+
+## 先講結論
+
+這個軟體不應直接把整段聊天當成一個 FHIR Resource，而是拆成四層：
+
+1. **對話層**：病人與 AI 的原始互動。
+2. **結構化萃取層**：目前 chatflow 中的各種狀態，例如 latest_tag_payload、red_flag_payload、hamd_progress_state 等。
+3. **FHIR 映射層**：把上述狀態轉成可交換的 FHIR / TW Core 資源。
+4. **交付層**：把資源送到 FHIR Server、醫療院所 EHR / HIS、病人審閱 UI 與醫師端摘要檢視 UI。
+
+## 採用的標準基礎
+
+### FHIR 版本
+
+TW Core IG v1.0.0 是建立在 **FHIR R4.0.1** 之上，而不是 R5。
+
+### TW Core 的角色
+
+TW Core 是台灣在 FHIR R4.0.1 上定義的實作指引與 Profile 集，規範重點包括：
+
+- 要用哪些 Resource
+- 哪些欄位必填 / 必須支援
+- 代碼綁定與查詢方式
+- 在台灣場景下怎麼交換比較一致
+
+## 建議輸出的 FHIR / TW Core Resource
+
+### 1. Patient
+
+用途：對應病人主體，作為幾乎所有資源的 subject。
+
+建議使用：**TW Core Patient**。
+
+### 2. Encounter
+
+用途：表示這次 AI Companion session 所屬的就醫或互動情境。
+
+建議使用：**TW Core Encounter**。
+
+### 3. QuestionnaireResponse
+
+用途：承接病人在對話過程中被蒐集到的問答結果，特別適合量表 / 半量表 / AI 引導式問答。
+
+建議使用：**TW Core QuestionnaireResponse**。
+
+### 4. Observation
+
+用途：表示從對話萃取出的症狀、篩檢、量表線索與風險線索。
+
+最關鍵的兩種：
+
+- **TW Core Observation Screening Assessment**：放憂鬱線索、情緒 / 睡眠 / 功能受損 / 焦慮等篩檢評估結果。
+- **TW Core Simple Observation / Observation Clinical Result**：放單點觀察，如睡著後易醒、工作效率下降、明顯自責等。
+
+### 5. Composition
+
+用途：把整份診前摘要整成一份臨床文件，是 clinician_summary_draft 最適合的對應資源。
+
+建議使用：**TW Core Composition**。
+
+### 6. DocumentReference
+
+用途：保留可下載 / 可檢視的摘要文件版本，例如醫師摘要 PDF 或病人審閱版文件。
+
+建議使用：**TW Core DocumentReference**。
+
+### 7. Provenance
+
+用途：記錄這份摘要是怎麼來的，誰產生、誰審閱、哪些是 AI 推定、哪些是病人確認。
+
+建議使用：**TW Core Provenance**。
+
+### 8. ClinicalImpression
+
+用途：放綜合臨床評估印象，適合承接 risk / context 的綜合判斷。
+
+目前可作為 **base FHIR** 或專案自訂層使用。
+
+## 這個 AI Companion 的 state 映射方式
+
+- `latest_tag_payload`：作為 Observation 與 Composition 的中介材料。
+- `red_flag_payload`：轉成 Observation / ClinicalImpression / Composition 的 risk section。
+- `hamd_progress_state`：最適合轉成 QuestionnaireResponse 與 Observation Screening Assessment。
+- `clinician_summary_draft`：核心映射到 Composition。
+- `patient_review_packet`：偏病人端 UI state，不一定直接送 FHIR Server。
+- `patient_authorization_state`：目前先作為 app-internal workflow state，未來可映射到 Consent。
+- `fhir_delivery_draft`：是 server-side mapping plan，不是最終 Resource。
+- `delivery_readiness_state`：屬於 workflow gating 狀態，不建議直接交給外部 FHIR Server。
+
+## 建議的實際交付架構
+
+最佳做法是：**不要讓 Dify chatflow 直接呼叫 FHIR Server**，而應讓 chatflow 只產生結構化 state，再由後端 FHIR mapping service 負責：
+
+- 驗證欄位
+- 補齊 Patient / Encounter / author references
+- 轉成正式 Resource JSON
+- 做 Bundle transaction
+- 寫入 FHIR Server
+
+## 建議的最小可行 Bundle（MVP）
+
+第一版最小交付包建議包含：
+
+1. `Patient`
+2. `Encounter`
+3. `QuestionnaireResponse`
+4. `Observation` x N
+5. `Composition`
+6. `Provenance`
+
+`DocumentReference` 可第二階段再加，`ClinicalImpression` 視需求再加。
+
+## 跟 TW Core 的實際連結點
+
+### 可以直接對上的
+
+- Patient
+- Encounter
+- QuestionnaireResponse
+- Observation Screening Assessment
+- Composition
+- DocumentReference
+- Provenance
+
+### 需要專案自訂轉譯的
+
+- patient_review_packet
+- patient_authorization_state
+- delivery_readiness_state
+
+### 需要特別小心的
+
+- 不能把整段聊天全文直接塞成單一 Observation
+- 不能把 AI 推定與病人確認混在同一欄不標 provenance
+- 不能在病人未審閱 / 未同意前，就把 AI 草稿當 final clinical document
+
+## 上線前一定要補的四件事
+
+1. **病人授權不能只存在 chatflow state**：需要 UI 勾選、時間戳、誰同意與同意範圍。
+2. **AI 推定與病人確認要分開**：用 Provenance 區分來源。
+3. **量表映射要有版本控制**：Questionnaire canonical、item linkId、Observation code 都要版本化。
+4. **不能只存文件，還要能查結構化欄位**：因此 Composition + Observation + QuestionnaireResponse + Provenance 是必要組合。
+
+## 推薦的下一步
+
+1. 先定義 internal JSON contract。
+2. 建立 mapping service，把 internal JSON 轉成正式 FHIR Resource。
+3. 使用 TW Core 1.0.0 驗證。
+4. 最後才接 FHIR Server。
+
+## 結語
+
+這份文件的目的，是說明目前產品如何與 FHIR / TW Core 實際接軌。它顯示目前系統已經完成了「FHIR / TW Core 前的結構化準備層」，而接下來的工作則是補齊真正的 FHIR exchange layer。

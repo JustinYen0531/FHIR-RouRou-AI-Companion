@@ -93,6 +93,34 @@
 2. 若保留 `in-progress`，則在文件中說明這代表「持續中的診前整理會談」。
 3. 將 session 開始與結束時間改為真實對話區間，而不是僅取輸出當下時間。
 
+#### 建議完整版範例
+```json
+{
+  "resourceType": "Encounter",
+  "status": "finished",
+  "class": {
+    "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+    "code": "AMB",
+    "display": "ambulatory"
+  },
+  "subject": { "reference": "urn:uuid:<Patient UUID>" },
+  "period": {
+    "start": "2026-04-22T14:00:00+08:00",
+    "end": "2026-04-22T14:30:00+08:00"
+  },
+  "identifier": [
+    {
+      "system": "https://rourou.ai/fhir/internal/NamingSystem/ai-companion-session-key",
+      "value": "session-2026-04-22-001"
+    }
+  ],
+  "serviceType": {
+    "text": "AI Companion pre-visit mental health screening"
+  }
+}
+```
+> **重點**：`status` 改為 `finished`；`period.start/end` 取真實對話起訖；`serviceType` 補充情境說明。
+
 ---
 
 ### 3. QuestionnaireResponse 層
@@ -115,6 +143,51 @@
    `壓力情境句`
 4. 不再把「請幫我看看」「我現在不知道怎麼辦」這種控制性或泛情緒句直接塞進 item。
 
+#### 建議完整版範例
+```json
+{
+  "resourceType": "QuestionnaireResponse",
+  "status": "completed",
+  "questionnaire": "https://rourou.ai/fhir/internal/Questionnaire/ai-companion-previsit-hamd17-draft-v1",
+  "subject": { "reference": "urn:uuid:<Patient UUID>" },
+  "encounter": { "reference": "urn:uuid:<Encounter UUID>" },
+  "authored": "2026-04-22T14:30:00+08:00",
+  "author": { "display": "AI Companion MVP" },
+  "item": [
+    {
+      "linkId": "depressed_mood",
+      "text": "Depressed mood",
+      "answer": [{ "valueString": "近兩三週持續情緒低落，對日常事物失去興趣。" }]
+    },
+    {
+      "linkId": "insomnia",
+      "text": "Insomnia",
+      "answer": [{ "valueString": "睡著後容易中途清醒，難以再入睡。" }]
+    },
+    {
+      "linkId": "work_interest",
+      "text": "Work and interest decline",
+      "answer": [{ "valueString": "工作效率明顯下降，難以集中注意力完成任務。" }]
+    },
+    {
+      "linkId": "recent_evidence",
+      "text": "Recent evidence (high-signal only)",
+      "answer": [
+        { "valueString": "近兩三週情緒持續低落，連喜歡的事也提不起勁。" },
+        { "valueString": "睡著後容易醒，醒了就很難再睡著。" },
+        { "valueString": "工作時常常發呆，做什麼都覺得很慢。" }
+      ]
+    },
+    {
+      "linkId": "next_recommended_dimension",
+      "text": "Next recommended dimension",
+      "answer": [{ "valueString": "somatic_anxiety" }]
+    }
+  ]
+}
+```
+> **重點**：`recent_evidence` 每則都是完整、有訊號的症狀句；移除操作句與求助句；每則 answer 各自獨立描述不重複。
+
 ---
 
 ### 4. Observation 層
@@ -132,6 +205,43 @@
    `reports sustained anxiety around academic evaluation`
 2. `note` 中保留 1 到 2 則最有代表性的 evidence，不要整包塞滿。
 3. 若能明確對應 symptom inference，可讓 `Observation` 一筆只表達一個明確概念。
+
+#### 建議完整版範例（一筆 Observation）
+```json
+{
+  "resourceType": "Observation",
+  "status": "preliminary",
+  "category": [
+    {
+      "coding": [{
+        "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+        "code": "survey",
+        "display": "Survey"
+      }]
+    }
+  ],
+  "code": {
+    "coding": [{
+      "system": "https://rourou.ai/fhir/internal/CodeSystem/ai-companion-signals",
+      "code": "depressed_mood",
+      "display": "Depressed mood"
+    }],
+    "text": "Depressed mood"
+  },
+  "subject": { "reference": "urn:uuid:<Patient UUID>" },
+  "encounter": { "reference": "urn:uuid:<Encounter UUID>" },
+  "effectiveDateTime": "2026-04-22T14:30:00+08:00",
+  "valueString": "reports persistent low mood over the past two to three weeks",
+  "note": [
+    { "text": "近兩三週情緒持續低落，對日常事物失去興趣。" }
+  ],
+  "derivedFrom": [
+    { "reference": "urn:uuid:<QuestionnaireResponse UUID>" }
+  ],
+  "method": { "text": "AI companion conversation extraction" }
+}
+```
+> **重點**：`valueString` 改為一句可讀的臨床摘要；`note` 只留 1 則最有代表性的原話；每筆 Observation 只描述一個維度。
 
 ---
 
@@ -160,6 +270,48 @@
 4. `finding` 限制為 3 到 5 筆高價值條目，不要把同義句全部列上去。
 5. `basis` 應依每筆 finding 綁定對應 evidence，而不是全部共用同一串文字。
 
+#### 建議完整版範例
+```json
+{
+  "resourceType": "ClinicalImpression",
+  "status": "preliminary",
+  "code": { "text": "AI Companion risk and context impression" },
+  "subject": { "reference": "urn:uuid:<Patient UUID>" },
+  "encounter": { "reference": "urn:uuid:<Encounter UUID>" },
+  "effectiveDateTime": "2026-04-22T14:30:00+08:00",
+  "date": "2026-04-22T14:30:00+08:00",
+  "assessor": { "display": "AI Companion MVP" },
+  "description": "Patient reports persistent low mood, sleep disruption, and declining work function over the past two to three weeks. No immediate self-harm plan confirmed. Passive ideation noted as suspected signal only.",
+  "finding": [
+    {
+      "itemCodeableConcept": { "text": "Persistent low mood (depressed_mood)" },
+      "basis": "近兩三週情緒持續低落，對日常事物失去興趣。"
+    },
+    {
+      "itemCodeableConcept": { "text": "Sleep disruption (insomnia)" },
+      "basis": "睡著後容易中途清醒，難以再入睡。"
+    },
+    {
+      "itemCodeableConcept": { "text": "Functional decline at work" },
+      "basis": "工作效率明顯下降，難以集中注意力完成任務。"
+    },
+    {
+      "itemCodeableConcept": { "text": "Suspected passive ideation (evidence-limited)" },
+      "basis": "曾表達如果消失就好了；否認立即自傷計畫。"
+    }
+  ],
+  "note": [
+    { "text": "Risk level: suspected signal only. Immediate danger not confirmed." }
+  ],
+  "supportingInfo": [
+    { "reference": "urn:uuid:<QuestionnaireResponse UUID>" },
+    { "reference": "urn:uuid:<Observation depressed_mood UUID>" },
+    { "reference": "urn:uuid:<Observation insomnia UUID>" }
+  ]
+}
+```
+> **重點**：`description` 保守、只描述事實觀察；每筆 `finding.basis` 各自綁定對應 evidence；高風險 finding 加上「evidence-limited」標記，不直接斷言。
+
 ---
 
 ### 6. Composition 層
@@ -181,6 +333,61 @@
 4. `Clinical Alerts` 僅保留有明確證據支持的高風險項目。
 5. `Export Blockers` 要更聚焦，避免三句都像在說同一件事。
 
+#### 建議完整版範例
+```json
+{
+  "resourceType": "Composition",
+  "status": "preliminary",
+  "type": { "text": "AI Companion pre-visit summary" },
+  "subject": { "reference": "urn:uuid:<Patient UUID>" },
+  "encounter": { "reference": "urn:uuid:<Encounter UUID>" },
+  "date": "2026-04-22T14:30:00+08:00",
+  "title": "AI Companion Pre-Visit Summary",
+  "confidentiality": "R",
+  "author": [{ "display": "AI Companion MVP" }],
+  "section": [
+    {
+      "title": "Chief Concerns",
+      "code": { "text": "chief-concerns" },
+      "text": {
+        "status": "generated",
+        "div": "<div xmlns='http://www.w3.org/1999/xhtml'><ul><li>持續性情緒低落（過去兩至三週）</li><li>睡眠中斷，入睡後易醒</li><li>工作與注意力功能下降</li></ul></div>"
+      }
+    },
+    {
+      "title": "Symptom Observations",
+      "code": { "text": "symptom-observations" },
+      "text": {
+        "status": "generated",
+        "div": "<div xmlns='http://www.w3.org/1999/xhtml'><ul><li>情緒低落：患者報告近期對事物持續缺乏興趣。</li><li>睡眠障礙：睡著後容易中途清醒。</li><li>功能影響：工作效率下降，注意力不集中。</li></ul></div>"
+      },
+      "entry": [
+        { "reference": "urn:uuid:<Observation depressed_mood UUID>" },
+        { "reference": "urn:uuid:<Observation insomnia UUID>" },
+        { "reference": "urn:uuid:<Observation work_interest UUID>" }
+      ]
+    },
+    {
+      "title": "Safety",
+      "code": { "text": "safety-flags" },
+      "text": {
+        "status": "generated",
+        "div": "<div xmlns='http://www.w3.org/1999/xhtml'><ul><li>疑似被動消失想法（尚待確認，無立即計畫）</li></ul></div>"
+      }
+    },
+    {
+      "title": "Follow-up Needs",
+      "code": { "text": "followup-needs" },
+      "text": {
+        "status": "generated",
+        "div": "<div xmlns='http://www.w3.org/1999/xhtml'><ul><li>追蹤身體焦慮維度（somatic_anxiety）</li><li>確認被動消失念頭頻率與強度</li></ul></div>"
+      }
+    }
+  ]
+}
+```
+> **重點**：`Chief Concerns` 只留 3 點、語言精簡；`Symptom Observations` 改寫成「患者報告...」的臨床摘要句而非原話；Safety section 的高風險描述加上「疑似」與「尚待確認」。
+
 ---
 
 ### 7. DocumentReference 層
@@ -196,6 +403,64 @@
 1. 保留兩份 attachment 的方向可以不變，但內容要先清洗。
 2. Clinician summary draft 要改成真正的「臨床摘要版」，不是把所有中繼欄位都塞進去。
 3. Full payload 可以保留，但應標示為 internal trace payload，不是對外閱讀版。
+
+#### 建議完整版範例
+```json
+{
+  "resourceType": "DocumentReference",
+  "status": "current",
+  "docStatus": "preliminary",
+  "type": { "text": "AI Companion clinician summary document" },
+  "subject": { "reference": "urn:uuid:<Patient UUID>" },
+  "date": "2026-04-22T14:30:00+08:00",
+  "author": [{ "display": "AI Companion MVP" }],
+  "description": "Clinician-facing AI Companion pre-visit summary draft",
+  "context": {
+    "encounter": [{ "reference": "urn:uuid:<Encounter UUID>" }]
+  },
+  "content": [
+    {
+      "attachment": {
+        "contentType": "application/json",
+        "title": "AI Companion clinician summary draft (readable)",
+        "data": "<base64 of 以下 JSON>"
+      }
+    },
+    {
+      "attachment": {
+        "contentType": "application/json",
+        "title": "AI Companion full internal trace payload",
+        "data": "<base64 of 完整內部追蹤 payload>"
+      }
+    }
+  ]
+}
+```
+
+**clinician summary draft（閱讀版）內容應長這樣：**
+```json
+{
+  "chief_concerns": [
+    "持續性情緒低落（過去兩至三週）",
+    "睡眠中斷，入睡後易醒",
+    "工作與注意力功能下降"
+  ],
+  "symptom_observations": [
+    "情緒低落：患者報告近期對事物持續缺乏興趣。",
+    "睡眠障礙：睡著後容易中途清醒。",
+    "功能影響：工作效率下降，注意力不集中。"
+  ],
+  "safety_flags": [
+    "疑似被動消失想法（尚待確認，無立即計畫）"
+  ],
+  "followup_needs": [
+    "追蹤身體焦慮維度",
+    "確認被動消失念頭頻率與強度"
+  ],
+  "hamd_signals": ["depressed_mood", "work_interest", "insomnia"]
+}
+```
+> **重點**：兩份 attachment 分開；閱讀版只放精簡可讀內容，不塞中繼欄位；internal trace 標題明確標示非對外閱讀版。
 
 ---
 
@@ -214,6 +479,50 @@
    病人審閱完成
    允許分享狀態
 3. 讓 Provenance 在文件中有一段白話解釋，評審才會看懂你不是亂加這個資源。
+
+#### 建議完整版範例
+```json
+{
+  "resourceType": "Provenance",
+  "recorded": "2026-04-22T14:30:00+08:00",
+  "target": [
+    { "reference": "urn:uuid:<QuestionnaireResponse UUID>" },
+    { "reference": "urn:uuid:<ClinicalImpression UUID>" },
+    { "reference": "urn:uuid:<Composition UUID>" },
+    { "reference": "urn:uuid:<DocumentReference UUID>" }
+  ],
+  "agent": [
+    {
+      "type": { "text": "author" },
+      "who": { "display": "AI Companion MVP (Automated Draft Generator)" }
+    },
+    {
+      "type": { "text": "patient-reviewer" },
+      "who": { "reference": "urn:uuid:<Patient UUID>" }
+    }
+  ],
+  "entity": [
+    {
+      "role": "source",
+      "what": { "display": "AI companion conversation session (2026-04-22)" }
+    },
+    {
+      "role": "derivation",
+      "what": { "display": "patient_share_consent: ready_for_consent" }
+    }
+  ],
+  "reason": [
+    { "text": "AI Companion pre-visit summary auto-generation for clinician handoff" }
+  ],
+  "location": {
+    "display": "AI Companion Platform – Session 2026-04-22-001"
+  },
+  "patient": { "reference": "urn:uuid:<Patient UUID>" }
+}
+```
+
+**白話說明（可加進展示文件）：**
+> 這份 Provenance 記錄了「是誰、在什麼時候、基於什麼對話、產生了這份 FHIR 交付」。它確保這份草稿的來源可追溯，且已經過病人層級的審閱授權（`ready_for_consent`），不是直接送出未授權資料。
 
 ---
 
