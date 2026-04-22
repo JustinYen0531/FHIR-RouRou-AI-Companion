@@ -1,7 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { buildSessionExportBundle } = require('./fhirBundleBuilder');
+const { buildSessionExportBundle, buildPatientResourceOnly } = require('./fhirBundleBuilder');
 const { AICompanionEngine } = require('./aiCompanionEngine');
 const { createSessionPersistence, DEFAULT_SESSION_STORE_PATH, listSessionSummaries } = require('./sessionPersistence');
 const {
@@ -77,7 +77,7 @@ function sendJson(res, statusCode, body) {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
+    'Access-Control-Allow-Methods': 'GET,POST,PATCH,OPTIONS'
   });
   res.end(JSON.stringify(body, null, 2));
 }
@@ -227,6 +227,25 @@ function summarizeQuickCheck(bundleResult, options = {}) {
   };
 }
 
+function normalizeResourcePath(value) {
+  return String(value || '')
+    .trim()
+    .replace(/^https?:\/\/[^/]+/i, '')
+    .replace(/^\/+/, '')
+    .replace(/\/_history\/[^/]+$/i, '');
+}
+
+async function readFetchResponse(fetchResponse) {
+  const text = await fetchResponse.text();
+  let parsed = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch (error) {
+    parsed = { raw: text };
+  }
+  return parsed;
+}
+
 async function processDeliveryCheckPayload(payload, options = {}) {
   const deliveryPayload = preparePayloadForDeliveryTarget(payload, options.fhirBaseUrl);
   const bundleResult = buildSessionExportBundle(deliveryPayload);
@@ -341,13 +360,7 @@ async function processExportPayload(payload, options = {}) {
       body: JSON.stringify(bundleResult.bundle_json)
     });
 
-    const text = await transactionResponse.text();
-    let parsed = null;
-    try {
-      parsed = text ? JSON.parse(text) : null;
-    } catch (error) {
-      parsed = { raw: text };
-    }
+    const parsed = await readFetchResponse(transactionResponse);
 
     const result = {
       statusCode: transactionResponse.ok ? 200 : 502,
@@ -388,6 +401,133 @@ async function processExportPayload(payload, options = {}) {
       body: Object.assign(response, {
         delivery_status: 'transaction_failed',
         transaction_response: {
+          error: error.message
+        }
+      })
+    };
+  }
+}
+
+async function processResourceRefreshPayload(payload, options = {}) {
+  const resourceType = String(payload?.resource_type || '').trim();
+  const resourcePath = normalizeResourcePath(payload?.resource_path);
+  const sessionExport = payload?.session_export && typeof payload.session_export === 'object'
+    ? payload.session_export
+    : {};
+  const response = {
+    refresh_status: 'blocked',
+    resource_type: resourceType,
+    resource_path: resourcePath,
+    fhir_base_url: options.fhirBaseUrl || '',
+    validation_errors: [],
+    resource_result: null
+  };
+
+  if (resourceType !== 'Patient') {
+    return {
+      statusCode: 422,
+      body: Object.assign(response, {
+        validation_errors: ['Only Patient refresh is supported right now.']
+      })
+    };
+  }
+
+  if (!/^Patient\/[^/]+$/i.test(resourcePath)) {
+    return {
+      statusCode: 422,
+      body: Object.assign(response, {
+        validation_errors: ['resource_path must point to an existing Patient resource.']
+      })
+    };
+  }
+
+  if (!options.fhirBaseUrl) {
+    return {
+      statusCode: 422,
+      body: Object.assign(response, {
+        validation_errors: ['FHIR_SERVER_URL is not configured, so Patient refresh cannot be sent.']
+      })
+    };
+  }
+
+  const patientBuild = buildPatientResourceOnly(sessionExport);
+  if (!patientBuild.valid || !patientBuild.resource_json) {
+    return {
+      statusCode: 422,
+      body: Object.assign(response, {
+        validation_errors: patientBuild.validation_errors || ['Unable to build Patient resource.']
+      })
+    };
+  }
+
+  const fetchImpl = options.fetchImpl || global.fetch;
+  if (typeof fetchImpl !== 'function') {
+    return {
+      statusCode: 500,
+      body: Object.assign(response, {
+        refresh_status: 'server_misconfigured',
+        resource_result: {
+          error: 'No fetch implementation is available for Patient refresh.'
+        }
+      })
+    };
+  }
+
+  const normalizedBaseUrl = normalizeFhirTarget(options.fhirBaseUrl);
+  const requestUrl = `${normalizedBaseUrl}/${resourcePath}`;
+  const [, resourceId = ''] = resourcePath.split('/');
+  const patientResource = JSON.parse(JSON.stringify(patientBuild.resource_json));
+  patientResource.id = resourceId;
+
+  try {
+    const refreshResponse = await fetchImpl(requestUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/fhir+json'
+      },
+      body: JSON.stringify(patientResource)
+    });
+    const parsed = await readFetchResponse(refreshResponse);
+
+    appendDeliveryDebugLog({
+      phase: 'patient_refresh',
+      deliveryStatus: refreshResponse.ok ? 'resource_refreshed' : 'resource_refresh_failed',
+      fhirBaseUrl: normalizedBaseUrl,
+      patientKey: patientResource.identifier?.[0]?.value || '',
+      encounterKey: sessionExport?.session?.encounterKey || '',
+      resourcePath,
+      httpStatus: refreshResponse.status
+    });
+
+    return {
+      statusCode: refreshResponse.ok ? 200 : 502,
+      body: Object.assign(response, {
+        refresh_status: refreshResponse.ok ? 'refreshed' : 'refresh_failed',
+        resource_result: {
+          status: refreshResponse.status,
+          ok: refreshResponse.ok,
+          body: parsed,
+          label: resourcePath,
+          path: resourcePath,
+          url: requestUrl
+        }
+      })
+    };
+  } catch (error) {
+    appendDeliveryDebugLog({
+      phase: 'patient_refresh_failed',
+      deliveryStatus: 'resource_refresh_failed',
+      fhirBaseUrl: normalizedBaseUrl,
+      patientKey: patientResource.identifier?.[0]?.value || '',
+      encounterKey: sessionExport?.session?.encounterKey || '',
+      resourcePath,
+      error: error.message
+    });
+    return {
+      statusCode: 502,
+      body: Object.assign(response, {
+        refresh_status: 'refresh_failed',
+        resource_result: {
           error: error.message
         }
       })
@@ -694,7 +834,7 @@ function createServer(options = {}) {
       return;
     }
 
-    if (!['POST', 'PATCH'].includes(req.method) || !['/api/fhir/bundle', '/api/fhir/check', '/api/chat/message', '/api/chat/output', '/api/chat/session'].includes(parsedUrl.pathname)) {
+    if (!['POST', 'PATCH'].includes(req.method) || !['/api/fhir/bundle', '/api/fhir/check', '/api/fhir/resource-refresh', '/api/chat/message', '/api/chat/output', '/api/chat/session'].includes(parsedUrl.pathname)) {
       sendJson(res, 404, { error: 'Not found' });
       return;
     }
@@ -743,6 +883,8 @@ function createServer(options = {}) {
           ? await processChatPayload(payload, Object.assign({}, options, { engine: sharedEngine, sessions: sharedSessions }))
           : parsedUrl.pathname === '/api/chat/output'
             ? await processOutputPayload(payload, Object.assign({}, options, { engine: sharedEngine, sessions: sharedSessions }))
+            : parsedUrl.pathname === '/api/fhir/resource-refresh'
+              ? await processResourceRefreshPayload(payload, options)
             : parsedUrl.pathname === '/api/fhir/check'
               ? await processDeliveryCheckPayload(payload, options)
               : await processExportPayload(payload, options);
@@ -787,6 +929,7 @@ if (require.main === module) {
 
 module.exports = {
   processExportPayload,
+  processResourceRefreshPayload,
   processDeliveryCheckPayload,
   processChatPayload,
   processOutputPayload,

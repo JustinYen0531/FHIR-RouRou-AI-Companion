@@ -477,6 +477,28 @@
     };
   }
 
+  function buildPatientResourceOnly(rawInput) {
+    const validationErrors = [];
+    const input = {
+      patient: rawInput && rawInput.patient ? rawInput.patient : {}
+    };
+
+    addValidationErrorIfMissing(input.patient.key, 'patient.key', validationErrors);
+    if (validationErrors.length) {
+      return {
+        resource_json: null,
+        validation_errors: validationErrors,
+        valid: false
+      };
+    }
+
+    return {
+      resource_json: buildPatientResource(input),
+      validation_errors: [],
+      valid: true
+    };
+  }
+
   function buildEncounterResource(input, patientFullUrl) {
     return {
       resourceType: 'Encounter',
@@ -1220,6 +1242,7 @@
   return {
     TW_CORE_PROFILES: TW_CORE_PROFILES,
     INTERNAL_CANONICALS: INTERNAL_CANONICALS,
-    buildSessionExportBundle: buildSessionExportBundle
+    buildSessionExportBundle: buildSessionExportBundle,
+    buildPatientResourceOnly: buildPatientResourceOnly
   };
 });

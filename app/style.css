@@ -4499,6 +4499,34 @@ body.micro-detail-open {
   background: rgba(238,244,249,0.8);
 }
 
+.fhir-link-refresh,
+.fhir-history-resource-refresh {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(66,120,92,0.12);
+  color: #2d6b50;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(66,120,92,0.18);
+  transition: transform 0.16s ease, background 0.16s ease, opacity 0.16s ease;
+  flex-shrink: 0;
+}
+
+.fhir-link-refresh:hover,
+.fhir-history-resource-refresh:hover {
+  transform: translateY(-1px);
+  background: rgba(66,120,92,0.18);
+}
+
+.fhir-link-refresh:disabled,
+.fhir-history-resource-refresh:disabled {
+  opacity: 0.6;
+  cursor: wait;
+  transform: none;
+}
+
 .fhir-link-empty {
   padding: 12px 14px;
   border-radius: 12px;
@@ -4657,6 +4685,13 @@ body.micro-detail-open {
   padding: 10px 12px;
   border-radius: 12px;
   background: rgba(238,244,249,0.8);
+}
+
+.fhir-history-resource-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .fhir-history-resource-copy {

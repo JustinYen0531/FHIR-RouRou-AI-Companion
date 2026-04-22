@@ -2,7 +2,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-const { processExportPayload, processDeliveryCheckPayload, processChatPayload, processOutputPayload, createServer } = require('./fhirDeliveryServer');
+const { processExportPayload, processResourceRefreshPayload, processDeliveryCheckPayload, processChatPayload, processOutputPayload, createServer } = require('./fhirDeliveryServer');
 
 function getSamplePayload() {
   return JSON.parse(
@@ -89,6 +89,55 @@ async function testPublicHapiDeliveryUsesUniqueKeys() {
   assert.strictEqual(result.body.delivery_status, 'delivered');
   assert.ok(patientEntry.resource.identifier[0].value.startsWith(originalPatientKey + '-'));
   assert.ok(encounterEntry.resource.identifier[0].value.startsWith(originalEncounterKey + '-'));
+}
+
+async function testPatientRefreshDelivery() {
+  const payload = getSamplePayload();
+  let requestUrl = '';
+  let requestOptions = null;
+  const fakeFetch = async (url, options) => {
+    requestUrl = url;
+    requestOptions = options;
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ resourceType: 'Patient', id: '131946130' })
+    };
+  };
+
+  const result = await processResourceRefreshPayload({
+    resource_type: 'Patient',
+    resource_path: 'Patient/131946130',
+    session_export: payload
+  }, {
+    fhirBaseUrl: 'https://example.org/fhir',
+    fetchImpl: fakeFetch
+  });
+
+  const submittedPatient = JSON.parse(requestOptions.body);
+  assert.strictEqual(result.statusCode, 200);
+  assert.strictEqual(result.body.refresh_status, 'refreshed');
+  assert.strictEqual(result.body.resource_result.ok, true);
+  assert.strictEqual(requestUrl, 'https://example.org/fhir/Patient/131946130');
+  assert.strictEqual(requestOptions.method, 'PUT');
+  assert.strictEqual(submittedPatient.resourceType, 'Patient');
+  assert.strictEqual(submittedPatient.id, '131946130');
+  assert.strictEqual(submittedPatient.identifier[0].value, payload.patient.key);
+}
+
+async function testPatientRefreshRejectsInvalidPath() {
+  const payload = getSamplePayload();
+  const result = await processResourceRefreshPayload({
+    resource_type: 'Patient',
+    resource_path: 'Encounter/131946131',
+    session_export: payload
+  }, {
+    fhirBaseUrl: 'https://example.org/fhir'
+  });
+
+  assert.strictEqual(result.statusCode, 422);
+  assert.strictEqual(result.body.refresh_status, 'blocked');
+  assert.ok(result.body.validation_errors.some((message) => message.includes('existing Patient')));
 }
 
 async function testChatProxyDelivery() {
@@ -397,6 +446,45 @@ async function testQuickCheckEndpoint() {
   assert.strictEqual(typeof payload.quick_check.can_deliver, 'boolean');
 }
 
+async function testPatientRefreshEndpoint() {
+  const server = createServer({
+    fhirBaseUrl: 'https://example.org/fhir',
+    fetchImpl: async (url, options) => {
+      assert.strictEqual(url, 'https://example.org/fhir/Patient/131946130');
+      assert.strictEqual(options.method, 'PUT');
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ resourceType: 'Patient', id: '131946130' })
+      };
+    }
+  });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const payload = await new Promise((resolve, reject) => {
+    const req = http.request(`http://127.0.0.1:${port}/api/fhir/resource-refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    }, (res) => {
+      let raw = '';
+      res.on('data', (chunk) => { raw += chunk; });
+      res.on('end', () => resolve(JSON.parse(raw)));
+    });
+    req.on('error', reject);
+    req.write(JSON.stringify({
+      resource_type: 'Patient',
+      resource_path: 'Patient/131946130',
+      session_export: getSamplePayload()
+    }));
+    req.end();
+  });
+
+  server.close();
+  assert.strictEqual(payload.refresh_status, 'refreshed');
+  assert.strictEqual(payload.resource_result.ok, true);
+}
+
 async function run() {
   await testDryRunDelivery();
   await testBlockedDelivery();
@@ -404,6 +492,8 @@ async function run() {
   await testQuickCheckBlocked();
   await testTransactionDelivery();
   await testPublicHapiDeliveryUsesUniqueKeys();
+  await testPatientRefreshDelivery();
+  await testPatientRefreshRejectsInvalidPath();
   await testChatProxyDelivery();
   await testChatProxyPassesForceNewSessionFlag();
   await testChatProxyMissingApiKey();
@@ -413,6 +503,7 @@ async function run() {
   await testSessionDeleteEndpoint();
   await testSessionPatchEndpoint();
   await testQuickCheckEndpoint();
+  await testPatientRefreshEndpoint();
   console.log('FHIR delivery server tests passed.');
 }
 

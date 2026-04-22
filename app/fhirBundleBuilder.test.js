@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { buildSessionExportBundle, INTERNAL_CANONICALS } = require('./fhirBundleBuilder');
+const { buildSessionExportBundle, buildPatientResourceOnly, INTERNAL_CANONICALS } = require('./fhirBundleBuilder');
 
 function createValidInput() {
   return {
@@ -279,6 +279,16 @@ function testValidationReportHasExpectedShape() {
   assert.ok(Array.isArray(result.validation_report.issues));
 }
 
+function testBuildsStandalonePatientResource() {
+  const input = createValidInput();
+  const result = buildPatientResourceOnly(input);
+  assert.strictEqual(result.valid, true);
+  assert.deepStrictEqual(result.validation_errors, []);
+  assert.strictEqual(result.resource_json.resourceType, 'Patient');
+  assert.strictEqual(result.resource_json.identifier[0].value, input.patient.key);
+  assert.strictEqual(result.resource_json.name[0].text, input.patient.name);
+}
+
 function run() {
   testBuildsBundleForValidInput();
   testBlocksWithoutClinicianSummary();
@@ -289,6 +299,7 @@ function run() {
   testReferencesAreConnected();
   testClinicalContentIsEnriched();
   testValidationReportHasExpectedShape();
+  testBuildsStandalonePatientResource();
   console.log('FHIR bundle builder tests passed.');
 }
 

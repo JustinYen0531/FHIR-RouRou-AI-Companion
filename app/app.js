@@ -478,6 +478,11 @@ const APP_STATE = {
     reportTimer: null,
     stageTimer: null
   },
+  fhirResourceRefresh: {
+    active: false,
+    resourcePath: '',
+    entryId: ''
+  },
   reportFhirDraft: {
     isLoading: false,
     error: '',
@@ -1221,6 +1226,37 @@ function buildFhirResourceLinks(deliveryResult) {
     });
 }
 
+function buildPatientRefreshSnapshot(sessionExport = null) {
+  if (!sessionExport || typeof sessionExport !== 'object' || !sessionExport.patient) return null;
+  const patientKey = String(sessionExport.patient.key || '').trim();
+  if (!patientKey) return null;
+  return {
+    patient: JSON.parse(JSON.stringify(sessionExport.patient)),
+    session: {
+      encounterKey: String(sessionExport?.session?.encounterKey || '').trim()
+    },
+    __deliveryTargetUrl: String(sessionExport?.__deliveryTargetUrl || '').trim(),
+    __deliverySuffix: String(sessionExport?.__deliverySuffix || '').trim()
+  };
+}
+
+function canRefreshFhirResource(link, refreshPayload = null) {
+  return Boolean(
+    link &&
+    link.resourceType === 'Patient' &&
+    /^Patient\/[^/]+$/i.test(String(link.path || '').trim()) &&
+    refreshPayload?.patient?.key
+  );
+}
+
+function isRefreshingFhirResource(resourcePath = '', entryId = '') {
+  return Boolean(
+    APP_STATE.fhirResourceRefresh?.active &&
+    APP_STATE.fhirResourceRefresh.resourcePath === resourcePath &&
+    (!entryId || APP_STATE.fhirResourceRefresh.entryId === entryId)
+  );
+}
+
 function findFhirResourceLink(deliveryResult, resourceType) {
   return buildFhirResourceLinks(deliveryResult).find((item) => item.label.startsWith(`${resourceType}/`)) || null;
 }
@@ -1242,6 +1278,7 @@ function buildFhirHistoryEntry({ type, draft = null, deliveryResult = null, sess
   const entryType = type === 'delivery' ? 'delivery' : 'draft';
   const resourceLinks = buildFhirResourceLinks(deliveryResult);
   const fixedPatientValues = getFixedPatientValues(deliveryResult, sessionExport);
+  const patientRefreshPayload = buildPatientRefreshSnapshot(sessionExport);
   const targetUrl = normalizeFhirBaseUrl(deliveryResult?.fhir_base_url || sessionExport?.__deliveryTargetUrl || '');
   const summary = isValidFhirDraftOutput(draft)
     ? String(draft?.narrative_summary || '').trim()
@@ -1264,8 +1301,10 @@ function buildFhirHistoryEntry({ type, draft = null, deliveryResult = null, sess
     targetUrl,
     fixedPatientValues,
     resourceLinks,
+    patientRefreshPayload,
     resourceCount: resourceLinks.length || (Array.isArray(draft?.resources) ? draft.resources.length : 0),
-    fingerprint
+    fingerprint,
+    lastRefreshedAt: ''
   };
 }
 
@@ -1335,6 +1374,125 @@ function removeFhirHistoryResource(entryId, resourcePath) {
   appendSystemNotice('已刪除這筆記錄中的指定資源。');
 }
 
+function extractFhirRefreshError(payload = {}) {
+  const validationErrors = Array.isArray(payload?.validation_errors)
+    ? payload.validation_errors.filter(Boolean)
+    : [];
+  if (validationErrors.length) {
+    return validationErrors.join('；');
+  }
+
+  const issueDiagnostics = Array.isArray(payload?.resource_result?.body?.issue)
+    ? payload.resource_result.body.issue
+        .map((issue) => issue?.diagnostics || issue?.details?.text || issue?.code || '')
+        .filter(Boolean)
+    : [];
+  if (issueDiagnostics.length) {
+    return issueDiagnostics.join('；');
+  }
+
+  return payload?.resource_result?.error || payload?.error || 'Patient 更新失敗';
+}
+
+function markFhirHistoryResourceRefreshed(entryId, resourcePath, refreshPayload = null, refreshedAt = '') {
+  if (!entryId) return;
+  let changed = false;
+  APP_STATE.fhirReportHistory = (APP_STATE.fhirReportHistory || []).map((item) => {
+    if (item.id !== entryId) return item;
+    const hasResource = (item.resourceLinks || []).some((link) => link.path === resourcePath);
+    if (!hasResource) return item;
+    changed = true;
+    return {
+      ...item,
+      patientRefreshPayload: refreshPayload || item.patientRefreshPayload || null,
+      lastRefreshedAt: refreshedAt || new Date().toISOString()
+    };
+  });
+
+  if (changed) {
+    saveFhirReportHistory();
+  }
+}
+
+function buildCurrentPatientRefreshPayload() {
+  const deliveryTargetUrl = (
+    APP_STATE.pendingConsent?.deliveryTargetUrl ||
+    APP_STATE.reportOutputs?.session_export?.__deliveryTargetUrl ||
+    APP_STATE.reportOutputs?.fhir_delivery_result?.fhir_base_url ||
+    ''
+  );
+  const baseSessionExport = APP_STATE.pendingConsent?.sessionExport || APP_STATE.reportOutputs?.session_export || null;
+  if (!baseSessionExport) return null;
+  const preparedSessionExport = prepareSessionExportForDelivery(baseSessionExport, deliveryTargetUrl);
+  preparedSessionExport.__deliveryTargetUrl = deliveryTargetUrl;
+  return buildPatientRefreshSnapshot(preparedSessionExport);
+}
+
+async function refreshPatientResource(resourcePath, source = 'current', entryId = '') {
+  const normalizedPath = String(resourcePath || '').trim();
+  if (!/^Patient\/[^/]+$/i.test(normalizedPath)) {
+    appendSystemNotice('目前只有 Patient 資源支援單獨更新。');
+    return;
+  }
+  if (APP_STATE.fhirResourceRefresh?.active) return;
+
+  const historyItem = source === 'history'
+    ? (APP_STATE.fhirReportHistory || []).find((item) => item.id === entryId) || null
+    : null;
+  const refreshPayload = historyItem?.patientRefreshPayload || buildCurrentPatientRefreshPayload();
+  if (!refreshPayload?.patient?.key) {
+    appendSystemNotice('現在找不到可用的 Patient 草稿資料，先回到目前對話重新開一次 FHIR 預覽就可以了。');
+    return;
+  }
+
+  APP_STATE.fhirResourceRefresh = {
+    active: true,
+    resourcePath: normalizedPath,
+    entryId: entryId || ''
+  };
+  renderReportOutputs();
+
+  try {
+    appendSystemNotice(`正在單獨更新 ${normalizedPath}，其他 FHIR 資源不會重送。`);
+    const response = await fetch('/api/fhir/resource-refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        resource_type: 'Patient',
+        resource_path: normalizedPath,
+        session_export: refreshPayload
+      })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(extractFhirRefreshError(payload));
+    }
+
+    const refreshedAt = new Date().toISOString();
+    if (APP_STATE.reportOutputs?.fhir_delivery_result) {
+      const deliveredPatient = findFhirResourceLink(APP_STATE.reportOutputs.fhir_delivery_result, 'Patient');
+      if (deliveredPatient?.path === normalizedPath) {
+        APP_STATE.reportOutputs.fhir_delivery_result.recorded_at = refreshedAt;
+      }
+    }
+
+    markFhirHistoryResourceRefreshed(entryId, normalizedPath, refreshPayload, refreshedAt);
+    saveReportOutputsToCache();
+    renderReportOutputs();
+    appendSystemNotice(`已單獨更新 ${normalizedPath}。這次只重送 Patient，其他資源完全沒有動。`);
+  } catch (error) {
+    renderReportOutputs();
+    appendSystemNotice(error.message || 'Patient 更新失敗');
+  } finally {
+    APP_STATE.fhirResourceRefresh = {
+      active: false,
+      resourcePath: '',
+      entryId: ''
+    };
+    renderReportOutputs();
+  }
+}
+
 function renderFhirHistorySection() {
   const history = Array.isArray(APP_STATE.fhirReportHistory) ? APP_STATE.fhirReportHistory : [];
   if (!history.length) return '';
@@ -1355,6 +1513,7 @@ function renderFhirHistorySection() {
                   <span class="fhir-history-badge neutral">${escapeHtml(item.deliveryStatus || 'unknown')}</span>
                 </div>
                 <div class="fhir-history-time">建立時間：${escapeHtml(formatDateTimeLabel(item.createdAt))}</div>
+                ${item.lastRefreshedAt ? `<div class="fhir-history-time">最近更新：${escapeHtml(formatDateTimeLabel(item.lastRefreshedAt))}</div>` : ''}
               </div>
               <button class="fhir-history-delete-btn" type="button" onclick="removeFhirHistoryEntry('${escapeHtml(item.id)}')">刪除這筆</button>
             </div>
@@ -1373,13 +1532,29 @@ function renderFhirHistorySection() {
             ${Array.isArray(item.resourceLinks) && item.resourceLinks.length ? `
               <div class="fhir-history-resource-list">
                 ${item.resourceLinks.map((link) => `
+                  ${(() => {
+                    const canRefresh = canRefreshFhirResource(link, item.patientRefreshPayload);
+                    const refreshing = isRefreshingFhirResource(link.path, item.id);
+                    return `
                   <div class="fhir-history-resource-item">
                     <div class="fhir-history-resource-copy">
                       <div class="fhir-history-resource-label">${escapeHtml(link.label)}</div>
                       <div class="fhir-history-resource-path">${link.url ? `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.path)}</a>` : escapeHtml(link.path)}</div>
                     </div>
-                    <button class="fhir-history-resource-delete" type="button" onclick="removeFhirHistoryResource('${escapeHtml(item.id)}', '${escapeHtml(link.path)}')">刪除</button>
+                    <div class="fhir-history-resource-actions">
+                      ${canRefresh ? `
+                        <button
+                          class="fhir-history-resource-refresh"
+                          type="button"
+                          onclick="refreshPatientResource('${escapeHtml(link.path)}', 'history', '${escapeHtml(item.id)}')"
+                          ${refreshing ? 'disabled' : ''}
+                        >${refreshing ? '更新中...' : '更新'}</button>
+                      ` : ''}
+                      <button class="fhir-history-resource-delete" type="button" onclick="removeFhirHistoryResource('${escapeHtml(item.id)}', '${escapeHtml(link.path)}')">刪除</button>
+                    </div>
                   </div>
+                `;
+                  })()}
                 `).join('')}
               </div>
             ` : '<div class="fhir-history-empty">這筆記錄目前沒有保留資源連結。</div>'}
@@ -1692,6 +1867,7 @@ function renderReportOutputs() {
   if (fhirLinks) {
     const targetUrl = normalizeFhirBaseUrl(fhirDeliveryResult?.fhir_base_url);
     const linkItems = buildFhirResourceLinks(fhirDeliveryResult);
+    const currentPatientRefreshPayload = buildCurrentPatientRefreshPayload();
     const fixedPatientValues = getFixedPatientValues(
       fhirDeliveryResult,
       APP_STATE.pendingConsent.sessionExport || APP_STATE.reportOutputs.session_export || null
@@ -1730,13 +1906,27 @@ function renderReportOutputs() {
             ${fhirDeliveryResult?.delivery_status === 'delivered' && targetUrl && linkItems.length ? `
             <div class="fhir-link-list">
               ${linkItems.map((item) => `
+                ${(() => {
+                  const canRefresh = canRefreshFhirResource(item, currentPatientRefreshPayload);
+                  const refreshing = isRefreshingFhirResource(item.path);
+                  return `
                 <div class="fhir-link-item">
                   <span class="mat-icon" style="font-size:16px;color:var(--primary)">open_in_new</span>
                   <div class="fhir-link-copy">
                     <div class="fhir-link-label">${escapeHtml(item.label)}</div>
                     <div class="fhir-link-path"><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.path)}</a></div>
                   </div>
+                  ${canRefresh ? `
+                    <button
+                      class="fhir-link-refresh"
+                      type="button"
+                      onclick="refreshPatientResource('${escapeHtml(item.path)}')"
+                      ${refreshing ? 'disabled' : ''}
+                    >${refreshing ? '更新中...' : '更新'}</button>
+                  ` : ''}
                 </div>
+              `;
+                })()}
               `).join('')}
             </div>
             ` : '<div class="fhir-link-empty">這次送出還沒有可直接打開的 HAPI 資源連結。</div>'}
@@ -5728,6 +5918,7 @@ window.saveReportForLater = saveReportForLater;
 window.deleteFhirDraft = deleteFhirDraft;
 window.removeFhirHistoryEntry = removeFhirHistoryEntry;
 window.removeFhirHistoryResource = removeFhirHistoryResource;
+window.refreshPatientResource = refreshPatientResource;
 window.toggleFhirResourceLinks = toggleFhirResourceLinks;
 window.closeConsentPreview = closeConsentPreview;
 window.saveUserPrompt = saveUserPrompt;
