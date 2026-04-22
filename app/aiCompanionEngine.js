@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { completeChat, DEFAULT_GROQ_MODEL, DEFAULT_OPENROUTER_MODEL, DEFAULT_GOOGLE_MODEL } = require('./llmChatClient');
@@ -384,13 +385,157 @@ function normalizeTherapeuticProfile(profile, fallbackUser = '') {
   };
 }
 
+function pickFirstPatientField(candidates) {
+  for (const candidate of candidates) {
+    const value = typeof candidate?.value === 'string' ? candidate.value.trim() : '';
+    if (!value) continue;
+    return {
+      value,
+      source: candidate.source || ''
+    };
+  }
+
+  return {
+    value: '',
+    source: ''
+  };
+}
+
+function sanitizePatientKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48);
+}
+
+function looksLikePlaceholderIdentity(value) {
+  const text = String(value || '').trim();
+  if (!text) return true;
+
+  const lowered = text.toLowerCase();
+  if (
+    lowered === 'demo' ||
+    lowered === 'demo user' ||
+    lowered === 'demo-user' ||
+    lowered === 'web-demo-user' ||
+    lowered === 'test patient' ||
+    lowered === 'anonymous patient' ||
+    lowered === 'patient' ||
+    lowered === 'user'
+  ) {
+    return true;
+  }
+
+  if (/^(demo|test|user|patient)[-_ ]?\d*$/i.test(text)) {
+    return true;
+  }
+
+  if (/^[a-z0-9._-]+$/i.test(text) && !/\s/.test(text) && !/[\u3400-\u9fff]/.test(text)) {
+    return true;
+  }
+
+  return false;
+}
+
+function sanitizePatientDisplayName(value) {
+  const text = String(value || '').trim().replace(/\s+/g, ' ');
+  if (!text || looksLikePlaceholderIdentity(text)) {
+    return '';
+  }
+  return text.slice(0, 80);
+}
+
+function normalizePatientAdministrativeGender(value) {
+  const text = String(value || '').trim().toLowerCase();
+  return ['male', 'female', 'other', 'unknown'].includes(text) ? text : '';
+}
+
+function normalizePatientBirthDate(value) {
+  const text = String(value || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : '';
+}
+
+function buildAnonymousPatientKey(session, explicitSeed = '') {
+  const seed = explicitSeed || session?.user || session?.id || 'session';
+  const digest = crypto.createHash('sha1').update(String(seed)).digest('hex').slice(0, 12);
+  return `anon-${digest}`;
+}
+
+function buildPatientDraft(session) {
+  const state = session && session.state && typeof session.state === 'object' ? session.state : {};
+  const statePatient = state.patient_profile && typeof state.patient_profile === 'object'
+    ? state.patient_profile
+    : (state.patient && typeof state.patient === 'object' ? state.patient : {});
+  const therapeuticProfile = state.therapeutic_profile && typeof state.therapeutic_profile === 'object'
+    ? state.therapeutic_profile
+    : {};
+  const therapeuticPatient = therapeuticProfile.patient && typeof therapeuticProfile.patient === 'object'
+    ? therapeuticProfile.patient
+    : {};
+
+  const nameField = pickFirstPatientField([
+    { value: statePatient.name, source: 'patient_profile.name' },
+    { value: statePatient.display_name, source: 'patient_profile.display_name' },
+    { value: statePatient.displayName, source: 'patient_profile.displayName' },
+    { value: therapeuticPatient.name, source: 'therapeutic_profile.patient.name' },
+    { value: therapeuticPatient.display_name, source: 'therapeutic_profile.patient.display_name' },
+    { value: therapeuticProfile.patient_name, source: 'therapeutic_profile.patient_name' },
+    { value: therapeuticProfile.patientName, source: 'therapeutic_profile.patientName' },
+    { value: session?.user, source: 'session.user' }
+  ]);
+  const keyField = pickFirstPatientField([
+    { value: statePatient.key, source: 'patient_profile.key' },
+    { value: statePatient.identifier, source: 'patient_profile.identifier' },
+    { value: statePatient.patient_key, source: 'patient_profile.patient_key' },
+    { value: therapeuticPatient.key, source: 'therapeutic_profile.patient.key' },
+    { value: therapeuticProfile.patient_key, source: 'therapeutic_profile.patient_key' }
+  ]);
+  const genderField = pickFirstPatientField([
+    { value: statePatient.gender, source: 'patient_profile.gender' },
+    { value: therapeuticPatient.gender, source: 'therapeutic_profile.patient.gender' },
+    { value: therapeuticProfile.gender, source: 'therapeutic_profile.gender' }
+  ]);
+  const birthDateField = pickFirstPatientField([
+    { value: statePatient.birthDate, source: 'patient_profile.birthDate' },
+    { value: statePatient.birth_date, source: 'patient_profile.birth_date' },
+    { value: therapeuticPatient.birthDate, source: 'therapeutic_profile.patient.birthDate' },
+    { value: therapeuticProfile.birthDate, source: 'therapeutic_profile.birthDate' }
+  ]);
+
+  const name = sanitizePatientDisplayName(nameField.value);
+  const gender = normalizePatientAdministrativeGender(genderField.value);
+  const birthDate = normalizePatientBirthDate(birthDateField.value);
+  const sanitizedExplicitKey = sanitizePatientKey(keyField.value);
+  const fallbackKeySeed = sanitizedExplicitKey || sanitizePatientKey(name) || session?.id || session?.user || 'session';
+  const key = sanitizedExplicitKey || buildAnonymousPatientKey(session, fallbackKeySeed);
+  const demographicsStatus = gender && birthDate
+    ? 'basic_demographics_present'
+    : (gender || birthDate ? 'partial_demographics_present' : 'anonymous_minimal');
+
+  const patient = {
+    key,
+    name: name || 'Anonymous Patient',
+    identity_strategy: name ? 'provided_identity' : 'anonymous_default',
+    name_source: name ? nameField.source : 'anonymous_default',
+    demographics_status: demographicsStatus
+  };
+
+  if (gender) {
+    patient.gender = gender;
+  }
+
+  if (birthDate) {
+    patient.birthDate = birthDate;
+  }
+
+  return patient;
+}
+
 function defaultSessionExport(session) {
   return {
-    patient: {
-      key: session.user || 'patient-001',
-      name: session.user || 'Demo User',
-      gender: 'unknown'
-    },
+    patient: buildPatientDraft(session),
     session: {
       encounterKey: session.id,
       startedAt: session.startedAt,

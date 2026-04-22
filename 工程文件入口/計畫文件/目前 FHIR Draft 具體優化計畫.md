@@ -41,6 +41,42 @@
 2. `Patient.name` 可改為較中性的匿名顯示格式，例如 `Anonymous Patient` 或 `Demo Patient A`。
 3. `gender` 若未知可保留，但 UI 與文件要解釋這是「尚未蒐集」而不是漏掉。
 
+#### 一個好的 Patient Draft 應該長什麼樣
+1. 不直接把登入帳號、測試帳號、`web-demo-user` 這類 system handle 當成病人姓名。
+2. 有明確的 `key`，但這個 key 不應該直接長得像前端帳號或操作暱稱。
+3. `name` 要嘛是真正可讀的人名，要嘛是清楚的匿名名稱，例如 `Anonymous Patient`。
+4. `gender` 與 `birthDate` 若沒有可靠來源，可以省略，但不能亂猜。
+5. 最少要讓人一眼看懂：這是匿名病人，還是已提供基本資料的病人。
+
+#### 建議最小版本
+```json
+{
+  "key": "anon-a1b2c3d4e5f6",
+  "name": "Anonymous Patient",
+  "identity_strategy": "anonymous_default",
+  "name_source": "anonymous_default",
+  "demographics_status": "anonymous_minimal"
+}
+```
+
+#### 建議較完整版本
+```json
+{
+  "key": "pt-jane-lin",
+  "name": "Jane Lin",
+  "gender": "female",
+  "birthDate": "1998-04-03",
+  "identity_strategy": "provided_identity",
+  "name_source": "patient_profile.name",
+  "demographics_status": "basic_demographics_present"
+}
+```
+
+#### 本次實作目標
+1. 預設情況下改用乾淨的匿名 patient，而不是直接輸出 `web-demo-user`。
+2. 如果未來 session state 已經有明確病人資料，則優先沿用該資料。
+3. 將 `Patient` 從「能送出去」提升到「看起來像一份正式匿名草稿」。
+
 ---
 
 ### 2. Encounter 層
@@ -184,9 +220,10 @@
 ## 優化優先順序
 
 ### P0：立刻要修
-1. 移除 `ClinicalImpression` 與 `Composition` 中的危險過度推論句。
-2. 清除 `QuestionnaireResponse`、`Composition` 裡的操作句、碎句、重複句。
-3. 將 `Observation` 改成更可讀的症狀摘要。
+1. 修正 `Patient` 的 demo 識別與匿名策略，避免再出現 `web-demo-user` 類型輸出。
+2. 移除 `ClinicalImpression` 與 `Composition` 中的危險過度推論句。
+3. 清除 `QuestionnaireResponse`、`Composition` 裡的操作句、碎句、重複句。
+4. 將 `Observation` 改成更可讀的症狀摘要。
 
 ### P1：決賽前要補強
 1. 收斂 section 數量，提升 `Composition` 的臨床可讀性。
@@ -209,11 +246,14 @@
 ---
 
 ## 驗收標準
-1. 不再出現操作句或無意義求助句進入 `ClinicalImpression`、`Composition`、`QuestionnaireResponse`。
-2. `ClinicalImpression` 不可在證據不足時直接下重判斷。
-3. `Composition` 每個 section 都能被人類快速看懂，不再像原始對話拼貼。
-4. `Observation` 單筆內容要能讓醫師知道「觀察到了什麼」。
-5. 送到 HAPI 仍然成功，且 bundle 結構不被破壞。
+1. `Patient` 不再直接輸出登入帳號或 demo handle 作為病人姓名。
+2. 若沒有病人基本資料，應輸出乾淨的匿名 patient draft。
+3. 若已有明確病人資料，應優先保留該資料。
+4. 不再出現操作句或無意義求助句進入 `ClinicalImpression`、`Composition`、`QuestionnaireResponse`。
+5. `ClinicalImpression` 不可在證據不足時直接下重判斷。
+6. `Composition` 每個 section 都能被人類快速看懂，不再像原始對話拼貼。
+7. `Observation` 單筆內容要能讓醫師知道「觀察到了什麼」。
+8. 送到 HAPI 仍然成功，且 bundle 結構不被破壞。
 
 ---
 

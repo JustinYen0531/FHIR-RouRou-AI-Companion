@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { AICompanionEngine } = require('./aiCompanionEngine');
+const { AICompanionEngine, defaultSessionExport } = require('./aiCompanionEngine');
 const { loadSessionsFromFile, saveSessionsToFile } = require('./sessionPersistence');
 const fs = require('fs');
 const os = require('os');
@@ -314,8 +314,37 @@ async function testNaturalFlowBuildsSessionExport() {
   assert.ok(Array.isArray(result.session_export.hamd_progress_state.covered_dimensions));
   assert.ok(Array.isArray(result.session_export.hamd_progress_state.missing_dimensions));
   assert.ok(typeof result.session_export.hamd_progress_state.status_summary === 'string');
+  assert.strictEqual(result.session_export.patient.name, 'Anonymous Patient');
+  assert.strictEqual(result.session_export.patient.identity_strategy, 'anonymous_default');
+  assert.ok(/^anon-/.test(result.session_export.patient.key));
+  assert.ok(!Object.prototype.hasOwnProperty.call(result.session_export.patient, 'gender'));
   assert.deepStrictEqual(result.session_export.clinician_summary_draft, {});
   assert.deepStrictEqual(result.session_export.delivery_readiness_state, {});
+}
+
+function testDefaultSessionExportPreservesExplicitPatientProfile() {
+  const sessionExport = defaultSessionExport({
+    id: 'conv-patient-1',
+    user: 'demo',
+    startedAt: '2026-04-22T00:00:00.000Z',
+    updatedAt: '2026-04-22T00:10:00.000Z',
+    state: {
+      active_mode: 'auto',
+      risk_flag: 'false',
+      patient_profile: {
+        key: 'pt-jane-lin',
+        name: 'Jane Lin',
+        gender: 'female',
+        birthDate: '1998-04-03'
+      }
+    }
+  });
+
+  assert.strictEqual(sessionExport.patient.key, 'pt-jane-lin');
+  assert.strictEqual(sessionExport.patient.name, 'Jane Lin');
+  assert.strictEqual(sessionExport.patient.gender, 'female');
+  assert.strictEqual(sessionExport.patient.birthDate, '1998-04-03');
+  assert.strictEqual(sessionExport.patient.identity_strategy, 'provided_identity');
 }
 
 async function testOutputCommandBuildsStructuredDrafts() {
@@ -476,6 +505,7 @@ async function run() {
   await testHighRiskRouting();
   await testSelfHarmStatementRoutesToSafety();
   await testNaturalFlowBuildsSessionExport();
+  testDefaultSessionExportPreservesExplicitPatientProfile();
   await testOutputCommandBuildsStructuredDrafts();
   await testFhirDraftCarriesEvidenceAndInferenceTracks();
   await testSomaticSymptomsAreRetainedInDraftOutputs();
