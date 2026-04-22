@@ -12,6 +12,7 @@ const DEFAULT_PROVIDER = 'google';
 const RUNTIME_CONFIG_SOURCE_KEY = 'rourou.aiConfigSource';
 const LEGACY_LOCAL_SESSION_ARCHIVE_KEY = 'rourou.localSessionArchive';
 const LOCAL_SESSION_ARCHIVE_KEY = 'rourou.singleSessionArchive.v2';
+const MAX_LOCAL_SESSION_ARCHIVE_RECORDS = 20;
 const REPORT_OUTPUT_CACHE_KEY = 'rourou.reportOutputsCache.v1';
 const PINNED_SESSION_STORAGE_KEY = 'rourou.pinnedSession.v1';
 const PINNED_SESSION_EXAMPLE_PROMPTS = [
@@ -572,7 +573,7 @@ function getPinCandidateSession() {
   }
   const fromRecent = Array.isArray(APP_STATE.recentSessions) && APP_STATE.recentSessions.length
     ? APP_STATE.recentSessions[0]
-    : getSingleRecentSessionSummary()[0];
+    : getRecentSessionSummaries(1)[0];
   return fromRecent || null;
 }
 
@@ -2344,7 +2345,6 @@ function storeOutputResult(payload) {
   renderReportOutputs();
   updateModeLabels();
   saveReportOutputsToCache();
-  saveCurrentSessionToLocalArchive();
 }
 
 function showScreen(screenId) {
@@ -4006,7 +4006,7 @@ function saveLocalSessionArchiveRecords(records = []) {
     .map((item) => normalizeLocalSessionRecord(item))
     .filter((item) => item.id)
     .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
-    .slice(0, 1);
+    .slice(0, MAX_LOCAL_SESSION_ARCHIVE_RECORDS);
   localStorage.setItem(LOCAL_SESSION_ARCHIVE_KEY, JSON.stringify(normalized));
 }
 
@@ -4026,11 +4026,11 @@ function removeLocalSessionArchive(sessionId) {
   return true;
 }
 
-function getSingleRecentSessionSummary() {
-  const latest = loadLocalSessionArchiveRecords()
+function getRecentSessionSummaries(limit = MAX_LOCAL_SESSION_ARCHIVE_RECORDS) {
+  return loadLocalSessionArchiveRecords()
     .map((session) => summarizeSessionRecord(session))
-    .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))[0];
-  return latest ? [latest] : [];
+    .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
+    .slice(0, Math.max(1, Number(limit) || MAX_LOCAL_SESSION_ARCHIVE_RECORDS));
 }
 
 function buildCurrentSessionRecord() {
@@ -4045,7 +4045,17 @@ function buildCurrentSessionRecord() {
     risk_flag: APP_STATE.lastChatMetadata?.risk_flag || sessionExport.risk_flag || 'false',
     latest_tag_payload: deepCloneSerializable(latestTagPayload, {}),
     burden_level_state: deepCloneSerializable(APP_STATE.lastChatMetadata?.burden_level_state || sessionExport.burden_level_state || {}, {}),
-    therapeutic_profile: deepCloneSerializable(TherapeuticMemory.get(), {})
+    therapeutic_profile: deepCloneSerializable(TherapeuticMemory.get(), {}),
+    clinician_summary_draft: deepCloneSerializable(sessionExport.clinician_summary_draft || {}, {}),
+    patient_analysis: deepCloneSerializable(sessionExport.patient_analysis || {}, {}),
+    patient_review_packet: deepCloneSerializable(sessionExport.patient_review_packet || {}, {}),
+    fhir_delivery_draft: deepCloneSerializable(sessionExport.fhir_delivery_draft || {}, {}),
+    hamd_progress_state: deepCloneSerializable(sessionExport.hamd_progress_state || {}, {}),
+    hamd_formal_assessment: deepCloneSerializable(sessionExport.hamd_formal_assessment || {}, {}),
+    red_flag_payload: deepCloneSerializable(sessionExport.red_flag_payload || {}, {}),
+    patient_authorization_state: deepCloneSerializable(sessionExport.patient_authorization_state || {}, {}),
+    delivery_readiness_state: deepCloneSerializable(sessionExport.delivery_readiness_state || {}, {}),
+    summary_draft_state: deepCloneSerializable(sessionExport.summary_draft_state || {}, {})
   };
 
   return normalizeLocalSessionRecord({
@@ -4071,13 +4081,91 @@ function buildCurrentSessionRecord() {
   });
 }
 
+function buildSessionArchiveFingerprint(record = {}) {
+  const normalized = normalizeLocalSessionRecord(record);
+  return JSON.stringify({
+    id: normalized.id,
+    user: normalized.user,
+    history: normalized.history.map((item) => ({
+      role: item.role,
+      content: item.content
+    })),
+    state: normalized.state,
+    memory_snapshot: normalized.memory_snapshot
+  });
+}
+
+function hasMeaningfulSessionContent(record = null) {
+  const target = record && typeof record === 'object' ? record : buildCurrentSessionRecord();
+  if (!target) return false;
+  const history = Array.isArray(target.history) ? target.history : [];
+  if (history.length > 0) return true;
+  const summary = summarizeSessionRecord(target);
+  return Boolean(summary.last_user_message || summary.last_assistant_message || summary.latest_tag_summary);
+}
+
+function isSessionAlreadyArchived(record = null) {
+  const target = record && typeof record === 'object' ? record : buildCurrentSessionRecord();
+  if (!target || !target.id) return false;
+  const archived = findLocalSessionArchiveById(target.id);
+  if (!archived) return false;
+  return buildSessionArchiveFingerprint(archived) === buildSessionArchiveFingerprint(target);
+}
+
+function shouldPromptToSaveCurrentSession() {
+  const record = buildCurrentSessionRecord();
+  if (!record || !record.id) return false;
+  if (!hasMeaningfulSessionContent(record)) return false;
+  return !isSessionAlreadyArchived(record);
+}
+
+function saveSessionRecordToLocalArchive(record = null) {
+  const finalRecord = record && typeof record === 'object' ? normalizeLocalSessionRecord(record) : buildCurrentSessionRecord();
+  if (!finalRecord || !finalRecord.id) return null;
+  const records = loadLocalSessionArchiveRecords().filter((item) => item.id !== finalRecord.id);
+  records.unshift(finalRecord);
+  saveLocalSessionArchiveRecords(records);
+  APP_STATE.recentSessions = getRecentSessionSummaries();
+  syncPinnedSessionButtonState();
+  return finalRecord;
+}
+
 function saveCurrentSessionToLocalArchive() {
   const record = buildCurrentSessionRecord();
   if (!record || !record.id) return;
-  const records = loadLocalSessionArchiveRecords().filter((item) => item.id !== record.id);
-  records.unshift(record);
-  saveLocalSessionArchiveRecords(records);
-  syncPinnedSessionButtonState();
+  saveSessionRecordToLocalArchive(record);
+}
+
+async function maybeSaveCurrentSessionBefore(actionLabel = '離開目前這段對話') {
+  const record = buildCurrentSessionRecord();
+  if (!record || !record.id || !shouldPromptToSaveCurrentSession()) {
+    return { proceeded: true, saved: false };
+  }
+
+  const summary = pickReadableSessionText(
+    [
+      summarizeSessionRecord(record).latest_tag_summary,
+      summarizeSessionRecord(record).last_user_message,
+      summarizeSessionRecord(record).last_assistant_message
+    ],
+    '這段對話目前還沒有可讀摘要。'
+  );
+  const shouldSave = window.confirm(
+    `要先儲存目前這段對話，再${actionLabel}嗎？\n\n按「確定」會儲存；按「取消」則不儲存直接繼續。\n\n摘要：${summary}`
+  );
+  if (shouldSave) {
+    saveSessionRecordToLocalArchive(record);
+    appendSystemNotice('已儲存這段對話，首頁會保留這筆與先前的舊對話。');
+    return { proceeded: true, saved: true };
+  }
+  return { proceeded: true, saved: false };
+}
+
+async function navigateHome() {
+  if (APP_STATE.currentScreen !== 'screen-home') {
+    await maybeSaveCurrentSessionBefore('回首頁');
+  }
+  showScreen('screen-home');
 }
 
 function applySessionRecord(session = {}, fallbackSessionId = '') {
@@ -4114,7 +4202,6 @@ function applySessionRecord(session = {}, fallbackSessionId = '') {
   updateModeLabels();
   renderReportOutputs();
   saveReportOutputsToCache();
-  saveCurrentSessionToLocalArchive();
   showScreen('screen-chat');
 }
 
@@ -4256,7 +4343,7 @@ function renderRecentSessions() {
   }
 
   if (!sessions.length && !pinned) {
-    container.innerHTML = `<div class="home-session-empty">目前還沒有已保存的對話。你可以先開始一段新的聊天，之後這裡就會顯示最近的對話。</div>`;
+    container.innerHTML = `<div class="home-session-empty">目前還沒有已保存的對話。你可以先開始一段新的聊天，之後這裡就會累積顯示你手動儲存過的紀錄。</div>`;
     return;
   }
 
@@ -4338,7 +4425,7 @@ function renderRecentSessions() {
   }).join('');
 
   const emptySecondary = !sessions.length && pinned
-    ? '<div class="home-session-empty">目前沒有其他最近對話，先展示上面的釘選對話即可。</div>'
+    ? '<div class="home-session-empty">目前沒有其他已保存對話，先展示上面的釘選對話即可。</div>'
     : '';
 
   container.innerHTML = `${pinnedHtml}${sessionListHtml}${emptySecondary}`;
@@ -4358,7 +4445,7 @@ async function deleteRecentSession(sessionId) {
 
   const removedLocalBackup = removeLocalSessionArchive(sessionId);
   if (!removedLocalBackup) {
-    appendSystemNotice('目前沒有可刪除的上一段對話。');
+    appendSystemNotice('目前沒有可刪除的已保存對話。');
     return;
   }
 
@@ -4372,7 +4459,7 @@ async function deleteRecentSession(sessionId) {
     renderRecentSessions();
   }
 
-  appendSystemNotice('已刪除上一段對話。');
+  appendSystemNotice('已刪除這筆已保存對話。');
   renderRecentSessions();
 }
 
@@ -4383,11 +4470,11 @@ async function loadRecentSessions() {
   }
 
   APP_STATE.pinnedSession = loadPinnedSession();
-  APP_STATE.recentSessions = getSingleRecentSessionSummary();
+  APP_STATE.recentSessions = getRecentSessionSummaries();
   if (APP_STATE.recentSessions.length || APP_STATE.pinnedSession) {
     renderRecentSessions();
   } else if (container) {
-    container.innerHTML = `<div class="home-session-empty">目前還沒有已保存的對話。你之後上一段聊天會顯示在這裡。</div>`;
+    container.innerHTML = `<div class="home-session-empty">目前還沒有已保存的對話。等你手動儲存後，這裡就會依序保留新舊紀錄。</div>`;
   }
   syncPinnedSessionButtonState();
 }
@@ -4548,8 +4635,8 @@ async function continueSpecificSession(sessionId) {
   }
 }
 
-function startNewConversation() {
-  saveCurrentSessionToLocalArchive();
+async function startNewConversation() {
+  await maybeSaveCurrentSessionBefore('開始新對話');
   resetConversationState();
   APP_STATE.pendingFreshSession = true;
   renderChatHistory([]);
@@ -5467,7 +5554,6 @@ async function sendMessage() {
     saveReportOutputsToCache();
     setTyping(false);
     await appendMessage('ai', payload.answer || '我有收到你的訊息，但這次沒有拿到完整回覆。', { animate: true });
-    saveCurrentSessionToLocalArchive();
     evaluateMicroIntervention(payload, { lastUserMessage: message });
 
     // 每 3 輪觸發自動萃取
@@ -6312,6 +6398,7 @@ window.toggleFhirResourceLinks = toggleFhirResourceLinks;
 window.closeConsentPreview = closeConsentPreview;
 window.saveUserPrompt = saveUserPrompt;
 window.closeShortcutBar = closeShortcutBar;
+window.navigateHome = navigateHome;
 window.openPatientProfileModal = () => PatientProfile.openModal();
 window.closePatientProfileModal = () => PatientProfile.closeModal();
 

@@ -15,7 +15,7 @@
   <!-- ===== SCREEN: HOME (NEW) ===== -->
   <div class="screen active" id="screen-home">
     <main class="home-canvas">
-      <div class="home-avatar" onclick="showScreen('screen-home')" style="cursor:pointer">
+      <div class="home-avatar" onclick="navigateHome()" style="cursor:pointer">
         <span class="mat-icon fill">auto_awesome</span>
       </div>
       <h1 class="home-headline">今天想聊聊嗎？</h1>
@@ -69,7 +69,7 @@
   <div class="screen" id="screen-chat">
     <header class="top-bar glass">
       <div class="top-bar-left">
-        <div class="avatar-orb" onclick="showScreen('screen-home')" style="cursor:pointer">
+        <div class="avatar-orb" onclick="navigateHome()" style="cursor:pointer">
           <span class="mat-icon fill">auto_awesome</span>
         </div>
         <div>
@@ -181,7 +181,7 @@
   <div class="screen" id="screen-energy">
     <header class="top-bar glass">
       <div class="top-bar-left">
-        <div class="avatar-orb" onclick="showScreen('screen-home')" style="cursor:pointer">
+        <div class="avatar-orb" onclick="navigateHome()" style="cursor:pointer">
           <span class="mat-icon fill">auto_awesome</span>
         </div>
         <h1 class="app-title">Rou Rou</h1>
@@ -276,7 +276,7 @@
   <!-- ===== SCREEN: REPORT ===== -->
   <div class="screen" id="screen-report">
     <header class="top-bar glass">
-      <div class="avatar-sm" onclick="showScreen('screen-home')" style="cursor:pointer">
+      <div class="avatar-sm" onclick="navigateHome()" style="cursor:pointer">
         <span class="mat-icon fill" style="font-size:18px;color:#446655">person</span>
       </div>
       <h1 class="page-title">診前報告審閱</h1>
@@ -579,7 +579,7 @@
   <div class="screen" id="screen-clinical">
     <header class="top-bar glass">
       <div class="top-bar-left">
-        <div class="avatar-sm" onclick="showScreen('screen-home')" style="cursor:pointer"><span class="mat-icon fill" style="font-size:18px;color:#446655">person</span></div>
+        <div class="avatar-sm" onclick="navigateHome()" style="cursor:pointer"><span class="mat-icon fill" style="font-size:18px;color:#446655">person</span></div>
         <div><h1 class="app-title">Rou Rou</h1><div class="sub-title">CLINICAL DASHBOARD</div></div>
       </div>
       <button class="icon-btn" type="button" aria-label="手動切換模式" onclick="showScreen('screen-energy')">
