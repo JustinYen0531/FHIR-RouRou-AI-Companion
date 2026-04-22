@@ -246,6 +246,63 @@
     return result;
   }
 
+  // ── Evidence 清洗規則 ────────────────────────────────────────────────────────
+  // 目的：移除不應進入 QuestionnaireResponse.item 的低品質句子
+  // 規則：
+  //   1. 過短句（少於 6 個字元）
+  //   2. 操作句 — 帶有系統操作意圖的句子（「請幫我」「請分析」「繼續」等）
+  //   3. 純求助句 — 只是表達「不知道怎麼辦」的句子，無症狀訊號
+  //   4. 重複句 — 與已保留句意思完全相同
+  //   5. 上限 maxCount 筆（預設 5）
+
+  var OPERATION_PATTERNS = [
+    /^(請|麻煩|幫我|能不能|可以|繼續|開始|我要|好的|謝謝|嗯|好)/,
+    /請(幫|分析|看|告訴|給|評估|整理)/,
+    /^(繼續|開始|結束|送出|確認|OK|ok|yes|no|是|不是|好|嗯+)$/i,
+    /(怎麼辦|該怎麼|不知道|沒辦法)(了?)(啊|嗎|呢)?$/
+  ];
+
+  var HELP_SEEKING_PATTERNS = [
+    /^我(現在)?(不知道|沒辦法|很迷茫|好難)/,
+    /^(我|這樣)(是不是|還好嗎|正常嗎)/,
+    /求你|拜託(你|一下)/
+  ];
+
+  function isLowSignalSentence(text) {
+    var s = String(text).trim();
+    // 規則 1：過短
+    if (s.length < 6) return true;
+    // 規則 2：操作句
+    for (var i = 0; i < OPERATION_PATTERNS.length; i++) {
+      if (OPERATION_PATTERNS[i].test(s)) return true;
+    }
+    // 規則 3：純求助句
+    for (var j = 0; j < HELP_SEEKING_PATTERNS.length; j++) {
+      if (HELP_SEEKING_PATTERNS[j].test(s)) return true;
+    }
+    return false;
+  }
+
+  function cleanEvidence(evidenceArray, maxCount) {
+    var max = typeof maxCount === 'number' && maxCount > 0 ? maxCount : 5;
+    var seen = [];
+    var result = [];
+    var raw = asArray(evidenceArray);
+    for (var i = 0; i < raw.length; i++) {
+      var s = String(raw[i]).trim();
+      // 規則 1-3：低訊號句過濾
+      if (isLowSignalSentence(s)) continue;
+      // 規則 4：重複句（完全相同）
+      if (seen.indexOf(s) !== -1) continue;
+      seen.push(s);
+      result.push(s);
+      // 規則 5：上限
+      if (result.length >= max) break;
+    }
+    return result;
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
+
   function collectQuestionnaireItems(input, hamdProgress, formalAssessment, clinicianSummary, patientReviewPacket, fhirDeliveryDraft) {
     const items = [];
     const formalItems = asArray(formalAssessment.items).filter(function (item) {
@@ -309,13 +366,17 @@
     }
 
     if (asArray(hamdProgress.recent_evidence).length > 0) {
-      items.push({
-        linkId: 'recent_evidence',
-        text: 'Recent evidence',
-        answer: asArray(hamdProgress.recent_evidence).map(function (value) {
-          return { valueString: String(value) };
-        })
-      });
+      // ── 套用清洗規則：移除操作句、求助句、過短句、重複句，最多保留 5 筆 ──
+      var cleanedEvidence = cleanEvidence(hamdProgress.recent_evidence, 5);
+      if (cleanedEvidence.length > 0) {
+        items.push({
+          linkId: 'recent_evidence',
+          text: 'Recent evidence (high-signal)',
+          answer: cleanedEvidence.map(function (value) {
+            return { valueString: value };
+          })
+        });
+      }
     }
 
     if (hamdProgress.next_recommended_dimension) {
