@@ -15,6 +15,24 @@
     DocumentReference: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/DocumentReference-twcore',
     Provenance: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Provenance-twcore'
   };
+  const CLINICAL_IMPRESSION_STATUSES = new Set([
+    'in-progress',
+    'completed',
+    'entered-in-error'
+  ]);
+  const COMPOSITION_STATUSES = new Set([
+    'preliminary',
+    'final',
+    'amended',
+    'entered-in-error'
+  ]);
+  const QUESTIONNAIRE_RESPONSE_STATUSES = new Set([
+    'in-progress',
+    'completed',
+    'amended',
+    'entered-in-error',
+    'stopped'
+  ]);
 
   function getEntries(bundle) {
     return bundle && Array.isArray(bundle.entry) ? bundle.entry : [];
@@ -65,6 +83,11 @@
     if (!Array.isArray(resource.item) || !resource.item.length) {
       pushIssue(report, 'error', 'questionnaire_items_missing', 'QuestionnaireResponse.item should contain at least one item.', 'entry[' + index + '].resource.item');
     }
+    if (!resource.status) {
+      pushIssue(report, 'error', 'questionnaire_status_missing', 'QuestionnaireResponse.status is required.', 'entry[' + index + '].resource.status');
+    } else if (!QUESTIONNAIRE_RESPONSE_STATUSES.has(resource.status)) {
+      pushIssue(report, 'error', 'questionnaire_status_invalid', 'QuestionnaireResponse.status must be in-progress, completed, amended, entered-in-error, or stopped.', 'entry[' + index + '].resource.status');
+    }
   }
 
   function validateObservation(report, resource, index) {
@@ -92,6 +115,11 @@
     if (!Array.isArray(resource.section) || !resource.section.length) {
       pushIssue(report, 'error', 'composition_sections_missing', 'Composition.section should contain at least one section.', 'entry[' + index + '].resource.section');
     }
+    if (!resource.status) {
+      pushIssue(report, 'error', 'composition_status_missing', 'Composition.status is required.', 'entry[' + index + '].resource.status');
+    } else if (!COMPOSITION_STATUSES.has(resource.status)) {
+      pushIssue(report, 'error', 'composition_status_invalid', 'Composition.status must be preliminary, final, amended, or entered-in-error.', 'entry[' + index + '].resource.status');
+    }
     if (!resource.title) {
       pushIssue(report, 'warning', 'composition_title_missing', 'Composition.title is recommended.', 'entry[' + index + '].resource.title');
     }
@@ -106,6 +134,8 @@
     }
     if (!resource.status) {
       pushIssue(report, 'error', 'clinical_impression_status_missing', 'ClinicalImpression.status is required.', 'entry[' + index + '].resource.status');
+    } else if (!CLINICAL_IMPRESSION_STATUSES.has(resource.status)) {
+      pushIssue(report, 'error', 'clinical_impression_status_invalid', 'ClinicalImpression.status must be in-progress, completed, or entered-in-error.', 'entry[' + index + '].resource.status');
     }
     if (!resource.description && !resource.summary) {
       pushIssue(report, 'error', 'clinical_impression_summary_missing', 'ClinicalImpression.description or summary is required.', 'entry[' + index + '].resource.description');

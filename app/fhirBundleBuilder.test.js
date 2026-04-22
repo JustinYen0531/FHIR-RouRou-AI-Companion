@@ -256,6 +256,7 @@ function testClinicalContentIsEnriched() {
   assert.ok(questionnaire.resource.item.some((item) => item.linkId === 'patient_confirm_0'));
   assert.ok(questionnaire.resource.item.some((item) => item.linkId === 'questionnaire_target_0'));
   assert.ok(clinicalImpression.resource.description);
+  assert.strictEqual(clinicalImpression.resource.status, 'completed');
   assert.ok(Array.isArray(clinicalImpression.resource.finding) && clinicalImpression.resource.finding.length >= 1);
   assert.strictEqual(composition.resource.confidentiality, 'R');
   assert.ok(composition.resource.section.some((section) => section.code && section.code.text === 'chief-concerns'));

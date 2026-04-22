@@ -841,7 +841,7 @@
           value: input.session.encounterKey
         }
       ],
-      status: 'preliminary',
+      status: 'completed',
       code: {
         text: 'AI Companion risk and context impression'
       },
