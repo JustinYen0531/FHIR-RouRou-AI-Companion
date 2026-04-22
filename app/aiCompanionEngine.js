@@ -385,6 +385,54 @@ function normalizeTherapeuticProfile(profile, fallbackUser = '') {
   };
 }
 
+function normalizePatientProfile(profile = {}) {
+  const base = profile && typeof profile === 'object' ? profile : {};
+  const key = sanitizePatientKey(
+    base.key
+    || base.profileKey
+    || base.identifier
+    || base.patient_key
+  );
+  const name = sanitizePatientDisplayName(base.name || base.display_name || base.displayName);
+  const gender = normalizePatientAdministrativeGender(base.gender);
+  const birthDate = normalizePatientBirthDate(base.birthDate || base.birth_date);
+  const phone = String(base.phone || '').trim();
+  const email = String(base.email || '').trim();
+  const emergencyName = sanitizePatientDisplayName(base.emergencyName || base.emergency_name);
+  const emergencyPhone = String(base.emergencyPhone || base.emergency_phone || '').trim();
+  const telecom = [
+    phone ? { system: 'phone', value: phone, use: 'mobile' } : null,
+    email ? { system: 'email', value: email, use: 'home' } : null
+  ].filter(Boolean);
+  const contact = (emergencyName || emergencyPhone)
+    ? [{
+        relationship: [{ text: 'Emergency contact' }],
+        name: emergencyName ? { text: emergencyName } : undefined,
+        telecom: emergencyPhone
+          ? [{
+              system: 'phone',
+              value: emergencyPhone,
+              use: 'mobile'
+            }]
+          : undefined
+      }]
+    : [];
+
+  return {
+    profileKey: key,
+    key,
+    name,
+    gender,
+    birthDate,
+    phone,
+    email,
+    emergencyName,
+    emergencyPhone,
+    telecom,
+    contact
+  };
+}
+
 function pickFirstPatientField(candidates) {
   for (const candidate of candidates) {
     const value = typeof candidate?.value === 'string' ? candidate.value.trim() : '';
@@ -466,7 +514,7 @@ function buildAnonymousPatientKey(session, explicitSeed = '') {
 function buildPatientDraft(session) {
   const state = session && session.state && typeof session.state === 'object' ? session.state : {};
   const statePatient = state.patient_profile && typeof state.patient_profile === 'object'
-    ? state.patient_profile
+    ? normalizePatientProfile(state.patient_profile)
     : (state.patient && typeof state.patient === 'object' ? state.patient : {});
   const therapeuticProfile = state.therapeutic_profile && typeof state.therapeutic_profile === 'object'
     ? state.therapeutic_profile
@@ -487,6 +535,7 @@ function buildPatientDraft(session) {
   ]);
   const keyField = pickFirstPatientField([
     { value: statePatient.key, source: 'patient_profile.key' },
+    { value: statePatient.profileKey, source: 'patient_profile.profileKey' },
     { value: statePatient.identifier, source: 'patient_profile.identifier' },
     { value: statePatient.patient_key, source: 'patient_profile.patient_key' },
     { value: therapeuticPatient.key, source: 'therapeutic_profile.patient.key' },
@@ -530,6 +579,30 @@ function buildPatientDraft(session) {
     patient.birthDate = birthDate;
   }
 
+  if (statePatient.phone) {
+    patient.phone = statePatient.phone;
+  }
+
+  if (statePatient.email) {
+    patient.email = statePatient.email;
+  }
+
+  if (statePatient.emergencyName) {
+    patient.emergencyName = statePatient.emergencyName;
+  }
+
+  if (statePatient.emergencyPhone) {
+    patient.emergencyPhone = statePatient.emergencyPhone;
+  }
+
+  if (Array.isArray(statePatient.telecom) && statePatient.telecom.length) {
+    patient.telecom = statePatient.telecom.map((item) => Object.assign({}, item));
+  }
+
+  if (Array.isArray(statePatient.contact) && statePatient.contact.length) {
+    patient.contact = statePatient.contact.map((item) => Object.assign({}, item));
+  }
+
   return patient;
 }
 
@@ -557,6 +630,7 @@ function defaultSessionExport(session) {
     fhir_delivery_draft: normalizeObjectState(session.state, 'fhir_delivery_draft', {}),
     summary_draft_state: normalizeObjectState(session.state, 'summary_draft_state', {}),
     symptom_bridge_state: normalizeObjectState(session.state, 'symptom_bridge_state', {}),
+    patient_profile: normalizeObjectState(session.state, 'patient_profile', {}),
     therapeutic_profile: normalizeObjectState(session.state, 'therapeutic_profile', normalizeTherapeuticProfile({}, session.user))
   };
 }
@@ -2552,6 +2626,11 @@ class AICompanionEngine {
     session.state.therapeutic_profile = normalizeTherapeuticProfile(profile, session.user);
   }
 
+  syncPatientProfile(session, profile) {
+    if (!session || !profile || typeof profile !== 'object') return;
+    session.state.patient_profile = normalizePatientProfile(profile);
+  }
+
   getOrCreateSession(id, user, options = {}) {
     const forceNewSession = Boolean(options.forceNewSession);
     const sessionId = id || (!forceNewSession && this.findLatestSessionIdByUser(user)) || `conv-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
@@ -2595,6 +2674,7 @@ class AICompanionEngine {
     });
     const state = session.state;
     this.syncTherapeuticProfile(session, payload.therapeutic_profile);
+    this.syncPatientProfile(session, payload.patient_profile);
     if (!message) {
       this.persistSessions();
       return {
@@ -3195,6 +3275,7 @@ class AICompanionEngine {
       forceNewSession: payload.force_new_session
     });
     this.syncTherapeuticProfile(session, payload.therapeutic_profile);
+    this.syncPatientProfile(session, payload.patient_profile);
     if (Array.isArray(payload.client_history) && payload.client_history.length && (!Array.isArray(session.history) || session.history.length === 0)) {
       const hydratedHistory = normalizeClientHistoryForHydration(payload.client_history, MAX_TRANSCRIPT_TURNS_FOR_RETRIEVAL);
       if (hydratedHistory.length) {

@@ -595,7 +595,8 @@ async function processChatPayload(payload, options = {}) {
         user,
         conversation_id: payload.conversation_id || '',
         force_new_session: Boolean(payload.force_new_session),
-        therapeutic_profile: payload.therapeutic_profile || null
+        therapeutic_profile: payload.therapeutic_profile || null,
+        patient_profile: payload.patient_profile || null
       }
     );
 
@@ -673,6 +674,7 @@ async function processOutputPayload(payload, options = {}) {
       force_refresh: Boolean(payload.force_refresh),
       client_history: Array.isArray(payload.client_history) ? payload.client_history : [],
       therapeutic_profile: payload.therapeutic_profile || null,
+      patient_profile: payload.patient_profile || null,
       user,
       output_type: outputType,
       instruction: payload.instruction || ''
@@ -880,14 +882,25 @@ function createServer(options = {}) {
           return;
         }
 
+        let updated = false;
+        session.state = session.state && typeof session.state === 'object' ? session.state : {};
+
         if (payload.therapeutic_profile && typeof payload.therapeutic_profile === 'object') {
-          session.state = session.state && typeof session.state === 'object' ? session.state : {};
           session.state.therapeutic_profile = payload.therapeutic_profile;
+          updated = true;
+        }
+
+        if (payload.patient_profile && typeof payload.patient_profile === 'object') {
+          session.state.patient_profile = payload.patient_profile;
+          updated = true;
+        }
+
+        if (updated) {
           session.updatedAt = new Date().toISOString();
           persistence.save(sharedSessions);
         }
 
-        sendJson(res, 200, { ok: true, updated: true, session_id: sessionId });
+        sendJson(res, 200, { ok: true, updated, session_id: sessionId });
         return;
       }
 

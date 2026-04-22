@@ -345,6 +345,40 @@ function testDefaultSessionExportPreservesExplicitPatientProfile() {
   assert.strictEqual(sessionExport.patient.gender, 'female');
   assert.strictEqual(sessionExport.patient.birthDate, '1998-04-03');
   assert.strictEqual(sessionExport.patient.identity_strategy, 'provided_identity');
+  assert.deepStrictEqual(sessionExport.patient_profile, {
+    key: 'pt-jane-lin',
+    name: 'Jane Lin',
+    gender: 'female',
+    birthDate: '1998-04-03'
+  });
+}
+
+async function testPatientProfilePersistsInSessionAndSessionExport() {
+  const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
+  const result = await engine.handleMessage({
+    message: '最近壓力有點大。',
+    user: 'demo',
+    conversation_id: 'conv-patient-profile-1',
+    patient_profile: {
+      profileKey: 'patient-lin-xiaoming',
+      name: '林小明',
+      gender: 'male',
+      birthDate: '1994-02-03',
+      phone: '0912345678',
+      email: 'xiaoming@example.com',
+      emergencyName: '林媽媽',
+      emergencyPhone: '0988777666'
+    }
+  });
+
+  assert.strictEqual(result.session_export.patient.key, 'patient-lin-xiaoming');
+  assert.strictEqual(result.session_export.patient.name, '林小明');
+  assert.strictEqual(result.session_export.patient.gender, 'male');
+  assert.strictEqual(result.session_export.patient.birthDate, '1994-02-03');
+  assert.strictEqual(result.session_export.patient.phone, '0912345678');
+  assert.strictEqual(result.session_export.patient.email, 'xiaoming@example.com');
+  assert.strictEqual(result.session_export.patient.contact[0].name.text, '林媽媽');
+  assert.strictEqual(result.state.patient_profile.profileKey, 'patient-lin-xiaoming');
 }
 
 async function testOutputCommandBuildsStructuredDrafts() {
@@ -506,6 +540,7 @@ async function run() {
   await testSelfHarmStatementRoutesToSafety();
   await testNaturalFlowBuildsSessionExport();
   testDefaultSessionExportPreservesExplicitPatientProfile();
+  await testPatientProfilePersistsInSessionAndSessionExport();
   await testOutputCommandBuildsStructuredDrafts();
   await testFhirDraftCarriesEvidenceAndInferenceTracks();
   await testSomaticSymptomsAreRetainedInDraftOutputs();

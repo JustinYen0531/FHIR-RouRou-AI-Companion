@@ -431,6 +431,13 @@ async function testSessionPatchEndpoint() {
         version: '1.0',
         userId: 'demo-user',
         stressors: [{ label: '工作壓力' }]
+      },
+      patient_profile: {
+        profileKey: 'pt-lin-xiao',
+        name: '林小明',
+        gender: 'male',
+        birthDate: '1994-02-03',
+        phone: '0912345678'
       }
     }));
     req.end();
@@ -440,6 +447,8 @@ async function testSessionPatchEndpoint() {
   assert.strictEqual(payload.ok, true);
   assert.strictEqual(payload.updated, true);
   assert.deepStrictEqual(sessions.get('conv-a').state.therapeutic_profile.stressors, [{ label: '工作壓力' }]);
+  assert.strictEqual(sessions.get('conv-a').state.patient_profile.name, '林小明');
+  assert.strictEqual(sessions.get('conv-a').state.patient_profile.profileKey, 'pt-lin-xiao');
 }
 
 async function testQuickCheckEndpoint() {
