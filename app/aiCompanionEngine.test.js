@@ -305,6 +305,29 @@ function createInvalidBridgeModelClient() {
   };
 }
 
+function createEmptyHamdScoringModelClient() {
+  const fallbackClient = createStubModelClient();
+  return async (payload) => {
+    const systemPrompt = String(payload?.systemPrompt || '');
+    if (systemPrompt.includes('HAM-D證據分類器')) {
+      return {
+        text: JSON.stringify({
+          assessment_mode: 'mixed',
+          items: []
+        })
+      };
+    }
+    if (systemPrompt.includes('HAM-D正式題項評分器')) {
+      return {
+        text: JSON.stringify({
+          items: []
+        })
+      };
+    }
+    return fallbackClient(payload);
+  };
+}
+
 async function testCommandRouting() {
   const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
   const result = await engine.handleMessage({ message: 'auto', user: 'demo', conversation_id: 'conv-1' });
@@ -473,10 +496,25 @@ async function testOutputCommandBuildsStructuredDrafts() {
   assert.ok(Array.isArray(result.session_export.clinician_summary_draft.hamd_evidence_table));
   assert.ok(Array.isArray(result.session_export.clinician_summary_draft.symptom_evidence_track));
   assert.ok(Array.isArray(result.session_export.clinician_summary_draft.symptom_inference_track));
+  assert.ok(result.session_export.clinician_summary_draft.hamd_item_scores.length > 0);
   assert.ok(
     result.session_export.clinician_summary_draft.symptom_observations.every((item) => !String(item).includes('FHIR草稿'))
   );
   assert.strictEqual(result.session_export.delivery_readiness_state.readiness_status, 'ready_for_backend_mapping');
+}
+
+async function testFormalAssessmentFallsBackWhenAiReturnsEmptyScorePayload() {
+  const engine = new AICompanionEngine({ modelClient: createEmptyHamdScoringModelClient(), apiKey: 'fake' });
+  const result = await engine.handleMessage({
+    message: '我最近很低落，幾乎每天都睡不好，也會一直怪自己。',
+    user: 'demo',
+    conversation_id: 'conv-empty-hamd'
+  });
+  const formal = result.session_export.hamd_formal_assessment;
+  const scoredItems = formal.items.filter((item) => typeof item.ai_suggested_score === 'number');
+  assert.ok(scoredItems.length > 0);
+  assert.ok(typeof formal.ai_total_score === 'number');
+  assert.ok(formal.ai_total_score > 0);
 }
 
 async function testFhirDraftCarriesEvidenceAndInferenceTracks() {
@@ -665,6 +703,7 @@ async function run() {
   testDefaultSessionExportPreservesExplicitPatientProfile();
   await testPatientProfilePersistsInSessionAndSessionExport();
   await testOutputCommandBuildsStructuredDrafts();
+  await testFormalAssessmentFallsBackWhenAiReturnsEmptyScorePayload();
   await testFhirDraftCarriesEvidenceAndInferenceTracks();
   await testSomaticSymptomsAreRetainedInDraftOutputs();
   await testPollutedBridgeArtifactsAreSanitized();

@@ -903,6 +903,68 @@ function buildFormalScoringFallback(targetItems, evidenceResult) {
   };
 }
 
+function mergeEvidenceClassifierResultWithFallback(result, fallbackResult, targetItems) {
+  const resultItems = Array.isArray(result?.items) ? result.items : [];
+  const fallbackItems = Array.isArray(fallbackResult?.items) ? fallbackResult.items : [];
+  const resultMap = resultItems.reduce((acc, item) => {
+    if (!item || !item.item_code) return acc;
+    acc[item.item_code] = item;
+    return acc;
+  }, {});
+  const fallbackMap = fallbackItems.reduce((acc, item) => {
+    if (!item || !item.item_code) return acc;
+    acc[item.item_code] = item;
+    return acc;
+  }, {});
+
+  const items = targetItems.map((item) => {
+    const candidate = resultMap[item.item_code];
+    const hasUsableEvidence = Boolean(
+      candidate
+      && (
+        normalizeArray(candidate.evidence_summary).length
+        || Object.prototype.hasOwnProperty.call(candidate, 'direct_answer_value')
+        || String(candidate.evidence_type || '').trim()
+      )
+    );
+    return hasUsableEvidence
+      ? Object.assign({}, fallbackMap[item.item_code] || {}, candidate)
+      : (fallbackMap[item.item_code] || candidate || null);
+  }).filter(Boolean);
+
+  return {
+    assessment_mode: String(result?.assessment_mode || '').trim() || String(fallbackResult?.assessment_mode || 'mixed').trim() || 'mixed',
+    items
+  };
+}
+
+function mergeFormalScoringResultWithFallback(result, fallbackResult, targetItems) {
+  const resultItems = Array.isArray(result?.items) ? result.items : [];
+  const fallbackItems = Array.isArray(fallbackResult?.items) ? fallbackResult.items : [];
+  const resultMap = resultItems.reduce((acc, item) => {
+    if (!item || !item.item_code) return acc;
+    acc[item.item_code] = item;
+    return acc;
+  }, {});
+  const fallbackMap = fallbackItems.reduce((acc, item) => {
+    if (!item || !item.item_code) return acc;
+    acc[item.item_code] = item;
+    return acc;
+  }, {});
+
+  return {
+    items: targetItems.map((item) => {
+      const candidate = resultMap[item.item_code];
+      const hasUsableScore = Boolean(candidate) && Number.isFinite(Number(candidate.ai_suggested_score));
+      const fallback = fallbackMap[item.item_code];
+      if (hasUsableScore) {
+        return Object.assign({}, fallback || {}, candidate);
+      }
+      return fallback || candidate || null;
+    }).filter(Boolean)
+  };
+}
+
 function mergeFormalAssessmentUpdates(assessment, evidenceResult, scoreResult) {
   const evidenceMap = (Array.isArray(evidenceResult.items) ? evidenceResult.items : []).reduce((acc, item) => {
     acc[item.item_code] = item;
@@ -3394,30 +3456,38 @@ class AICompanionEngine {
     const state = session.state;
     const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
     const targetItems = getFormalTargetItems(state, 2);
+    if (!targetItems.length) {
+      state.hamd_formal_assessment = assessment;
+      return;
+    }
     const pendingProbe = assessment.pending_probe_item_code
       ? {
           item_code: assessment.pending_probe_item_code,
           probe_question: assessment.pending_probe_question
         }
       : {};
-    const evidenceResult = await this.runJsonTask('hamdEvidenceClassifier', session, message, {
+    const evidenceFallback = buildEvidenceClassifierFallback(targetItems, pendingProbe, message);
+    const rawEvidenceResult = await this.runJsonTask('hamdEvidenceClassifier', session, message, {
       extraContext: {
         formal_assessment: {
           target_items: targetItems,
           pending_probe: pendingProbe
         }
       },
-      fallback: buildEvidenceClassifierFallback(targetItems, pendingProbe, message)
+      fallback: evidenceFallback
     });
-    const scoreResult = await this.runJsonTask('hamdFormalItemScorer', session, message, {
+    const evidenceResult = mergeEvidenceClassifierResultWithFallback(rawEvidenceResult, evidenceFallback, targetItems);
+    const scoreFallback = buildFormalScoringFallback(targetItems, evidenceResult);
+    const rawScoreResult = await this.runJsonTask('hamdFormalItemScorer', session, message, {
       extraContext: {
         formal_assessment: {
           target_items: targetItems,
           evidence_result: evidenceResult
         }
       },
-      fallback: buildFormalScoringFallback(targetItems, evidenceResult)
+      fallback: scoreFallback
     });
+    const scoreResult = mergeFormalScoringResultWithFallback(rawScoreResult, scoreFallback, targetItems);
     state.hamd_formal_assessment = mergeFormalAssessmentUpdates(assessment, evidenceResult, scoreResult);
     if (assessment.pending_probe_item_code) {
       const answeredPending = state.hamd_formal_assessment.items.find((item) =>
