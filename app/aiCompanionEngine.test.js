@@ -321,6 +321,27 @@ async function testSelfHarmStatementRoutesToSafety() {
   assert.ok(result.answer.includes('請立刻聯絡') || result.answer.includes('立即'));
 }
 
+async function testManualModeCommandClearsSafetyState() {
+  const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
+  await engine.handleMessage({ message: '我想死', user: 'demo', conversation_id: 'conv-manual-1' });
+  const result = await engine.handleMessage({ message: 'mission', user: 'demo', conversation_id: 'conv-manual-1' });
+  assert.strictEqual(result.state.routing_mode_override, 'mode_3_mission');
+  assert.strictEqual(result.state.active_mode, 'mode_3_mission');
+  assert.strictEqual(result.state.risk_flag, 'false');
+  assert.strictEqual(result.state.red_flag_payload, 'none');
+  assert.ok(result.answer.includes('已切換到 mission 模式'));
+}
+
+async function testManualModeOverrideBypassesSafetyAutoReroute() {
+  const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
+  await engine.handleMessage({ message: 'mission', user: 'demo', conversation_id: 'conv-manual-2' });
+  const result = await engine.handleMessage({ message: '我想死', user: 'demo', conversation_id: 'conv-manual-2' });
+  assert.strictEqual(result.state.active_mode, 'mode_3_mission');
+  assert.strictEqual(result.metadata.route, 'Mission');
+  assert.strictEqual(result.metadata.risk_flag, 'false');
+  assert.strictEqual(result.answer, 'stub response');
+}
+
 async function testNaturalFlowBuildsSessionExport() {
   const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
   const result = await engine.handleMessage({ message: '最近很累', user: 'demo', conversation_id: 'conv-3' });
@@ -598,6 +619,8 @@ async function run() {
   await testCommandRouting();
   await testHighRiskRouting();
   await testSelfHarmStatementRoutesToSafety();
+  await testManualModeCommandClearsSafetyState();
+  await testManualModeOverrideBypassesSafetyAutoReroute();
   await testNaturalFlowBuildsSessionExport();
   testDefaultSessionExportPreservesExplicitPatientProfile();
   await testPatientProfilePersistsInSessionAndSessionExport();

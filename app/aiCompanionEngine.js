@@ -3067,6 +3067,8 @@ class AICompanionEngine {
 
     if (command) {
       Object.assign(state, COMMAND_MAP[command]);
+      state.risk_flag = 'false';
+      state.red_flag_payload = 'none';
       const answer = state.command_feedback;
       session.history.push({ role: 'assistant', content: answer, kind: 'command' });
       this.updateMemorySnapshot(session, answer);
@@ -3086,7 +3088,8 @@ class AICompanionEngine {
       };
     }
 
-    if (this.isHighRisk(message)) {
+    const isManualModeLocked = state.routing_mode_override && state.routing_mode_override !== 'auto';
+    if (this.isHighRisk(message) && !isManualModeLocked) {
       const riskPayload = await this.runJsonTask('riskStructurer', session, message, {
         fallback: {
           route_type: 'safety',
