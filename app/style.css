@@ -3121,7 +3121,7 @@ body {
 .phq9-fab {
   position: absolute;
   right: 18px;
-  bottom: 108px;
+  bottom: 160px;
   z-index: 18;
   width: 58px;
   height: 58px;
@@ -3134,6 +3134,8 @@ body {
   justify-content: center;
   border: 1px solid rgba(255,255,255,0.24);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+  touch-action: manipulation;
 }
 
 .phq9-fab:hover {
@@ -3208,6 +3210,17 @@ body {
   margin-top: 8px;
   font-size: 12px;
   color: #6f8299;
+}
+
+.phq9-prompt-status {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(47, 135, 255, 0.09);
+  border: 1px solid rgba(47, 135, 255, 0.16);
+  color: #355c98;
+  font-size: 0.88rem;
+  line-height: 1.55;
 }
 
 .phq9-summary-empty {
@@ -4403,6 +4416,11 @@ body.micro-detail-open {
   .patient-profile-actions .primary-btn,
   .patient-profile-actions .secondary-btn {
     width: 100%;
+  }
+
+  .phq9-fab {
+    right: 14px;
+    bottom: 172px;
   }
 }
 
