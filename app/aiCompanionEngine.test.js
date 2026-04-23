@@ -504,9 +504,10 @@ async function testOutputCommandBuildsStructuredDrafts() {
 }
 
 async function testFormalAssessmentFallsBackWhenAiReturnsEmptyScorePayload() {
+  const message = '我最近很低落，幾乎每天都睡不好，也會一直怪自己。';
   const engine = new AICompanionEngine({ modelClient: createEmptyHamdScoringModelClient(), apiKey: 'fake' });
   const result = await engine.handleMessage({
-    message: '我最近很低落，幾乎每天都睡不好，也會一直怪自己。',
+    message,
     user: 'demo',
     conversation_id: 'conv-empty-hamd'
   });
@@ -515,6 +516,11 @@ async function testFormalAssessmentFallsBackWhenAiReturnsEmptyScorePayload() {
   assert.ok(scoredItems.length > 0);
   assert.ok(typeof formal.ai_total_score === 'number');
   assert.ok(formal.ai_total_score > 0);
+  assert.ok(formal.items.every((item) => {
+    const summaries = Array.isArray(item.evidence_summary) ? item.evidence_summary : [];
+    return summaries.every((summary) => summary !== message);
+  }));
+  assert.ok(formal.items.some((item) => String(item.rating_rationale || '').includes('先建議')));
 }
 
 async function testFhirDraftCarriesEvidenceAndInferenceTracks() {

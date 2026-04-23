@@ -850,6 +850,96 @@ function buildFormalAssessmentProbeFallback(state) {
   };
 }
 
+function summarizeHamdEvidenceText(item, text) {
+  const normalized = normalizeClinicalNarrativeText(text);
+  if (!normalized) return '';
+  const code = String(item?.item_code || '').trim();
+
+  if (code === 'depressed_mood' && /(低落|沮喪|難過|提不起勁|沒動力|空虛|沒意義)/i.test(normalized)) {
+    return '病人描述近期持續低落，並伴隨明顯提不起勁。';
+  }
+  if (code === 'guilt' && /(自責|內疚|罪惡感|怪自己|都是我的錯)/i.test(normalized)) {
+    return '病人提到反覆自責，並將困境歸咎於自己。';
+  }
+  if (code === 'suicide' && /(想死|不想活|活著沒有意義|想消失|結束生命|自殺)/i.test(normalized)) {
+    return '病人表達消失或不想活的念頭，需持續留意安全風險。';
+  }
+  if (code === 'insomnia_early' && /(睡不著|難入睡|躺很久|失眠)/i.test(normalized)) {
+    return '病人描述近期入睡困難，睡前需花較長時間才能入睡。';
+  }
+  if (code === 'insomnia_middle' && /(半夜醒|睡一睡醒來|容易醒|中途醒)/i.test(normalized)) {
+    return '病人描述夜間睡眠中斷，半夜醒來情況增加。';
+  }
+  if (code === 'insomnia_late' && /(早醒|太早醒|醒來後睡不回去)/i.test(normalized)) {
+    return '病人描述近期早醒，醒後較難再次入睡。';
+  }
+  if (code === 'work_activities' && /(提不起勁|沒動力|不想做|做不下去|工作|上班|上課|日常)/i.test(normalized)) {
+    return '病人描述動力與活動投入下降，已影響工作或日常功能。';
+  }
+  if (code === 'retardation' && /(變慢|遲鈍|拖住|反應慢|講話慢|做事慢)/i.test(normalized)) {
+    return '病人描述近期思考、回應或做事速度變慢。';
+  }
+  if (code === 'agitation' && /(坐不住|煩躁|一直動|很躁|靜不下來)/i.test(normalized)) {
+    return '病人描述身體坐立難安，難以維持放鬆狀態。';
+  }
+  if (code === 'psychic_anxiety' && /(焦慮|緊張|不安|擔心|壓著你|害怕)/i.test(normalized)) {
+    return '病人描述持續性的緊張與焦慮感。';
+  }
+  if (code === 'somatic_anxiety' && /(心悸|胸悶|胃不舒服|頭痛|緊繃|發抖|腸胃|身體)/i.test(normalized)) {
+    return '病人描述焦慮伴隨明顯身體化反應。';
+  }
+  if (code === 'gastrointestinal_somatic' && /(食慾|吃不下|胃口|腸胃|肚子痛|胃痛|噁心)/i.test(normalized)) {
+    return '病人描述情緒困擾伴隨食慾或腸胃症狀變化。';
+  }
+  if (code === 'general_somatic' && /(疲累|很累|痠痛|沒力|虛弱|身體拖住)/i.test(normalized)) {
+    return '病人描述近期疲累與一般身體不適感增加。';
+  }
+  if (code === 'genital_symptoms' && /(性慾|生理功能|親密|性方面)/i.test(normalized)) {
+    return '病人提到近期生理功能或性慾下降。';
+  }
+  if (code === 'hypochondriasis' && /(擔心.*身體|一直查病|覺得自己生病|很怕自己有病)/i.test(normalized)) {
+    return '病人反覆擔心身體狀況，疑病傾向增加。';
+  }
+  if (code === 'weight_loss' && /(變瘦|瘦了|體重下降|食量變少|吃得更少)/i.test(normalized)) {
+    return '病人描述近期食量或體重下降。';
+  }
+  if (code === 'insight' && /(壓力|情緒|憂鬱|焦慮|自己最近有問題|不太對勁)/i.test(normalized)) {
+    return '病人對近期情緒或壓力狀態已有一定察覺。';
+  }
+
+  return rewriteObservationText(normalized) || rewriteConcernText(normalized) || normalized;
+}
+
+function normalizeHamdEvidenceSummary(item, evidenceSummary = []) {
+  return uniqueStrings(
+    normalizeArray(evidenceSummary)
+      .map((value) => summarizeHamdEvidenceText(item, value))
+      .filter(Boolean),
+    3
+  );
+}
+
+function buildFormalRatingRationale(item, evidence, suggestedScore) {
+  const score = clampScore(suggestedScore, item?.scale_range);
+  if (score == null) return '';
+  const max = scoreRangeMax(item?.scale_range);
+  const summary = normalizeHamdEvidenceSummary(item, evidence?.evidence_summary || [])[0] || '';
+  const evidenceType = String(evidence?.evidence_type || '').trim();
+  if (evidenceType === 'direct_answer') {
+    return summary
+      ? `${summary} 依病人直接描述，先建議 ${score}/${max}。`
+      : `依病人直接描述，先建議 ${score}/${max}。`;
+  }
+  if (evidenceType === 'indirect_observation') {
+    return summary
+      ? `${summary} 依互動觀察與症狀線索，先建議 ${score}/${max}，仍需人工覆核。`
+      : `依互動觀察與症狀線索，先建議 ${score}/${max}，仍需人工覆核。`;
+  }
+  return summary
+    ? `${summary} 綜合病人描述與互動線索，先建議 ${score}/${max}。`
+    : `綜合病人描述與互動線索，先建議 ${score}/${max}。`;
+}
+
 function buildEvidenceClassifierFallback(targetItems, pendingProbe, message) {
   const text = String(message || '').trim();
   if (!text || !targetItems.length) {
@@ -864,7 +954,7 @@ function buildEvidenceClassifierFallback(targetItems, pendingProbe, message) {
       item_code: item.item_code,
       evidence_type: evidenceType,
       direct_answer_value: directValue,
-      evidence_summary: [text],
+      evidence_summary: normalizeHamdEvidenceSummary(item, [text]),
       confidence: directValue != null ? 'high' : (evidenceType === 'indirect_observation' ? 'medium' : 'medium'),
       review_required: evidenceType !== 'direct_answer'
     };
@@ -892,11 +982,7 @@ function buildFormalScoringFallback(targetItems, evidenceResult) {
       return {
         item_code: item.item_code,
         ai_suggested_score: suggested,
-        rating_rationale: evidence.evidence_type === 'direct_answer'
-          ? '依病人直接回答映射正式 HAM-D 分值。'
-          : (evidence.evidence_type === 'indirect_observation'
-            ? '依互動觀察與症狀線索形成 AI 建議分數，需臨床覆核。'
-            : '同時參考病人回答與互動觀察形成 AI 建議分數。'),
+        rating_rationale: buildFormalRatingRationale(item, evidence, suggested),
         confidence: evidence.confidence || 'medium'
       };
     }).filter(Boolean)
@@ -984,13 +1070,15 @@ function mergeFormalAssessmentUpdates(assessment, evidenceResult, scoreResult) {
       direct_answer_value: evidence && Object.prototype.hasOwnProperty.call(evidence, 'direct_answer_value')
         ? clampScore(evidence.direct_answer_value, item.scale_range)
         : item.direct_answer_value,
-      evidence_summary: evidence ? normalizeArray(evidence.evidence_summary) : item.evidence_summary,
+      evidence_summary: evidence ? normalizeHamdEvidenceSummary(item, evidence.evidence_summary) : normalizeHamdEvidenceSummary(item, item.evidence_summary),
       confidence: score ? score.confidence || item.confidence : (evidence ? evidence.confidence || item.confidence : item.confidence),
       review_required: evidence ? Boolean(evidence.review_required) : item.review_required,
       ai_suggested_score: score && Object.prototype.hasOwnProperty.call(score, 'ai_suggested_score')
         ? clampScore(score.ai_suggested_score, item.scale_range)
         : item.ai_suggested_score,
-      rating_rationale: score ? score.rating_rationale || item.rating_rationale : item.rating_rationale
+      rating_rationale: score
+        ? String(score.rating_rationale || '').trim() || buildFormalRatingRationale(item, evidence || item, score.ai_suggested_score)
+        : buildFormalRatingRationale(item, evidence || item, item.ai_suggested_score)
     });
   });
 
