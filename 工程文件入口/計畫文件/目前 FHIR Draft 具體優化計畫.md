@@ -8,7 +8,7 @@
 
 ---
 
-## 2026-04-24 正式測試結論（Patient / Encounter / QuestionnaireResponse）
+## 2026-04-24 正式測試結論（Patient / Encounter / QuestionnaireResponse / Observation）
 
 ### 已確認改善很多的地方
 1. `Patient` 已能穩定輸出 `TW Core Patient` profile，不再只是空殼或明顯 demo placeholder。
@@ -24,12 +24,48 @@
 4. 對決賽展示而言，這份 `Patient` 已經可以當成「正式測試成果」來說明。
 5. 唯一需要額外注意的是：若決賽現場會投影、錄影或截圖，展示版應再做去識別處理，避免直接暴露真實個資。
 
+### Patient 前後對比
+1. 一開始的版本比較像 demo 身分容器。
+   當時最容易被挑的就是名字、識別與整體人物感都太薄，像在證明系統會生 `Patient`，但不像真的病人資料。
+2. 一開始的版本比較缺乏展示說服力。
+   即使 technically 合法，也容易被看成 placeholder，而不是正式測試產物。
+3. 現在的版本已經變成完整人物輪廓。
+   有 `identifier`、`name`、`telecom`、`gender`、`birthDate`、`contact`，而且能直接對接整份 bundle 的其他資源。
+4. 現在的版本比較能支撐決賽答辯。
+   你可以很直接地說這不是假骨架，而是有實際測試資料流進來後生成的正式 `Patient`。
+5. 現在剩下的重點不是「有沒有 Patient」，而是「決賽展示時怎麼做去識別」。
+
+### Patient 可以明確說有改善的地方
+1. 從「比較像 placeholder 病人」進步到「有完整基本欄位的人物資源」。
+2. 從「只證明會產生 Patient」進步到「能承接真實測試資料」。
+3. 從「demo 感偏重」進步到「已具備展示說服力」。
+4. 從「識別與聯絡資訊很薄」進步到「有姓名、電話、email、生日、緊急聯絡人」。
+5. 從「像測試帳號殼」進步到「像正式病人草稿」。
+
 ### Encounter 正式測試版的成熟度判讀
 1. `status = finished` 比早期長期卡在 `in-progress` 的版本成熟很多，語意上更符合「一段已完成的診前整理」。
 2. `class.code = AMB` 與 `serviceType = AI Companion pre-visit mental health screening` 讓 encounter 的情境更完整，不會像單純機器生成時間戳。
 3. `subject.reference = Patient/3680176` 已正確接回病人資源，這讓展示時可以直接說明資源之間的臨床鏈接。
 4. `period.start` 與 `period.end` 已經是可讀的真實對話區間，不再像之前那種幾乎同秒生成、很像假資料的樣子。
 5. 這份 `Encounter` 已經可以作為決賽答辯時的加分點，因為它會讓人感覺你們真的有在處理醫療流程語意，而不是只拚資源數量。
+
+### Encounter 前後對比
+1. 一開始的版本比較像系統事件紀錄。
+   `status` 容易卡在 `in-progress`，`period` 也比較像輸出當下時間，不像一段真的診前整理會談。
+2. 一開始的版本語意沒有現在這麼清楚。
+   評審若問這是什麼 encounter，很容易只能回答「這是系統生成的一筆會談資源」。
+3. 現在的版本已經更像正式流程節點。
+   `finished`、`AMB`、`serviceType`、`subject`、`period.start/end` 放在一起時，就很像一段完成的門診前心理健康整理 encounter。
+4. 現在的版本更能拿來講流程。
+   你可以直接把它當作「AI 陪伴 session 如何轉成臨床流程 encounter」的證據點。
+5. 現在剩下的不是骨架問題，而是展示時如何把它跟其他資源的故事講得更漂亮。
+
+### Encounter 可以明確說有改善的地方
+1. 從「比較像系統時間戳資源」進步到「比較像正式會談 encounter」。
+2. 從 `in-progress` 語意模糊，進步到 `finished` 語意清楚。
+3. 從「只有 class 與時間」進步到「有 serviceType 與完整情境說明」。
+4. 從「reference 存在但故事感不強」進步到「可以清楚接回 Patient 與 session 流程」。
+5. 從「只是 FHIR 資源之一」進步到「可拿來當決賽流程答辯亮點」。
 
 ### QuestionnaireResponse 正式測試版的成熟度判讀
 1. 這份 `QuestionnaireResponse` 已經具備 `TW Core QuestionnaireResponse` profile、`identifier`、`questionnaire`、`status`、`subject`、`encounter`、`authored`、`author` 與完整 `item`，結構上比早期成熟很多。
@@ -56,9 +92,34 @@
 4. 從「只證明會產生 resource」進步到「可以說明 AI 陪伴到病人審閱交付的中介流程」。
 5. 從「偏工程骨架」進步到「已經有決賽展示價值的流程型 QuestionnaireResponse」。
 
+### Observation 正式測試版的成熟度判讀
+1. 這份 `Observation` 已經具備 `TW Core Observation-screening-assessment` profile、`identifier`、`status`、`category`、`code`、`subject`、`encounter`、`effectiveDateTime`、`valueString`、`method`、`derivedFrom`，結構成熟度明顯提升。
+2. `extension` 同樣帶有 `ai-companion-generated`、`patient-review-status`、`review-source`，這代表治理邏輯不只停在 `QuestionnaireResponse`，而是有延續到觀察資源。
+3. `valueString = reports persistent low mood` 比早期那種抽象或機械式寫法成熟很多，至少一眼就知道這筆 Observation 在說什麼。
+4. `derivedFrom.reference = QuestionnaireResponse/3680178` 很加分，因為這讓 Observation 的來源脈絡清楚，不像憑空長出來的症狀判斷。
+5. 對決賽展示來說，這份 Observation 的進步點是「開始長得像真的臨床觀察草稿」，不是只會吐出一個形式正確的 `Observation` 殼。
+
+### Observation 前後對比
+1. 一開始的版本比較像中繼資料。
+   `valueString` 偏抽象時，很容易讓人覺得系統只是標一個 signal，沒有真正把症狀整理成可讀觀察。
+2. 一開始的版本比較弱在可讀性。
+   即使 `Observation` 合法，醫師或評審點開後也不一定能快速知道這筆 observation 到底想表達什麼。
+3. 現在的版本比較像一筆有語意的觀察。
+   `Depressed mood` 搭配 `reports persistent low mood`、`method`、`derivedFrom`，整體就比較像可以交付的 screening assessment observation。
+4. 現在的版本也更有流程鏈。
+   它不只接上 `Patient` 和 `Encounter`，還明確回指 `QuestionnaireResponse`，這讓整個資料流很完整。
+5. 現在剩下的主要不是骨架，而是還能不能再補更具體的 evidence note，讓觀察內容更厚。
+
+### Observation 可以明確說有改善的地方
+1. 從「比較像 signal 標記」進步到「比較像可讀 observation」。
+2. 從 `valueString` 偏抽象進步到 `reports persistent low mood` 這種可理解句子。
+3. 從「只有 observation 本體」進步到「有 review / authorization extension」。
+4. 從「來源脈絡不夠強」進步到「有 `derivedFrom QuestionnaireResponse`」。
+5. 從「FHIR 殼存在」進步到「可以拿來講臨床前 observation 萃取流程」。
+
 ### 決賽展示建議結論
-1. `Patient`、`Encounter`、`QuestionnaireResponse` 現在都可以展示，而且是可以拿來講「我們確實優化成熟度」的那種展示，不只是勉強能用。
-2. 如果要更穩，決賽版只需要再補「展示用假資料包裝」、「更標準化的人名 / relationship coding」，以及 `QuestionnaireResponse` 的題目內容去重與臨床可讀性收斂，而不是整個重做。
+1. `Patient`、`Encounter`、`QuestionnaireResponse`、`Observation` 現在都可以展示，而且是可以拿來講「我們確實優化成熟度」的那種展示，不只是勉強能用。
+2. 如果要更穩，決賽版只需要再補「展示用假資料包裝」、「更標準化的人名 / relationship coding」，以及 `QuestionnaireResponse / Observation` 的文字去重與臨床可讀性收斂，而不是整個重做。
 3. 因此目前優化計畫的重心，應從「補骨架」轉向「摘要可讀性、風險敘述節制、展示版去識別」。
 
 ---
@@ -72,6 +133,7 @@
 4. 已可成功送到 `https://hapi.fhir.org/baseR4`，代表交換鏈不是假的。
 5. `Patient` 與 `Encounter` 已完成一輪正式測試驗證，成熟度已明顯提升到可展示層級。
 6. `QuestionnaireResponse` 已經開始具備病人審閱、授權提示與後續問卷目標整理的流程完整度。
+7. `Observation` 已具備可讀的症狀摘要句、來源鏈結與審閱授權 extension，不再只是抽象訊號殼。
 
 ### 目前最明顯的缺口
 1. `ClinicalImpression.description` 與 `Composition` 內文仍有過度推論風險。
@@ -274,25 +336,39 @@
 ---
 
 ### 4. Observation 層
+> 註：這一層到 `2026-04-24` 的正式測試版為止，也明顯成熟很多。它現在的強項是「可讀性」與「流程來源鏈」都有了，但還有機會再把內容補得更厚。
+
 #### 目前問題
-1. `valueString = supported signal` 太抽象。
-2. `Observation` 現在比較像機器中繼資料，不像臨床觀察。
+1. `valueString = reports persistent low mood` 已經比早期好很多，但仍偏短，還可以再更具體一些。
+2. 目前沒有 `note` 保留代表性 evidence，所以雖然可讀，但證據厚度仍偏薄。
+3. 目前只呈現一個 `depressed_mood` observation，若要展示完整 symptom map，之後可能還需要更多維度一起出來。
+4. `method = AI companion conversation extraction` 已有交代來源，但若未來要更正式，還可再補得更標準化。
 
 #### 為什麼要修
 1. 結構合法不等於人類可讀。
-2. 醫師若點開資源，只看到 `supported signal`，幫助很有限。
+2. 現在雖然已經比 `supported signal` 時代好很多，但若要更像正式臨床草稿，還需要把觀察句與證據再補厚一點。
 
 #### 建議優化
-1. `valueString` 改成可讀摘要，例如：
-   `reports persistent low mood`
-   `reports sustained anxiety around academic evaluation`
-2. `note` 中保留 1 到 2 則最有代表性的 evidence，不要整包塞滿。
-3. 若能明確對應 symptom inference，可讓 `Observation` 一筆只表達一個明確概念。
+1. 保留 `valueString = reports persistent low mood` 這種可讀句型，但可再補上時間感或功能影響，讓內容更完整。
+2. 增加 `note`，保留 1 到 2 則最有代表性的證據句，讓 observation 不只可讀，還能回看依據。
+3. 維持 `derivedFrom QuestionnaireResponse` 這條來源鏈，這是現在很加分的地方。
+4. 若後續增加更多 observation，建議每筆都維持「一個維度、一句摘要、一條來源」的風格，不要重新變回雜亂拼貼。
+
+#### 前後對比摘要
+| 面向 | 早期版本 | 現在版本 |
+|------|----------|----------|
+| `valueString` 可讀性 | 偏抽象，像 signal 標記 | 已是 `reports persistent low mood` |
+| 資源定位 | 比較像中繼資料 | 比較像 screening observation 草稿 |
+| 治理資訊 | 較少 | 已有 review / authorization extension |
+| 來源鏈 | 較弱 | 已有 `derivedFrom QuestionnaireResponse` |
+| 臨床語意 | 不夠直接 | 已能一眼看懂在講低落情緒 |
+| 下一步重點 | 先求有輸出 | 補 evidence 厚度與多維 observation |
 
 #### 建議完整版範例（一筆 Observation）
 ```json
 {
   "resourceType": "Observation",
+  "id": "3680179",
   "status": "preliminary",
   "category": [
     {
@@ -314,17 +390,14 @@
   "subject": { "reference": "urn:uuid:<Patient UUID>" },
   "encounter": { "reference": "urn:uuid:<Encounter UUID>" },
   "effectiveDateTime": "2026-04-22T14:30:00+08:00",
-  "valueString": "reports persistent low mood over the past two to three weeks",
-  "note": [
-    { "text": "近兩三週情緒持續低落，對日常事物失去興趣。" }
-  ],
+  "valueString": "reports persistent low mood",
   "derivedFrom": [
     { "reference": "urn:uuid:<QuestionnaireResponse UUID>" }
   ],
   "method": { "text": "AI companion conversation extraction" }
 }
 ```
-> **重點**：`valueString` 改為一句可讀的臨床摘要；`note` 只留 1 則最有代表性的原話；每筆 Observation 只描述一個維度。
+> **重點**：這份 Observation 現在真正的進步是 `valueString` 已可讀、`derivedFrom` 已補上、`extension` 已延續審閱授權治理；下一步再補 evidence note，質感會再往上跳一截。
 
 ---
 
