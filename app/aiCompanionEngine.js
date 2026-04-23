@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { completeChat, DEFAULT_GROQ_MODEL, DEFAULT_OPENROUTER_MODEL, DEFAULT_GOOGLE_MODEL } = require('./llmChatClient');
+const KnowYouMemory = require('./knowYouMemory');
 
 const ROOT_DIR = path.join(__dirname, '..');
 const STATE_SCHEMA_PATH = path.join(ROOT_DIR, 'ai_assets', 'AI_STATE_SCHEMA.json');
@@ -12,6 +13,8 @@ const DEFAULT_AUTHOR = 'AI Companion Node Engine';
 const MAX_CHAT_HISTORY_FOR_MODEL = 24;
 const MAX_TRANSCRIPT_TURNS_FOR_RETRIEVAL = 40;
 const MAX_RECENT_TRANSCRIPT_TURNS = 12;
+const KNOW_YOU_TOKEN_LIMIT = KnowYouMemory.DEFAULT_CONTEXT_TOKEN_LIMIT;
+const KNOW_YOU_RECENT_ITEMS = KnowYouMemory.DEFAULT_RECENT_HISTORY_ITEMS;
 
 const PROMPT_FILES = {
   missionRetrievalAudit: '任務檢索稽核.md',
@@ -43,7 +46,8 @@ const PROMPT_FILES = {
   followupOutputClassifier: '追問輸出分類器.md',
   followupResolver: '追問解析器.md',
   followupFinalizer: '追問收斂器.md',
-  clarifyQuestion: '釐清問題.md'
+  clarifyQuestion: '釐清問題.md',
+  memoryCompressionBuilder: '肉肉認識你壓縮器.md'
 };
 
 const HAMD_FORMAL_ITEMS = [
@@ -378,34 +382,76 @@ function normalizePhq9Assessment(assessment) {
   };
 }
 
-function normalizeTherapeuticProfile(profile, fallbackUser = '') {
-  const base = profile && typeof profile === 'object' ? profile : {};
+function buildPhq9AssessmentSummary(assessment) {
+  const normalized = normalizePhq9Assessment(assessment);
+  const severity = buildPhq9SeverityBand(normalized.totalScore);
+  const answeredAnswers = normalized.answers.filter((answer) => Number.isFinite(Number(answer.score)));
+  const narrativeAnswers = normalized.answers.filter((answer) => String(answer.narrative || '').trim().length > 0);
   return {
-    version: typeof base.version === 'string' && base.version.trim() ? base.version.trim() : '1.0',
-    userId: typeof base.userId === 'string' && base.userId.trim() ? base.userId.trim() : String(fallbackUser || '').trim(),
-    createdAt: base.createdAt || new Date().toISOString(),
-    lastUpdatedAt: base.lastUpdatedAt || new Date().toISOString(),
-    sessionCount: Number.isFinite(Number(base.sessionCount)) ? Number(base.sessionCount) : 0,
-    stressors: normalizeArray(base.stressors).map((item) => typeof item === 'string' ? { label: item } : item).filter((item) => item && item.label),
-    triggers: normalizeArray(base.triggers).map((item) => typeof item === 'string' ? { keyword: item } : item).filter((item) => item && item.keyword),
-    copingProfile: base.copingProfile && typeof base.copingProfile === 'object'
-      ? {
-          preferredStyle: typeof base.copingProfile.preferredStyle === 'string' ? base.copingProfile.preferredStyle : '',
-          effectiveMethods: normalizeArray(base.copingProfile.effectiveMethods),
-          ineffectiveMethods: normalizeArray(base.copingProfile.ineffectiveMethods)
-        }
-      : { preferredStyle: '', effectiveMethods: [], ineffectiveMethods: [] },
-    positiveAnchors: normalizeArray(base.positiveAnchors).map((item) => typeof item === 'string' ? { label: item, category: 'other' } : item).filter((item) => item && item.label),
-    emotionalBaseline: base.emotionalBaseline && typeof base.emotionalBaseline === 'object'
-      ? {
-          dominantMood: typeof base.emotionalBaseline.dominantMood === 'string' ? base.emotionalBaseline.dominantMood : '',
-          phq9Trend: normalizeArray(base.emotionalBaseline.phq9Trend),
-          hamdSignalCount: Number.isFinite(Number(base.emotionalBaseline.hamdSignalCount)) ? Number(base.emotionalBaseline.hamdSignalCount) : 0
-        }
-      : { dominantMood: '', phq9Trend: [], hamdSignalCount: 0 },
-    keyThemes: normalizeArray(base.keyThemes),
-    clinicianNotes: typeof base.clinicianNotes === 'string' ? base.clinicianNotes : ''
+    phq9_assessment: normalized,
+    phq9_total_score: normalized.totalScore,
+    phq9_severity_band: severity.label,
+    phq9_severity_label: severity.zhLabel,
+    phq9_summary: `PHQ-9 ${normalized.totalScore}/27（${severity.zhLabel}）`,
+    phq9_completed_at: normalized.completedAt || normalized.updatedAt || '',
+    phq9_answer_count: answeredAnswers.length,
+    phq9_narrative_count: narrativeAnswers.length,
+    phq9_answers: normalized.answers.map((answer, index) => ({
+      item_code: answer.questionId || `phq9_${index + 1}`,
+      item_label: answer.label,
+      score: answer.score,
+      narrative: answer.narrative
+    })),
+    phq9_questionnaire_targets: normalized.answers.map((answer, index) => ({
+      item_code: answer.questionId || `phq9_${index + 1}`,
+      item_label: answer.label,
+      score: answer.score,
+      narrative: answer.narrative,
+      status: 'preliminary'
+    }))
   };
+}
+
+function hasMeaningfulPhq9Assessment(assessment) {
+  const normalized = normalizePhq9Assessment(assessment);
+  return Boolean(
+    normalized.completedAt
+    || normalized.updatedAt
+    || normalized.note
+    || normalized.answers.some((answer) => Number(answer.score) > 0 || String(answer.narrative || '').trim())
+  );
+}
+
+function normalizeTherapeuticProfile(profile, fallbackUser = '') {
+  const normalized = KnowYouMemory.normalizeTherapeuticProfile(profile);
+  normalized.userId = typeof normalized.userId === 'string' && normalized.userId.trim()
+    ? normalized.userId.trim()
+    : String(fallbackUser || '').trim();
+  normalized.version = typeof normalized.version === 'string' && normalized.version.trim()
+    ? normalized.version.trim()
+    : '1.0';
+  normalized.stressors = normalizeArray(normalized.stressors).map((item) => typeof item === 'string' ? { label: item } : item).filter((item) => item && item.label);
+  normalized.triggers = normalizeArray(normalized.triggers).map((item) => typeof item === 'string' ? { keyword: item } : item).filter((item) => item && item.keyword);
+  normalized.copingProfile = normalized.copingProfile && typeof normalized.copingProfile === 'object'
+    ? {
+        preferredStyle: typeof normalized.copingProfile.preferredStyle === 'string' ? normalized.copingProfile.preferredStyle : '',
+        effectiveMethods: normalizeArray(normalized.copingProfile.effectiveMethods),
+        ineffectiveMethods: normalizeArray(normalized.copingProfile.ineffectiveMethods)
+      }
+    : { preferredStyle: '', effectiveMethods: [], ineffectiveMethods: [] };
+  normalized.positiveAnchors = normalizeArray(normalized.positiveAnchors).map((item) => typeof item === 'string' ? { label: item, category: 'other' } : item).filter((item) => item && item.label);
+  normalized.emotionalBaseline = normalized.emotionalBaseline && typeof normalized.emotionalBaseline === 'object'
+    ? {
+        dominantMood: typeof normalized.emotionalBaseline.dominantMood === 'string' ? normalized.emotionalBaseline.dominantMood : '',
+        phq9Trend: normalizeArray(normalized.emotionalBaseline.phq9Trend),
+        hamdSignalCount: Number.isFinite(Number(normalized.emotionalBaseline.hamdSignalCount)) ? Number(normalized.emotionalBaseline.hamdSignalCount) : 0
+      }
+    : { dominantMood: '', phq9Trend: [], hamdSignalCount: 0 };
+  normalized.keyThemes = normalizeArray(normalized.keyThemes);
+  normalized.clinicianNotes = typeof normalized.clinicianNotes === 'string' ? normalized.clinicianNotes : '';
+  normalized.memoryChunks = Array.isArray(normalized.memoryChunks) ? normalized.memoryChunks : [];
+  normalized.memoryStats = KnowYouMemory.normalizeMemoryStats(normalized.memoryStats);
+  return normalized;
 }
 
 function normalizePatientProfile(profile = {}) {
@@ -1749,9 +1795,10 @@ function buildSummaryDraftState(state, longitudinal, message = '') {
   const redFlags = normalizeObjectState(state, 'red_flag_payload', {});
   const latestTags = normalizeObjectState(state, 'latest_tag_payload', {});
   const progress = normalizeObjectState(state, 'hamd_progress_state', {});
+  const phq9 = buildPhq9AssessmentSummary(normalizeObjectState(state, 'phq9_assessment', {}));
   const draftSummary = !isGenericDraftText(longitudinal.draftSummary)
     ? longitudinal.draftSummary
-    : String(message || '').trim();
+    : String(message || '').trim() || phq9.phq9_summary;
 
   return {
     active_mode: state.active_mode,
@@ -1760,7 +1807,16 @@ function buildSummaryDraftState(state, longitudinal, message = '') {
     latest_tags: latestTags,
     red_flags: redFlags,
     hamd_progress: progress,
-    draft_summary: draftSummary
+    phq9_assessment: phq9.phq9_assessment,
+    phq9_total_score: phq9.phq9_total_score,
+    phq9_severity_band: phq9.phq9_severity_band,
+    phq9_severity_label: phq9.phq9_severity_label,
+    phq9_summary: phq9.phq9_summary,
+    phq9_completed_at: phq9.phq9_completed_at,
+    phq9_answer_count: phq9.phq9_answer_count,
+    phq9_narrative_count: phq9.phq9_narrative_count,
+    phq9_answers: phq9.phq9_answers,
+    draft_summary: draftSummary || phq9.phq9_summary
   };
 }
 
@@ -2172,6 +2228,7 @@ function buildClinicianSummaryDraft(longitudinal, state, formalAssessment, previ
   const riskLevel = longitudinal.riskFlags.length || explicitRiskFlags.length
     ? 'watch'
     : 'none';
+  const phq9 = buildPhq9AssessmentSummary(normalizeObjectState(state, 'phq9_assessment', {}));
   const structuredObservations = buildStructuredObservationSet(
     longitudinal.symptomObservations,
     longitudinal.symptomInferenceTrack,
@@ -2200,7 +2257,17 @@ function buildClinicianSummaryDraft(longitudinal, state, formalAssessment, previ
       followup_needs: longitudinal.followupNeeds.slice(0, 5),
       safety_flags: [...longitudinal.riskFlags, ...explicitRiskFlags].slice(0, 4),
       patient_tone: longitudinal.patientTone,
-      draft_summary: longitudinal.draftSummary || '已根據整段對話整理出主要症狀、功能影響與後續釐清方向。'
+      draft_summary: longitudinal.draftSummary || phq9.phq9_summary || '已根據整段對話整理出主要症狀、功能影響與後續釐清方向。',
+      phq9_assessment: phq9.phq9_assessment,
+      phq9_total_score: phq9.phq9_total_score,
+      phq9_severity_band: phq9.phq9_severity_band,
+      phq9_severity_label: phq9.phq9_severity_label,
+      phq9_summary: phq9.phq9_summary,
+      phq9_completed_at: phq9.phq9_completed_at,
+      phq9_answer_count: phq9.phq9_answer_count,
+      phq9_narrative_count: phq9.phq9_narrative_count,
+      phq9_answers: phq9.phq9_answers,
+      phq9_questionnaire_targets: phq9.phq9_questionnaire_targets
     },
     buildFormalClinicianFields(formalAssessment),
     previousDraft && typeof previousDraft === 'object'
@@ -2217,6 +2284,7 @@ function buildClinicianSummaryDraft(longitudinal, state, formalAssessment, previ
 }
 
 function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAssessment) {
+  const phq9 = buildPhq9AssessmentSummary(normalizeObjectState(state, 'phq9_assessment', {}));
   const symptomObservations = buildStructuredObservationSet(
     normalizeArray(longitudinal?.symptomObservations).length
       ? normalizeArray(longitudinal.symptomObservations)
@@ -2294,6 +2362,13 @@ function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAsses
         dimension: signal,
         reason: (evidenceBySignal[signal] || []).join('；') || `需補足 ${signal} 的正式量表資訊`
       })).filter((item) => item.reason);
+  const phq9QuestionnaireTargets = normalizeArray(phq9.phq9_questionnaire_targets).map((item) => ({
+    item_code: item.item_code,
+    item_label: item.item_label,
+    score: item.score,
+    narrative: item.narrative,
+    status: item.status
+  }));
 
   const narrativeSummaryRaw = hasMeaningfulLongitudinalEvidence(longitudinal)
     ? (longitudinal.draftSummary || clinicianDraft?.draft_summary || summarizeConcernBundle(chiefConcerns))
@@ -2332,11 +2407,12 @@ function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAsses
     narrativeSummary
     || chiefConcerns.length
     || symptomObservations.length
+    || phq9QuestionnaireTargets.length
     || normalizeArray(normalizeObjectState(state, 'red_flag_payload', {}).warning_tags).length
   );
 
   const resources = buildControlledFhirResourceList({
-    includeQuestionnaire: questionnaireTargets.length || normalizeArray(buildFormalFhirTargets(formalAssessment)).length,
+    includeQuestionnaire: questionnaireTargets.length || phq9QuestionnaireTargets.length || normalizeArray(buildFormalFhirTargets(formalAssessment)).length,
     includeObservation: observationCandidates.length,
     includeClinicalImpression: hasClinicalImpressionContent,
     includeDocumentReference: narrativeSummary
@@ -2351,17 +2427,25 @@ function buildFhirDeliveryDraft(clinicianDraft, longitudinal, state, formalAsses
     delivery_status: 'pre_review_or_ready_for_mapping_orblocked',
     consent_gate: 'review_required_or_ready_for_consent_orblocked',
     narrative_summary: narrativeSummary,
+    phq9_assessment: phq9.phq9_assessment,
+    phq9_total_score: phq9.phq9_total_score,
+    phq9_severity_band: phq9.phq9_severity_band,
+    phq9_severity_label: phq9.phq9_severity_label,
+    phq9_summary: phq9.phq9_summary,
+    phq9_completed_at: phq9.phq9_completed_at,
+    phq9_answers: phq9.phq9_answers,
+    phq9_questionnaire_targets: phq9QuestionnaireTargets,
     resources,
     composition_sections: compositionSections,
     observation_candidates: observationCandidates,
     symptom_evidence_track: symptomEvidenceTrack,
     symptom_inference_track: symptomInferenceTrack,
     clinical_alerts: clinicalAlerts,
-    questionnaire_targets: questionnaireTargets,
+    questionnaire_targets: [...questionnaireTargets, ...phq9QuestionnaireTargets],
     hamd_formal_targets: formalTargets,
     patient_review_required: 'yes',
     export_blockers: exportBlockers,
-    notes: normalizeClinicalNarrativeText(longitudinal.draftSummary || '')
+    notes: normalizeClinicalNarrativeText(longitudinal.draftSummary || phq9.phq9_summary || '')
   };
 }
 
@@ -2373,6 +2457,7 @@ function buildPatientAnalysis(state, fallbackMessage = '') {
   const hamdProgress = normalizeObjectState(state, 'hamd_progress_state', {});
   const therapeuticProfile = normalizeObjectState(state, 'therapeutic_profile', {});
   const symptomBridge = normalizeObjectState(state, 'symptom_bridge_state', {});
+  const phq9 = buildPhq9AssessmentSummary(normalizeObjectState(state, 'phq9_assessment', {}));
   const conversationEvidence = sanitizeSymptomEvidenceTrack(symptomBridge.evidence_track)
     .map((item) => String(item.source_text || '').trim().replace(/\s+/g, ' '))
     .filter(Boolean)
@@ -2401,6 +2486,7 @@ function buildPatientAnalysis(state, fallbackMessage = '') {
   const summary =
     patientReview.patient_facing_summary ||
     clinician.draft_summary ||
+    phq9.phq9_summary ||
     fallbackMessage ||
     '目前還沒有足夠內容可以整理成給病人的分析。';
   const hasStructuredEvidence = Boolean(
@@ -2421,6 +2507,7 @@ function buildPatientAnalysis(state, fallbackMessage = '') {
   if (burden.burden_level === 'high') stateUnderstanding.push('你現在的互動負擔偏高，可能不太適合一次處理太多問題');
   if (burden.burden_level === 'medium') stateUnderstanding.push('你現在還撐得住對話，但可能已經有點疲累，需要比較溫和的整理節奏');
   if (supportedDimensions.length) stateUnderstanding.push(`目前對話已經碰到的狀態面向包含 ${supportedDimensions.map(humanizeHamdDimension).join('、')}`);
+  if (phq9.phq9_summary) stateUnderstanding.push(`你這次的 PHQ-9 自評是 ${phq9.phq9_summary}`);
   if (keyThemes.length) stateUnderstanding.push(`這段對話反覆繞著 ${keyThemes.join('、')} 這幾個主題`);
   if (!stateUnderstanding.length && evidenceHighlights.length) {
     stateUnderstanding.push(`我有抓到你提過的內容，像是 ${evidenceHighlights.join('、')}，可以再往這些線索深入。`);
@@ -2432,6 +2519,7 @@ function buildPatientAnalysis(state, fallbackMessage = '') {
   if (stressors.length) pressurePoints.push(...stressors.map((item) => `可能正在拉扯你的壓力來源之一是：${item}`));
   if (observations.length) pressurePoints.push(...observations.map((item) => `我注意到一個具體表現是：${item}`));
   if (recentEvidence.length) pressurePoints.push(...recentEvidence.map((item) => `最近浮出的線索像是：${item}`));
+  if (phq9.phq9_summary) pressurePoints.push(`最新 PHQ-9 自評顯示：${phq9.phq9_summary}`);
   if (evidenceHighlights.length) pressurePoints.push(`你最近提到的原始線索包含：${evidenceHighlights.join('、')}`);
   if (cognitiveTags.length) pressurePoints.push(`你的想法裡可能也帶著 ${cognitiveTags.join('、')} 這類認知壓力`);
   if (behavioralTags.length) pressurePoints.push(`行為線索上有 ${behavioralTags.join('、')} 的傾向`);
@@ -2451,6 +2539,9 @@ function buildPatientAnalysis(state, fallbackMessage = '') {
   }
   if (positiveAnchors.length) {
     supportSuggestions.push(`你不是只有困住的部分，像 ${positiveAnchors.join('、')} 這些也可能是幫你穩住自己的資源。`);
+  }
+  if (phq9.phq9_narrative_count > 0) {
+    supportSuggestions.push('你已經把 PHQ-9 寫得很完整，這會讓後續整理更接近你的真實感受。');
   }
   if (!supportSuggestions.length) {
     supportSuggestions.push('如果你願意，下一輪可以先從最近最卡、最難受，或最反覆想到的一件事開始。');
@@ -2660,6 +2751,196 @@ class AICompanionEngine {
     session.state.phq9_assessment = normalizePhq9Assessment(assessment);
   }
 
+  buildKnowYouMemoryPrefix(session, message = '') {
+    const profile = normalizeTherapeuticProfile(session?.state?.therapeutic_profile || {}, session?.user || '');
+    const memoryBlock = KnowYouMemory.buildMemoryContextString(profile);
+    if (!memoryBlock) {
+      return '';
+    }
+    const meter = KnowYouMemory.buildMemoryMeterState({
+      profile,
+      history: Array.isArray(session?.history) ? session.history : [],
+      pendingMessage: message,
+      tokenLimit: profile.memoryStats?.tokenLimit || KNOW_YOU_TOKEN_LIMIT,
+      recentItems: KNOW_YOU_RECENT_ITEMS
+    });
+    const meterLine = `【即時上下文條】${meter.estimatedTokens}/${meter.tokenLimit} tokens，${meter.shouldCompress ? '快滿了，準備壓縮' : '尚未滿載'}`;
+    return `${memoryBlock}\n${meterLine}`;
+  }
+
+  buildKnowYouMemoryMeter(session, pendingMessage = '') {
+    const profile = normalizeTherapeuticProfile(session?.state?.therapeutic_profile || {}, session?.user || '');
+    return KnowYouMemory.buildMemoryMeterState({
+      profile,
+      history: Array.isArray(session?.history) ? session.history : [],
+      pendingMessage,
+      tokenLimit: profile.memoryStats?.tokenLimit || KNOW_YOU_TOKEN_LIMIT,
+      recentItems: KNOW_YOU_RECENT_ITEMS
+    });
+  }
+
+  buildKnowYouCompressionWindow(session) {
+    const history = Array.isArray(session?.history) ? session.history : [];
+    const { older, recent } = KnowYouMemory.splitTranscript(history, KNOW_YOU_RECENT_ITEMS);
+    return {
+      older,
+      recent,
+      older_text: older.map(formatTranscriptEntry).filter(Boolean).join('\n'),
+      recent_text: recent.map(formatTranscriptEntry).filter(Boolean).join('\n')
+    };
+  }
+
+  mergeTherapeuticMemoryUpdates(session, updates = {}, meter = null) {
+    if (!session || !session.state) return null;
+    const baseProfile = normalizeTherapeuticProfile(session.state.therapeutic_profile || {}, session.user);
+    const nextProfile = KnowYouMemory.normalizeTherapeuticProfile(baseProfile);
+
+    const stressors = Array.isArray(updates.stressors) ? updates.stressors : [];
+    stressors.forEach((item) => {
+      const label = typeof item === 'string' ? item : item?.label;
+      if (!label) return;
+      if (!nextProfile.stressors.find((entry) => entry.label === label)) {
+        nextProfile.stressors.push({ label });
+      }
+    });
+
+    const triggers = Array.isArray(updates.triggers) ? updates.triggers : [];
+    triggers.forEach((item) => {
+      const keyword = typeof item === 'string' ? item : item?.keyword;
+      if (!keyword) return;
+      if (!nextProfile.triggers.find((entry) => entry.keyword === keyword)) {
+        nextProfile.triggers.push({
+          keyword,
+          reaction: item?.reaction || '',
+          severity: item?.severity || 'medium'
+        });
+      }
+    });
+
+    const keyThemes = Array.isArray(updates.keyThemes) ? updates.keyThemes : [];
+    keyThemes.forEach((theme) => {
+      if (typeof theme !== 'string' || !theme.trim()) return;
+      if (!nextProfile.keyThemes.includes(theme.trim())) {
+        nextProfile.keyThemes.push(theme.trim());
+      }
+    });
+
+    const positiveAnchors = Array.isArray(updates.positiveAnchors) ? updates.positiveAnchors : [];
+    positiveAnchors.forEach((item) => {
+      const label = typeof item === 'string' ? item : item?.label;
+      if (!label) return;
+      if (!nextProfile.positiveAnchors.find((entry) => entry.label === label)) {
+        nextProfile.positiveAnchors.push({
+          label,
+          category: item?.category || 'other'
+        });
+      }
+    });
+
+    if (typeof updates.copingStyleHint === 'string' && updates.copingStyleHint.trim()) {
+      nextProfile.copingProfile.preferredStyle = updates.copingStyleHint.trim();
+    }
+
+    const memoryChunks = Array.isArray(updates.memory_chunks) ? updates.memory_chunks : Array.isArray(updates.memoryChunks) ? updates.memoryChunks : [];
+    memoryChunks.forEach((chunk) => {
+      const merged = KnowYouMemory.mergeMemoryChunk(nextProfile, chunk);
+      nextProfile.memoryChunks = merged.memoryChunks;
+      nextProfile.memoryStats = merged.memoryStats;
+    });
+
+    if (!memoryChunks.length && typeof updates.summary === 'string' && updates.summary.trim()) {
+      const merged = KnowYouMemory.mergeMemoryChunk(nextProfile, {
+        title: '對話壓縮摘要',
+        category: 'context',
+        summary: updates.summary.trim(),
+        detail: typeof updates.detail === 'string' ? updates.detail.trim() : '',
+        tokenEstimate: meter?.estimatedTokens || 0
+      });
+      nextProfile.memoryChunks = merged.memoryChunks;
+      nextProfile.memoryStats = merged.memoryStats;
+    }
+
+    nextProfile.memoryStats = Object.assign({}, nextProfile.memoryStats, {
+      tokenLimit: meter?.tokenLimit || nextProfile.memoryStats?.tokenLimit || KNOW_YOU_TOKEN_LIMIT,
+      estimatedTokens: meter?.estimatedTokens || nextProfile.memoryStats?.estimatedTokens || 0,
+      compressionProgress: meter ? meter.compressionProgress : nextProfile.memoryStats?.compressionProgress || 0,
+      shouldCompress: Boolean(meter?.shouldCompress),
+      memoryChunksCount: nextProfile.memoryChunks.length,
+      lastCompressedAt: meter?.lastCompressedAt || nextProfile.memoryStats?.lastCompressedAt || ''
+    });
+    nextProfile.lastUpdatedAt = new Date().toISOString();
+    session.state.therapeutic_profile = normalizeTherapeuticProfile(nextProfile, session.user);
+    return session.state.therapeutic_profile;
+  }
+
+  async compressTherapeuticMemory(session, message, options = {}) {
+    const meter = this.buildKnowYouMemoryMeter(session, message);
+    if (!options.force && !meter.shouldCompress && !meter.isFull) {
+      return null;
+    }
+
+    const window = this.buildKnowYouCompressionWindow(session);
+    const compressionSource = window.older.length ? window.older : (Array.isArray(session.history) ? session.history : []);
+    if (!compressionSource.length) {
+      session.state.therapeutic_profile = normalizeTherapeuticProfile(session.state.therapeutic_profile || {}, session.user);
+      session.state.therapeutic_profile.memoryStats = Object.assign({}, session.state.therapeutic_profile.memoryStats, meter, {
+        shouldCompress: false,
+        memoryChunksCount: Array.isArray(session.state.therapeutic_profile.memoryChunks) ? session.state.therapeutic_profile.memoryChunks.length : 0
+      });
+      return null;
+    }
+
+    const fallbackSummary = {
+      summary: compressionSource
+        .slice(-4)
+        .map((item) => formatTranscriptEntry(item))
+        .filter(Boolean)
+        .join('；') || '這段對話包含一些可延續的長期記憶。',
+      memory_chunks: [],
+      stressors: [],
+      triggers: [],
+      keyThemes: [],
+      positiveAnchors: [],
+      copingStyleHint: '',
+      retainedTurnCount: window.recent.length
+    };
+
+    const result = await this.runJsonTask('memoryCompressionBuilder', session, message, {
+      includeMemoryContext: false,
+      fallback: fallbackSummary,
+      historyOverride: [],
+      extraContext: {
+        memory: {
+          current_memory: KnowYouMemory.buildMemoryContextString(session.state.therapeutic_profile || {})
+        },
+        compression_window: {
+          memory_meter: JSON.stringify(meter, null, 2),
+          recent_chat_history_text: window.recent_text,
+          longitudinal_dialogue: window.older_text || compressionSource.map(formatTranscriptEntry).filter(Boolean).join('\n'),
+          retained_turn_count: window.recent.length,
+          older_turn_count: window.older.length || compressionSource.length
+        }
+      },
+      userPromptOverride: window.older_text || compressionSource.map(formatTranscriptEntry).filter(Boolean).join('\n') || message
+    });
+
+    const mergedProfile = this.mergeTherapeuticMemoryUpdates(session, result || {}, meter);
+    if (mergedProfile) {
+      mergedProfile.memoryStats = Object.assign({}, mergedProfile.memoryStats, {
+        lastCompressionReason: meter.shouldCompress ? 'threshold' : 'forced',
+        lastCompressedAt: new Date().toISOString(),
+        shouldCompress: false,
+        memoryChunksCount: Array.isArray(mergedProfile.memoryChunks) ? mergedProfile.memoryChunks.length : 0,
+        tokenLimit: meter.tokenLimit,
+        estimatedTokens: meter.estimatedTokens,
+        compressionProgress: meter.compressionProgress
+      });
+      session.state.therapeutic_profile = mergedProfile;
+    }
+
+    return result;
+  }
+
   getOrCreateSession(id, user, options = {}) {
     const forceNewSession = Boolean(options.forceNewSession);
     const sessionId = id || (!forceNewSession && this.findLatestSessionIdByUser(user)) || `conv-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
@@ -2818,6 +3099,11 @@ class AICompanionEngine {
     state.risk_flag = 'false';
     state.red_flag_payload = 'none';
 
+    try {
+      await this.compressTherapeuticMemory(session, message);
+    } catch (error) {
+      // Memory compression is best-effort; a failure should not block the reply.
+    }
     await this.updateSharedState(session, message);
 
     if (state.pending_question !== 'none' && state.pending_question) {
@@ -3127,8 +3413,10 @@ class AICompanionEngine {
     const includePatientAnalysis = options.includePatientAnalysis !== false;
     const state = session.state;
     const baseLongitudinal = buildLongitudinalEvidence(session);
+    const phq9Context = buildPhq9AssessmentSummary(state.phq9_assessment);
+    const hasPhq9Evidence = hasMeaningfulPhq9Assessment(state.phq9_assessment);
     const bridgeBase = buildSymptomBridgeFallback(baseLongitudinal);
-    if (strictAi && baseLongitudinal.userMessages.length === 0) {
+    if (strictAi && baseLongitudinal.userMessages.length === 0 && !hasPhq9Evidence) {
       const error = new Error('目前沒有可供分析的臨床對話內容，無法執行 AI 症狀對接。');
       error.code = 'no_clinical_messages_for_ai';
       error.status = 422;
@@ -3168,13 +3456,21 @@ class AICompanionEngine {
     const baseFhirDelivery = buildFhirDeliveryDraft(baseClinicianSummary, longitudinal, state, formalAssessment);
     const baseDeliveryReadiness = buildDeliveryReadinessState(baseFhirDelivery, basePatientAuth);
 
-    if (longitudinal.userMessages.length > 0) {
+    const shouldBuildStructuredOutputs = longitudinal.userMessages.length > 0 || hasPhq9Evidence;
+    if (shouldBuildStructuredOutputs) {
       const generatedSummaryDraft = await this.runJsonTask('summaryDraftBuilder', session, message, {
         fallback: baseSummaryDraft,
         requireValidJson: strictAi,
         extraContext: {
           deterministic_summary: baseSummaryDraft,
-          longitudinal_evidence: longitudinal
+          longitudinal_evidence: longitudinal,
+          phq9_assessment: phq9Context.phq9_assessment,
+          phq9_summary: phq9Context.phq9_summary,
+          phq9_total_score: phq9Context.phq9_total_score,
+          phq9_severity_band: phq9Context.phq9_severity_band,
+          phq9_severity_label: phq9Context.phq9_severity_label,
+          phq9_answers: phq9Context.phq9_answers,
+          phq9_questionnaire_targets: phq9Context.phq9_questionnaire_targets
         }
       });
       state.summary_draft_state = mergeSummaryDraftState(baseSummaryDraft, generatedSummaryDraft);
@@ -3185,7 +3481,14 @@ class AICompanionEngine {
         extraContext: {
           deterministic_summary: state.summary_draft_state,
           longitudinal_evidence: longitudinal,
-          clinician_base: baseClinicianSummary
+          clinician_base: baseClinicianSummary,
+          phq9_assessment: phq9Context.phq9_assessment,
+          phq9_summary: phq9Context.phq9_summary,
+          phq9_total_score: phq9Context.phq9_total_score,
+          phq9_severity_band: phq9Context.phq9_severity_band,
+          phq9_severity_label: phq9Context.phq9_severity_label,
+          phq9_answers: phq9Context.phq9_answers,
+          phq9_questionnaire_targets: phq9Context.phq9_questionnaire_targets
         }
       });
       state.clinician_summary_draft = mergeClinicianSummaryDraft(
@@ -3200,7 +3503,12 @@ class AICompanionEngine {
         requireValidJson: strictAi,
         extraContext: {
           clinician_summary_draft: state.clinician_summary_draft,
-          longitudinal_evidence: longitudinal
+          longitudinal_evidence: longitudinal,
+          phq9_assessment: phq9Context.phq9_assessment,
+          phq9_summary: phq9Context.phq9_summary,
+          phq9_total_score: phq9Context.phq9_total_score,
+          phq9_severity_band: phq9Context.phq9_severity_band,
+          phq9_severity_label: phq9Context.phq9_severity_label
         }
       });
       state.patient_review_packet = mergePatientReviewPacket(reviewBase, generatedReviewPacket);
@@ -3211,7 +3519,9 @@ class AICompanionEngine {
         requireValidJson: strictAi,
         extraContext: {
           clinician_summary_draft: state.clinician_summary_draft,
-          patient_review_packet: state.patient_review_packet
+          patient_review_packet: state.patient_review_packet,
+          phq9_assessment: phq9Context.phq9_assessment,
+          phq9_summary: phq9Context.phq9_summary
         }
       });
       state.patient_authorization_state = mergePatientAuthorizationState(authBase, generatedAuthState);
@@ -3224,7 +3534,14 @@ class AICompanionEngine {
           clinician_summary_draft: state.clinician_summary_draft,
           patient_review_packet: state.patient_review_packet,
           patient_authorization_state: state.patient_authorization_state,
-          longitudinal_evidence: longitudinal
+          longitudinal_evidence: longitudinal,
+          phq9_assessment: phq9Context.phq9_assessment,
+          phq9_summary: phq9Context.phq9_summary,
+          phq9_total_score: phq9Context.phq9_total_score,
+          phq9_severity_band: phq9Context.phq9_severity_band,
+          phq9_severity_label: phq9Context.phq9_severity_label,
+          phq9_answers: phq9Context.phq9_answers,
+          phq9_questionnaire_targets: phq9Context.phq9_questionnaire_targets
         }
       });
       state.fhir_delivery_draft = mergeFhirDeliveryDraft(fhirBase, generatedFhirDraft);
@@ -3237,13 +3554,18 @@ class AICompanionEngine {
           apiKey: this.apiKey,
           baseUrl: this.baseUrl,
           extraContext: {
-            clinician_summary_draft: state.clinician_summary_draft,
-            patient_review_packet: state.patient_review_packet,
-            hamd_progress_state: state.hamd_progress_state,
-            burden_level_state: state.burden_level_state,
-            longitudinal_evidence: longitudinal
-          }
-        });
+          clinician_summary_draft: state.clinician_summary_draft,
+          patient_review_packet: state.patient_review_packet,
+          hamd_progress_state: state.hamd_progress_state,
+          burden_level_state: state.burden_level_state,
+          longitudinal_evidence: longitudinal,
+          phq9_assessment: phq9Context.phq9_assessment,
+          phq9_summary: phq9Context.phq9_summary,
+          phq9_total_score: phq9Context.phq9_total_score,
+          phq9_severity_band: phq9Context.phq9_severity_band,
+          phq9_severity_label: phq9Context.phq9_severity_label
+        }
+      });
         const generatedPatientAnalysis = tryParseJson(generatedPatientAnalysisText, null);
         state.patient_analysis = generatedPatientAnalysis && typeof generatedPatientAnalysis === 'object'
           ? mergePatientAnalysis(basePatientAnalysisOutput, generatedPatientAnalysis)
@@ -3257,7 +3579,9 @@ class AICompanionEngine {
         extraContext: {
           clinician_summary_draft: state.clinician_summary_draft,
           patient_authorization_state: state.patient_authorization_state,
-          fhir_delivery_draft: state.fhir_delivery_draft
+          fhir_delivery_draft: state.fhir_delivery_draft,
+          phq9_assessment: phq9Context.phq9_assessment,
+          phq9_summary: phq9Context.phq9_summary
         }
       });
       state.delivery_readiness_state = mergeDeliveryReadinessState(readinessBase, generatedReadiness);
@@ -3420,13 +3744,19 @@ class AICompanionEngine {
 
   buildPromptContext(session, message, extraContext = {}) {
     const transcriptWindow = this.buildTranscriptWindow(session);
+    const therapeuticProfile = normalizeTherapeuticProfile(session?.state?.therapeutic_profile || {}, session?.user || '');
     return Object.assign(
       {
         sys: {
           query: message
         },
         conversation: session.state,
-        retrieval: transcriptWindow
+        retrieval: transcriptWindow,
+        memory: {
+          current_memory: KnowYouMemory.buildMemoryContextString(therapeuticProfile),
+          meter: this.buildKnowYouMemoryMeter(session, message),
+          profile: therapeuticProfile
+        }
       },
       extraContext || {}
     );
@@ -3468,15 +3798,18 @@ class AICompanionEngine {
   }
 
   async runTextTask(promptKey, session, message, options = {}) {
+    const includeMemoryContext = options.includeMemoryContext !== false;
+    const memoryPrefix = includeMemoryContext ? this.buildKnowYouMemoryPrefix(session, message) : '';
     const systemPrompt = interpolateTemplate(
       this.prompts[promptKey],
       this.buildPromptContext(session, message, options.extraContext)
     );
+    const finalSystemPrompt = memoryPrefix ? `${memoryPrefix}\n\n${systemPrompt}` : systemPrompt;
     const result = await this.modelClient(
       {
-        systemPrompt,
+        systemPrompt: finalSystemPrompt,
         userPrompt: options.userPromptOverride || message,
-        history: this.buildHistory(session),
+        history: Array.isArray(options.historyOverride) ? options.historyOverride : this.buildHistory(session),
         temperature: 0.2
       },
       {
@@ -3511,15 +3844,18 @@ class AICompanionEngine {
   }
 
   async runClassifier(promptKey, session, message, allowedValues, fallback, options = {}) {
+    const includeMemoryContext = options.includeMemoryContext !== false;
+    const memoryPrefix = includeMemoryContext ? this.buildKnowYouMemoryPrefix(session, message) : '';
     const systemPrompt = interpolateTemplate(
       this.prompts[promptKey],
       this.buildPromptContext(session, message, options.extraContext)
     );
+    const finalSystemPrompt = memoryPrefix ? `${memoryPrefix}\n\n${systemPrompt}` : systemPrompt;
     const result = await this.modelClient(
       {
-        systemPrompt,
+        systemPrompt: finalSystemPrompt,
         userPrompt: options.userPromptOverride || message,
-        history: [],
+        history: Array.isArray(options.historyOverride) ? options.historyOverride : [],
         temperature: 0
       },
       {

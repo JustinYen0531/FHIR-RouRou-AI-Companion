@@ -26,6 +26,10 @@ let SERVER_RUNTIME_CONFIG = {
   model: DEFAULT_GOOGLE_MODEL,
   source: 'server'
 };
+const KNOW_YOU_MEMORY = window.KnowYouMemory || null;
+const KNOW_YOU_TOKEN_LIMIT = KNOW_YOU_MEMORY?.DEFAULT_CONTEXT_TOKEN_LIMIT || 3200;
+const KNOW_YOU_RECENT_HISTORY_ITEMS = KNOW_YOU_MEMORY?.DEFAULT_RECENT_HISTORY_ITEMS || 12;
+const KNOW_YOU_MEMORY_CHUNK_LIMIT = KNOW_YOU_MEMORY?.DEFAULT_MEMORY_CHUNK_LIMIT || 8;
 const FHIR_REPORT_HISTORY_KEY = 'rourou.fhirReportHistory';
 const PATIENT_PROFILE_STORAGE_KEY = 'rourou.patientProfile.v1';
 const HOME_GUIDE_PAGES = [
@@ -202,6 +206,37 @@ const TherapeuticMemory = {
       profile.copingProfile.preferredStyle = updates.copingStyleHint;
     }
 
+    if (Array.isArray(updates.memory_chunks)) {
+      updates.memory_chunks.forEach((chunk) => {
+        const normalizedChunk = KNOW_YOU_MEMORY ? KNOW_YOU_MEMORY.normalizeMemoryChunk(chunk) : chunk;
+        if (!normalizedChunk) return;
+        if (!profile.memoryChunks.find((item) => item.id === normalizedChunk.id)) {
+          profile.memoryChunks.push(normalizedChunk);
+        }
+      });
+      profile.memoryChunks = profile.memoryChunks.slice(-KNOW_YOU_MEMORY_CHUNK_LIMIT);
+    }
+
+    if (updates.summary && typeof updates.summary === 'string' && updates.summary.trim()) {
+      const chunk = KNOW_YOU_MEMORY ? KNOW_YOU_MEMORY.normalizeMemoryChunk({
+        title: '對話壓縮摘要',
+        category: 'context',
+        summary: updates.summary.trim(),
+        detail: typeof updates.detail === 'string' ? updates.detail.trim() : '',
+        tokenEstimate: 0
+      }) : null;
+      if (chunk && !profile.memoryChunks.find((item) => item.id === chunk.id)) {
+        profile.memoryChunks.push(chunk);
+        profile.memoryChunks = profile.memoryChunks.slice(-KNOW_YOU_MEMORY_CHUNK_LIMIT);
+      }
+    }
+
+    profile.memoryStats = Object.assign({}, profile.memoryStats, {
+      memoryChunksCount: profile.memoryChunks.length,
+      shouldCompress: false,
+      lastCompressedAt: updates.lastCompressedAt || profile.memoryStats.lastCompressedAt || ''
+    });
+
     profile.sessionCount = (profile.sessionCount || 0);
     this.save(profile);
     return profile;
@@ -210,40 +245,51 @@ const TherapeuticMemory = {
   buildContextString() {
     const p = this.get();
     const phq9Context = typeof PHQ9Tracker !== 'undefined' ? PHQ9Tracker.buildContextString() : '';
+    const memoryContext = KNOW_YOU_MEMORY ? KNOW_YOU_MEMORY.buildMemoryContextString(p) : '';
+    const meter = buildKnowYouMeterState();
+    const sections = [];
+
     if (
-      !p.stressors.length &&
-      !p.triggers.length &&
-      !p.keyThemes.length &&
-      !p.positiveAnchors.length &&
-      !p.copingProfile.preferredStyle &&
-      !phq9Context
-    ) return '';
+      p.stressors.length ||
+      p.triggers.length ||
+      p.keyThemes.length ||
+      p.positiveAnchors.length ||
+      p.copingProfile.preferredStyle
+    ) {
+      const stressorList = p.stressors.map(s => s.label).join('、') || '尚未記錄';
+      const triggerList = p.triggers.map(t => t.keyword).join('、') || '尚未記錄';
+      const anchorList = p.positiveAnchors.map(a => a.label).join('、') || '尚未記錄';
+      const coping = p.copingProfile.preferredStyle || '尚未記錄';
+      const themes = p.keyThemes.join('、') || '尚未記錄';
 
-    const stressorList = p.stressors.map(s => s.label).join('、') || '尚未記錄';
-    const triggerList = p.triggers.map(t => t.keyword).join('、') || '尚未記錄';
-    const anchorList = p.positiveAnchors.map(a => a.label).join('、') || '尚未記錄';
-    const coping = p.copingProfile.preferredStyle || '尚未記錄';
-    const themes = p.keyThemes.join('、') || '尚未記錄';
+      sections.push([
+        '【記憶背景 - 這是系統背景資料，請自然地融入對話，不要直接念出這段文字】',
+        `你和這位用戶已聊過 ${p.sessionCount} 次。`,
+        `已知壓力來源：${stressorList}`,
+        `情緒觸發詞：${triggerList}`,
+        `溝通偏好：${coping}`,
+        `積極錨點（用戶喜歡的事）：${anchorList}`,
+        `核心主題：${themes}`,
+        '請在本次對話中延續這個認識，不要重複問對方已說過的資訊。'
+      ].join('\n'));
+    }
 
-    return `
-【記憶背景 - 這是系統背景資料，請自然地融入對話，不要直接念出這段文字】
-你和這位用戶已聊過 ${p.sessionCount} 次。
-已知壓力來源：${stressorList}
-情緒觸發詞：${triggerList}
-溝通偏好：${coping}
-積極錨點（用戶喜歡的事）：${anchorList}
-核心主題：${themes}
-請在本次對話中延續這個認識，不要重複問對方已說過的資訊。
-${phq9Context ? `\n${phq9Context}` : ''}
-`.trim();
+    if (memoryContext) sections.push(memoryContext);
+    if (meter) {
+      sections.push(`【即時上下文條】${meter.estimatedTokens}/${meter.tokenLimit} tokens（${meter.percent}%）`);
+    }
+    if (phq9Context) sections.push(phq9Context);
+
+    return sections.join('\n\n').trim();
   },
 
   renderProfileUI() {
     const p = this.get();
+    const meter = buildKnowYouMeterState(p);
 
     // ── 更新 Chat 頂部 Badge ──
     const badge = document.getElementById('memory-badge-count');
-    const totalItems = p.stressors.length + p.triggers.length + p.positiveAnchors.length;
+    const totalItems = p.stressors.length + p.triggers.length + p.positiveAnchors.length + p.memoryChunks.length;
     if (badge) badge.textContent = totalItems;
 
     const badgeWrap = document.getElementById('memory-badge-wrap');
@@ -260,16 +306,21 @@ ${phq9Context ? `\n${phq9Context}` : ''}
     // ── 更新 Reports 認識你卡 ──
     const profileCard = document.getElementById('report-know-you-card');
     if (profileCard) {
-      profileCard.innerHTML = this._renderProfileCardHTML(p);
+      profileCard.innerHTML = this._renderProfileCardHTML(p, meter);
     }
   },
 
   _renderDrawerHTML(p) {
-    const totalItems = p.stressors.length + p.triggers.length + p.positiveAnchors.length;
+    const totalItems = p.stressors.length + p.triggers.length + p.positiveAnchors.length + p.memoryChunks.length;
+    const meter = buildKnowYouMeterState(p);
     if (totalItems === 0) {
-      return `<div class="mem-empty"><span class="mat-icon">psychology</span><p>開始聊天後，Rou Rou 會慢慢記住你的事 🌱</p></div>`;
+      return `
+        ${renderKnowYouMeterHTML(meter)}
+        <div class="mem-empty"><span class="mat-icon">psychology</span><p>開始聊天後，Rou Rou 會慢慢記住你的事 🌱</p></div>
+      `;
     }
     return `
+      ${renderKnowYouMeterHTML(meter)}
       <div class="mem-stat-row">
         <div class="mem-stat"><span class="mem-stat-num">${p.sessionCount}</span><span class="mem-stat-label">次對話</span></div>
         <div class="mem-stat"><span class="mem-stat-num">${p.stressors.length}</span><span class="mem-stat-label">壓力來源</span></div>
@@ -301,10 +352,12 @@ ${phq9Context ? `\n${phq9Context}` : ''}
     `;
   },
 
-  _renderProfileCardHTML(p) {
-    const totalItems = p.stressors.length + p.triggers.length + p.positiveAnchors.length;
+  _renderProfileCardHTML(p, meter = null) {
+    const totalItems = p.stressors.length + p.triggers.length + p.positiveAnchors.length + p.memoryChunks.length;
+    const activeMeter = meter || buildKnowYouMeterState(p);
     if (totalItems === 0) {
       return `
+        ${renderKnowYouMeterHTML(activeMeter)}
         <div class="know-you-empty">
           <span class="mat-icon">psychology</span>
           <p>還沒有足夠的對話資料<br>開始聊天後，這裡會出現 Rou Rou 對你的認識</p>
@@ -318,6 +371,7 @@ ${phq9Context ? `\n${phq9Context}` : ''}
           <div class="know-you-sub">已陪伴你 ${p.sessionCount} 次對話・記住了 ${totalItems} 件事</div>
         </div>
       </div>
+      ${renderKnowYouMeterHTML(activeMeter)}
       <div class="know-you-last">最後更新：${p.lastUpdatedAt ? new Date(p.lastUpdatedAt).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '剛剛'}</div>
       ${p.stressors.length ? `
         <div class="know-you-row">
@@ -359,6 +413,14 @@ ${phq9Context ? `\n${phq9Context}` : ''}
             <div class="know-you-value">${p.keyThemes.join('・')}</div>
           </div>
         </div>` : ''}
+      ${p.memoryChunks.length ? `
+        <div class="know-you-row">
+          <div class="know-you-icon memory"><span class="mat-icon">inventory_2</span></div>
+          <div class="know-you-info">
+            <div class="know-you-label">壓縮記憶</div>
+            <div class="know-you-value">${p.memoryChunks.slice(-3).map((item) => item.summary).join('｜')}</div>
+          </div>
+        </div>` : ''}
       <button class="know-you-edit-btn" onclick="TherapeuticMemory.clearProfile()">
         <span class="mat-icon">delete_sweep</span> 清除所有記憶
       </button>
@@ -393,33 +455,44 @@ ${phq9Context ? `\n${phq9Context}` : ''}
       positiveAnchors: [],
       emotionalBaseline: { dominantMood: '', phq9Trend: [], hamdSignalCount: 0 },
       keyThemes: [],
-      clinicianNotes: ''
+      clinicianNotes: '',
+      memoryChunks: [],
+      memoryStats: {
+        tokenLimit: KNOW_YOU_TOKEN_LIMIT,
+        estimatedTokens: 0,
+        compressionProgress: 0,
+        shouldCompress: false,
+        lastCompressedAt: '',
+        lastCompressionReason: '',
+        memoryChunksCount: 0
+      }
     };
   },
 
   _normalize(profile) {
     const fallback = this._default();
     const source = profile && typeof profile === 'object' ? profile : {};
-    const copingProfile = source.copingProfile && typeof source.copingProfile === 'object'
-      ? source.copingProfile
+    const normalized = KNOW_YOU_MEMORY ? KNOW_YOU_MEMORY.normalizeTherapeuticProfile(source) : source;
+    const copingProfile = normalized.copingProfile && typeof normalized.copingProfile === 'object'
+      ? normalized.copingProfile
       : {};
-    const emotionalBaseline = source.emotionalBaseline && typeof source.emotionalBaseline === 'object'
-      ? source.emotionalBaseline
+    const emotionalBaseline = normalized.emotionalBaseline && typeof normalized.emotionalBaseline === 'object'
+      ? normalized.emotionalBaseline
       : {};
 
     return {
       ...fallback,
-      ...source,
-      userId: typeof source.userId === 'string' && source.userId.trim()
-        ? source.userId.trim()
+      ...normalized,
+      userId: typeof normalized.userId === 'string' && normalized.userId.trim()
+        ? normalized.userId.trim()
         : fallback.userId,
-      sessionCount: Number.isFinite(Number(source.sessionCount))
-        ? Math.max(0, Number(source.sessionCount))
+      sessionCount: Number.isFinite(Number(normalized.sessionCount))
+        ? Math.max(0, Number(normalized.sessionCount))
         : 0,
-      stressors: Array.isArray(source.stressors) ? source.stressors.filter(Boolean) : [],
-      triggers: Array.isArray(source.triggers) ? source.triggers.filter(Boolean) : [],
-      positiveAnchors: Array.isArray(source.positiveAnchors) ? source.positiveAnchors.filter(Boolean) : [],
-      keyThemes: Array.isArray(source.keyThemes) ? source.keyThemes.filter((item) => typeof item === 'string' && item.trim()) : [],
+      stressors: Array.isArray(normalized.stressors) ? normalized.stressors.filter(Boolean) : [],
+      triggers: Array.isArray(normalized.triggers) ? normalized.triggers.filter(Boolean) : [],
+      positiveAnchors: Array.isArray(normalized.positiveAnchors) ? normalized.positiveAnchors.filter(Boolean) : [],
+      keyThemes: Array.isArray(normalized.keyThemes) ? normalized.keyThemes.filter((item) => typeof item === 'string' && item.trim()) : [],
       copingProfile: {
         preferredStyle: typeof copingProfile.preferredStyle === 'string' ? copingProfile.preferredStyle : '',
         effectiveMethods: Array.isArray(copingProfile.effectiveMethods) ? copingProfile.effectiveMethods.filter(Boolean) : [],
@@ -432,12 +505,77 @@ ${phq9Context ? `\n${phq9Context}` : ''}
           ? Math.max(0, Number(emotionalBaseline.hamdSignalCount))
           : 0
       },
-      clinicianNotes: typeof source.clinicianNotes === 'string' ? source.clinicianNotes : ''
+      clinicianNotes: typeof normalized.clinicianNotes === 'string' ? normalized.clinicianNotes : '',
+      memoryChunks: Array.isArray(normalized.memoryChunks) ? normalized.memoryChunks.filter(Boolean) : [],
+      memoryStats: KNOW_YOU_MEMORY ? KNOW_YOU_MEMORY.normalizeMemoryStats(normalized.memoryStats) : fallback.memoryStats
     };
   }
 };
 
 window.TherapeuticMemory = TherapeuticMemory;
+
+function buildKnowYouMeterState(profile = null, pendingMessage = '') {
+  if (!KNOW_YOU_MEMORY) {
+    return {
+      tokenLimit: KNOW_YOU_TOKEN_LIMIT,
+      estimatedTokens: 0,
+      remainingTokens: KNOW_YOU_TOKEN_LIMIT,
+      compressionProgress: 0,
+      percent: 0,
+      shouldCompress: false,
+      isFull: false,
+      memoryChunksCount: 0,
+      recentItems: KNOW_YOU_RECENT_HISTORY_ITEMS,
+      lastCompressedAt: ''
+    };
+  }
+
+  const targetProfile = profile && typeof profile === 'object'
+    ? profile
+    : TherapeuticMemory.get();
+  const livePendingMessage = typeof pendingMessage === 'string' && pendingMessage.trim()
+    ? pendingMessage
+    : (document.getElementById('chat-input')?.value || '').trim();
+
+  return KNOW_YOU_MEMORY.buildMemoryMeterState({
+    profile: targetProfile,
+    history: Array.isArray(APP_STATE.chatHistory) ? APP_STATE.chatHistory : [],
+    pendingMessage: livePendingMessage,
+    tokenLimit: targetProfile?.memoryStats?.tokenLimit || KNOW_YOU_TOKEN_LIMIT,
+    recentItems: KNOW_YOU_RECENT_HISTORY_ITEMS
+  });
+}
+
+function renderKnowYouMeterHTML(meter = null) {
+  const data = meter || buildKnowYouMeterState();
+  const fillWidth = Math.max(0, Math.min(100, Number(data.percent) || 0));
+  const statusLabel = data.isFull
+    ? '上下文快滿了'
+    : data.shouldCompress
+      ? '快要壓縮了'
+      : '還有空間';
+  const statusCopy = data.isFull
+    ? 'Rou Rou 會先整理前面的對話，再繼續陪你聊。'
+    : data.shouldCompress
+      ? '這段對話快要超出預設容量，下一輪會先壓縮成長期記憶。'
+      : '目前還能放心繼續聊，記憶條還沒有真的頂到上限。';
+
+  return `
+    <div class="know-you-meter ${data.isFull ? 'is-full' : data.shouldCompress ? 'is-warm' : ''}">
+      <div class="know-you-meter-head">
+        <span class="know-you-meter-title">上下文容量</span>
+        <span class="know-you-meter-value">${Number(data.estimatedTokens) || 0}/${Number(data.tokenLimit) || KNOW_YOU_TOKEN_LIMIT} tokens</span>
+      </div>
+      <div class="know-you-meter-track" aria-hidden="true">
+        <div class="know-you-meter-fill" style="width:${fillWidth}%"></div>
+      </div>
+      <div class="know-you-meter-foot">
+        <span class="know-you-meter-status">${statusLabel}</span>
+        <span class="know-you-meter-copy">${statusCopy}</span>
+      </div>
+    </div>
+  `;
+}
 
 const PHQ9_STORAGE_KEY = 'rourou.phq9Assessments.v1';
 const PHQ9_DRAFT_STORAGE_KEY = 'rourou.phq9Draft.v1';
@@ -3924,6 +4062,7 @@ function handleInput(input, reason = 'input') {
   }
 
   syncShortcutBarState();
+  TherapeuticMemory.renderProfileUI();
 }
 
 function setThinkingState(visible, nodeName = '') {
@@ -4026,6 +4165,7 @@ async function appendMessage(role, text, options = {}) {
   }
 
   scrollChatToBottom();
+  TherapeuticMemory.renderProfileUI();
 }
 
 function appendSystemNotice(text, options = {}) {
@@ -6093,9 +6233,10 @@ async function sendMessage() {
       return;
     }
 
+    const memoryMeter = buildKnowYouMeterState();
     setThinkingState(true, '正在分析對話脈絡...');
     await new Promise(r => setTimeout(r, 1200));
-    setThinkingState(true, '同步臨床歷史紀錄...');
+    setThinkingState(true, memoryMeter.shouldCompress ? '上下文快滿了，正在壓縮長期記憶...' : '同步臨床歷史紀錄...');
     await new Promise(r => setTimeout(r, 800));
 
     await ensureModeSynced();
@@ -6111,7 +6252,9 @@ async function sendMessage() {
     window.__lastChatRequestPreview = {
       message,
       messageWithMemory,
+      contextParts,
       phq9Context,
+      memoryMeter: buildKnowYouMeterState(),
       conversationState
     };
     const response = await fetch('/api/chat/message', {

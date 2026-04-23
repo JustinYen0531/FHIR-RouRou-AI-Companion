@@ -7,6 +7,28 @@ const path = require('path');
 
 function createStubModelClient() {
   return async ({ systemPrompt, userPrompt }) => {
+    if (systemPrompt.includes('肉肉認識你壓縮器')) {
+      return {
+        text: JSON.stringify({
+          summary: '最近的對話主要集中在工作壓力、睡眠不足與被追著跑的感覺。',
+          memory_chunks: [
+            {
+              title: '工作與睡眠壓力',
+              category: 'context',
+              summary: '使用者反覆提到工作壓力很大，並伴隨睡不好與疲憊。',
+              detail: '可在後續對話中優先記住這是一段長期壓力來源。',
+              confidence: 'high'
+            }
+          ],
+          stressors: ['工作壓力'],
+          triggers: [{ keyword: '被追著跑', reaction: '容易焦慮', severity: 'medium' }],
+          keyThemes: ['工作', '睡眠'],
+          positiveAnchors: ['散步'],
+          copingStyleHint: '先慢慢說，不要一次塞太多',
+          retainedTurnCount: 4
+        })
+      };
+    }
     if (systemPrompt.includes('低能量與認知負擔偵測器')) {
       return { text: 'continue_auto' };
     }
@@ -504,6 +526,30 @@ async function testTherapeuticProfilePersistsInSession() {
   assert.deepStrictEqual(session.state.therapeutic_profile.stressors, [{ label: '工作壓力' }]);
 }
 
+async function testTherapeuticMemoryCompressionAddsLongTermChunk() {
+  const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
+  const first = await engine.handleMessage({
+    message: '最近工作壓力真的很大，晚上也睡不好。',
+    user: 'demo-user',
+    conversation_id: 'conv-memory-1'
+  });
+  const session = engine.sessions.get(first.conversation_id);
+  const beforeProfile = session.state.therapeutic_profile || {};
+  const beforeCount = Array.isArray(beforeProfile.memoryChunks)
+    ? beforeProfile.memoryChunks.length
+    : 0;
+  const result = await engine.compressTherapeuticMemory(session, '補一段壓縮測試', { force: true });
+  const afterProfile = session.state.therapeutic_profile || {};
+  const afterCount = Array.isArray(afterProfile.memoryChunks)
+    ? afterProfile.memoryChunks.length
+    : 0;
+
+  assert.ok(result);
+  assert.ok(afterCount >= beforeCount);
+  assert.ok(afterProfile.memoryStats.memoryChunksCount >= afterCount);
+  assert.ok(Array.isArray(afterProfile.memoryChunks) && afterProfile.memoryChunks.length > 0);
+}
+
 async function testSessionPersistenceRoundTrip() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-companion-'));
   const storePath = path.join(tmpDir, 'sessions.json');
@@ -549,6 +595,7 @@ async function run() {
   await testForceNewSessionCreatesSeparateConversation();
   await testCorruptedInputIsRejectedBeforePersist();
   await testTherapeuticProfilePersistsInSession();
+  await testTherapeuticMemoryCompressionAddsLongTermChunk();
   await testSessionPersistenceRoundTrip();
   console.log('AI companion engine tests passed.');
 }

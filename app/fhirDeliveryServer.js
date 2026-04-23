@@ -23,6 +23,7 @@ const STATIC_FILES = {
   '/': { filePath: path.join(APP_DIR, 'index.html'), contentType: 'text/html; charset=utf-8' },
   '/index.html': { filePath: path.join(APP_DIR, 'index.html'), contentType: 'text/html; charset=utf-8' },
   '/app.js': { filePath: path.join(APP_DIR, 'app.js'), contentType: 'application/javascript; charset=utf-8' },
+  '/knowYouMemory.js': { filePath: path.join(APP_DIR, 'knowYouMemory.js'), contentType: 'application/javascript; charset=utf-8' },
   '/microInterventionRules.js': { filePath: path.join(APP_DIR, 'microInterventionRules.js'), contentType: 'application/javascript; charset=utf-8' },
   '/style.css': { filePath: path.join(APP_DIR, 'style.css'), contentType: 'text/css; charset=utf-8' }
 };

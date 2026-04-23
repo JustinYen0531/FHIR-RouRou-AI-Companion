@@ -3877,6 +3877,81 @@ body {
 .mem-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .mem-tag { padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
 .mem-tag.stress { background: rgba(168,56,54,0.1); color: var(--error); }
+.know-you-meter {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(246,250,254,0.98), rgba(231,239,245,0.96));
+  border: 1px solid rgba(68,102,85,0.12);
+  box-shadow: 0 8px 20px rgba(41,52,58,0.05);
+}
+.know-you-meter.is-warm {
+  background: linear-gradient(180deg, rgba(255,248,235,0.98), rgba(255,240,220,0.96));
+  border-color: rgba(235,126,34,0.2);
+}
+.know-you-meter.is-full {
+  background: linear-gradient(180deg, rgba(255,239,239,0.98), rgba(251,229,229,0.98));
+  border-color: rgba(168,56,54,0.2);
+}
+.know-you-meter-head,
+.know-you-meter-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.know-you-meter-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--on-surface-variant);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.know-you-meter-value {
+  font-family: 'Manrope', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--primary);
+  white-space: nowrap;
+}
+.know-you-meter-track {
+  position: relative;
+  height: 10px;
+  margin: 10px 0 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(68,102,85,0.08);
+}
+.know-you-meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary-container), var(--primary));
+  transition: width 0.35s var(--ease-natural);
+}
+.know-you-meter.is-warm .know-you-meter-fill {
+  background: linear-gradient(90deg, #ffd59b, #ea7a25);
+}
+.know-you-meter.is-full .know-you-meter-fill {
+  background: linear-gradient(90deg, #f7b0b0, var(--error));
+}
+.know-you-meter-status {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--primary-dim);
+  white-space: nowrap;
+}
+.know-you-meter-copy {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--on-surface-variant);
+  text-align: right;
+}
+.know-you-card .know-you-meter {
+  margin-bottom: 16px;
+}
+.memory { background: rgba(68,102,85,0.1); color: var(--primary); }
 
 /* ══════════════════════════════════════════════
    MICRO INTERVENTION ENGINE
