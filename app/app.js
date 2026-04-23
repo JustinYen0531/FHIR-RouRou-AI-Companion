@@ -3847,6 +3847,13 @@ function wireHomeSessionControls() {
       if (!button) return;
       continueSpecificSession(button.dataset.sessionOpen);
     });
+    list.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const button = event.target.closest('[data-session-open]');
+      if (!button) return;
+      event.preventDefault();
+      continueSpecificSession(button.dataset.sessionOpen);
+    });
   }
 
   if (pinButton && !pinButton.dataset.wired) {
@@ -5242,7 +5249,7 @@ function renderRecentSessions() {
 
     return `
       <div class="home-session-item is-pinned">
-        <button class="home-session-card home-session-card-pinned" type="button" data-session-open="${escapeHtml(pinned.id)}">
+        <div class="home-session-card home-session-card-pinned" role="button" tabindex="0" data-session-open="${escapeHtml(pinned.id)}" aria-label="打開這段釘選對話">
           <div class="home-session-top">
             <div class="home-session-time">${escapeHtml(formatSessionTimestamp(pinned.updatedAt))}</div>
             <div class="home-session-actions">
@@ -5256,7 +5263,7 @@ function renderRecentSessions() {
             推薦展示問法（直接貼到聊天框就能看出功能差異）：
             <ul class="home-session-demo-list">${promptList}</ul>
           </div>
-        </button>
+        </div>
       </div>
     `;
   })() : '';
@@ -5280,7 +5287,7 @@ function renderRecentSessions() {
 
     return `
       <div class="home-session-item">
-        <button class="home-session-card" type="button" data-session-open="${escapeHtml(session.id)}">
+        <div class="home-session-card" role="button" tabindex="0" data-session-open="${escapeHtml(session.id)}" aria-label="打開這段對話">
         <div class="home-session-top">
           <div class="home-session-time">${escapeHtml(formatSessionTimestamp(session.updatedAt))}</div>
           <div class="home-session-actions">
@@ -5293,7 +5300,7 @@ function renderRecentSessions() {
         <div class="home-session-summary">${escapeHtml(summary)}</div>
         <div class="home-session-sub">${escapeHtml(sub)}</div>
         ${flags ? `<div class="home-session-flags">${flags}</div>` : ''}
-        </button>
+        </div>
       </div>
     `;
   }).join('');
