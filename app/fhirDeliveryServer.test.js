@@ -2,12 +2,42 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const os = require('os');
+const { createAuthStore } = require('./authStore');
 const { processExportPayload, processResourceRefreshPayload, processDeliveryCheckPayload, processChatPayload, processOutputPayload, createServer } = require('./fhirDeliveryServer');
 
 function getSamplePayload() {
   return JSON.parse(
     fs.readFileSync(path.join(__dirname, 'sampleSessionExport.json'), 'utf8')
   );
+}
+
+function createTempAuthStore() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rourou-auth-server-'));
+  return createAuthStore({ filePath: path.join(dir, 'auth.json') });
+}
+
+function requestJson(port, pathname, options = {}) {
+  return new Promise((resolve, reject) => {
+    const req = http.request(`http://127.0.0.1:${port}${pathname}`, {
+      method: options.method || 'GET',
+      headers: Object.assign({}, options.headers || {})
+    }, (res) => {
+      let raw = '';
+      res.on('data', (chunk) => { raw += chunk; });
+      res.on('end', () => {
+        resolve({
+          statusCode: res.statusCode,
+          body: raw ? JSON.parse(raw) : {}
+        });
+      });
+    });
+    req.on('error', reject);
+    if (options.body !== undefined) {
+      req.write(JSON.stringify(options.body));
+    }
+    req.end();
+  });
 }
 
 async function testDryRunDelivery() {
@@ -555,6 +585,92 @@ async function testPatientRefreshEndpoint() {
   assert.strictEqual(payload.resource_result.ok, true);
 }
 
+async function testAuthRegisterAndMeEndpoint() {
+  const authStore = createTempAuthStore();
+  const server = createServer({ authStore });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const register = await requestJson(port, '/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: {
+      role: 'patient',
+      display_name: '林小明',
+      login_identifier: 'patient_lin',
+      password: 'pass1234'
+    }
+  });
+
+  assert.strictEqual(register.statusCode, 201);
+  assert.ok(register.body.token);
+  assert.strictEqual(register.body.user.role, 'patient');
+
+  const me = await requestJson(port, '/auth/me', {
+    headers: {
+      Authorization: `Bearer ${register.body.token}`
+    }
+  });
+
+  server.close();
+  assert.strictEqual(me.statusCode, 200);
+  assert.strictEqual(me.body.user.login_identifier, 'patient_lin');
+}
+
+async function testAuthProtectsForeignSession() {
+  const authStore = createTempAuthStore();
+  const user = authStore.registerUser({
+    role: 'patient',
+    display_name: '林小明',
+    login_identifier: 'patient_lin',
+    password: 'pass1234'
+  });
+  const login = authStore.login({
+    login_identifier: 'patient_lin',
+    password: 'pass1234'
+  });
+
+  const sessions = new Map();
+  sessions.set('conv-foreign', {
+    id: 'conv-foreign',
+    user: 'another-user',
+    startedAt: '2026-04-04T00:00:00.000Z',
+    updatedAt: '2026-04-04T00:05:00.000Z',
+    history: [{ role: 'user', content: '最近很累' }],
+    state: {},
+    revision: 1,
+    memory_snapshot: {},
+    output_cache: {}
+  });
+  sessions.set('conv-own', {
+    id: 'conv-own',
+    user: user.id,
+    startedAt: '2026-04-04T00:00:00.000Z',
+    updatedAt: '2026-04-04T00:05:00.000Z',
+    history: [{ role: 'user', content: '這是我的對話' }],
+    state: {},
+    revision: 1,
+    memory_snapshot: {},
+    output_cache: {}
+  });
+
+  const server = createServer({ sessions, authStore });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const foreign = await requestJson(port, '/api/chat/session?id=conv-foreign', {
+    headers: { Authorization: `Bearer ${login.token}` }
+  });
+  const own = await requestJson(port, `/api/chat/session?id=conv-own`, {
+    headers: { Authorization: `Bearer ${login.token}` }
+  });
+
+  server.close();
+  assert.strictEqual(foreign.statusCode, 403);
+  assert.strictEqual(own.statusCode, 200);
+  assert.strictEqual(own.body.session.id, 'conv-own');
+}
+
 async function run() {
   await testDryRunDelivery();
   await testBlockedDelivery();
@@ -576,6 +692,8 @@ async function run() {
   await testSessionPatchEndpoint();
   await testQuickCheckEndpoint();
   await testPatientRefreshEndpoint();
+  await testAuthRegisterAndMeEndpoint();
+  await testAuthProtectsForeignSession();
   console.log('FHIR delivery server tests passed.');
 }
 

@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { buildSessionExportBundle, buildPatientResourceOnly } = require('./fhirBundleBuilder');
 const { AICompanionEngine } = require('./aiCompanionEngine');
+const { createAuthStore, DEFAULT_AUTH_STORE_PATH } = require('./authStore');
 const { createSessionPersistence, DEFAULT_SESSION_STORE_PATH, listSessionSummaries } = require('./sessionPersistence');
 const {
   DEFAULT_GROQ_BASE_URL,
@@ -78,10 +79,36 @@ function sendJson(res, statusCode, body) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET,POST,PATCH,OPTIONS'
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+    'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS'
   });
   res.end(JSON.stringify(body, null, 2));
+}
+
+function getBearerToken(req) {
+  const header = String(req.headers?.authorization || '').trim();
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match ? String(match[1] || '').trim() : '';
+}
+
+function buildSafeAuthPayload(authResult) {
+  if (!authResult?.user) return null;
+  return {
+    ok: true,
+    user: authResult.user,
+    session: authResult.session
+      ? {
+          id: authResult.session.id,
+          created_at: authResult.session.created_at,
+          expires_at: authResult.session.expires_at
+        }
+      : null
+  };
+}
+
+function sessionBelongsToUser(session, authUser) {
+  if (!authUser) return true;
+  return String(session?.user || '').trim() === String(authUser.id || '').trim();
 }
 
 function sendStaticFile(res, pathname) {
@@ -629,7 +656,7 @@ async function processChatPayload(payload, options = {}) {
         : (payload.api_base_url || options.groqBaseUrl || DEFAULT_GROQ_BASE_URL)
   ).trim();
   const apiModel = String(payload.api_model || options.llmModel || (provider === 'google' ? DEFAULT_GOOGLE_MODEL : provider === 'openrouter' ? DEFAULT_OPENROUTER_MODEL : '')).trim();
-  const user = (payload.user || 'web-demo-user').trim();
+  const user = String(options.authUser?.id || payload.user || 'web-demo-user').trim();
   const message = (payload.message || '').trim();
   const hasRequestModelConfig = Boolean(payload.api_key || payload.api_provider || payload.api_base_url || payload.api_model);
 
@@ -710,7 +737,7 @@ async function processOutputPayload(payload, options = {}) {
         : (payload.api_base_url || options.groqBaseUrl || DEFAULT_GROQ_BASE_URL)
   ).trim();
   const apiModel = String(payload.api_model || options.llmModel || (provider === 'google' ? DEFAULT_GOOGLE_MODEL : provider === 'openrouter' ? DEFAULT_OPENROUTER_MODEL : '')).trim();
-  const user = (payload.user || 'web-demo-user').trim();
+  const user = String(options.authUser?.id || payload.user || 'web-demo-user').trim();
   const outputType = String(payload.output_type || '').trim();
   const hasRequestModelConfig = Boolean(payload.api_key || payload.api_provider || payload.api_base_url || payload.api_model);
 
@@ -772,6 +799,9 @@ async function processOutputPayload(payload, options = {}) {
 }
 
 function createServer(options = {}) {
+  const authStore = options.authStore || createAuthStore({
+    filePath: options.authStorePath || process.env.AI_COMPANION_AUTH_STORE || DEFAULT_AUTH_STORE_PATH
+  });
   const persistence = options.sessionPersistence || (
     options.sessions
       ? {
@@ -808,11 +838,14 @@ function createServer(options = {}) {
 
   return http.createServer(async (req, res) => {
     const parsedUrl = new URL(req.url, 'http://localhost');
+    const bearerToken = getBearerToken(req);
+    const authResult = bearerToken ? authStore.getSessionByToken(bearerToken) : null;
+    const authUser = authResult?.user || null;
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+        'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS'
       });
       res.end();
       return;
@@ -851,8 +884,30 @@ function createServer(options = {}) {
       return;
     }
 
+    if (req.method === 'GET' && parsedUrl.pathname === '/auth/me') {
+      if (!authUser) {
+        sendJson(res, 401, { error: 'Unauthorized' });
+        return;
+      }
+      sendJson(res, 200, buildSafeAuthPayload(authResult));
+      return;
+    }
+
+    if (req.method === 'POST' && parsedUrl.pathname === '/auth/logout') {
+      if (bearerToken) {
+        authStore.revokeSession(bearerToken);
+      }
+      sendJson(res, 200, { ok: true, logged_out: true });
+      return;
+    }
+
     if (req.method === 'GET' && parsedUrl.pathname === '/api/chat/sessions') {
-      const user = String(parsedUrl.searchParams.get('user') || '').trim();
+      const requestedUser = String(parsedUrl.searchParams.get('user') || '').trim();
+      const user = authUser ? authUser.id : requestedUser;
+      if (authUser && requestedUser && requestedUser !== authUser.id) {
+        sendJson(res, 403, { error: 'Forbidden' });
+        return;
+      }
       const limit = Number(parsedUrl.searchParams.get('limit') || 5);
       sendJson(res, 200, {
         ok: true,
@@ -873,6 +928,10 @@ function createServer(options = {}) {
           sendJson(res, 404, { error: 'Session not found.' });
           return;
         }
+        if (!sessionBelongsToUser(sharedSessions.get(sessionId), authUser)) {
+          sendJson(res, 403, { error: 'Forbidden' });
+          return;
+        }
 
         sharedSessions.delete(sessionId);
         persistence.save(sharedSessions);
@@ -887,6 +946,10 @@ function createServer(options = {}) {
       const session = sharedSessions.get(sessionId);
       if (!session) {
         sendJson(res, 404, { error: 'Session not found.' });
+        return;
+      }
+      if (!sessionBelongsToUser(session, authUser)) {
+        sendJson(res, 403, { error: 'Forbidden' });
         return;
       }
 
@@ -911,7 +974,7 @@ function createServer(options = {}) {
       return;
     }
 
-    if (!['POST', 'PATCH'].includes(req.method) || !['/api/fhir/bundle', '/api/fhir/check', '/api/fhir/resource-refresh', '/api/chat/message', '/api/chat/output', '/api/chat/session'].includes(parsedUrl.pathname)) {
+    if (!['POST', 'PATCH'].includes(req.method) || !['/auth/register', '/auth/login', '/api/fhir/bundle', '/api/fhir/check', '/api/fhir/resource-refresh', '/api/chat/message', '/api/chat/output', '/api/chat/session'].includes(parsedUrl.pathname)) {
       sendJson(res, 404, { error: 'Not found' });
       return;
     }
@@ -931,6 +994,32 @@ function createServer(options = {}) {
         return;
       }
 
+      if (req.method === 'POST' && parsedUrl.pathname === '/auth/register') {
+        try {
+          const user = authStore.registerUser(payload);
+          const loginResult = authStore.login(payload);
+          sendJson(res, 201, Object.assign(buildSafeAuthPayload(loginResult), {
+            token: loginResult.token,
+            user
+          }));
+        } catch (error) {
+          sendJson(res, 400, { error: error.message || 'Unable to register user.' });
+        }
+        return;
+      }
+
+      if (req.method === 'POST' && parsedUrl.pathname === '/auth/login') {
+        try {
+          const loginResult = authStore.login(payload);
+          sendJson(res, 200, Object.assign(buildSafeAuthPayload(loginResult), {
+            token: loginResult.token
+          }));
+        } catch (error) {
+          sendJson(res, 401, { error: error.message || 'Unable to login.' });
+        }
+        return;
+      }
+
       if (req.method === 'PATCH' && parsedUrl.pathname === '/api/chat/session') {
         const sessionId = String(parsedUrl.searchParams.get('id') || '').trim();
         if (!sessionId) {
@@ -941,6 +1030,10 @@ function createServer(options = {}) {
         const session = sharedSessions.get(sessionId);
         if (!session) {
           sendJson(res, 404, { error: 'Session not found.' });
+          return;
+        }
+        if (!sessionBelongsToUser(session, authUser)) {
+          sendJson(res, 403, { error: 'Forbidden' });
           return;
         }
 
@@ -968,9 +1061,9 @@ function createServer(options = {}) {
 
       const result =
         parsedUrl.pathname === '/api/chat/message'
-          ? await processChatPayload(payload, Object.assign({}, options, { engine: sharedEngine, sessions: sharedSessions }))
+          ? await processChatPayload(payload, Object.assign({}, options, { engine: sharedEngine, sessions: sharedSessions, authUser }))
           : parsedUrl.pathname === '/api/chat/output'
-            ? await processOutputPayload(payload, Object.assign({}, options, { engine: sharedEngine, sessions: sharedSessions }))
+            ? await processOutputPayload(payload, Object.assign({}, options, { engine: sharedEngine, sessions: sharedSessions, authUser }))
             : parsedUrl.pathname === '/api/fhir/resource-refresh'
               ? await processResourceRefreshPayload(payload, options)
             : parsedUrl.pathname === '/api/fhir/check'
@@ -993,11 +1086,13 @@ if (require.main === module) {
   const llmProvider = process.env.LLM_PROVIDER || (googleApiKey ? 'google' : openrouterApiKey ? 'openrouter' : 'groq');
   const llmModel = process.env.LLM_MODEL || (llmProvider === 'google' ? DEFAULT_GOOGLE_MODEL : llmProvider === 'openrouter' ? DEFAULT_OPENROUTER_MODEL : '');
   const sessionStorePath = process.env.AI_COMPANION_SESSION_STORE || DEFAULT_SESSION_STORE_PATH;
-  const server = createServer({ fhirBaseUrl, groqApiKey, groqBaseUrl, openrouterApiKey, openrouterBaseUrl, googleApiKey, googleBaseUrl, llmProvider, llmModel, sessionStorePath });
+  const authStorePath = process.env.AI_COMPANION_AUTH_STORE || DEFAULT_AUTH_STORE_PATH;
+  const server = createServer({ fhirBaseUrl, groqApiKey, groqBaseUrl, openrouterApiKey, openrouterBaseUrl, googleApiKey, googleBaseUrl, llmProvider, llmModel, sessionStorePath, authStorePath });
   server.listen(port, () => {
     console.log('FHIR delivery server listening on http://localhost:' + port);
     console.log('Static app available at http://localhost:' + port + '/');
     console.log('Session persistence file:', sessionStorePath);
+    console.log('Auth store file:', authStorePath);
     if (fhirBaseUrl) {
       console.log('FHIR transaction target:', fhirBaseUrl);
     } else {

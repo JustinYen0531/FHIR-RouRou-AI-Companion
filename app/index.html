@@ -21,6 +21,41 @@
       </div>
       <h1 class="home-headline">今天想聊聊嗎？</h1>
       <p class="home-sub">Rou Rou 準備好聽你說了</p>
+
+      <section class="auth-hero-card">
+        <div class="auth-hero-top">
+          <div>
+            <div class="auth-hero-kicker">IDENTITY SYSTEM V1</div>
+            <div class="auth-hero-title">先讓系統知道你是病人還是醫師</div>
+          </div>
+          <span id="home-auth-role-badge" class="auth-role-badge">未登入</span>
+        </div>
+
+        <div id="home-auth-guest">
+          <div class="auth-role-switch">
+            <button class="auth-role-chip active" type="button" data-auth-role="patient" onclick="selectAuthRole('patient')">病人</button>
+            <button class="auth-role-chip" type="button" data-auth-role="doctor" onclick="selectAuthRole('doctor')">醫師</button>
+          </div>
+          <div class="auth-form-grid">
+            <input id="auth-display-name" class="auth-input" type="text" placeholder="顯示名稱（註冊用）" />
+            <input id="auth-login-identifier" class="auth-input" type="text" placeholder="帳號，例如 patient_lin / doctor_wang" />
+            <input id="auth-password" class="auth-input" type="password" placeholder="密碼（至少 4 碼）" />
+          </div>
+          <div class="auth-action-row">
+            <button id="auth-login-btn" class="auth-primary-btn" type="button" onclick="loginAuth()">登入</button>
+            <button id="auth-register-btn" class="auth-secondary-btn" type="button" onclick="registerAuth()">註冊並登入</button>
+          </div>
+          <div id="home-auth-status" class="auth-status-copy">先選角色，再登入或註冊。</div>
+        </div>
+
+        <div id="home-auth-member" class="auth-member-card" style="display:none">
+          <div class="auth-member-copy">
+            <div id="home-auth-name" class="auth-member-name">尚未登入</div>
+            <div id="home-auth-meta" class="auth-member-meta">請先建立或登入帳號</div>
+          </div>
+          <button class="auth-inline-logout" type="button" onclick="logoutAuth()">登出</button>
+        </div>
+      </section>
       
       <button id="home-entry-button" class="home-input-wrap" type="button" onclick="enterChatFromHome()">
         <div class="home-plus-btn">
@@ -763,6 +798,20 @@
           <span id="settings-profile-status" class="profile-status-badge incomplete">未完成</span>
           <span class="mat-icon">chevron_right</span>
         </button>
+      </div>
+
+      <div class="settings-group-label">登入身份</div>
+      <div class="settings-card">
+        <div class="settings-auth-row">
+          <div class="settings-auth-copy">
+            <div id="settings-auth-name" class="settings-auth-name">尚未登入帳號</div>
+            <div id="settings-auth-meta" class="settings-auth-meta">登入後，系統才會知道你是病人還是醫師</div>
+          </div>
+          <span id="settings-auth-badge" class="profile-status-badge incomplete">訪客</span>
+        </div>
+        <div id="settings-auth-actions" class="settings-auth-actions" style="display:none">
+          <button id="settings-auth-logout" class="ghost-btn" type="button" onclick="logoutAuth()">登出目前帳號</button>
+        </div>
       </div>
 
       <div class="settings-group-label">AI 互動</div>

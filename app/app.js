@@ -15,6 +15,8 @@ const LOCAL_SESSION_ARCHIVE_KEY = 'rourou.singleSessionArchive.v2';
 const MAX_LOCAL_SESSION_ARCHIVE_RECORDS = 20;
 const REPORT_OUTPUT_CACHE_KEY = 'rourou.reportOutputsCache.v1';
 const PINNED_SESSION_STORAGE_KEY = 'rourou.pinnedSession.v1';
+const AUTH_TOKEN_STORAGE_KEY = 'rourou.authToken.v1';
+const AUTH_USER_STORAGE_KEY = 'rourou.authUser.v1';
 const PINNED_SESSION_EXAMPLE_PROMPTS = [
   '我現在很亂，先用樹洞模式接住我，不要急著給建議。',
   '幫我把這段對話整理成「可給醫師看的重點」條列版。',
@@ -26,12 +28,50 @@ let SERVER_RUNTIME_CONFIG = {
   model: DEFAULT_GOOGLE_MODEL,
   source: 'server'
 };
+const NATIVE_FETCH = window.fetch.bind(window);
 const KNOW_YOU_MEMORY = window.KnowYouMemory || null;
 const KNOW_YOU_TOKEN_LIMIT = KNOW_YOU_MEMORY?.DEFAULT_CONTEXT_TOKEN_LIMIT || 3200;
 const KNOW_YOU_RECENT_HISTORY_ITEMS = KNOW_YOU_MEMORY?.DEFAULT_RECENT_HISTORY_ITEMS || 12;
 const KNOW_YOU_MEMORY_CHUNK_LIMIT = KNOW_YOU_MEMORY?.DEFAULT_MEMORY_CHUNK_LIMIT || 8;
 const FHIR_REPORT_HISTORY_KEY = 'rourou.fhirReportHistory';
 const PATIENT_PROFILE_STORAGE_KEY = 'rourou.patientProfile.v1';
+
+function loadStoredAuthState() {
+  let user = null;
+  try {
+    user = JSON.parse(localStorage.getItem(AUTH_USER_STORAGE_KEY) || 'null');
+  } catch {
+    user = null;
+  }
+  const token = String(localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || '').trim();
+  return {
+    token,
+    user: user && typeof user === 'object' ? user : null
+  };
+}
+
+window.fetch = function authenticatedFetch(input, init = {}) {
+  const requestUrl = typeof input === 'string' ? input : String(input?.url || '');
+  const isRelativeAppRequest = requestUrl.startsWith('/api/') || requestUrl.startsWith('/auth/');
+  if (!isRelativeAppRequest) {
+    return NATIVE_FETCH(input, init);
+  }
+
+  const authState = loadStoredAuthState();
+  if (!authState.token) {
+    return NATIVE_FETCH(input, init);
+  }
+
+  const headers = new Headers(init?.headers || (input instanceof Request ? input.headers : undefined) || {});
+  if (!headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${authState.token}`);
+  }
+
+  if (input instanceof Request) {
+    return NATIVE_FETCH(new Request(input, { headers }), init);
+  }
+  return NATIVE_FETCH(input, Object.assign({}, init, { headers }));
+};
 const HOME_GUIDE_PAGES = [
   {
     icon: 'chat_bubble',
@@ -881,7 +921,11 @@ ${recentAssessments.length ? `近期趨勢：${recentAssessments.join(' → ')}`
 const APP_STATE = {
   currentScreen: 'screen-chat',
   conversationId: '',
-  userId: localStorage.getItem('rourou.userId') || DEFAULT_USER_ID,
+  userId: loadStoredAuthState().user?.id || localStorage.getItem('rourou.userId') || DEFAULT_USER_ID,
+  auth: loadStoredAuthState(),
+  authForm: {
+    role: localStorage.getItem('rourou.authRoleDraft') || 'patient'
+  },
   selectedMode: localStorage.getItem('rourou.selectedMode') || 'natural',
   runtimeMode: '',
   syncedMode: '',
@@ -955,6 +999,243 @@ const APP_STATE = {
   }
 };
 
+function getAuthRoleLabel(role = '') {
+  return role === 'doctor' ? '醫師' : '病人';
+}
+
+function getCurrentAuthUser() {
+  return APP_STATE.auth?.user || null;
+}
+
+function isAuthenticated() {
+  return Boolean(getCurrentAuthUser() && APP_STATE.auth?.token);
+}
+
+function persistAuthState(token = '', user = null) {
+  if (token && user) {
+    localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+    localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user));
+  } else {
+    localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+    localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+  }
+}
+
+function syncAuthStateToApp() {
+  const authUser = getCurrentAuthUser();
+  APP_STATE.userId = authUser?.id || localStorage.getItem('rourou.userId') || DEFAULT_USER_ID;
+  localStorage.setItem('rourou.userId', APP_STATE.userId);
+}
+
+function updateAuthUI() {
+  const user = getCurrentAuthUser();
+  const isLoggedIn = Boolean(user);
+  const homeHeadline = document.querySelector('.home-headline');
+  const homeSub = document.querySelector('.home-sub');
+  const homeEntryButton = document.getElementById('home-entry-button');
+  const homeEntryPlaceholder = document.getElementById('home-entry-placeholder');
+  const authGuest = document.getElementById('home-auth-guest');
+  const authMember = document.getElementById('home-auth-member');
+  const authRoleBadge = document.getElementById('home-auth-role-badge');
+  const authName = document.getElementById('home-auth-name');
+  const authMeta = document.getElementById('home-auth-meta');
+  const settingsAuthName = document.getElementById('settings-auth-name');
+  const settingsAuthMeta = document.getElementById('settings-auth-meta');
+  const settingsAuthBadge = document.getElementById('settings-auth-badge');
+  const settingsAuthActions = document.getElementById('settings-auth-actions');
+  const settingsLogout = document.getElementById('settings-auth-logout');
+  const authRoleButtons = document.querySelectorAll('[data-auth-role]');
+
+  authRoleButtons.forEach((button) => {
+    button.classList.toggle('active', button.dataset.authRole === APP_STATE.authForm.role);
+  });
+
+  if (homeHeadline) {
+    homeHeadline.textContent = isLoggedIn ? `歡迎回來，${user.display_name}` : '先登入，再開始對話';
+  }
+  if (homeSub) {
+    homeSub.textContent = isLoggedIn
+      ? `目前身份：${getAuthRoleLabel(user.role)}・帳號已辨識完成`
+      : '這一版先支援病人與醫師雙角色登入';
+  }
+  if (homeEntryButton) {
+    homeEntryButton.disabled = !isLoggedIn;
+    homeEntryButton.classList.toggle('is-disabled', !isLoggedIn);
+  }
+  if (homeEntryPlaceholder) {
+    homeEntryPlaceholder.textContent = isLoggedIn
+      ? (user.role === 'doctor' ? '以醫師身份進入系統...' : '跟 Rou Rou 說說心事...')
+      : '請先登入病人或醫師帳號';
+  }
+  if (authGuest) {
+    authGuest.style.display = isLoggedIn ? 'none' : 'block';
+  }
+  if (authMember) {
+    authMember.style.display = isLoggedIn ? 'flex' : 'none';
+  }
+  if (authRoleBadge) {
+    authRoleBadge.textContent = isLoggedIn ? getAuthRoleLabel(user.role) : '未登入';
+  }
+  if (authName) {
+    authName.textContent = isLoggedIn ? user.display_name : '尚未登入';
+  }
+  if (authMeta) {
+    authMeta.textContent = isLoggedIn ? `${user.login_identifier} ・ ${user.id}` : '請先建立或登入帳號';
+  }
+  if (settingsAuthName) {
+    settingsAuthName.textContent = isLoggedIn ? user.display_name : '尚未登入帳號';
+  }
+  if (settingsAuthMeta) {
+    settingsAuthMeta.textContent = isLoggedIn
+      ? `${getAuthRoleLabel(user.role)} ・ ${user.login_identifier}`
+      : '登入後，系統才會知道你是病人還是醫師';
+  }
+  if (settingsAuthBadge) {
+    settingsAuthBadge.textContent = isLoggedIn ? getAuthRoleLabel(user.role) : '訪客';
+    settingsAuthBadge.classList.toggle('complete', isLoggedIn);
+    settingsAuthBadge.classList.toggle('incomplete', !isLoggedIn);
+  }
+  if (settingsAuthActions) {
+    settingsAuthActions.style.display = isLoggedIn ? 'flex' : 'none';
+  }
+  if (settingsLogout) {
+    settingsLogout.disabled = !isLoggedIn;
+  }
+  const homeSessionList = document.getElementById('home-session-list');
+  if (homeSessionList) {
+    if (isLoggedIn) {
+      renderRecentSessions();
+    } else {
+      homeSessionList.innerHTML = `<div class="home-session-empty">登入後，首頁才會顯示屬於這個帳號的對話紀錄。</div>`;
+    }
+  }
+}
+
+function setAuthenticatedSession(token = '', user = null) {
+  APP_STATE.auth = { token, user };
+  persistAuthState(token, user);
+  syncAuthStateToApp();
+  APP_STATE.pinnedSession = loadPinnedSession();
+  APP_STATE.recentSessions = getRecentSessionSummaries();
+  updateAuthUI();
+}
+
+function clearAuthenticatedSession(options = {}) {
+  APP_STATE.auth = { token: '', user: null };
+  persistAuthState('', null);
+  if (!options.preserveUserId) {
+    APP_STATE.userId = DEFAULT_USER_ID;
+    localStorage.setItem('rourou.userId', DEFAULT_USER_ID);
+  }
+  if (options.resetConversation !== false) {
+    resetConversationState();
+    renderChatHistory([]);
+  }
+  APP_STATE.pinnedSession = loadPinnedSession();
+  APP_STATE.recentSessions = getRecentSessionSummaries();
+  updateAuthUI();
+}
+
+function ensureAuthenticated(actionLabel = '使用這個功能') {
+  if (isAuthenticated()) return true;
+  appendSystemNotice(`請先登入病人或醫師帳號，才能${actionLabel}。`);
+  showScreen('screen-home');
+  return false;
+}
+
+async function restoreAuthenticatedSession() {
+  const token = String(APP_STATE.auth?.token || '').trim();
+  if (!token) {
+    updateAuthUI();
+    return;
+  }
+
+  try {
+    const response = await fetch('/auth/me');
+    if (!response.ok) {
+      throw new Error('Session expired');
+    }
+    const payload = await response.json();
+    setAuthenticatedSession(token, payload.user || null);
+  } catch {
+    clearAuthenticatedSession({ resetConversation: false });
+    appendSystemNotice('登入狀態已失效，請重新登入。');
+  }
+}
+
+async function submitAuth(action = 'login') {
+  const role = APP_STATE.authForm.role === 'doctor' ? 'doctor' : 'patient';
+  const loginIdentifier = String(document.getElementById('auth-login-identifier')?.value || '').trim();
+  const displayName = String(document.getElementById('auth-display-name')?.value || '').trim();
+  const password = String(document.getElementById('auth-password')?.value || '');
+  const status = document.getElementById('home-auth-status');
+  const submitButton = document.getElementById(action === 'register' ? 'auth-register-btn' : 'auth-login-btn');
+
+  if (!loginIdentifier || !password) {
+    if (status) status.textContent = '請先輸入帳號與密碼。';
+    return;
+  }
+  if (action === 'register' && !displayName) {
+    if (status) status.textContent = '註冊時請補上顯示名稱。';
+    return;
+  }
+
+  if (submitButton) {
+    submitButton.disabled = true;
+  }
+  if (status) {
+    status.textContent = action === 'register' ? '正在建立帳號...' : '正在登入...';
+  }
+
+  try {
+    const response = await fetch(action === 'register' ? '/auth/register' : '/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        role,
+        display_name: displayName,
+        login_identifier: loginIdentifier,
+        password
+      })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.error || '登入失敗');
+    }
+    setAuthenticatedSession(payload.token || '', payload.user || null);
+    if (status) {
+      status.textContent = action === 'register' ? '帳號建立成功，已自動登入。' : '登入成功。';
+    }
+    appendSystemNotice(action === 'register' ? '帳號建立完成，現在系統知道你是誰了。' : '登入成功，身份系統已啟用。');
+    showScreen('screen-home');
+  } catch (error) {
+    if (status) {
+      status.textContent = error.message || '登入失敗。';
+    }
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+    }
+  }
+}
+
+async function logoutAuth() {
+  try {
+    await fetch('/auth/logout', { method: 'POST' });
+  } catch {
+    // Ignore network errors on logout and clear local auth anyway.
+  }
+  clearAuthenticatedSession();
+  appendSystemNotice('已登出，目前回到訪客狀態。');
+  showScreen('screen-home');
+}
+
+function selectAuthRole(role = 'patient') {
+  APP_STATE.authForm.role = role === 'doctor' ? 'doctor' : 'patient';
+  localStorage.setItem('rourou.authRoleDraft', APP_STATE.authForm.role);
+  updateAuthUI();
+}
+
 function loadCustomShortcuts() {
   try {
     const parsed = JSON.parse(localStorage.getItem('rourou.customShortcuts') || '[]');
@@ -994,7 +1275,11 @@ function normalizePinnedSessionRecord(record = {}) {
 function loadPinnedSession() {
   try {
     const parsed = JSON.parse(localStorage.getItem(PINNED_SESSION_STORAGE_KEY) || 'null');
-    return normalizePinnedSessionRecord(parsed);
+    const normalized = normalizePinnedSessionRecord(parsed);
+    if (normalized && APP_STATE?.userId && normalized.user !== APP_STATE.userId) {
+      return null;
+    }
+    return normalized;
   } catch {
     return null;
   }
@@ -3455,6 +3740,7 @@ function toggleModeExplainer() {
 }
 
 function startChat() {
+  if (!ensureAuthenticated('開始聊天')) return;
   showScreen('screen-chat');
   appendSystemNotice(`已切換為 ${MODE_DEFINITIONS[APP_STATE.selectedMode]?.display || '自然聊天'}。`);
 }
@@ -4541,7 +4827,7 @@ function getRuntimeConfig() {
     model: source === 'custom'
       ? (localStorage.getItem('rourou.aiModel') || defaults.model)
       : serverConfig.model,
-    userId: APP_STATE.userId
+    userId: getCurrentAuthUser()?.id || APP_STATE.userId
   };
 }
 
@@ -4927,6 +5213,7 @@ function removeLocalSessionArchive(sessionId) {
 
 function getRecentSessionSummaries(limit = MAX_LOCAL_SESSION_ARCHIVE_RECORDS) {
   return loadLocalSessionArchiveRecords()
+    .filter((session) => !APP_STATE?.userId || session.user === APP_STATE.userId)
     .map((session) => summarizeSessionRecord(session))
     .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
     .slice(0, Math.max(1, Number(limit) || MAX_LOCAL_SESSION_ARCHIVE_RECORDS));
@@ -5370,6 +5657,16 @@ async function loadRecentSessions() {
   const container = document.getElementById('home-session-list');
   if (container) {
     container.innerHTML = `<div class="home-session-empty">正在讀取最近對話...</div>`;
+  }
+
+  if (!isAuthenticated()) {
+    APP_STATE.pinnedSession = null;
+    APP_STATE.recentSessions = [];
+    if (container) {
+      container.innerHTML = `<div class="home-session-empty">登入後，首頁才會顯示屬於這個帳號的對話紀錄。</div>`;
+    }
+    syncPinnedSessionButtonState();
+    return;
   }
 
   APP_STATE.pinnedSession = loadPinnedSession();
@@ -6258,10 +6555,10 @@ async function openConsentPreview() {
 
 function initializeRuntimeConfig() {
   localStorage.removeItem(LEGACY_LOCAL_SESSION_ARCHIVE_KEY);
-  if (!localStorage.getItem('rourou.userId')) {
+  if (!localStorage.getItem('rourou.userId') && !getCurrentAuthUser()) {
     localStorage.setItem('rourou.userId', DEFAULT_USER_ID);
   }
-  APP_STATE.userId = localStorage.getItem('rourou.userId') || DEFAULT_USER_ID;
+  syncAuthStateToApp();
 
   if (!localStorage.getItem('rourou.fhirRealtimeSync')) {
     localStorage.setItem('rourou.fhirRealtimeSync', 'false');
@@ -6409,6 +6706,7 @@ async function ensureModeSynced() {
 }
 
 async function sendMessage() {
+  if (!ensureAuthenticated('開始對話')) return;
   const input = document.getElementById('chat-input');
   if (!input || APP_STATE.isSending) return;
 
@@ -6693,6 +6991,7 @@ function saveUserPrompt(textarea) {
 
 
 async function requestOutput(outputType, options = {}) {
+  if (!ensureAuthenticated('產生報表')) return;
   if (APP_STATE.isSending) return;
   const definition = OUTPUT_DEFINITIONS[outputType] || { label: outputType, instruction: outputType };
   const countdownConfig = OUTPUT_COUNTDOWN_CONFIG[outputType] || null;
@@ -6793,6 +7092,7 @@ async function requestOutput(outputType, options = {}) {
 }
 
 async function authorizeAndSendReport() {
+  if (!ensureAuthenticated('送出報告')) return;
   if (APP_STATE.isSending) return;
   if (!APP_STATE.pendingConsent.sessionExport) {
     await openConsentPreview();
@@ -7266,6 +7566,7 @@ function injectRuntimeSettings() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   initializeRuntimeConfig();
+  updateAuthUI();
   PatientProfile.wireForm();
   restoreReportOutputsFromCache();
   syncPhq9SessionState();
@@ -7275,6 +7576,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateModeLabels();
   injectRuntimeSettings();
   await loadServerRuntimeConfig();
+  await restoreAuthenticatedSession();
   renderShortcutPager();
   wireShortcutInteractions();
   renderReportOutputs();
@@ -7318,6 +7620,10 @@ window.handleInput = handleInput;
 window.selectMode = selectMode;
 window.startChat = startChat;
 window.enterChatFromHome = enterChatFromHome;
+window.selectAuthRole = selectAuthRole;
+window.loginAuth = () => submitAuth('login');
+window.registerAuth = () => submitAuth('register');
+window.logoutAuth = logoutAuth;
 window.sendQuickReply = sendQuickReply;
 window.activateShortcut = activateShortcut;
 window.sendMessage = sendMessage;

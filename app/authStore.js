@@ -1,0 +1,280 @@
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+
+const DEFAULT_AUTH_STORE_PATH = path.join(__dirname, '..', '.data', 'ai-companion-auth.json');
+const ROLE_SET = new Set(['patient', 'doctor']);
+const STATUS_SET = new Set(['active', 'disabled']);
+const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+const PASSWORD_ITERATIONS = 120000;
+const PASSWORD_KEYLEN = 64;
+const PASSWORD_DIGEST = 'sha512';
+
+function ensureParentDir(filePath) {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+}
+
+function normalizeRole(value) {
+  const role = String(value || '').trim().toLowerCase();
+  return ROLE_SET.has(role) ? role : '';
+}
+
+function normalizeStatus(value, fallback = 'active') {
+  const status = String(value || '').trim().toLowerCase();
+  return STATUS_SET.has(status) ? status : fallback;
+}
+
+function normalizeLoginIdentifier(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function normalizeDisplayName(value, fallback = '') {
+  const text = String(value || '').trim();
+  return text || fallback;
+}
+
+function generateId(prefix) {
+  return `${prefix}_${crypto.randomBytes(6).toString('hex')}`;
+}
+
+function createPasswordHash(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = crypto.pbkdf2Sync(String(password || ''), salt, PASSWORD_ITERATIONS, PASSWORD_KEYLEN, PASSWORD_DIGEST).toString('hex');
+  return ['pbkdf2', PASSWORD_DIGEST, PASSWORD_ITERATIONS, salt, derived].join('$');
+}
+
+function verifyPassword(password, passwordHash) {
+  const raw = String(passwordHash || '').trim();
+  const [scheme, digest, iterationText, salt, expectedHash] = raw.split('$');
+  if (scheme !== 'pbkdf2' || !digest || !salt || !expectedHash) return false;
+  const iterations = Number(iterationText);
+  if (!Number.isFinite(iterations) || iterations <= 0) return false;
+  const derived = crypto.pbkdf2Sync(String(password || ''), salt, iterations, PASSWORD_KEYLEN, digest).toString('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(derived, 'hex'), Buffer.from(expectedHash, 'hex'));
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeUser(user = {}) {
+  return {
+    id: String(user.id || '').trim(),
+    role: normalizeRole(user.role),
+    display_name: normalizeDisplayName(user.display_name, '未命名使用者'),
+    login_identifier: normalizeLoginIdentifier(user.login_identifier),
+    status: normalizeStatus(user.status),
+    created_at: String(user.created_at || '').trim() || new Date().toISOString(),
+    updated_at: String(user.updated_at || '').trim() || new Date().toISOString()
+  };
+}
+
+function normalizeUserRecord(record) {
+  if (!record || typeof record !== 'object') return null;
+  const user = sanitizeUser(record);
+  if (!user.id || !user.role || !user.login_identifier) return null;
+  const passwordHash = String(record.password_hash || '').trim();
+  if (!passwordHash) return null;
+  return {
+    ...user,
+    password_hash: passwordHash
+  };
+}
+
+function normalizeSessionRecord(record) {
+  if (!record || typeof record !== 'object') return null;
+  const id = String(record.id || '').trim();
+  const tokenHash = String(record.token_hash || '').trim();
+  const userId = String(record.user_id || '').trim();
+  if (!id || !tokenHash || !userId) return null;
+  return {
+    id,
+    token_hash: tokenHash,
+    user_id: userId,
+    created_at: String(record.created_at || '').trim() || new Date().toISOString(),
+    expires_at: String(record.expires_at || '').trim() || new Date(Date.now() + SESSION_TTL_MS).toISOString()
+  };
+}
+
+function loadAuthData(filePath = DEFAULT_AUTH_STORE_PATH) {
+  try {
+    if (!fs.existsSync(filePath)) {
+      return { users: [], sessions: [] };
+    }
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const parsed = JSON.parse(raw);
+    return {
+      users: (Array.isArray(parsed.users) ? parsed.users : []).map(normalizeUserRecord).filter(Boolean),
+      sessions: (Array.isArray(parsed.sessions) ? parsed.sessions : []).map(normalizeSessionRecord).filter(Boolean)
+    };
+  } catch {
+    return { users: [], sessions: [] };
+  }
+}
+
+function saveAuthData(data, filePath = DEFAULT_AUTH_STORE_PATH) {
+  ensureParentDir(filePath);
+  fs.writeFileSync(filePath, JSON.stringify({
+    version: 1,
+    savedAt: new Date().toISOString(),
+    users: Array.isArray(data.users) ? data.users : [],
+    sessions: Array.isArray(data.sessions) ? data.sessions : []
+  }, null, 2), 'utf8');
+}
+
+function hashToken(token) {
+  return crypto.createHash('sha256').update(String(token || '')).digest('hex');
+}
+
+function createAuthStore(options = {}) {
+  const filePath = options.filePath || DEFAULT_AUTH_STORE_PATH;
+  const state = loadAuthData(filePath);
+
+  function persist() {
+    saveAuthData(state, filePath);
+  }
+
+  function removeExpiredSessions() {
+    const now = Date.now();
+    state.sessions = state.sessions.filter((session) => {
+      const expiresAt = Date.parse(session.expires_at);
+      return Number.isFinite(expiresAt) && expiresAt > now;
+    });
+  }
+
+  function findUserByLoginIdentifier(loginIdentifier = '') {
+    const normalized = normalizeLoginIdentifier(loginIdentifier);
+    return state.users.find((item) => item.login_identifier === normalized) || null;
+  }
+
+  function findUserById(userId = '') {
+    const id = String(userId || '').trim();
+    return state.users.find((item) => item.id === id) || null;
+  }
+
+  function listSafeUsers() {
+    return state.users.map((user) => sanitizeUser(user));
+  }
+
+  function registerUser(input = {}) {
+    const role = normalizeRole(input.role);
+    const loginIdentifier = normalizeLoginIdentifier(input.login_identifier);
+    const displayName = normalizeDisplayName(input.display_name, loginIdentifier || '未命名使用者');
+    const password = String(input.password || '');
+
+    if (!role) {
+      throw new Error('role must be patient or doctor');
+    }
+    if (!loginIdentifier) {
+      throw new Error('login_identifier is required');
+    }
+    if (password.length < 4) {
+      throw new Error('password must be at least 4 characters');
+    }
+    if (findUserByLoginIdentifier(loginIdentifier)) {
+      throw new Error('login_identifier already exists');
+    }
+
+    const timestamp = new Date().toISOString();
+    const record = {
+      id: generateId(role),
+      role,
+      display_name: displayName,
+      login_identifier: loginIdentifier,
+      password_hash: createPasswordHash(password),
+      status: 'active',
+      created_at: timestamp,
+      updated_at: timestamp
+    };
+    state.users.push(record);
+    persist();
+    return sanitizeUser(record);
+  }
+
+  function createSessionForUser(userId = '') {
+    removeExpiredSessions();
+    const user = findUserById(userId);
+    if (!user) {
+      throw new Error('user not found');
+    }
+    const rawToken = crypto.randomBytes(24).toString('hex');
+    const session = {
+      id: generateId('auth'),
+      token_hash: hashToken(rawToken),
+      user_id: user.id,
+      created_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + SESSION_TTL_MS).toISOString()
+    };
+    state.sessions.push(session);
+    persist();
+    return {
+      token: rawToken,
+      session
+    };
+  }
+
+  function login(input = {}) {
+    removeExpiredSessions();
+    const loginIdentifier = normalizeLoginIdentifier(input.login_identifier);
+    const password = String(input.password || '');
+    const user = findUserByLoginIdentifier(loginIdentifier);
+    if (!user || user.status !== 'active' || !verifyPassword(password, user.password_hash)) {
+      throw new Error('invalid credentials');
+    }
+    const { token, session } = createSessionForUser(user.id);
+    return {
+      token,
+      session,
+      user: sanitizeUser(user)
+    };
+  }
+
+  function getSessionByToken(token = '') {
+    removeExpiredSessions();
+    const tokenHash = hashToken(token);
+    const session = state.sessions.find((item) => item.token_hash === tokenHash);
+    if (!session) return null;
+    const user = findUserById(session.user_id);
+    if (!user || user.status !== 'active') return null;
+    return {
+      session,
+      user: sanitizeUser(user)
+    };
+  }
+
+  function revokeSession(token = '') {
+    const tokenHash = hashToken(token);
+    const before = state.sessions.length;
+    state.sessions = state.sessions.filter((item) => item.token_hash !== tokenHash);
+    if (state.sessions.length !== before) {
+      persist();
+      return true;
+    }
+    return false;
+  }
+
+  return {
+    filePath,
+    registerUser,
+    login,
+    getSessionByToken,
+    revokeSession,
+    findUserById: (userId) => {
+      const user = findUserById(userId);
+      return user ? sanitizeUser(user) : null;
+    },
+    listUsers: listSafeUsers,
+    _state: state
+  };
+}
+
+module.exports = {
+  DEFAULT_AUTH_STORE_PATH,
+  createAuthStore,
+  loadAuthData,
+  saveAuthData,
+  verifyPassword
+};
