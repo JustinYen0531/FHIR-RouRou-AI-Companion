@@ -8,7 +8,7 @@
 
 ---
 
-## 2026-04-24 正式測試結論（Patient / Encounter / QuestionnaireResponse / Observation / ClinicalImpression / Composition / DocumentReference）
+## 2026-04-24 正式測試結論（Patient / Encounter / QuestionnaireResponse / Observation / ClinicalImpression / Composition / DocumentReference / Provenance）
 
 ### 已確認改善很多的地方
 1. `Patient` 已能穩定輸出 `TW Core Patient` profile，不再只是空殼或明顯 demo placeholder。
@@ -193,9 +193,34 @@
 4. 從「只有 technical payload」進步到「開始有 clinician-facing 文件治理概念」。
 5. 從「FHIR 有 DocumentReference」進步到「可以拿來答辯資料分層與追溯策略」。
 
+### Provenance 正式測試版的成熟度判讀
+1. 這份 `Provenance` 已具備 `TW Core Provenance` profile、`target`、`recorded`、`location`、`reason`、`agent`、`entity`，結構上已經不是裝飾品，而是能真的解釋來源的治理資源。
+2. `target` 一次指向 `QuestionnaireResponse`、`ClinicalImpression`、`Composition`、`DocumentReference`、`Observation`，代表它不是只追一筆，而是在追整個交付鏈。
+3. `location.display` 已經是人類看得懂的 session 說明，這比早期那種只有技術 reference 的感覺成熟很多。
+4. `reason`、`agent`、`entity` 的內容已經能清楚說出「AI 生成」、「病人審閱」、「授權狀態」、「來源 session」，這讓它很適合拿來決賽解釋你們不是亂送資料。
+5. 這份資源現在最大的進步，是它真的開始有治理與可追溯味道，不再只是 bundle 裡一個存在感很低的附屬資源。
+
+### Provenance 前後對比
+1. 一開始的版本比較像技術追蹤紀錄。
+   可能能對上 target，但一般人不一定看得懂它到底在證明什麼。
+2. 一開始的版本比較缺少白話治理感。
+   就算有 `Provenance`，評審也可能只覺得你有加這個資源，但不知道它對病人審閱與授權有什麼意義。
+3. 現在的版本已經更像正式治理說明。
+   `reason`、`agent`、`entity`、`location` 一起看時，可以很清楚講出資料來源、產生者、審閱者與授權狀態。
+4. 現在的版本也更能支撐答辯。
+   你可以直接用這份 Provenance 回答「你們怎麼證明這份摘要不是黑盒亂生的」。
+5. 目前剩下的不是有沒有 Provenance，而是要不要再把 wording 精煉得更短、更像正式政策語句。
+
+### Provenance 可以明確說有改善的地方
+1. 從「有一個追蹤資源」進步到「能追整個 FHIR 交付鏈」。
+2. 從「只有 technical trace」進步到「有病人審閱與授權語意」。
+3. 從「location 不好讀」進步到「session 說明一眼能懂」。
+4. 從「評審不一定看得懂用途」進步到「可以直接拿來答辯治理與追溯策略」。
+5. 從「存在感低」進步到「是很能加分的治理型資源」。
+
 ### 決賽展示建議結論
-1. `Patient`、`Encounter`、`QuestionnaireResponse`、`Observation`、`ClinicalImpression`、`Composition`、`DocumentReference` 現在都可以展示，而且是可以拿來講「我們確實優化成熟度」的那種展示，不只是勉強能用。
-2. 如果要更穩，決賽版只需要再補「展示用假資料包裝」、「更標準化的人名 / relationship coding」，以及 `QuestionnaireResponse / Observation / ClinicalImpression / Composition / DocumentReference` 的文字去重與臨床可讀性收斂，而不是整個重做。
+1. `Patient`、`Encounter`、`QuestionnaireResponse`、`Observation`、`ClinicalImpression`、`Composition`、`DocumentReference`、`Provenance` 現在都可以展示，而且是可以拿來講「我們確實優化成熟度」的那種展示，不只是勉強能用。
+2. 如果要更穩，決賽版只需要再補「展示用假資料包裝」、「更標準化的人名 / relationship coding」，以及 `QuestionnaireResponse / Observation / ClinicalImpression / Composition / DocumentReference / Provenance` 的文字去重與臨床可讀性收斂，而不是整個重做。
 3. 因此目前優化計畫的重心，應從「補骨架」轉向「摘要可讀性、風險敘述節制、展示版去識別」。
 
 ---
@@ -213,6 +238,7 @@
 8. `ClinicalImpression` 已能接上 `QuestionnaireResponse` 與 `Observation`，開始具備真正的臨床印象草稿樣貌。
 9. `Composition` 已具備多 section 正式摘要文件樣貌，開始能承接臨床摘要、病人審閱與交付阻塞說明。
 10. `DocumentReference` 已開始做 readable summary 與 internal trace payload 分層，具備正式交付與可追溯設計概念。
+11. `Provenance` 已能追蹤整個交付鏈，並清楚表達病人授權與生成來源，治理感明顯提升。
 
 ### 目前最明顯的缺口
 1. `ClinicalImpression.description` 與 `Composition` 內文仍有過度推論風險。
@@ -724,20 +750,31 @@
 ---
 
 ### 8. Provenance 層
+> 註：這一層到 `2026-04-24` 的正式測試版為止，其實已經成熟很多，而且很適合當答辯亮點。它現在不是單純 technical trace，而是已經能把來源、審閱、授權和交付鏈講清楚。
+
 #### 目前問題
-1. `location.display` 現在是 `urn:uuid:...`，對人類閱讀幫助很低。
-2. 雖然 target 有連上，但目前還偏向技術追蹤，而不是展示用治理證據。
+1. `reason.text` 雖然完整，但一句話塞了很多資訊，展示時如果直接念出來會有點過長。
+2. `entity` 的三層設計已經不錯，但 wording 還可以再更一致，讓 `source / derivation / quotation` 看起來更像同一套治理語言。
+3. `target` 雖然完整，但目前還是偏工程視角列法；若要更偏展示，可另外做一份白話對應表輔助。
 
 #### 為什麼要修
-1. Provenance 是你答辯時很有分數的資源，但現在看起來還不夠「治理感」。
+1. Provenance 是你答辯時很有分數的資源，而你現在這份其實已經有治理感了，下一步主要是把它講得更漂亮、更容易被非技術評審秒懂。
 
 #### 建議優化
-1. 增加更清楚的 `reason` 與 `agent` 表述。
-2. 若可行，補進：
-   產生來源
-   病人審閱完成
-   允許分享狀態
-3. 讓 Provenance 在文件中有一段白話解釋，評審才會看懂你不是亂加這個資源。
+1. 保留現在 `target / agent / entity / reason / location` 的結構，這已經是對的方向。
+2. 將 `reason.text` 精煉成兩句內更好讀的治理說明，避免過長。
+3. `entity` 的 wording 可以再統一，例如都用同一種語氣描述 `source / derivation / quotation`。
+4. 決賽展示時建議搭配一段白話解釋，讓評審直接知道這份 Provenance 是在證明「這份資料從哪來、誰審過、能不能交付」。
+
+#### 前後對比摘要
+| 面向 | 早期版本 | 現在版本 |
+|------|----------|----------|
+| 資源角色 | 偏 technical trace | 偏治理與可追溯證據 |
+| `location` | 不夠人類可讀 | 已是可理解的 session 描述 |
+| `agent` | 可能只有系統作者 | 已有 author 與 patient-reviewer |
+| `entity` | 語意較弱 | 已有 source / derivation / quotation |
+| `target` | 可能只追少數資源 | 已追整個交付鏈 |
+| 展示價值 | 比較難講 | 可以直接拿來答辯來源與授權策略 |
 
 #### 建議完整版範例
 ```json
@@ -771,17 +808,16 @@
     }
   ],
   "reason": [
-    { "text": "AI Companion pre-visit summary auto-generation for clinician handoff" }
+    { "text": "AI Companion pre-visit summary auto-generation for clinician handoff. This record traces the origin of the FHIR bundle, confirms patient-level review has been initiated, and documents the sharing authorization status at time of export." }
   ],
   "location": {
-    "display": "AI Companion Platform – Session 2026-04-22-001"
-  },
-  "patient": { "reference": "urn:uuid:<Patient UUID>" }
+    "display": "AI Companion Platform – Session <session key> (<YYYY-MM-DD>)"
+  }
 }
 ```
 
 **白話說明（可加進展示文件）：**
-> 這份 Provenance 記錄了「是誰、在什麼時候、基於什麼對話、產生了這份 FHIR 交付」。它確保這份草稿的來源可追溯，且已經過病人層級的審閱授權（`ready_for_consent`），不是直接送出未授權資料。
+> 這份 Provenance 記錄了「是誰、在什麼時候、基於什麼對話、產生了這份 FHIR 交付」。它也同時說明病人層級的審閱與授權狀態，讓這份草稿不是黑盒輸出，而是有來源、有審閱、有交付依據的資料。
 
 ---
 
