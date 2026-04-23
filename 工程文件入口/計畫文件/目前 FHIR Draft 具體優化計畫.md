@@ -32,34 +32,33 @@
 5. 這份 `Encounter` 已經可以作為決賽答辯時的加分點，因為它會讓人感覺你們真的有在處理醫療流程語意，而不是只拚資源數量。
 
 ### QuestionnaireResponse 正式測試版的成熟度判讀
-1. `QuestionnaireResponse` 現在已經不再像對話垃圾桶，而比較像經過整理的症狀證據表。
-2. `recent_evidence` 的內容明顯比早期乾淨，高訊號句子比例提升，操作句、純求助句、重複句的干擾下降很多。
-3. 各個 `item` 的角色開始變清楚，像 `depressed_mood`、`insomnia`、`work_interest` 這些欄位已比較接近結構化症狀整理，而不是把原始聊天硬塞進去。
-4. 這代表系統不只是「把對話塞進 FHIR」，而是開始能把對話整理成比較可讀、可交付的臨床前置材料。
-5. 對決賽展示來說，這種進步很關鍵，因為它會直接影響評審對「你們到底是在做資料清洗，還是在做真正有用的臨床整理」的判斷。
+1. 這份 `QuestionnaireResponse` 已經具備 `TW Core QuestionnaireResponse` profile、`identifier`、`questionnaire`、`status`、`subject`、`encounter`、`authored`、`author` 與完整 `item`，結構上比早期成熟很多。
+2. `subject.reference = Patient/3680176` 與 `encounter.reference = Encounter/3680177` 都已正確接上，表示它不是孤立資源，而是有進入整體流程。
+3. `extension` 已經補進 `ai-companion-generated`、`patient-review-status`、`review-source`，這點非常重要，因為它讓這份資源不只是問卷答案，還帶有病人審閱與授權流程痕跡。
+4. `item` 內除了症狀相關欄位，還有 `patient_confirm_*`、`patient_editable_*`、`questionnaire_target_*`、`authorization_prompt`，代表這份輸出已經開始承接病人審閱與後續整理流程，而不只是單純塞症狀。
+5. 對決賽展示來說，這份資源的進步點主要是「流程完整度」與「可治理性」變高了，不再只是基本 FHIR 殼。
 
 ### QuestionnaireResponse 前後對比
-1. 一開始的版本比較像逐字稿堆疊。
-   那時候常把「請幫我看看我現在的狀態」、「繼續」、「我現在不知道怎麼辦」這類操作句或泛求助句混進 `recent_evidence`。
-2. 一開始的版本重複句很多。
-   同一個意思反覆出現，導致 `item.answer` 很長，但訊息密度不高，看起來就很像系統沒有整理。
-3. 一開始的版本比較難拿去說服醫師或評審。
-   因為它雖然 technically 是合法欄位，但閱讀感受比較像聊天殘渣，不像臨床前整理。
-4. 現在的版本已經明顯往「高訊號摘要」靠。
-   會優先留下有症狀意義、功能影響或壓力情境的句子，讓 `recent_evidence` 開始像 evidence，而不是 raw dump。
-5. 現在的版本也比較像正式交付材料。
-   `QuestionnaireResponse` 不再只是證明系統會產生一個 FHIR resource，而是開始能證明你們有能力把自然語言對話整理成結構化內容。
+1. 一開始比較像「先把會有的欄位湊出來」。
+   能生成 resource，但比較難說服人這份資源真的承接了病人審閱、授權與後續問卷整理流程。
+2. 一開始比較偏單純症狀草稿。
+   缺少現在這種把 `patient_confirm_*`、`patient_editable_*`、`questionnaire_target_*`、`authorization_prompt` 一起納進來的流程感。
+3. 一開始比較像工程輸出。
+   評審可能只會看到「有 QuestionnaireResponse」，但不一定能看出病人審閱流程與交付治理。
+4. 現在的版本變成比較完整的病人審閱問卷容器。
+   不只保留症狀欄位，也把確認題、可編輯題、問卷目標與授權提示一起放進 resource。
+5. 現在的版本雖然內容品質還能更精煉，但已經更適合拿來說明「AI 陪伴對話如何轉成病人可審閱、可授權的 FHIR 問卷回應」。
 
 ### QuestionnaireResponse 可以明確說有改善的地方
-1. 從「原話拼貼」進步到「高訊號 evidence 篩選」。
-2. 從「操作句、求助句也混進來」進步到「開始做內容清洗」。
-3. 從「重複很多、讀起來很亂」進步到「句子更精簡、密度更高」。
-4. 從「只證明有輸出 resource」進步到「開始接近臨床前整理用途」。
-5. 從「demo 感很重」進步到「可以在決賽裡說這是有整理能力的 QuestionnaireResponse」。
+1. 從「單純有 QuestionnaireResponse」進步到「有完整 `subject / encounter / questionnaire / authored / author` 關聯」。
+2. 從「只有基本問卷答案」進步到「帶有 `patient-review-status` 與 `review-source` 的流程 extension」。
+3. 從「比較像系統內部草稿」進步到「可以展示病人確認、可編輯欄位與授權提示」。
+4. 從「只證明會產生 resource」進步到「可以說明 AI 陪伴到病人審閱交付的中介流程」。
+5. 從「偏工程骨架」進步到「已經有決賽展示價值的流程型 QuestionnaireResponse」。
 
 ### 決賽展示建議結論
 1. `Patient`、`Encounter`、`QuestionnaireResponse` 現在都可以展示，而且是可以拿來講「我們確實優化成熟度」的那種展示，不只是勉強能用。
-2. 如果要更穩，決賽版只需要再補「展示用假資料包裝」、「更標準化的人名 / relationship coding」，以及 `QuestionnaireResponse` 的高訊號句再收斂一點，而不是整個重做。
+2. 如果要更穩，決賽版只需要再補「展示用假資料包裝」、「更標準化的人名 / relationship coding」，以及 `QuestionnaireResponse` 的題目內容去重與臨床可讀性收斂，而不是整個重做。
 3. 因此目前優化計畫的重心，應從「補骨架」轉向「摘要可讀性、風險敘述節制、展示版去識別」。
 
 ---
@@ -72,7 +71,7 @@
 3. 有授權狀態、review extension、Provenance，代表流程上已有最小治理概念。
 4. 已可成功送到 `https://hapi.fhir.org/baseR4`，代表交換鏈不是假的。
 5. `Patient` 與 `Encounter` 已完成一輪正式測試驗證，成熟度已明顯提升到可展示層級。
-6. `QuestionnaireResponse` 已明顯脫離早期逐字稿拼貼狀態，開始具備高訊號 evidence 整理能力。
+6. `QuestionnaireResponse` 已經開始具備病人審閱、授權提示與後續問卷目標整理的流程完整度。
 
 ### 目前最明顯的缺口
 1. `ClinicalImpression.description` 與 `Composition` 內文仍有過度推論風險。
@@ -189,33 +188,32 @@
 > 註：這一層到 `2026-04-24` 的正式測試版為止，也已經明顯比早期成熟很多。現在不是完全不能看，而是還可以再往更精簡、更像臨床摘要的方向推。
 
 #### 目前問題
-1. 雖然已經清掉很多雜訊，但 `recent_evidence` 仍有機會混入品質不一的原話。
-2. 某些句子仍可能偏接近原始聊天語氣，還不夠像正式臨床前整理。
-3. 少數情況下同義訊息仍可能重複，讓 item 密度還有再提升空間。
+1. `depressed_mood.answer` 目前仍是 `Observed via AI companion conversation.`，合法但偏泛，不夠像真正可讀的臨床證據句。
+2. `recent_evidence` 雖然已改成高訊號欄位，但目前只有 `出現持續低落或失去意義感的描述`，仍偏抽象。
+3. `patient_confirm_*` 中有明顯同義重複，例如低落/失去意義感的描述被拆成多題重複確認。
+4. `phq9_total_score = 0` 與整體低落敘述並列時，展示上容易被問「這是未填、無症狀，還是暫無有效 PHQ-9 結果」。
+5. `questionnaire_target_*` 與 `patient_editable_*` 已經有流程價值，但語句風格仍略混雜，還不夠統一。
 
 #### 為什麼要修
 1. `QuestionnaireResponse` 應該是結構化問答或證據整理，不是逐字稿垃圾桶。
-2. 現在雖然已經進步很多，但如果再更乾淨，評審會更容易一眼看懂這份資源的價值。
+2. 這份資源現在的強項是流程完整，但如果內容文字再更精煉，評審會更容易同時看到「流程感」和「臨床可讀性」。
 
 #### 建議優化
-1. 新增 evidence 清洗規則：
-   `移除操作句、移除純求助句、移除過短句、移除重複句`
-2. `recent_evidence` 每次最多保留 3 到 5 則高訊號句子。
-3. 將 evidence 分成：
-   `直接症狀句`
-   `功能影響句`
-   `壓力情境句`
-4. 不再把「請幫我看看」「我現在不知道怎麼辦」這種控制性或泛情緒句直接塞進 item。
+1. 將 `depressed_mood.answer` 從泛用句改成更具體的症狀摘要句，而不是只寫 `Observed via AI companion conversation.`。
+2. 把 `recent_evidence` 從抽象標籤改成更接近病人原意、但仍經整理的高訊號句。
+3. 對 `patient_confirm_*` 做去重與合併，避免低落/失去意義感被拆成太多近義確認題。
+4. 明確定義 `phq9_total_score = 0` 的語意；若是未完成量表，應避免看起來像正式零分。
+5. 統一 `patient_editable_*`、`questionnaire_target_*`、`authorization_prompt` 的語氣，讓整份問卷更像同一個產品產出的。
 
 #### 前後對比摘要
 | 面向 | 早期版本 | 現在版本 |
 |------|----------|----------|
-| `recent_evidence` 內容 | 很像原始聊天拼貼 | 開始偏向高訊號 evidence 篩選 |
-| 操作句干擾 | 常混入 | 已明顯下降 |
-| 純求助句干擾 | 常混入 | 已開始被排除 |
-| 重複句 | 偏多 | 已有去重與上限控制 |
-| 閱讀感 | 像聊天殘渣 | 比較像整理過的症狀紀錄 |
-| 展示說服力 | 只能說「有產生 resource」 | 可以說「有把對話整理成結構化內容」 |
+| 資源定位 | 基本問卷輸出 | 病人審閱與授權流程容器 |
+| `subject / encounter` 關聯 | 較弱或不夠有存在感 | 已明確串上 Patient 與 Encounter |
+| 治理資訊 | 較少 | 已有 review / authorization extension |
+| 題目型態 | 比較偏單一症狀草稿 | 已含 confirm、editable、target、authorization prompt |
+| 內容品質 | 容易顯得像系統草稿 | 流程更完整，但文字仍待去重與精煉 |
+| 展示說服力 | 只能說「有 QuestionnaireResponse」 | 可以說「病人審閱流程已進入 FHIR 資源」 |
 
 #### 建議完整版範例
 ```json
@@ -231,36 +229,47 @@
     {
       "linkId": "depressed_mood",
       "text": "Depressed mood",
-      "answer": [{ "valueString": "近兩三週持續情緒低落，對日常事物失去興趣。" }]
+      "answer": [{ "valueString": "Patient reports persistent low mood or loss of meaning based on AI companion conversation." }]
     },
     {
-      "linkId": "insomnia",
-      "text": "Insomnia",
-      "answer": [{ "valueString": "睡著後容易中途清醒，難以再入睡。" }]
-    },
-    {
-      "linkId": "work_interest",
-      "text": "Work and interest decline",
-      "answer": [{ "valueString": "工作效率明顯下降，難以集中注意力完成任務。" }]
+      "linkId": "phq9_total_score",
+      "text": "PHQ-9 total score",
+      "answer": [{ "valueInteger": 0 }]
     },
     {
       "linkId": "recent_evidence",
-      "text": "Recent evidence (high-signal only)",
-      "answer": [
-        { "valueString": "近兩三週情緒持續低落，連喜歡的事也提不起勁。" },
-        { "valueString": "睡著後容易醒，醒了就很難再睡著。" },
-        { "valueString": "工作時常常發呆，做什麼都覺得很慢。" }
-      ]
+      "text": "Recent evidence (high-signal)",
+      "answer": [{ "valueString": "出現持續低落或失去意義感的描述。" }]
     },
     {
       "linkId": "next_recommended_dimension",
       "text": "Next recommended dimension",
-      "answer": [{ "valueString": "somatic_anxiety" }]
+      "answer": [{ "valueString": "depressed_mood" }]
+    },
+    {
+      "linkId": "patient_confirm_0",
+      "text": "Patient review confirm item",
+      "answer": [{ "valueString": "主要困擾是否包含：持續低落、空虛或失去意義感" }]
+    },
+    {
+      "linkId": "patient_editable_0",
+      "text": "Patient editable item",
+      "answer": [{ "valueString": "您對於學業和社交活動的興趣是否受到影響？" }]
+    },
+    {
+      "linkId": "questionnaire_target_0",
+      "text": "Questionnaire target",
+      "answer": [{ "valueString": "持續低落、空虛或失去意義感：持續低落、空虛或失去意義感" }]
+    },
+    {
+      "linkId": "authorization_prompt",
+      "text": "Authorization prompt",
+      "answer": [{ "valueString": "請在審閱後授權提供這些信息給醫師。" }]
     }
   ]
 }
 ```
-> **重點**：`recent_evidence` 每則都是完整、有訊號的症狀句；移除操作句與求助句；每則 answer 各自獨立描述不重複。
+> **重點**：保留 `subject / encounter / extension / review items / authorization prompt` 的流程完整性；下一步不是重做骨架，而是把文字內容去重、收斂、變得更可讀。
 
 ---
 
