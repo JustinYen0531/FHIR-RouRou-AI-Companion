@@ -152,6 +152,9 @@
   }
 
   function validateProvenance(report, resource, index) {
+    if (Object.prototype.hasOwnProperty.call(resource, 'patient')) {
+      pushIssue(report, 'error', 'provenance_patient_not_allowed', 'Provenance.patient is not a valid FHIR R4 element; use Provenance.target or Provenance.agent.who instead.', 'entry[' + index + '].resource.patient');
+    }
     if (!Array.isArray(resource.target) || !resource.target.length) {
       pushIssue(report, 'error', 'provenance_target_missing', 'Provenance.target is required.', 'entry[' + index + '].resource.target');
     }

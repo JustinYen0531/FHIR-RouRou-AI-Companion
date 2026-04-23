@@ -1,5 +1,6 @@
 const assert = require('assert');
 const { buildSessionExportBundle, buildPatientResourceOnly, INTERNAL_CANONICALS } = require('./fhirBundleBuilder');
+const { validateBundle } = require('./fhirBundleValidator');
 
 function createValidInput() {
   return {
@@ -244,6 +245,8 @@ function testReferencesAreConnected() {
   assert.strictEqual(observation.resource.derivedFrom[0].reference, questionnaire.fullUrl);
   assert.strictEqual(documentReference.resource.subject.reference, patient.fullUrl);
   assert.ok(provenance.resource.target.some((target) => target.reference === composition.fullUrl));
+  assert.ok(provenance.resource.agent.some((agent) => agent.who && agent.who.reference === patient.fullUrl));
+  assert.ok(!Object.prototype.hasOwnProperty.call(provenance.resource, 'patient'), 'Provenance.patient is not valid in FHIR R4');
 }
 
 function testClinicalContentIsEnriched() {
@@ -283,6 +286,15 @@ function testValidationReportHasExpectedShape() {
   assert.ok(Array.isArray(result.validation_report.issues));
 }
 
+function testValidatorRejectsInvalidProvenancePatientField() {
+  const result = buildSessionExportBundle(createValidInput());
+  const provenance = result.bundle_json.entry.find((entry) => entry.resource.resourceType === 'Provenance');
+  provenance.resource.patient = { reference: result.bundle_json.entry[0].fullUrl };
+  const report = validateBundle(result.bundle_json);
+  assert.strictEqual(report.valid, false);
+  assert.ok(report.issues.some((issue) => issue.code === 'provenance_patient_not_allowed'));
+}
+
 function testBuildsStandalonePatientResource() {
   const input = createValidInput();
   const result = buildPatientResourceOnly(input);
@@ -307,6 +319,7 @@ function run() {
   testReferencesAreConnected();
   testClinicalContentIsEnriched();
   testValidationReportHasExpectedShape();
+  testValidatorRejectsInvalidProvenancePatientField();
   testBuildsStandalonePatientResource();
   console.log('FHIR bundle builder tests passed.');
 }

@@ -1350,9 +1350,6 @@
       ],
       location: {
         display: locationDisplay
-      },
-      patient: {
-        reference: patientFullUrl
       }
     };
   }

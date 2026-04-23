@@ -1,7 +1,8 @@
 const {
   processChatPayload,
   processOutputPayload,
-  processExportPayload
+  processExportPayload,
+  DEFAULT_PUBLIC_FHIR_BASE_URL
 } = require('../app/fhirDeliveryServer');
 const {
   DEFAULT_SESSION_STORE_PATH,
@@ -28,7 +29,7 @@ function getSharedPersistence() {
 }
 
 function buildServerOptions() {
-  const fhirBaseUrl = String(process.env.FHIR_SERVER_URL || 'https://hapi.fhir.org/baseR4').trim();
+  const fhirBaseUrl = String(process.env.FHIR_SERVER_URL || DEFAULT_PUBLIC_FHIR_BASE_URL).trim();
   const groqApiKey = process.env.GROQ_API_KEY || '';
   const openrouterApiKey = process.env.OPENROUTER_API_KEY || '';
   const googleApiKey = process.env.GOOGLE_API_KEY || '';

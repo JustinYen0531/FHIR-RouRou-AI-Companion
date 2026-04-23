@@ -15,8 +15,9 @@ const {
 
 const APP_DIR = __dirname;
 const PROJECT_ROOT = path.join(APP_DIR, '..');
-const DEFAULT_PUBLIC_FHIR_BASE_URL = 'https://hapi.fhir.org/baseR4';
-const PUBLIC_DEMO_FHIR_TARGETS = [DEFAULT_PUBLIC_FHIR_BASE_URL];
+const DEFAULT_PUBLIC_FHIR_BASE_URL = 'https://r4.smarthealthit.org';
+const LEGACY_HAPI_FHIR_BASE_URL = 'https://hapi.fhir.org/baseR4';
+const PUBLIC_DEMO_FHIR_TARGETS = [DEFAULT_PUBLIC_FHIR_BASE_URL, LEGACY_HAPI_FHIR_BASE_URL];
 const DELIVERY_DEBUG_LOG_PATH = path.join(APP_DIR, '..', '.logs', 'fhir-delivery-debug.ndjson');
 const LOCAL_ENV_PATH = path.join(PROJECT_ROOT, '.env.local');
 const STATIC_FILES = {
@@ -247,6 +248,68 @@ async function readFetchResponse(fetchResponse) {
   return parsed;
 }
 
+async function sendFhirTransactionAttempt(fetchImpl, fhirBaseUrl, bundleJson) {
+  const normalizedBaseUrl = normalizeFhirTarget(fhirBaseUrl);
+  try {
+    const transactionResponse = await fetchImpl(normalizedBaseUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/fhir+json'
+      },
+      body: JSON.stringify(bundleJson)
+    });
+    const parsed = await readFetchResponse(transactionResponse);
+    return {
+      fhirBaseUrl: normalizedBaseUrl,
+      status: transactionResponse.status,
+      ok: transactionResponse.ok,
+      body: parsed,
+      error: ''
+    };
+  } catch (error) {
+    return {
+      fhirBaseUrl: normalizedBaseUrl,
+      status: 0,
+      ok: false,
+      body: null,
+      error: error.message || 'FHIR transaction request failed.'
+    };
+  }
+}
+
+function shouldRetryOnPublicDemoFallback(primaryAttempt, primaryFhirBaseUrl, fallbackFhirBaseUrl) {
+  const primary = normalizeFhirTarget(primaryFhirBaseUrl);
+  const fallback = normalizeFhirTarget(fallbackFhirBaseUrl);
+  if (!fallback || primary === fallback) return false;
+  if (!shouldUseUniqueDemoKeys(primary) || !shouldUseUniqueDemoKeys(fallback)) return false;
+  return !primaryAttempt.ok && (primaryAttempt.status === 0 || primaryAttempt.status === 429 || primaryAttempt.status >= 500);
+}
+
+function buildTransactionResponsePayload(finalAttempt, primaryAttempt, fallbackUsed) {
+  const payload = {
+    status: finalAttempt.status,
+    ok: finalAttempt.ok,
+    body: finalAttempt.body,
+    attempted_url: finalAttempt.fhirBaseUrl
+  };
+  if (finalAttempt.error) {
+    payload.error = finalAttempt.error;
+  }
+  if (fallbackUsed) {
+    payload.fallback_used = true;
+    payload.primary_response = {
+      status: primaryAttempt.status,
+      ok: primaryAttempt.ok,
+      body: primaryAttempt.body,
+      attempted_url: primaryAttempt.fhirBaseUrl
+    };
+    if (primaryAttempt.error) {
+      payload.primary_response.error = primaryAttempt.error;
+    }
+  }
+  return payload;
+}
+
 async function processDeliveryCheckPayload(payload, options = {}) {
   const deliveryPayload = preparePayloadForDeliveryTarget(payload, options.fhirBaseUrl);
   const bundleResult = buildSessionExportBundle(deliveryPayload);
@@ -353,38 +416,35 @@ async function processExportPayload(payload, options = {}) {
   }
 
   try {
-    const transactionResponse = await fetchImpl(options.fhirBaseUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/fhir+json'
-      },
-      body: JSON.stringify(bundleResult.bundle_json)
-    });
-
-    const parsed = await readFetchResponse(transactionResponse);
+    const primaryAttempt = await sendFhirTransactionAttempt(fetchImpl, options.fhirBaseUrl, bundleResult.bundle_json);
+    const fallbackFhirBaseUrl = String(options.fallbackFhirBaseUrl || DEFAULT_PUBLIC_FHIR_BASE_URL).trim();
+    const shouldUseFallback = shouldRetryOnPublicDemoFallback(primaryAttempt, options.fhirBaseUrl, fallbackFhirBaseUrl);
+    const finalAttempt = shouldUseFallback
+      ? await sendFhirTransactionAttempt(fetchImpl, fallbackFhirBaseUrl, bundleResult.bundle_json)
+      : primaryAttempt;
+    const fallbackUsed = shouldUseFallback && finalAttempt.ok;
 
     const result = {
-      statusCode: transactionResponse.ok ? 200 : 502,
+      statusCode: finalAttempt.ok ? 200 : 502,
       body: Object.assign(response, {
-        delivery_status: transactionResponse.ok ? 'delivered' : 'transaction_failed',
-        transaction_response: {
-          status: transactionResponse.status,
-          ok: transactionResponse.ok,
-          body: parsed
-        }
+        delivery_status: finalAttempt.ok ? 'delivered' : 'transaction_failed',
+        fhir_base_url: finalAttempt.fhirBaseUrl,
+        transaction_response: buildTransactionResponsePayload(finalAttempt, primaryAttempt, fallbackUsed)
       })
     };
-    const createdResources = buildCreatedResourceMap(parsed);
+    const createdResources = buildCreatedResourceMap(finalAttempt.body);
     appendDeliveryDebugLog({
       phase: 'transaction_response',
       deliveryStatus: result.body.delivery_status,
-      fhirBaseUrl: options.fhirBaseUrl || '',
+      fhirBaseUrl: finalAttempt.fhirBaseUrl || '',
+      primaryFhirBaseUrl: primaryAttempt.fhirBaseUrl || '',
+      fallbackUsed,
       patientKey: deliveryPayload?.patient?.key || '',
       encounterKey: deliveryPayload?.session?.encounterKey || '',
-      httpStatus: transactionResponse.status,
+      httpStatus: finalAttempt.status,
       createdResources,
-      diagnostics: Array.isArray(parsed?.issue)
-        ? parsed.issue.map((issue) => issue?.diagnostics || issue?.details?.text || issue?.code || '').filter(Boolean)
+      diagnostics: Array.isArray(finalAttempt.body?.issue)
+        ? finalAttempt.body.issue.map((issue) => issue?.diagnostics || issue?.details?.text || issue?.code || '').filter(Boolean)
         : []
     });
     return result;
@@ -956,6 +1016,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  DEFAULT_PUBLIC_FHIR_BASE_URL,
   processExportPayload,
   processResourceRefreshPayload,
   processDeliveryCheckPayload,
