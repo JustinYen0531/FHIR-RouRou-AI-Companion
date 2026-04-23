@@ -294,6 +294,17 @@ function createPollutedBridgeModelClient() {
   };
 }
 
+function createInvalidBridgeModelClient() {
+  const fallbackClient = createStubModelClient();
+  return async (payload) => {
+    const systemPrompt = String(payload?.systemPrompt || '');
+    if (systemPrompt.includes('原句證據軌 + 症狀推論軌')) {
+      return { text: 'this is absolutely not valid json' };
+    }
+    return fallbackClient(payload);
+  };
+}
+
 async function testCommandRouting() {
   const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
   const result = await engine.handleMessage({ message: 'auto', user: 'demo', conversation_id: 'conv-1' });
@@ -363,6 +374,33 @@ async function testNaturalFlowBuildsSessionExport() {
   assert.ok(!Object.prototype.hasOwnProperty.call(result.session_export.patient, 'gender'));
   assert.deepStrictEqual(result.session_export.clinician_summary_draft, {});
   assert.deepStrictEqual(result.session_export.delivery_readiness_state, {});
+}
+
+async function testInvalidSymptomBridgeFallsBackDuringChat() {
+  const engine = new AICompanionEngine({ modelClient: createInvalidBridgeModelClient(), apiKey: 'fake' });
+  const result = await engine.handleMessage({ message: '最近很累', user: 'demo', conversation_id: 'conv-invalid-bridge' });
+  assert.strictEqual(result.state.active_mode, 'mode_5_natural');
+  assert.ok(result.answer);
+  assert.ok(result.session_export);
+  assert.ok(typeof result.session_export.symptom_bridge_state === 'object');
+  assert.strictEqual(result.state.symptom_bridge_error, undefined);
+}
+
+async function testInvalidSymptomBridgeFallsBackDuringFhirOutput() {
+  const engine = new AICompanionEngine({ modelClient: createInvalidBridgeModelClient(), apiKey: 'fake' });
+  await engine.handleMessage({ message: '最近很累，而且晚上一直做惡夢，白天上班也被影響。', user: 'demo', conversation_id: 'conv-invalid-bridge-output' });
+  const result = await engine.generateOutput({
+    user: 'demo',
+    conversation_id: 'conv-invalid-bridge-output',
+    output_type: 'fhir_delivery',
+    instruction: '請幫我準備 FHIR 草稿'
+  });
+  assert.strictEqual(result.output_type, 'fhir_delivery');
+  assert.ok(result.output);
+  assert.ok(Array.isArray(result.output.observation_candidates));
+  assert.strictEqual(result.output.delivery_status, 'ready_for_mapping');
+  assert.ok(result.session_export);
+  assert.ok(typeof result.session_export.symptom_bridge_state === 'object');
 }
 
 function testDefaultSessionExportPreservesExplicitPatientProfile() {
@@ -622,6 +660,8 @@ async function run() {
   await testManualModeCommandClearsSafetyState();
   await testManualModeOverrideBypassesSafetyAutoReroute();
   await testNaturalFlowBuildsSessionExport();
+  await testInvalidSymptomBridgeFallsBackDuringChat();
+  await testInvalidSymptomBridgeFallsBackDuringFhirOutput();
   testDefaultSessionExportPreservesExplicitPatientProfile();
   await testPatientProfilePersistsInSessionAndSessionExport();
   await testOutputCommandBuildsStructuredDrafts();

@@ -3475,16 +3475,28 @@ class AICompanionEngine {
       throw error;
     }
     if (baseLongitudinal.userMessages.length > 0) {
-      const generatedBridge = await this.runJsonTask('symptomBridgeBuilder', session, message, {
-        fallback: bridgeBase,
-        requireValidJson: strictAi,
-        extraContext: {
-          deterministic_longitudinal: baseLongitudinal,
-          transcript_window: this.buildTranscriptWindow(session)
-        }
-      });
+      let generatedBridge = bridgeBase;
+      try {
+        generatedBridge = await this.runJsonTask('symptomBridgeBuilder', session, message, {
+          fallback: bridgeBase,
+          requireValidJson: strictAi,
+          extraContext: {
+            deterministic_longitudinal: baseLongitudinal,
+            transcript_window: this.buildTranscriptWindow(session)
+          }
+        });
+      } catch (error) {
+        generatedBridge = bridgeBase;
+        state.symptom_bridge_error = error && error.message ? error.message : 'symptomBridgeBuilder_failed';
+      }
+      if (generatedBridge !== bridgeBase && Object.prototype.hasOwnProperty.call(state, 'symptom_bridge_error')) {
+        delete state.symptom_bridge_error;
+      }
       state.symptom_bridge_state = mergeSymptomBridgeState(bridgeBase, generatedBridge);
     } else {
+      if (Object.prototype.hasOwnProperty.call(state, 'symptom_bridge_error')) {
+        delete state.symptom_bridge_error;
+      }
       state.symptom_bridge_state = bridgeBase;
     }
     const longitudinal = buildLongitudinalEvidence(session, state.symptom_bridge_state);
