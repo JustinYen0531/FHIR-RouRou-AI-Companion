@@ -2526,7 +2526,13 @@ function isValidFhirDraftOutput(output = {}) {
   const meaningfulSections = sections.filter((item) => item && !isPlaceholderDraftText(item.focus));
   const observations = Array.isArray(output.observation_candidates) ? output.observation_candidates.filter(Boolean) : [];
   const targets = Array.isArray(output.questionnaire_targets) ? output.questionnaire_targets.filter(Boolean) : [];
-  return (!isPlaceholderDraftText(narrative) && meaningfulSections.length > 0) || observations.length > 0 || targets.length > 0;
+  const resources = Array.isArray(output.resources) ? output.resources.filter(Boolean) : [];
+  return (
+    (!isPlaceholderDraftText(narrative) && meaningfulSections.length > 0) ||
+    observations.length > 0 ||
+    targets.length > 0 ||
+    resources.length > 0
+  );
 }
 
 function getPreferredFhirSummaryText() {
