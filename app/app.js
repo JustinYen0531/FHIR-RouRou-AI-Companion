@@ -3085,7 +3085,7 @@ function renderPhq9ReportSummary() {
   const latest = PHQ9Tracker.getLatestAssessment();
   if (!latest) {
     container.innerHTML = `
-      <div class="report-empty-copy">目前沒有 PHQ-9 紀錄。可從聊天頁右下角藍色按鈕進入自評。</div>
+      <div class="report-empty-copy">目前沒有 PHQ-9 紀錄。可從聊天頁右下角按鈕進入自評。</div>
       <button class="phq9-open-link-btn" type="button" onclick="openPhq9Assessment()">前往填寫 PHQ-9</button>
     `;
     return;

@@ -382,33 +382,48 @@ function normalizePhq9Assessment(assessment) {
   };
 }
 
+function buildPhq9SeverityBand(totalScore = 0) {
+  const score = Math.max(0, Math.min(27, Number(totalScore) || 0));
+  if (score <= 4) return { label: 'minimal', zhLabel: '極輕微', color: 'low' };
+  if (score <= 9) return { label: 'mild', zhLabel: '輕度', color: 'soft' };
+  if (score <= 14) return { label: 'moderate', zhLabel: '中度', color: 'mid' };
+  if (score <= 19) return { label: 'moderately-severe', zhLabel: '中重度', color: 'strong' };
+  return { label: 'severe', zhLabel: '重度', color: 'critical' };
+}
+
 function buildPhq9AssessmentSummary(assessment) {
   const normalized = normalizePhq9Assessment(assessment);
   const severity = buildPhq9SeverityBand(normalized.totalScore);
+  const hasAssessment = Boolean(
+    normalized.completedAt
+    || normalized.updatedAt
+    || normalized.note
+    || normalized.answers.length
+  );
   const answeredAnswers = normalized.answers.filter((answer) => Number.isFinite(Number(answer.score)));
   const narrativeAnswers = normalized.answers.filter((answer) => String(answer.narrative || '').trim().length > 0);
   return {
     phq9_assessment: normalized,
     phq9_total_score: normalized.totalScore,
-    phq9_severity_band: severity.label,
-    phq9_severity_label: severity.zhLabel,
-    phq9_summary: `PHQ-9 ${normalized.totalScore}/27（${severity.zhLabel}）`,
-    phq9_completed_at: normalized.completedAt || normalized.updatedAt || '',
-    phq9_answer_count: answeredAnswers.length,
-    phq9_narrative_count: narrativeAnswers.length,
-    phq9_answers: normalized.answers.map((answer, index) => ({
+    phq9_severity_band: hasAssessment ? severity.label : '',
+    phq9_severity_label: hasAssessment ? severity.zhLabel : '',
+    phq9_summary: hasAssessment ? `PHQ-9 ${normalized.totalScore}/27（${severity.zhLabel}）` : '',
+    phq9_completed_at: hasAssessment ? (normalized.completedAt || normalized.updatedAt || '') : '',
+    phq9_answer_count: hasAssessment ? answeredAnswers.length : 0,
+    phq9_narrative_count: hasAssessment ? narrativeAnswers.length : 0,
+    phq9_answers: hasAssessment ? normalized.answers.map((answer, index) => ({
       item_code: answer.questionId || `phq9_${index + 1}`,
       item_label: answer.label,
       score: answer.score,
       narrative: answer.narrative
-    })),
-    phq9_questionnaire_targets: normalized.answers.map((answer, index) => ({
+    })) : [],
+    phq9_questionnaire_targets: hasAssessment ? normalized.answers.map((answer, index) => ({
       item_code: answer.questionId || `phq9_${index + 1}`,
       item_label: answer.label,
       score: answer.score,
       narrative: answer.narrative,
       status: 'preliminary'
-    }))
+    })) : []
   };
 }
 
@@ -2170,6 +2185,9 @@ function mergeFhirDeliveryDraft(baseDraft, generatedDraft) {
       ? generated.questionnaire_targets
       : baseDraft.questionnaire_targets
   );
+  const phq9QuestionnaireTargets = normalizeArray(baseDraft.phq9_questionnaire_targets).length
+    ? normalizeArray(baseDraft.phq9_questionnaire_targets)
+    : normalizeArray(generated.phq9_questionnaire_targets);
   const narrativeSummaryRaw = chooseStructuredText(generated.narrative_summary, baseDraft.narrative_summary);
   const narrativeSummary = normalizeClinicalNarrativeText(narrativeSummaryRaw) || narrativeSummaryRaw;
   const clinicalAlerts = mergeUniqueTexts(baseDraft.clinical_alerts, generated.clinical_alerts, 6);
@@ -2182,6 +2200,7 @@ function mergeFhirDeliveryDraft(baseDraft, generatedDraft) {
     composition_sections: mergedSections.length ? mergedSections : normalizeArray(baseDraft.composition_sections),
     observation_candidates: observationCandidates,
     questionnaire_targets: questionnaireTargets,
+    phq9_questionnaire_targets: phq9QuestionnaireTargets,
     clinical_alerts: clinicalAlerts,
     export_blockers: exportBlockers,
     notes,
@@ -2189,7 +2208,7 @@ function mergeFhirDeliveryDraft(baseDraft, generatedDraft) {
       ? normalizeArray(generated.hamd_formal_targets)
       : normalizeArray(baseDraft.hamd_formal_targets),
     resources: buildControlledFhirResourceList({
-      includeQuestionnaire: questionnaireTargets.length || normalizeArray(baseDraft.hamd_formal_targets).length,
+      includeQuestionnaire: questionnaireTargets.length || phq9QuestionnaireTargets.length || normalizeArray(baseDraft.hamd_formal_targets).length,
       includeObservation: observationCandidates.length,
       includeClinicalImpression: clinicalAlerts.length || String(narrativeSummary || '').trim() || mergedSections.length,
       includeDocumentReference: String(narrativeSummary || '').trim() || String(notes || '').trim()

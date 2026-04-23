@@ -467,6 +467,51 @@ async function testStructuredObservationRewritingAndLeanFhirDraft() {
   );
 }
 
+async function testPhq9OnlySessionsStillGenerateStructuredDrafts() {
+  const modelClient = createStubModelClient();
+  const engine = new AICompanionEngine({ modelClient, apiKey: 'fake' });
+  const phq9Assessment = {
+    version: 'PHQ-9',
+    totalScore: 18,
+    severityBand: 'moderately-severe',
+    completedAt: '2026-04-23T10:00:00.000Z',
+    updatedAt: '2026-04-23T10:00:00.000Z',
+    note: '最近白天也很難提起精神。',
+    answers: [
+      { questionId: 'phq9_1', label: '做事缺乏興趣或樂趣', score: 2, narrative: '對很多事情都提不起興趣。' },
+      { questionId: 'phq9_2', label: '情緒低落、沮喪或絕望', score: 2, narrative: '大部分時間都覺得很低落。' },
+      { questionId: 'phq9_3', label: '睡眠困擾', score: 2, narrative: '睡不好，也很容易醒來。' },
+      { questionId: 'phq9_4', label: '疲倦或沒精神', score: 2, narrative: '白天很累。' },
+      { questionId: 'phq9_5', label: '食慾不振或吃太多', score: 2, narrative: '食慾變差。' },
+      { questionId: 'phq9_6', label: '覺得自己很糟', score: 2, narrative: '常覺得自己很差。' },
+      { questionId: 'phq9_7', label: '注意力不集中', score: 2, narrative: '很難專心。' },
+      { questionId: 'phq9_8', label: '動作或說話變慢', score: 2, narrative: '做事速度變慢。' },
+      { questionId: 'phq9_9', label: '有傷害自己的念頭', score: 0, narrative: '' }
+    ]
+  };
+
+  const clinician = await engine.generateOutput({
+    conversation_id: 'conv-phq9-only',
+    user: 'demo',
+    output_type: 'clinician_summary',
+    phq9_assessment: phq9Assessment,
+    force_refresh: true
+  });
+  const fhir = await engine.generateOutput({
+    conversation_id: 'conv-phq9-only',
+    user: 'demo',
+    output_type: 'fhir_delivery',
+    phq9_assessment: phq9Assessment,
+    force_refresh: true
+  });
+
+  assert.ok(clinician.output.phq9_summary.includes('PHQ-9 18/27'));
+  assert.strictEqual(clinician.output.phq9_total_score, 18);
+  assert.ok(Array.isArray(fhir.output.phq9_questionnaire_targets));
+  assert.strictEqual(fhir.output.phq9_questionnaire_targets.length, 9);
+  assert.ok(fhir.output.resources.some((item) => item.resource_type === 'QuestionnaireResponse'));
+}
+
 async function testPatientAnalysisUsesMeaningfulNarrative() {
   const modelClient = createStubModelClient();
   const engine = new AICompanionEngine({ modelClient, apiKey: 'fake' });
@@ -550,6 +595,7 @@ async function run() {
   await testOutputCaching();
   await testForceRefreshBypassesOutputCache();
   await testStructuredObservationRewritingAndLeanFhirDraft();
+  await testPhq9OnlySessionsStillGenerateStructuredDrafts();
   await testPatientAnalysisUsesMeaningfulNarrative();
   await testPatientAnalysisFallsBackToRawModelTextWhenJsonInvalid();
   await testPatientAnalysisKeepsGeneratedMarkdownWithSupportPhrase();

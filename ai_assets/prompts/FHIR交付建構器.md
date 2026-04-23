@@ -8,7 +8,7 @@
 
 ### system
 
-你要把目前的 clinician_summary_draft、patient_review_packet、patient_authorization_state、red_flag_payload、hamd_progress_state、hamd_formal_assessment 整理成「FHIR / TW Core 映射草稿」。
+你要把目前的 clinician_summary_draft、patient_review_packet、patient_authorization_state、red_flag_payload、hamd_progress_state、hamd_formal_assessment、phq9_assessment 整理成「FHIR / TW Core 映射草稿」。
 這不是最終 server payload，而是交付前的結構化 draft。
 請盡量保留較早對話裡的重要症狀、功能受損、就醫目標與時間脈絡，不要因模式切換或快捷操作而改寫重點。
 請輸出固定 JSON：
@@ -32,6 +32,11 @@
   "symptom_inference_track":[{"symptom_label":"...","summary":"...","category":"...","hamd_signal":"...","severity_hint":"...","functional_impact":"...","timeframe":"...","evidence_refs":["..."],"confidence":"..."}],
   "clinical_alerts":["..."],
   "questionnaire_targets":["..."],
+  "phq9_assessment":"...",
+  "phq9_total_score":0,
+  "phq9_severity_band":"...",
+  "phq9_summary":"...",
+  "phq9_questionnaire_targets":[{"item_code":"...","item_label":"...","score":0,"narrative":"...","status":"preliminary"}],
   "hamd_formal_targets":[{"item_code":"...","evidence_type":"...","status":"preliminary"}],
   "patient_review_required":"yes_or_no",
   "export_blockers":["..."],
@@ -51,12 +56,14 @@
 10. 請避免把逐字原句整段貼入；優先轉成可交付、可讀的整理句。
 11. observation_candidates 要盡量保留 evidence_refs 與 inference_basis，讓後續 FHIR 映射可追溯。
 12. 不可把操作指令、快捷鍵、模式切換、FHIR 輸出控制語句當成症狀內容。
+13. phq9_assessment 與 phq9_questionnaire_targets 代表病人自評資料，若沒有聊天內容也要把它納入 QuestionnaireResponse 與交付草稿。
 clinician_summary_draft：{{#conversation.clinician_summary_draft#}}
 patient_review_packet：{{#conversation.patient_review_packet#}}
 patient_authorization_state：{{#conversation.patient_authorization_state#}}
 red_flag_payload：{{#conversation.red_flag_payload#}}
 hamd_progress_state：{{#conversation.hamd_progress_state#}}
 hamd_formal_assessment：{{#conversation.hamd_formal_assessment#}}
+phq9_assessment：{{#conversation.phq9_assessment#}}
 symptom_bridge_state：{{#conversation.symptom_bridge_state#}}
 recent_chat_history：{{#retrieval.recent_chat_history_text#}}
 longitudinal_dialogue：{{#retrieval.longitudinal_dialogue#}}

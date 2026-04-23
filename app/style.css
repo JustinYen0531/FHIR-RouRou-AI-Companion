@@ -3121,14 +3121,14 @@ body {
 .phq9-fab {
   position: absolute;
   right: 18px;
-  bottom: 160px;
+  bottom: 216px;
   z-index: 18;
   width: 58px;
   height: 58px;
   border-radius: 50%;
-  background: linear-gradient(145deg, #2f87ff 0%, #2366f3 100%);
+  background: linear-gradient(145deg, #38a46a 0%, #217a4b 100%);
   color: #ffffff;
-  box-shadow: 0 18px 34px rgba(35, 102, 243, 0.35);
+  box-shadow: 0 18px 34px rgba(33, 122, 75, 0.34);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3140,13 +3140,13 @@ body {
 
 .phq9-fab:hover {
   transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 22px 40px rgba(35, 102, 243, 0.42);
+  box-shadow: 0 22px 40px rgba(33, 122, 75, 0.42);
 }
 
 #screen-phq9 {
   background:
-    radial-gradient(circle at top right, rgba(47, 135, 255, 0.16), transparent 30%),
-    linear-gradient(180deg, #f7fbff 0%, #eef5ff 100%);
+    radial-gradient(circle at top right, rgba(56, 164, 106, 0.16), transparent 30%),
+    linear-gradient(180deg, #f5fbf6 0%, #ebf7ef 100%);
 }
 
 .phq9-scroll {
@@ -3167,20 +3167,20 @@ body {
 .phq9-summary-card {
   border-radius: 20px;
   padding: 16px 16px 14px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(234,242,255,0.86) 100%);
-  border: 1px solid rgba(47, 135, 255, 0.12);
-  box-shadow: 0 12px 26px rgba(47, 135, 255, 0.08);
+  background: linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(232,246,236,0.92) 100%);
+  border: 1px solid rgba(56, 164, 106, 0.14);
+  box-shadow: 0 12px 26px rgba(33, 122, 75, 0.08);
 }
 
 .phq9-summary-card.soft {
-  background: linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(240,248,255,0.9) 100%);
+  background: linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(239,249,242,0.92) 100%);
 }
 
 .phq9-summary-kicker {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.1em;
-  color: #6a87b2;
+  color: #5b8b6d;
   text-transform: uppercase;
 }
 
@@ -3189,13 +3189,13 @@ body {
   font-family: 'Manrope', sans-serif;
   font-size: 1.5rem;
   font-weight: 800;
-  color: #20426f;
+  color: #235f41;
 }
 
 .phq9-summary-body span {
   font-size: 0.95rem;
   font-weight: 700;
-  color: #6a87b2;
+  color: #5b8b6d;
   margin-left: 4px;
 }
 
@@ -3209,16 +3209,16 @@ body {
 .phq9-summary-meta {
   margin-top: 8px;
   font-size: 12px;
-  color: #6f8299;
+  color: #5f7868;
 }
 
 .phq9-prompt-status {
   margin-top: 10px;
   padding: 10px 12px;
   border-radius: 14px;
-  background: rgba(47, 135, 255, 0.09);
-  border: 1px solid rgba(47, 135, 255, 0.16);
-  color: #355c98;
+  background: rgba(56, 164, 106, 0.1);
+  border: 1px solid rgba(56, 164, 106, 0.18);
+  color: #2d6d47;
   font-size: 0.88rem;
   line-height: 1.55;
 }
@@ -3242,7 +3242,7 @@ body {
 .phq-card {
   border-radius: 22px;
   background: rgba(255,255,255,0.92);
-  border: 1px solid rgba(47, 135, 255, 0.08);
+  border: 1px solid rgba(56, 164, 106, 0.1);
   box-shadow: 0 12px 28px rgba(47, 82, 130, 0.08);
   padding: 18px;
 }
@@ -3258,7 +3258,7 @@ body {
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #7b91b1;
+  color: #608072;
   font-weight: 800;
 }
 
@@ -3272,7 +3272,7 @@ body {
 .phq-card-prompt {
   font-size: 0.94rem;
   line-height: 1.7;
-  color: #5a6d88;
+  color: #587065;
 }
 
 .phq-score-row {
@@ -3284,19 +3284,20 @@ body {
 .phq-score-pill {
   border-radius: 14px;
   padding: 10px 10px;
-  background: #f5f9ff;
-  color: #4f6686;
-  border: 1px solid rgba(47, 135, 255, 0.08);
+  background: #f4faf6;
+  color: #4c6957;
+  border: 1px solid rgba(56, 164, 106, 0.1);
   font-size: 0.82rem;
   font-weight: 800;
   text-align: center;
+  cursor: pointer;
 }
 
 .phq-score-pill.active {
-  background: linear-gradient(145deg, #dff0ff 0%, #bfdcff 100%);
-  color: #17468b;
-  border-color: rgba(35, 102, 243, 0.38);
-  box-shadow: 0 10px 20px rgba(35, 102, 243, 0.12);
+  background: linear-gradient(145deg, #d9f2e2 0%, #bfe9cf 100%);
+  color: #185238;
+  border-color: rgba(33, 122, 75, 0.38);
+  box-shadow: 0 10px 20px rgba(33, 122, 75, 0.12);
 }
 
 .phq-note-label {
@@ -3311,8 +3312,8 @@ body {
   width: 100%;
   min-height: 96px;
   border-radius: 18px;
-  background: #f7fbff;
-  border: 1px solid rgba(47, 135, 255, 0.12);
+  background: #f7fcf8;
+  border: 1px solid rgba(56, 164, 106, 0.14);
   padding: 12px 14px 14px;
   color: #203047;
   font-size: 0.95rem;
@@ -3321,8 +3322,8 @@ body {
 }
 
 .phq-note-input:focus {
-  border-color: rgba(35, 102, 243, 0.38);
-  box-shadow: 0 0 0 4px rgba(35, 102, 243, 0.08);
+  border-color: rgba(33, 122, 75, 0.38);
+  box-shadow: 0 0 0 4px rgba(33, 122, 75, 0.08);
 }
 
 .phq9-action-row {
@@ -3342,17 +3343,17 @@ body {
   width: 100%;
   min-height: 44px;
   border-radius: 14px;
-  background: linear-gradient(145deg, #2f87ff 0%, #2366f3 100%);
+  background: linear-gradient(145deg, #38a46a 0%, #217a4b 100%);
   color: white;
   font-weight: 800;
-  box-shadow: 0 12px 24px rgba(35, 102, 243, 0.24);
+  box-shadow: 0 12px 24px rgba(33, 122, 75, 0.22);
 }
 
 .phq9-report-card {
   border-radius: 18px;
   padding: 16px;
-  background: linear-gradient(180deg, rgba(248,251,255,0.96) 0%, rgba(232,242,255,0.92) 100%);
-  border: 1px solid rgba(47, 135, 255, 0.12);
+  background: linear-gradient(180deg, rgba(249,253,250,0.98) 0%, rgba(233,246,237,0.94) 100%);
+  border: 1px solid rgba(56, 164, 106, 0.14);
 }
 
 .phq9-report-top {
@@ -3378,13 +3379,13 @@ body {
   font-family: 'Manrope', sans-serif;
   font-size: 1.7rem;
   font-weight: 800;
-  color: #17468b;
+  color: #185238;
   white-space: nowrap;
 }
 
 .phq9-report-score span {
   font-size: 0.94rem;
-  color: #7184a4;
+  color: #6b8473;
   margin-left: 3px;
 }
 
@@ -3394,8 +3395,8 @@ body {
   align-items: center;
   border-radius: 999px;
   padding: 5px 12px;
-  background: rgba(35, 102, 243, 0.1);
-  color: #17468b;
+  background: rgba(56, 164, 106, 0.12);
+  color: #185238;
   font-size: 0.82rem;
   font-weight: 800;
 }
@@ -4495,7 +4496,7 @@ body.micro-detail-open {
 
   .phq9-fab {
     right: 14px;
-    bottom: 172px;
+    bottom: 236px;
   }
 }
 
