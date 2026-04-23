@@ -8,7 +8,7 @@
 
 ---
 
-## 2026-04-24 正式測試結論（Patient / Encounter / QuestionnaireResponse / Observation / ClinicalImpression）
+## 2026-04-24 正式測試結論（Patient / Encounter / QuestionnaireResponse / Observation / ClinicalImpression / Composition）
 
 ### 已確認改善很多的地方
 1. `Patient` 已能穩定輸出 `TW Core Patient` profile，不再只是空殼或明顯 demo placeholder。
@@ -143,9 +143,34 @@
 4. 從「難以展示」進步到「可以在決賽上展示，並順便說明你們知道它哪裡還要修」。
 5. 從「骨架型資源」進步到「品質型資源」，也就是問題已經從有沒有，變成寫得夠不夠精準。
 
+### Composition 正式測試版的成熟度判讀
+1. 這份 `Composition` 已具備 `TW Core Composition` profile、`identifier`、`status`、`type`、`subject`、`encounter`、`date`、`author`、`title`、`confidentiality`、`relatesTo` 與完整多 section 結構，成熟度明顯比早期高。
+2. `extension` 同樣帶有 `ai-companion-generated`、`patient-review-status`、`review-source`，表示這份摘要文件已經被放進病人審閱與授權流程裡，而不是單純產出一份 text。
+3. `section` 已經不只一兩塊，而是有 `Clinician Draft Summary`、`Chief Concerns`、`Symptom Observations`、`Follow-up Needs`、`Clinical Alerts`、`Patient Review Packet`、`Export Blockers`、`FHIR Delivery Draft Sections`，這讓它很像真正的交付摘要文件。
+4. `relatesTo -> QuestionnaireResponse/3680178` 與 `entry -> Observation/...` 很加分，因為它讓 Composition 不只是獨立說故事，而是能回接前面的問卷與觀察資源。
+5. 但它也很明確暴露出目前的品質邊界：`Chief Concerns` 與 `Symptom Observations` 有重複、混入 `請幫我看看我現在的狀態`、`Clinical Alerts` 口氣偏重，所以這份 Composition 是「已經很像正式摘要，但仍需要做內容收斂」。
+
+### Composition 前後對比
+1. 一開始的版本比較像把各種文字片段拼成 summary。
+   即使有 `Composition`，也比較像證明系統能生成 section，還不太像一份真的交付摘要。
+2. 一開始的版本比較缺少文件感。
+   很難像現在這樣同時承接臨床摘要、病人審閱、export blockers 與 FHIR draft section mapping。
+3. 現在的版本已經更像正式交付文件。
+   光是 section 的完整度、標題分工、`title`、`confidentiality = R`、`relatesTo`，就已經能讓評審感覺這不是只是聊天輸出。
+4. 現在的版本也更容易被精細檢查。
+   因為它已經夠像真的文件，所以 section 去重不夠、操作句混入、alerts 太重這些問題都會更醒目。
+5. 換句話說，這份 Composition 已經從「有沒有」進步到「像不像正式成品」的階段。
+
+### Composition 可以明確說有改善的地方
+1. 從「只有 summary 殼」進步到「有完整多 section 的正式文件骨架」。
+2. 從「比較像聊天摘要」進步到「比較像 pre-visit summary 文件」。
+3. 從「獨立文件」進步到「能接上 QuestionnaireResponse 與 Observation」。
+4. 從「只有臨床端視角」進步到「同時包含 patient review packet 與 export blockers」。
+5. 從「FHIR 裡有 Composition」進步到「可以拿來展示交付文件治理與結構設計」。
+
 ### 決賽展示建議結論
-1. `Patient`、`Encounter`、`QuestionnaireResponse`、`Observation`、`ClinicalImpression` 現在都可以展示，而且是可以拿來講「我們確實優化成熟度」的那種展示，不只是勉強能用。
-2. 如果要更穩，決賽版只需要再補「展示用假資料包裝」、「更標準化的人名 / relationship coding」，以及 `QuestionnaireResponse / Observation / ClinicalImpression` 的文字去重與臨床可讀性收斂，而不是整個重做。
+1. `Patient`、`Encounter`、`QuestionnaireResponse`、`Observation`、`ClinicalImpression`、`Composition` 現在都可以展示，而且是可以拿來講「我們確實優化成熟度」的那種展示，不只是勉強能用。
+2. 如果要更穩，決賽版只需要再補「展示用假資料包裝」、「更標準化的人名 / relationship coding」，以及 `QuestionnaireResponse / Observation / ClinicalImpression / Composition` 的文字去重與臨床可讀性收斂，而不是整個重做。
 3. 因此目前優化計畫的重心，應從「補骨架」轉向「摘要可讀性、風險敘述節制、展示版去識別」。
 
 ---
@@ -161,6 +186,7 @@
 6. `QuestionnaireResponse` 已經開始具備病人審閱、授權提示與後續問卷目標整理的流程完整度。
 7. `Observation` 已具備可讀的症狀摘要句、來源鏈結與審閱授權 extension，不再只是抽象訊號殼。
 8. `ClinicalImpression` 已能接上 `QuestionnaireResponse` 與 `Observation`，開始具備真正的臨床印象草稿樣貌。
+9. `Composition` 已具備多 section 正式摘要文件樣貌，開始能承接臨床摘要、病人審閱與交付阻塞說明。
 
 ### 目前最明顯的缺口
 1. `ClinicalImpression.description` 與 `Composition` 內文仍有過度推論風險。
@@ -500,23 +526,35 @@
 ---
 
 ### 6. Composition 層
+> 註：這一層到 `2026-04-24` 的正式測試版為止，已經很像真正的 pre-visit summary 文件。它現在最明顯的進步不是「有 Composition」，而是已經有 section 設計、病人審閱段落與 export blockers；但同時也因為像真的文件，所以內容重複和語氣過滿會更容易被看到。
+
 #### 目前問題
-1. `Chief Concerns` 與 `Symptom Observations` 內有大量重複。
-2. 混入明顯不該進摘要的句子，例如「請幫我看看我現在的狀態」。
-3. `Clinical Alerts` 的句子口氣仍偏重，可能超過實際證據。
-4. 整體 section 很多，但訊息濃度不夠高。
+1. `Chief Concerns` 裡有明顯近義重複，例如 `持續低落、空虛或失去意義感` 和 `近期，出現持續低落或失去意義感的描述` 很接近。
+2. `Symptom Observations` 混入 `請幫我看看我現在的狀態` 這種操作句，這種句子不該出現在正式摘要 section。
+3. `Clinical Alerts` 的句子偏重，像 `高風險的情緒波動和社交焦慮` 這種寫法，若證據有限，展示時很容易被追問依據。
+4. `FHIR Delivery Draft Sections` 很有工程價值，但目前放進 Composition 後，對一般評審來說會顯得資訊密度過高、閱讀負擔偏重。
+5. `Patient Review Packet` 已經很完整，但和前面 section 有部分重疊，還可以再收斂避免整份文件太長。
 
 #### 為什麼要修
 1. `Composition` 是最像給人看的正式摘要。
-2. 如果這裡還是髒的，前面資源再完整，整體印象還是會掉下來。
+2. 如果這裡沒有收乾淨，前面資源就算很完整，評審最後看到的仍會是「文件太亂、太滿、太像草稿」。
 
 #### 建議優化
-1. 強制 section 去重：
-   同義句只留一句
-2. `Chief Concerns` 只保留最高優先的 3 到 4 點。
-3. `Symptom Observations` 改寫成臨床式摘要句，不直接照抄對話。
-4. `Clinical Alerts` 僅保留有明確證據支持的高風險項目。
-5. `Export Blockers` 要更聚焦，避免三句都像在說同一件事。
+1. `Chief Concerns` 強制去重，只留最高優先、最不重複的 3 到 4 點。
+2. `Symptom Observations` 清掉操作句，只保留症狀與情境觀察。
+3. `Clinical Alerts` 改成更保守的說法，避免沒有足夠證據時就寫成高風險警示。
+4. `Patient Review Packet` 保留，但可與前面 section 做內容去重，避免同一句在不同區塊反覆出現。
+5. `FHIR Delivery Draft Sections` 若保留，建議在展示版降權或移到附錄，不要讓它搶走臨床摘要本體的注意力。
+
+#### 前後對比摘要
+| 面向 | 早期版本 | 現在版本 |
+|------|----------|----------|
+| 文件完整度 | 比較像 summary 拼裝 | 已有正式多 section 文件結構 |
+| section 設計 | 偏少或偏鬆散 | 已有 clinician、chief concerns、patient review、blockers 等分工 |
+| 治理資訊 | 較少 | 已有 review / authorization extension 與 confidentiality |
+| 來源關聯 | 較弱 | 已透過 `relatesTo`、`entry` 接上 QuestionnaireResponse / Observation |
+| 閱讀品質 | 還像草稿拼貼 | 比較像正式文件，但仍有重複與口氣過滿問題 |
+| 下一步重點 | 先把文件做出來 | 去重、降風險、調整展示層次 |
 
 #### 建議完整版範例
 ```json
@@ -536,7 +574,7 @@
       "code": { "text": "chief-concerns" },
       "text": {
         "status": "generated",
-        "div": "<div xmlns='http://www.w3.org/1999/xhtml'><ul><li>持續性情緒低落（過去兩至三週）</li><li>睡眠中斷，入睡後易醒</li><li>工作與注意力功能下降</li></ul></div>"
+        "div": "<div xmlns='http://www.w3.org/1999/xhtml'><ul><li>持續低落、空虛或失去意義感</li><li>焦慮與不安感持續出現</li><li>學業表現與評價壓力造成負擔</li></ul></div>"
       }
     },
     {
@@ -544,34 +582,25 @@
       "code": { "text": "symptom-observations" },
       "text": {
         "status": "generated",
-        "div": "<div xmlns='http://www.w3.org/1999/xhtml'><ul><li>情緒低落：患者報告近期對事物持續缺乏興趣。</li><li>睡眠障礙：睡著後容易中途清醒。</li><li>功能影響：工作效率下降，注意力不集中。</li></ul></div>"
+        "div": "<div xmlns='http://www.w3.org/1999/xhtml'><ul><li>對話內容顯示持續性的焦慮與不安感。</li><li>在課堂表現與評價情境中出現明顯壓力反應。</li></ul></div>"
       },
       "entry": [
         { "reference": "urn:uuid:<Observation depressed_mood UUID>" },
-        { "reference": "urn:uuid:<Observation insomnia UUID>" },
-        { "reference": "urn:uuid:<Observation work_interest UUID>" }
+        { "reference": "urn:uuid:<Observation anxiety UUID>" }
       ]
-    },
-    {
-      "title": "Safety",
-      "code": { "text": "safety-flags" },
-      "text": {
-        "status": "generated",
-        "div": "<div xmlns='http://www.w3.org/1999/xhtml'><ul><li>疑似被動消失想法（尚待確認，無立即計畫）</li></ul></div>"
-      }
     },
     {
       "title": "Follow-up Needs",
       "code": { "text": "followup-needs" },
       "text": {
         "status": "generated",
-        "div": "<div xmlns='http://www.w3.org/1999/xhtml'><ul><li>追蹤身體焦慮維度（somatic_anxiety）</li><li>確認被動消失念頭頻率與強度</li></ul></div>"
+        "div": "<div xmlns='http://www.w3.org/1999/xhtml'><ul><li>釐清低落頻率、持續時間，以及是否影響工作、課業或日常活動。</li></ul></div>"
       }
     }
   ]
 }
 ```
-> **重點**：`Chief Concerns` 只留 3 點、語言精簡；`Symptom Observations` 改寫成「患者報告...」的臨床摘要句而非原話；Safety section 的高風險描述加上「疑似」與「尚待確認」。
+> **重點**：這份 Composition 現在真正的進步，是它已經長成一份有 section 設計、病人審閱段落、blockers 與 delivery mapping 的正式文件；下一步不是重做文件，而是把重複內容、操作句與過滿警示收掉，讓它更像決賽可以直接投影的摘要。
 
 ---
 
