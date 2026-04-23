@@ -3953,6 +3953,33 @@ body {
   margin-bottom: 16px;
 }
 .memory { background: rgba(68,102,85,0.1); color: var(--primary); }
+.know-you-action-row {
+  display: flex;
+  gap: 10px;
+  margin: 12px 0 10px;
+}
+.know-you-test-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(68,102,85,0.1);
+  color: var(--primary-dim);
+  font-size: 12px;
+  font-weight: 800;
+  transition: transform 0.2s var(--ease-natural), background 0.2s var(--ease-natural);
+}
+.know-you-test-btn:hover {
+  background: rgba(68,102,85,0.16);
+  transform: translateY(-1px);
+}
+.know-you-test-btn .mat-icon {
+  font-size: 16px;
+}
 
 /* ══════════════════════════════════════════════
    MICRO INTERVENTION ENGINE

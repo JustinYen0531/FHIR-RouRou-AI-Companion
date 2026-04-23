@@ -3005,6 +3005,36 @@ class AICompanionEngine {
     this.syncTherapeuticProfile(session, payload.therapeutic_profile);
     this.syncPatientProfile(session, payload.patient_profile);
     this.syncPhq9Assessment(session, payload.phq9_assessment);
+
+    if (payload.force_memory_compression) {
+      const result = await this.compressTherapeuticMemory(session, message || '測試壓縮', { force: true });
+      const compressionResult = result || {
+        summary: '目前資料還不夠多，但已完成一次模擬壓縮流程。',
+        memory_chunks: [],
+        stressors: [],
+        triggers: [],
+        keyThemes: [],
+        positiveAnchors: [],
+        copingStyleHint: '',
+        retainedTurnCount: Array.isArray(session.history) ? session.history.length : 0,
+        lastCompressedAt: new Date().toISOString()
+      };
+      this.persistSessions();
+      return {
+        conversation_id: session.id,
+        answer: compressionResult.summary || '已執行記憶壓縮測試。',
+        state: deepClone(session.state),
+        session_export: defaultSessionExport(session),
+        metadata: {
+          active_mode: state.active_mode,
+          route: 'memory_compression_test',
+          risk_flag: state.risk_flag,
+          memory_meter: this.buildKnowYouMemoryMeter(session, message || '測試壓縮'),
+          compression_result: compressionResult
+        }
+      };
+    }
+
     if (!message) {
       this.persistSessions();
       return {

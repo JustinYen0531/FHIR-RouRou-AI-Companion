@@ -421,6 +421,11 @@ const TherapeuticMemory = {
             <div class="know-you-value">${p.memoryChunks.slice(-3).map((item) => item.summary).join('｜')}</div>
           </div>
         </div>` : ''}
+      <div class="know-you-action-row">
+        <button class="know-you-test-btn" type="button" onclick="triggerKnowYouCompressionTest()">
+          <span class="mat-icon">science</span> 模擬壓縮測試
+        </button>
+      </div>
       <button class="know-you-edit-btn" onclick="TherapeuticMemory.clearProfile()">
         <span class="mat-icon">delete_sweep</span> 清除所有記憶
       </button>
@@ -575,6 +580,57 @@ function renderKnowYouMeterHTML(meter = null) {
       </div>
     </div>
   `;
+}
+
+async function triggerKnowYouCompressionTest() {
+  if (APP_STATE.isSending) return;
+  const conversationState = buildConversationRequestState();
+  if (!conversationState.conversation_id) {
+    appendSystemNotice('目前還沒有可測試的對話，先開始一段聊天再按壓縮測試。');
+    return;
+  }
+
+  APP_STATE.isSending = true;
+  setTyping(true);
+  setThinkingState(true, '正在模擬壓縮測試...');
+  try {
+    const config = getRuntimeConfig();
+    const response = await fetch('/api/chat/message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: '測試肉肉認識你壓縮',
+        raw_message: '',
+        conversation_id: conversationState.conversation_id,
+        force_memory_compression: true,
+        therapeutic_profile: conversationState.therapeutic_profile,
+        patient_profile: conversationState.patient_profile,
+        phq9_assessment: conversationState.phq9_assessment,
+        user: config.userId,
+        ...buildRuntimeRequestConfig(config),
+        hide_response: true
+      })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(formatChatError(payload));
+    }
+
+    finalizeConversationRequest(payload);
+    if (payload.session_export) {
+      syncTherapeuticMemoryFromSessionExport(payload.session_export);
+      syncReportOutputsFromSessionExport(payload.session_export);
+    }
+    TherapeuticMemory.renderProfileUI();
+    renderReportOutputs();
+    appendSystemNotice('已執行模擬壓縮測試，現在可以直接看上方記憶條與「壓縮記憶」區塊的變化。');
+  } catch (error) {
+    appendSystemNotice(error.message || '模擬壓縮測試失敗。');
+  } finally {
+    setThinkingState(false, '');
+    setTyping(false);
+    APP_STATE.isSending = false;
+  }
 }
 
 const PHQ9_STORAGE_KEY = 'rourou.phq9Assessments.v1';
@@ -7118,6 +7174,7 @@ window.requestOutput = requestOutput;
 window.switchAutoAudience = switchAutoAudience;
 window.toggleModeExplainer = toggleModeExplainer;
 window.openMicroIntervention = openMicroIntervention;
+window.triggerKnowYouCompressionTest = triggerKnowYouCompressionTest;
 window.closeMicroInterventionDetail = closeMicroInterventionDetail;
 window.dismissMicroIntervention = dismissMicroIntervention;
 window.openShortcutComposer = openShortcutComposer;

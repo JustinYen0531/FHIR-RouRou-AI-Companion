@@ -550,6 +550,20 @@ async function testTherapeuticMemoryCompressionAddsLongTermChunk() {
   assert.ok(Array.isArray(afterProfile.memoryChunks) && afterProfile.memoryChunks.length > 0);
 }
 
+async function testForceMemoryCompressionRequestReturnsTestRoute() {
+  const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
+  const result = await engine.handleMessage({
+    message: '測試肉肉認識你壓縮',
+    user: 'demo-user',
+    conversation_id: 'conv-force-memory',
+    force_memory_compression: true
+  });
+
+  assert.strictEqual(result.metadata.route, 'memory_compression_test');
+  assert.ok(result.metadata.memory_meter);
+  assert.ok(result.metadata.compression_result);
+}
+
 async function testSessionPersistenceRoundTrip() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-companion-'));
   const storePath = path.join(tmpDir, 'sessions.json');
@@ -596,6 +610,7 @@ async function run() {
   await testCorruptedInputIsRejectedBeforePersist();
   await testTherapeuticProfilePersistsInSession();
   await testTherapeuticMemoryCompressionAddsLongTermChunk();
+  await testForceMemoryCompressionRequestReturnsTestRoute();
   await testSessionPersistenceRoundTrip();
   console.log('AI companion engine tests passed.');
 }
