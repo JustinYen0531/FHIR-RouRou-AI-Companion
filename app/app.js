@@ -495,7 +495,6 @@ function createDefaultPhq9Draft() {
     version: PHQ9_VERSION,
     updatedAt: '',
     createdAt: '',
-    touchedAt: '',
     scores: Array(9).fill(0),
     narratives: Array(9).fill(''),
     note: ''
@@ -514,7 +513,6 @@ function normalizePhq9Draft(value = {}) {
   base.version = typeof source.version === 'string' && source.version.trim() ? source.version.trim() : PHQ9_VERSION;
   base.updatedAt = String(source.updatedAt || '').trim();
   base.createdAt = String(source.createdAt || '').trim();
-  base.touchedAt = String(source.touchedAt || '').trim();
   base.note = String(source.note || '').trim();
   base.scores = base.scores.map((_, index) => Math.max(0, Math.min(3, Number(scores[index]) || 0)));
   base.narratives = base.narratives.map((_, index) => String(narratives[index] || '').trim());
@@ -561,40 +559,6 @@ function buildPhq9SeverityBand(totalScore = 0) {
   return { label: 'severe', zhLabel: '重度', color: 'critical' };
 }
 
-function buildPhq9AssessmentFromDraft(draft = {}) {
-  const normalizedDraft = normalizePhq9Draft(draft);
-  const answers = PHQ9_QUESTION_DEFS.map((question, index) => ({
-    itemCode: question.itemCode,
-    label: question.label,
-    prompt: question.prompt,
-    score: Math.max(0, Math.min(3, Number(normalizedDraft.scores[index]) || 0)),
-    narrative: String(normalizedDraft.narratives[index] || '').trim()
-  }));
-  const totalScore = answers.reduce((sum, answer) => sum + answer.score, 0);
-  const severityBand = buildPhq9SeverityBand(totalScore);
-  const hasMeaningfulContent =
-    Boolean(normalizedDraft.touchedAt) ||
-    Boolean(String(normalizedDraft.note || '').trim()) ||
-    answers.some((answer) => answer.score > 0 || Boolean(answer.narrative));
-
-  if (!hasMeaningfulContent) return null;
-
-  const now = normalizedDraft.updatedAt || normalizedDraft.createdAt || new Date().toISOString();
-  return normalizePhq9Assessment({
-    id: normalizedDraft.id || `phq9-draft-${Date.now().toString(36)}`,
-    version: normalizedDraft.version || PHQ9_VERSION,
-    createdAt: normalizedDraft.createdAt || now,
-    updatedAt: normalizedDraft.updatedAt || now,
-    completedAt: normalizedDraft.touchedAt || normalizedDraft.updatedAt || now,
-    totalScore,
-    severityBand: severityBand.label,
-    summary: `PHQ-9 ${totalScore}/27（${severityBand.zhLabel}）`,
-    note: String(normalizedDraft.note || '').trim(),
-    answers,
-    __source: 'draft'
-  });
-}
-
 const PHQ9Tracker = {
   getDraft() {
     try {
@@ -606,7 +570,6 @@ const PHQ9Tracker = {
 
   saveDraft(draft) {
     const normalized = normalizePhq9Draft(draft);
-    normalized.touchedAt = normalized.touchedAt || new Date().toISOString();
     normalized.updatedAt = new Date().toISOString();
     if (!normalized.createdAt) normalized.createdAt = normalized.updatedAt;
     localStorage.setItem(PHQ9_DRAFT_STORAGE_KEY, JSON.stringify(normalized));
@@ -637,15 +600,8 @@ const PHQ9Tracker = {
     return assessments[0] ? normalizePhq9Assessment(assessments[0]) : null;
   },
 
-  getActiveAssessment() {
-    const draft = this.getDraft();
-    const activeDraft = buildPhq9AssessmentFromDraft(draft);
-    if (activeDraft) return activeDraft;
-    return this.getLatestAssessment();
-  },
-
   buildContextString() {
-    const latest = this.getActiveAssessment();
+    const latest = this.getLatestAssessment();
     if (!latest) return '';
     const severity = buildPhq9SeverityBand(latest.totalScore);
     const answerLines = latest.answers.map((answer, index) => {
@@ -702,7 +658,6 @@ ${recentAssessments.length ? `近期趨勢：${recentAssessments.join(' → ')}`
       id: assessment.id,
       createdAt: assessment.createdAt,
       updatedAt: assessment.updatedAt,
-      touchedAt: assessment.completedAt,
       note: String(draft.note || '').trim(),
       scores: assessment.answers.map((item) => item.score),
       narratives: assessment.answers.map((item) => item.narrative)
@@ -2882,13 +2837,14 @@ function toggleMoodTag(el, tag) {
 function setPHQ(questionIndex, score) {
   const draft = PHQ9Tracker.getDraft();
   draft.scores[questionIndex] = Math.max(0, Math.min(3, Number(score) || 0));
-  draft.touchedAt = new Date().toISOString();
   APP_STATE.phq9Scores[questionIndex] = draft.scores[questionIndex];
   PHQ9Tracker.saveDraft(draft);
-  const phqItem = document.querySelectorAll('.phq-item')[questionIndex];
-  if (phqItem) {
-    phqItem.querySelectorAll('.phq-opt').forEach((opt, i) => {
-      opt.classList.toggle('active', i === draft.scores[questionIndex]);
+  const phqCard = document.querySelectorAll('.phq-card')[questionIndex];
+  if (phqCard) {
+    phqCard.querySelectorAll('.phq-score-pill').forEach((opt, i) => {
+      const active = i === draft.scores[questionIndex];
+      opt.classList.toggle('active', active);
+      opt.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
   }
 }
@@ -2896,14 +2852,12 @@ function setPHQ(questionIndex, score) {
 function updatePhq9Narrative(questionIndex, value) {
   const draft = PHQ9Tracker.getDraft();
   draft.narratives[questionIndex] = String(value || '').trim();
-  draft.touchedAt = new Date().toISOString();
   PHQ9Tracker.saveDraft(draft);
 }
 
 function updatePhq9GlobalNote(value) {
   const draft = PHQ9Tracker.getDraft();
   draft.note = String(value || '').trim();
-  draft.touchedAt = new Date().toISOString();
   PHQ9Tracker.saveDraft(draft);
 }
 
@@ -2951,10 +2905,10 @@ function renderPhq9Screen() {
           <div class="phq-card-prompt">${escapeHtml(question.prompt)}</div>
         </div>
         <div class="phq-score-row" role="group" aria-label="${escapeHtml(question.label)}">
-          <button type="button" class="phq-score-pill ${score === 0 ? 'active' : ''}" onclick="setPHQ(${index}, 0)">0 完全沒有</button>
-          <button type="button" class="phq-score-pill ${score === 1 ? 'active' : ''}" onclick="setPHQ(${index}, 1)">1 幾天</button>
-          <button type="button" class="phq-score-pill ${score === 2 ? 'active' : ''}" onclick="setPHQ(${index}, 2)">2 一半以上天數</button>
-          <button type="button" class="phq-score-pill ${score === 3 ? 'active' : ''}" onclick="setPHQ(${index}, 3)">3 幾乎每天</button>
+          <button type="button" aria-pressed="${score === 0 ? 'true' : 'false'}" class="phq-score-pill ${score === 0 ? 'active' : ''}" onclick="setPHQ(${index}, 0)">0 完全沒有</button>
+          <button type="button" aria-pressed="${score === 1 ? 'true' : 'false'}" class="phq-score-pill ${score === 1 ? 'active' : ''}" onclick="setPHQ(${index}, 1)">1 幾天</button>
+          <button type="button" aria-pressed="${score === 2 ? 'true' : 'false'}" class="phq-score-pill ${score === 2 ? 'active' : ''}" onclick="setPHQ(${index}, 2)">2 一半以上天數</button>
+          <button type="button" aria-pressed="${score === 3 ? 'true' : 'false'}" class="phq-score-pill ${score === 3 ? 'active' : ''}" onclick="setPHQ(${index}, 3)">3 幾乎每天</button>
         </div>
         <label class="phq-note-label" for="phq-note-${index}">正式敘述 / 補充說明</label>
         <textarea
@@ -2973,13 +2927,12 @@ function renderPhq9Screen() {
   }
   const promptStatus = document.getElementById('phq9-prompt-status');
   if (promptStatus) {
-    const active = PHQ9Tracker.getActiveAssessment();
-    if (active) {
-      const sourceLabel = active.__source === 'draft' ? '草稿（即時同步）' : '最新完成版本';
-      const activeSeverity = buildPhq9SeverityBand(active.totalScore);
-      promptStatus.textContent = `目前 prompt 使用：${sourceLabel}，總分 ${active.totalScore} 分，${activeSeverity.zhLabel}。`;
+    const latest = PHQ9Tracker.getLatestAssessment();
+    if (latest) {
+      const activeSeverity = buildPhq9SeverityBand(latest.totalScore);
+      promptStatus.textContent = `目前 prompt 使用：最新完成版本，總分 ${latest.totalScore} 分，${activeSeverity.zhLabel}。`;
     } else {
-      promptStatus.textContent = '目前 prompt 尚未帶入 PHQ-9。';
+      promptStatus.textContent = '目前 prompt 尚未帶入 PHQ-9。按「儲存並回到聊天」後才會更新。';
     }
   }
   const progress = document.getElementById('phq9-progress-count');
@@ -4834,7 +4787,7 @@ function buildConversationRequestState() {
     force_new_session: Boolean(!APP_STATE.conversationId && APP_STATE.pendingFreshSession),
     therapeutic_profile: TherapeuticMemory.get(),
     patient_profile: PatientProfile.get(),
-    phq9_assessment: PHQ9Tracker.getActiveAssessment()
+    phq9_assessment: PHQ9Tracker.getLatestAssessment()
   };
 }
 
