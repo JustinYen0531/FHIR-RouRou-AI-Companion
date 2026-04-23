@@ -8,7 +8,7 @@
 
 ---
 
-## 2026-04-24 正式測試結論（Patient / Encounter / QuestionnaireResponse / Observation / ClinicalImpression / Composition）
+## 2026-04-24 正式測試結論（Patient / Encounter / QuestionnaireResponse / Observation / ClinicalImpression / Composition / DocumentReference）
 
 ### 已確認改善很多的地方
 1. `Patient` 已能穩定輸出 `TW Core Patient` profile，不再只是空殼或明顯 demo placeholder。
@@ -168,9 +168,34 @@
 4. 從「只有臨床端視角」進步到「同時包含 patient review packet 與 export blockers」。
 5. 從「FHIR 裡有 Composition」進步到「可以拿來展示交付文件治理與結構設計」。
 
+### DocumentReference 正式測試版的成熟度判讀
+1. 這份 `DocumentReference` 已具備 `TW Core DocumentReference` profile、`status`、`docStatus`、`type`、`subject`、`date`、`author`、`description`、`content` 與 `context.encounter`，結構上已經很完整。
+2. 最明顯的進步是 `content` 已分成兩個 attachment：一個是 `AI Companion clinician summary draft (readable)`，一個是 `AI Companion full internal trace payload`，這不是單純附檔，而是開始做閱讀層與追蹤層分離。
+3. 第一個 attachment 的 `title` 和內容設計都很加分，因為它明確告訴評審這是一份 clinician-facing readable summary，而不是把所有內部欄位一股腦塞出去。
+4. 第二個 attachment 帶有 `_note = Internal trace payload — not intended for clinical reading` 的意思，這很有治理感，因為它等於公開承認「有一份給人看，一份給系統追」。
+5. 對決賽展示來說，這份資源的成熟點不是只有能存 Base64，而是已經開始有正式文件交付與可追溯 payload 分層的概念。
+
+### DocumentReference 前後對比
+1. 一開始的版本比較像「有一份匯出附件」。
+   即使 technically 成立，也比較像把資料打包起來，還沒有現在這種明確區分閱讀版與追蹤版的設計。
+2. 一開始的版本比較缺少交付角色感。
+   評審可能看得出來有文件，但不一定看得出哪份是給醫師看的、哪份是內部 trace。
+3. 現在的版本已經更像正式交付文件容器。
+   你可以很清楚地說第一份 attachment 是 clinician summary draft，第二份是 internal trace payload。
+4. 現在的版本也更有產品與治理味道。
+   因為它不是只把資料丟進去，而是開始考慮不同閱讀者需要看到不同層級的內容。
+5. 目前剩下的問題不在有沒有 DocumentReference，而是在 readable payload 本身是否還有重複、過滿或過髒的內容。
+
+### DocumentReference 可以明確說有改善的地方
+1. 從「單純有附件」進步到「分成 readable 與 internal trace 兩層 attachment」。
+2. 從「文件存在」進步到「文件用途被清楚命名」。
+3. 從「像打包匯出」進步到「像正式臨床摘要交付容器」。
+4. 從「只有 technical payload」進步到「開始有 clinician-facing 文件治理概念」。
+5. 從「FHIR 有 DocumentReference」進步到「可以拿來答辯資料分層與追溯策略」。
+
 ### 決賽展示建議結論
-1. `Patient`、`Encounter`、`QuestionnaireResponse`、`Observation`、`ClinicalImpression`、`Composition` 現在都可以展示，而且是可以拿來講「我們確實優化成熟度」的那種展示，不只是勉強能用。
-2. 如果要更穩，決賽版只需要再補「展示用假資料包裝」、「更標準化的人名 / relationship coding」，以及 `QuestionnaireResponse / Observation / ClinicalImpression / Composition` 的文字去重與臨床可讀性收斂，而不是整個重做。
+1. `Patient`、`Encounter`、`QuestionnaireResponse`、`Observation`、`ClinicalImpression`、`Composition`、`DocumentReference` 現在都可以展示，而且是可以拿來講「我們確實優化成熟度」的那種展示，不只是勉強能用。
+2. 如果要更穩，決賽版只需要再補「展示用假資料包裝」、「更標準化的人名 / relationship coding」，以及 `QuestionnaireResponse / Observation / ClinicalImpression / Composition / DocumentReference` 的文字去重與臨床可讀性收斂，而不是整個重做。
 3. 因此目前優化計畫的重心，應從「補骨架」轉向「摘要可讀性、風險敘述節制、展示版去識別」。
 
 ---
@@ -187,6 +212,7 @@
 7. `Observation` 已具備可讀的症狀摘要句、來源鏈結與審閱授權 extension，不再只是抽象訊號殼。
 8. `ClinicalImpression` 已能接上 `QuestionnaireResponse` 與 `Observation`，開始具備真正的臨床印象草稿樣貌。
 9. `Composition` 已具備多 section 正式摘要文件樣貌，開始能承接臨床摘要、病人審閱與交付阻塞說明。
+10. `DocumentReference` 已開始做 readable summary 與 internal trace payload 分層，具備正式交付與可追溯設計概念。
 
 ### 目前最明顯的缺口
 1. `ClinicalImpression.description` 與 `Composition` 內文仍有過度推論風險。
@@ -605,18 +631,34 @@
 ---
 
 ### 7. DocumentReference 層
+> 註：這一層到 `2026-04-24` 的正式測試版為止，成熟很多，而且成熟的方向很對。它現在最大的亮點不是「有附件」，而是已經開始懂得把給醫師看的內容和給系統追蹤的內容分開。
+
 #### 目前問題
-1. 現在確實有保存完整 JSON，但裡面混入大量偏原始、偏髒、偏重複資料。
-2. Base64 payload 太大，且內容品質不整齊。
+1. `readable` attachment 雖然方向很對，但解碼後內容仍可看到一些重複與偏髒的摘要句，表示 readable layer 還沒完全收乾淨。
+2. `internal trace payload` 非常完整，但資訊量極大，若展示時直接展開，會讓評審很容易失焦。
+3. `DocumentReference` 本體目前沒有額外 extension 補上病人審閱狀態；雖然內容裡有 trace，但資源本體層的治理訊號還可以更一致。
+4. `content.data` 全部是 Base64，對系統當然合理，但若要做展示，最好同時準備解碼後的可視版本，不然現場不容易一眼看出價值。
 
 #### 為什麼要修
 1. `DocumentReference` 不只是「有附檔」而已，附檔品質也會影響可讀性。
-2. 如果未來要拿它做決賽證據包，現在這份 payload 還不夠漂亮。
+2. 現在這份資源的強項已經不是骨架，而是分層設計；所以下一步真正要修的是內容品質與展示方式。
 
 #### 建議優化
-1. 保留兩份 attachment 的方向可以不變，但內容要先清洗。
-2. Clinician summary draft 要改成真正的「臨床摘要版」，不是把所有中繼欄位都塞進去。
-3. Full payload 可以保留，但應標示為 internal trace payload，不是對外閱讀版。
+1. 保留兩份 attachment 的方向不變，因為這已經是很好的設計。
+2. 繼續清理 `readable` attachment 的內容，讓它更像真正的 clinician-facing summary，而不是從內部 payload 擷取後的半整理版本。
+3. 展示時應預先準備 readable attachment 的解碼內容，讓評審直接看摘要，而不是看 Base64。
+4. 若之後要再往上補，可考慮在 `DocumentReference` 本體也加上與其他資源一致的 review / authorization extension。
+5. `internal trace payload` 保留完整沒問題，但展示版要清楚說它是 trace，不是給臨床直接閱讀的正文。
+
+#### 前後對比摘要
+| 面向 | 早期版本 | 現在版本 |
+|------|----------|----------|
+| 附件設計 | 比較像單一匯出附件 | 已分成 readable 與 internal trace 兩層 |
+| 文件角色 | 偏技術輸出 | 開始有 clinician-facing 文件定位 |
+| 治理概念 | 較弱 | 已明確標示 internal trace payload |
+| 展示說服力 | 只能說「有附檔」 | 可以說「有分層交付與可追溯設計」 |
+| 內容品質 | 容易一包到底 | readable 已抽出，但仍需去重與清洗 |
+| 下一步重點 | 先把附件做出來 | 提升 readable 品質與展示可讀性 |
 
 #### 建議完整版範例
 ```json
@@ -637,17 +679,20 @@
       "attachment": {
         "contentType": "application/json",
         "title": "AI Companion clinician summary draft (readable)",
-        "data": "<base64 of 以下 JSON>"
+        "data": "<base64 of clinician-facing readable JSON>"
       }
     },
     {
       "attachment": {
         "contentType": "application/json",
         "title": "AI Companion full internal trace payload",
-        "data": "<base64 of 完整內部追蹤 payload>"
+        "data": "<base64 of full internal trace payload>"
       }
     }
-  ]
+  ],
+  "context": {
+    "encounter": [{ "reference": "urn:uuid:<Encounter UUID>" }]
+  }
 }
 ```
 
@@ -674,7 +719,7 @@
   "hamd_signals": ["depressed_mood", "work_interest", "insomnia"]
 }
 ```
-> **重點**：兩份 attachment 分開；閱讀版只放精簡可讀內容，不塞中繼欄位；internal trace 標題明確標示非對外閱讀版。
+> **重點**：這份 DocumentReference 現在真正的進步，是它已經把「閱讀版」和「追蹤版」分開了；下一步不是回頭重做，而是把 readable payload 再洗乾淨一點，並且在展示時把解碼後內容直接秀給評審看。
 
 ---
 
