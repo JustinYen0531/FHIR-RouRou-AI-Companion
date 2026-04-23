@@ -1180,7 +1180,7 @@
           value: input.session.encounterKey
         }
       ],
-      status: 'preliminary',
+      status: 'completed',
       code: {
         text: 'AI Companion risk and context impression'
       },
@@ -1241,11 +1241,6 @@
       burden_level_state:      input.burden_level_state
     };
 
-    // ── 3. 組裝 relatesTo（關聯 Composition）────────────────────────────────────
-    var relatesTo = compositionFullUrl
-      ? [{ code: 'transforms', targetReference: { reference: compositionFullUrl } }]
-      : undefined;
-
     return {
       resourceType: 'DocumentReference',
       meta: { profile: [TW_CORE_PROFILES.documentReference] },
@@ -1261,7 +1256,6 @@
       date: input.session.endedAt || input.session.startedAt || new Date().toISOString(),
       author: input.author ? [{ display: input.author }] : undefined,
       description: 'Clinician-facing AI Companion pre-visit summary draft',
-      relatesTo: relatesTo,
       content: [
         {
           attachment: {
