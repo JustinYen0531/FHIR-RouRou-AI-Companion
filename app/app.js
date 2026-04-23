@@ -1764,15 +1764,19 @@ function getHamdSummary(summary = {}, progress = {}, formalAssessment = {}) {
   const supportingStatValue = evidenceBackedItems.length
     ? `${evidenceBackedItems.length} 題`
     : `${evidencePoolCount} 則`;
+  const formalStats = buildHamdFormalStats(formalAssessment);
+  const hasFormalScores = formalStats.scoredItems.length > 0;
 
   return {
     progressPercent,
-    progressLabel,
-    trend,
-    primaryStatLabel: '目前完整度',
-    primaryStatValue: `${progressPercent}%`,
-    secondaryStatLabel,
-    secondaryStatValue,
+    progressLabel: hasFormalScores ? formalStats.totalSource : progressLabel,
+    trend: hasFormalScores
+      ? `目前已有 ${formalStats.scoredItems.length}/${formalStats.items.length} 題具備題項分數；每題的理由與證據可在明細中逐項檢查。`
+      : trend,
+    primaryStatLabel: hasFormalScores ? formalStats.totalSource : '目前完整度',
+    primaryStatValue: hasFormalScores ? `${formalStats.displayedTotal}/${formalStats.maxTotal || 52}` : `${progressPercent}%`,
+    secondaryStatLabel: hasFormalScores ? '已有分數題項' : secondaryStatLabel,
+    secondaryStatValue: hasFormalScores ? `${formalStats.scoredItems.length}/${formalStats.items.length}` : secondaryStatValue,
     supportingStatLabel,
     supportingStatValue
   };
@@ -1811,6 +1815,100 @@ function getMeaningfulItems(items = []) {
 function formatHamdSignalLabel(signal) {
   const key = String(signal || '').trim();
   return HAMD_SIGNAL_LABELS[key] || key.replace(/_/g, ' ');
+}
+
+function getHamdScaleMax(scaleRange = '') {
+  return String(scaleRange || '').trim() === '0_to_2' ? 2 : 4;
+}
+
+function getHamdItemScore(item = {}) {
+  const clinicianScore = Number(item?.clinician_final_score);
+  if (Number.isFinite(clinicianScore)) {
+    return { value: clinicianScore, source: '醫師確認' };
+  }
+  const aiScore = Number(item?.ai_suggested_score);
+  if (Number.isFinite(aiScore)) {
+    return { value: aiScore, source: 'AI 建議' };
+  }
+  return { value: null, source: '未評分' };
+}
+
+function buildHamdFormalStats(formalAssessment = {}) {
+  const items = Array.isArray(formalAssessment?.items) ? formalAssessment.items : [];
+  const maxTotal = items.reduce((sum, item) => sum + getHamdScaleMax(item?.scale_range), 0);
+  const scoredItems = items
+    .map((item) => ({ item, score: getHamdItemScore(item) }))
+    .filter(({ score }) => Number.isFinite(score.value));
+  const aiTotal = scoredItems.reduce((sum, { score }) => sum + score.value, 0);
+  const clinicianTotal = Number(formalAssessment?.clinician_total_score);
+  const displayedTotal = Number.isFinite(clinicianTotal) ? clinicianTotal : aiTotal;
+  const totalSource = Number.isFinite(clinicianTotal) ? '醫師確認總分' : 'AI 題項草稿總分';
+
+  return {
+    items,
+    scoredItems,
+    maxTotal,
+    displayedTotal,
+    totalSource,
+    severityBand: String(formalAssessment?.severity_band || 'unrated').trim()
+  };
+}
+
+function formatHamdEvidenceType(type = '') {
+  const key = String(type || '').trim();
+  const labels = {
+    direct_answer: '直接回答',
+    indirect_observation: '間接觀察',
+    mixed: '直接 + 觀察',
+    none: '尚無證據'
+  };
+  return labels[key] || key || '尚無證據';
+}
+
+function renderHamdFormalDetail(formalAssessment = {}) {
+  const stats = buildHamdFormalStats(formalAssessment);
+  if (!stats.items.length) {
+    return '<p class="report-empty-copy">目前還沒有可顯示的 HAM-D 題項明細。</p>';
+  }
+
+  const rows = stats.items.map((item) => {
+    const score = getHamdItemScore(item);
+    const maxScore = getHamdScaleMax(item?.scale_range);
+    const evidenceSummary = getMeaningfulItems(item?.evidence_summary);
+    const rationale = cleanClinicalDisplayText(item?.rating_rationale);
+    const reviewRequired = item?.review_required ? '需人工覆核' : '可作為草稿參考';
+    const scoreText = Number.isFinite(score.value) ? `${score.value}/${maxScore}` : `未評分/${maxScore}`;
+
+    return `
+      <div class="hamd-detail-row">
+        <div class="hamd-detail-score">
+          <strong>${escapeHtml(scoreText)}</strong>
+          <span>${escapeHtml(score.source)}</span>
+        </div>
+        <div class="hamd-detail-body">
+          <div class="hamd-detail-title">${escapeHtml(item?.item_label || item?.item_code || '未命名題項')}</div>
+          <div class="hamd-detail-meta">
+            <span>${escapeHtml(formatHamdEvidenceType(item?.evidence_type))}</span>
+            <span>${escapeHtml(reviewRequired)}</span>
+            <span>信心：${escapeHtml(item?.confidence || '未標記')}</span>
+          </div>
+          <p>${escapeHtml(rationale || '尚未形成可查證的評分理由。')}</p>
+          ${evidenceSummary.length
+            ? `<ul>${evidenceSummary.map((evidence) => `<li>${escapeHtml(evidence)}</li>`).join('')}</ul>`
+            : '<p class="hamd-detail-empty">尚無逐題證據摘要。</p>'}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="hamd-detail-summary">
+      <span>${escapeHtml(stats.totalSource)}：${stats.displayedTotal}/${stats.maxTotal || 52}</span>
+      <span>已有分數題項：${stats.scoredItems.length}/${stats.items.length}</span>
+      <span>嚴重度草稿：${escapeHtml(stats.severityBand || 'unrated')}</span>
+    </div>
+    <div class="hamd-detail-list">${rows}</div>
+  `;
 }
 
 function buildReadableListMarkup(items = [], emptyText = '目前沒有可顯示內容。') {
@@ -1891,6 +1989,19 @@ function renderHamdMapping(summary = {}, progress = {}) {
       </div>
     `;
   }).join('');
+}
+
+function toggleHamdDetail() {
+  const panel = document.getElementById('report-hamd-detail-panel');
+  const toggle = document.getElementById('report-hamd-detail-toggle');
+  if (!panel) return;
+  const nextHidden = !panel.hidden ? true : false;
+  panel.hidden = nextHidden;
+  if (toggle) {
+    toggle.classList.toggle('active', !nextHidden);
+    const icon = toggle.querySelector('.mat-icon');
+    if (icon) icon.textContent = nextHidden ? 'expand_more' : 'expand_less';
+  }
 }
 
 function buildFhirSnippet(fhirDraft = {}, deliveryResult = null) {
@@ -2507,6 +2618,7 @@ function renderReportOutputs() {
   const hamdFormalAssessment = sessionExport?.hamd_formal_assessment || {};
   const updatedAt = APP_STATE.reportOutputs.updatedAt;
   const hamd = getHamdSummary(clinician, hamdProgress, hamdFormalAssessment);
+  const hamdFormalStats = buildHamdFormalStats(hamdFormalAssessment);
   const doctorSummaryState = renderDoctorSummary(clinician);
 
   const intro = document.getElementById('report-auto-intro');
@@ -2515,6 +2627,8 @@ function renderReportOutputs() {
   const desc = document.getElementById('report-hamd-desc');
   const trend = document.getElementById('report-trend-label');
   const ring = document.getElementById('report-hamd-progress-ring');
+  const hamdDetailPanel = document.getElementById('report-hamd-detail-panel');
+  const hamdDetailToggle = document.getElementById('report-hamd-detail-toggle');
   const primaryStatLabel = document.getElementById('report-hamd-primary-label');
   const primaryStatValue = document.getElementById('report-hamd-primary-value');
   const secondaryStatLabel = document.getElementById('report-hamd-secondary-label');
@@ -2545,8 +2659,12 @@ function renderReportOutputs() {
       : '這是 Rou Rou 為你整理的本週心情概覽，請確認資訊準確後再交由醫師審閱。';
   }
 
-  if (heading) heading.textContent = 'HAM-D 評估進度';
-  if (score) score.textContent = `${hamd.progressPercent}%`;
+  if (heading) heading.textContent = 'HAM-D 題項評分草稿';
+  if (score) {
+    score.textContent = hamdFormalStats.scoredItems.length
+      ? `${hamdFormalStats.displayedTotal}/${hamdFormalStats.maxTotal || 52}`
+      : `${hamd.progressPercent}%`;
+  }
   if (desc) desc.textContent = hamd.progressLabel;
   if (trend) trend.textContent = hamd.trend;
   if (ring) {
@@ -2559,6 +2677,10 @@ function renderReportOutputs() {
   if (primaryStatValue) primaryStatValue.textContent = hamd.primaryStatValue;
   if (secondaryStatLabel) secondaryStatLabel.textContent = hamd.secondaryStatLabel;
   if (secondaryStatValue) secondaryStatValue.textContent = hamd.secondaryStatValue;
+  if (hamdDetailPanel) hamdDetailPanel.innerHTML = renderHamdFormalDetail(hamdFormalAssessment);
+  if (hamdDetailToggle) {
+    hamdDetailToggle.hidden = !hamdFormalStats.items.length;
+  }
   if (insights) insights.innerHTML = renderClinicalInsights(clinician);
 
   if (note) {
