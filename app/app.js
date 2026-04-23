@@ -209,12 +209,14 @@ const TherapeuticMemory = {
 
   buildContextString() {
     const p = this.get();
+    const phq9Context = typeof PHQ9Tracker !== 'undefined' ? PHQ9Tracker.buildContextString() : '';
     if (
       !p.stressors.length &&
       !p.triggers.length &&
       !p.keyThemes.length &&
       !p.positiveAnchors.length &&
-      !p.copingProfile.preferredStyle
+      !p.copingProfile.preferredStyle &&
+      !phq9Context
     ) return '';
 
     const stressorList = p.stressors.map(s => s.label).join('、') || '尚未記錄';
@@ -232,6 +234,7 @@ const TherapeuticMemory = {
 積極錨點（用戶喜歡的事）：${anchorList}
 核心主題：${themes}
 請在本次對話中延續這個認識，不要重複問對方已說過的資訊。
+${phq9Context ? `\n${phq9Context}` : ''}
 `.trim();
   },
 
@@ -436,6 +439,251 @@ const TherapeuticMemory = {
 
 window.TherapeuticMemory = TherapeuticMemory;
 
+const PHQ9_STORAGE_KEY = 'rourou.phq9Assessments.v1';
+const PHQ9_DRAFT_STORAGE_KEY = 'rourou.phq9Draft.v1';
+const PHQ9_VERSION = 'PHQ-9';
+const PHQ9_QUESTION_DEFS = [
+  {
+    itemCode: 'phq9_1',
+    label: '做事缺乏興趣或樂趣',
+    prompt: '過去兩週，對做事失去興趣或樂趣的頻率如何？'
+  },
+  {
+    itemCode: 'phq9_2',
+    label: '情緒低落、沮喪或絕望',
+    prompt: '過去兩週，感到心情低落、沮喪或絕望的頻率如何？'
+  },
+  {
+    itemCode: 'phq9_3',
+    label: '睡眠困擾',
+    prompt: '過去兩週，入睡、睡不安穩或睡太多的頻率如何？'
+  },
+  {
+    itemCode: 'phq9_4',
+    label: '疲倦或沒精神',
+    prompt: '過去兩週，感到疲倦或沒精神的頻率如何？'
+  },
+  {
+    itemCode: 'phq9_5',
+    label: '食慾改變',
+    prompt: '過去兩週，食慾不振或吃得過多的頻率如何？'
+  },
+  {
+    itemCode: 'phq9_6',
+    label: '自責或覺得自己很糟',
+    prompt: '過去兩週，覺得自己不好、失敗或讓家人失望的頻率如何？'
+  },
+  {
+    itemCode: 'phq9_7',
+    label: '注意力不集中',
+    prompt: '過去兩週，讀書、看報或看電視時難以專心的頻率如何？'
+  },
+  {
+    itemCode: 'phq9_8',
+    label: '動作或說話變慢，或坐立不安',
+    prompt: '過去兩週，動作、說話變慢，或相反地坐立不安的頻率如何？'
+  },
+  {
+    itemCode: 'phq9_9',
+    label: '不如死掉的念頭',
+    prompt: '過去兩週，有沒有覺得不如死掉，或希望自己消失的念頭？'
+  }
+];
+
+function createDefaultPhq9Draft() {
+  return {
+    version: PHQ9_VERSION,
+    updatedAt: '',
+    createdAt: '',
+    scores: Array(9).fill(0),
+    narratives: Array(9).fill(''),
+    note: ''
+  };
+}
+
+function normalizePhq9Draft(value = {}) {
+  const base = createDefaultPhq9Draft();
+  const source = value && typeof value === 'object' ? value : {};
+  const scores = Array.isArray(source.scores) ? source.scores : Array.isArray(source.answers) ? source.answers.map((item) => Number(item?.score) || 0) : [];
+  const narratives = Array.isArray(source.narratives)
+    ? source.narratives
+    : Array.isArray(source.answers)
+      ? source.answers.map((item) => String(item?.narrative || item?.note || '').trim())
+      : [];
+  base.version = typeof source.version === 'string' && source.version.trim() ? source.version.trim() : PHQ9_VERSION;
+  base.updatedAt = String(source.updatedAt || '').trim();
+  base.createdAt = String(source.createdAt || '').trim();
+  base.note = String(source.note || '').trim();
+  base.scores = base.scores.map((_, index) => Math.max(0, Math.min(3, Number(scores[index]) || 0)));
+  base.narratives = base.narratives.map((_, index) => String(narratives[index] || '').trim());
+  return base;
+}
+
+function normalizePhq9Assessment(value = {}) {
+  const source = value && typeof value === 'object' ? value : {};
+  const answers = PHQ9_QUESTION_DEFS.map((question, index) => {
+    const answerSource = Array.isArray(source.answers) ? source.answers[index] || {} : {};
+    const score = Number.isFinite(Number(answerSource.score))
+      ? Math.max(0, Math.min(3, Number(answerSource.score)))
+      : Math.max(0, Math.min(3, Number(Array.isArray(source.scores) ? source.scores[index] : 0) || 0));
+    const narrative = String(answerSource.narrative || (Array.isArray(source.narratives) ? source.narratives[index] : '') || '').trim();
+    return {
+      itemCode: question.itemCode,
+      label: question.label,
+      prompt: question.prompt,
+      score,
+      narrative
+    };
+  });
+  const totalScore = answers.reduce((sum, answer) => sum + (Number(answer.score) || 0), 0);
+  return {
+    id: String(source.id || '').trim(),
+    version: typeof source.version === 'string' && source.version.trim() ? source.version.trim() : PHQ9_VERSION,
+    createdAt: String(source.createdAt || '').trim(),
+    updatedAt: String(source.updatedAt || '').trim(),
+    completedAt: String(source.completedAt || '').trim(),
+    totalScore,
+    severityBand: String(source.severityBand || '').trim(),
+    summary: String(source.summary || '').trim(),
+    answers,
+    note: String(source.note || '').trim()
+  };
+}
+
+function buildPhq9SeverityBand(totalScore = 0) {
+  const score = Math.max(0, Math.min(27, Number(totalScore) || 0));
+  if (score <= 4) return { label: 'minimal', zhLabel: '極輕微', color: 'low' };
+  if (score <= 9) return { label: 'mild', zhLabel: '輕度', color: 'soft' };
+  if (score <= 14) return { label: 'moderate', zhLabel: '中度', color: 'mid' };
+  if (score <= 19) return { label: 'moderately-severe', zhLabel: '中重度', color: 'strong' };
+  return { label: 'severe', zhLabel: '重度', color: 'critical' };
+}
+
+const PHQ9Tracker = {
+  getDraft() {
+    try {
+      return normalizePhq9Draft(JSON.parse(localStorage.getItem(PHQ9_DRAFT_STORAGE_KEY) || 'null'));
+    } catch {
+      return createDefaultPhq9Draft();
+    }
+  },
+
+  saveDraft(draft) {
+    const normalized = normalizePhq9Draft(draft);
+    normalized.updatedAt = new Date().toISOString();
+    if (!normalized.createdAt) normalized.createdAt = normalized.updatedAt;
+    localStorage.setItem(PHQ9_DRAFT_STORAGE_KEY, JSON.stringify(normalized));
+    APP_STATE.phq9Draft = normalized;
+    return normalized;
+  },
+
+  getAssessments() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(PHQ9_STORAGE_KEY) || '[]');
+      return Array.isArray(parsed) ? parsed.map((item) => normalizePhq9Assessment(item)) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  saveAssessments(list) {
+    const normalized = Array.isArray(list) ? list.map((item) => normalizePhq9Assessment(item)) : [];
+    localStorage.setItem(PHQ9_STORAGE_KEY, JSON.stringify(normalized));
+    APP_STATE.phq9Assessments = normalized;
+    return normalized;
+  },
+
+  getLatestAssessment() {
+    const assessments = Array.isArray(APP_STATE.phq9Assessments) && APP_STATE.phq9Assessments.length
+      ? APP_STATE.phq9Assessments
+      : this.getAssessments();
+    return assessments[0] ? normalizePhq9Assessment(assessments[0]) : null;
+  },
+
+  buildContextString() {
+    const latest = this.getLatestAssessment();
+    if (!latest) return '';
+    const severity = buildPhq9SeverityBand(latest.totalScore);
+    const answerLines = latest.answers.map((answer, index) => {
+      const note = String(answer.narrative || '').trim();
+      return `${index + 1}. ${answer.label}：${answer.score} 分${note ? `；補充：${note}` : ''}`;
+    });
+    const recentAssessments = (Array.isArray(APP_STATE.phq9Assessments) ? APP_STATE.phq9Assessments : [])
+      .slice(0, 3)
+      .map((item) => `${String(item.updatedAt || item.createdAt || '').slice(0, 10) || '未標記'}:${item.totalScore}`)
+      .filter(Boolean);
+
+    return `
+【PHQ-9 自評背景 - 這是系統背景資料，請自然地融入對話，不要直接唸出整段文字】
+最新一筆填寫時間：${latest.updatedAt || latest.createdAt || '未標記'}
+總分：${latest.totalScore} / 27
+嚴重度：${severity.zhLabel}（${severity.label}）
+逐題內容：
+${answerLines.join('\n')}
+${latest.note ? `補充總覽：${latest.note}` : ''}
+${recentAssessments.length ? `近期趨勢：${recentAssessments.join(' → ')}` : ''}
+請在後續對話中把這份自評當作目前情緒狀態的正式背景資料，並與自然對話脈絡一起保留。
+`.trim();
+  },
+
+  commitDraft() {
+    const draft = this.getDraft();
+    const answers = PHQ9_QUESTION_DEFS.map((question, index) => ({
+      itemCode: question.itemCode,
+      label: question.label,
+      prompt: question.prompt,
+      score: Math.max(0, Math.min(3, Number(draft.scores[index]) || 0)),
+      narrative: String(draft.narratives[index] || '').trim()
+    }));
+    const totalScore = answers.reduce((sum, answer) => sum + answer.score, 0);
+    const severityBand = buildPhq9SeverityBand(totalScore);
+    const now = new Date().toISOString();
+    const assessment = normalizePhq9Assessment({
+      id: draft.id || `phq9-${Date.now().toString(36)}`,
+      version: PHQ9_VERSION,
+      createdAt: draft.createdAt || now,
+      updatedAt: now,
+      completedAt: now,
+      totalScore,
+      severityBand: severityBand.label,
+      summary: `PHQ-9 ${totalScore}/27（${severityBand.zhLabel}）`,
+      note: String(draft.note || '').trim(),
+      answers
+    });
+
+    const assessments = [assessment, ...this.getAssessments().filter((item) => item.id !== assessment.id)];
+    this.saveAssessments(assessments);
+    this.saveDraft({
+      ...draft,
+      id: assessment.id,
+      createdAt: assessment.createdAt,
+      updatedAt: assessment.updatedAt,
+      note: String(draft.note || '').trim(),
+      scores: assessment.answers.map((item) => item.score),
+      narratives: assessment.answers.map((item) => item.narrative)
+    });
+    appendSystemNotice(`PHQ-9 已保存，總分 ${assessment.totalScore} 分。`);
+    return assessment;
+  },
+
+  importFromSessionExport(sessionExport = {}) {
+    const payload = sessionExport && typeof sessionExport.phq9_assessment === 'object'
+      ? normalizePhq9Assessment(sessionExport.phq9_assessment)
+      : null;
+    if (!payload) return;
+    const current = this.getAssessments();
+    const next = [payload, ...current.filter((item) => item.id !== payload.id)];
+    localStorage.setItem(PHQ9_STORAGE_KEY, JSON.stringify(next));
+    APP_STATE.phq9Assessments = next;
+    this.renderUI();
+  },
+
+  renderUI() {
+    renderPhq9Screen();
+    renderPhq9ReportSummary();
+  }
+};
+
 const APP_STATE = {
   currentScreen: 'screen-chat',
   conversationId: '',
@@ -450,6 +698,8 @@ const APP_STATE = {
   moodPoints: [100, 100, 100, 100, 100, 100, 100], 
   selectedMoodTags: [],
   phq9Scores: Array(9).fill(0),
+  phq9Draft: createDefaultPhq9Draft(),
+  phq9Assessments: [],
   chatHistory: [],
   pendingFreshSession: false,
   lastChatMetadata: null,
@@ -1138,11 +1388,12 @@ function restoreReportOutputsFromCache() {
     const parsed = JSON.parse(localStorage.getItem(REPORT_OUTPUT_CACHE_KEY) || 'null');
     if (!parsed || typeof parsed !== 'object') return;
     APP_STATE.reportOutputs = normalizeCachedReportOutputs(parsed);
-    if (APP_STATE.reportOutputs.session_export && typeof APP_STATE.reportOutputs.session_export === 'object') {
-      APP_STATE.reportOutputs.session_export = PatientProfile.applyToSessionExport(APP_STATE.reportOutputs.session_export);
-      syncReportOutputsFromSessionExport(APP_STATE.reportOutputs.session_export);
-      syncTherapeuticMemoryFromSessionExport(APP_STATE.reportOutputs.session_export);
-    }
+  if (APP_STATE.reportOutputs.session_export && typeof APP_STATE.reportOutputs.session_export === 'object') {
+    APP_STATE.reportOutputs.session_export = PatientProfile.applyToSessionExport(APP_STATE.reportOutputs.session_export);
+    syncReportOutputsFromSessionExport(APP_STATE.reportOutputs.session_export);
+    syncTherapeuticMemoryFromSessionExport(APP_STATE.reportOutputs.session_export);
+    syncPhq9SessionState();
+  }
     if (isValidFhirDraftOutput(APP_STATE.reportOutputs.fhir_delivery)) {
       APP_STATE.reportFhirDraft = {
         isLoading: false,
@@ -2013,6 +2264,7 @@ function syncReportOutputsFromSessionExport(sessionExport = {}) {
   if (isValidFhirDraftOutput(normalizedSessionExport.fhir_delivery_draft)) {
     APP_STATE.reportOutputs.fhir_delivery = JSON.parse(JSON.stringify(normalizedSessionExport.fhir_delivery_draft));
   }
+  PHQ9Tracker.importFromSessionExport(normalizedSessionExport);
 }
 
 function syncTherapeuticMemoryFromSessionExport(sessionExport = {}) {
@@ -2079,6 +2331,7 @@ function renderReportOutputs() {
   const patientAnalysisMeta = document.getElementById('report-patient-analysis-meta');
   const doctorSummary = document.getElementById('report-doctor-summary');
   const doctorSummaryMeta = document.getElementById('report-doctor-summary-meta');
+  const phq9Summary = document.getElementById('report-phq9-summary');
   const symptomSummary = document.getElementById('report-symptom-summary');
   const classificationLogic = document.getElementById('report-classification-logic');
   const hamdMapping = document.getElementById('report-hamd-mapping');
@@ -2090,6 +2343,7 @@ function renderReportOutputs() {
   const authNote = document.getElementById('report-auth-note');
   const deleteDraftButton = document.getElementById('report-delete-fhir-draft');
   const latestFhirHistory = APP_STATE.fhirReportHistory?.[0] || null;
+  renderPhq9ReportSummary();
 
   if (intro) {
     intro.textContent = updatedAt
@@ -2402,6 +2656,10 @@ function showScreen(screenId) {
     renderMoodChart();
     ensureReportFhirDraft();
   }
+
+  if (screenId === 'screen-phq9') {
+    renderPhq9Screen();
+  }
   
   if (screenId === 'screen-energy') {
     tempSelectedMode = APP_STATE.selectedMode;
@@ -2577,13 +2835,150 @@ function toggleMoodTag(el, tag) {
 }
 
 function setPHQ(questionIndex, score) {
-  APP_STATE.phq9Scores[questionIndex] = score;
+  const draft = PHQ9Tracker.getDraft();
+  draft.scores[questionIndex] = Math.max(0, Math.min(3, Number(score) || 0));
+  APP_STATE.phq9Scores[questionIndex] = draft.scores[questionIndex];
+  PHQ9Tracker.saveDraft(draft);
   const phqItem = document.querySelectorAll('.phq-item')[questionIndex];
   if (phqItem) {
     phqItem.querySelectorAll('.phq-opt').forEach((opt, i) => {
-      opt.classList.toggle('active', i === score);
+      opt.classList.toggle('active', i === draft.scores[questionIndex]);
     });
   }
+}
+
+function updatePhq9Narrative(questionIndex, value) {
+  const draft = PHQ9Tracker.getDraft();
+  draft.narratives[questionIndex] = String(value || '').trim();
+  PHQ9Tracker.saveDraft(draft);
+}
+
+function updatePhq9GlobalNote(value) {
+  const draft = PHQ9Tracker.getDraft();
+  draft.note = String(value || '').trim();
+  PHQ9Tracker.saveDraft(draft);
+}
+
+function syncPhq9SessionState() {
+  APP_STATE.phq9Draft = PHQ9Tracker.getDraft();
+  APP_STATE.phq9Assessments = PHQ9Tracker.getAssessments();
+  APP_STATE.phq9Scores = (APP_STATE.phq9Draft.scores || Array(9).fill(0)).slice(0, 9);
+}
+
+function renderPhq9Screen() {
+  const container = document.getElementById('phq9-form-root');
+  const latestSummary = document.getElementById('phq9-latest-summary');
+  const summaryMeta = document.getElementById('phq9-latest-meta');
+  const draft = PHQ9Tracker.getDraft();
+  const latest = PHQ9Tracker.getLatestAssessment();
+
+  if (latestSummary) {
+    if (latest) {
+      const severity = buildPhq9SeverityBand(latest.totalScore);
+      latestSummary.innerHTML = `
+        <div class="phq9-summary-score">${latest.totalScore}<span>/27</span></div>
+        <div class="phq9-summary-text">目前嚴重度：${severity.zhLabel}</div>
+      `;
+      if (summaryMeta) {
+        summaryMeta.textContent = `最新完成：${formatTimeLabel(latest.completedAt || latest.updatedAt || latest.createdAt || new Date().toISOString())}`;
+      }
+    } else {
+      latestSummary.innerHTML = '<div class="phq9-summary-empty">還沒有完成過 PHQ-9。填完後這裡會顯示最新總分與趨勢。</div>';
+      if (summaryMeta) {
+        summaryMeta.textContent = '尚未填寫';
+      }
+    }
+  }
+
+  if (!container) return;
+
+  container.innerHTML = PHQ9_QUESTION_DEFS.map((question, index) => {
+    const score = Math.max(0, Math.min(3, Number(draft.scores[index]) || 0));
+    const narrative = String(draft.narratives[index] || '');
+    return `
+      <div class="phq-card" data-phq-index="${index}">
+        <div class="phq-card-head">
+          <div class="phq-card-kicker">問題 ${index + 1}</div>
+          <div class="phq-card-title">${escapeHtml(question.label)}</div>
+          <div class="phq-card-prompt">${escapeHtml(question.prompt)}</div>
+        </div>
+        <div class="phq-score-row" role="group" aria-label="${escapeHtml(question.label)}">
+          <button type="button" class="phq-score-pill ${score === 0 ? 'active' : ''}" onclick="setPHQ(${index}, 0)">0 完全沒有</button>
+          <button type="button" class="phq-score-pill ${score === 1 ? 'active' : ''}" onclick="setPHQ(${index}, 1)">1 幾天</button>
+          <button type="button" class="phq-score-pill ${score === 2 ? 'active' : ''}" onclick="setPHQ(${index}, 2)">2 一半以上天數</button>
+          <button type="button" class="phq-score-pill ${score === 3 ? 'active' : ''}" onclick="setPHQ(${index}, 3)">3 幾乎每天</button>
+        </div>
+        <label class="phq-note-label" for="phq-note-${index}">正式敘述 / 補充說明</label>
+        <textarea
+          id="phq-note-${index}"
+          class="phq-note-input"
+          placeholder="請寫下這一題對你造成的正式描述，例如持續多久、影響到什麼、你怎麼感受。"
+          oninput="updatePhq9Narrative(${index}, this.value)"
+        >${escapeHtml(narrative)}</textarea>
+      </div>
+    `;
+  }).join('');
+
+  const noteInput = document.getElementById('phq9-global-note');
+  if (noteInput && noteInput.value !== draft.note) {
+    noteInput.value = draft.note || '';
+  }
+  const progress = document.getElementById('phq9-progress-count');
+  if (progress) {
+    progress.textContent = `PHQ-9 共 ${PHQ9_QUESTION_DEFS.length} 題，填完後可直接儲存並回到聊天。`;
+  }
+}
+
+function renderPhq9ReportSummary() {
+  const container = document.getElementById('report-phq9-summary');
+  if (!container) return;
+  const latest = PHQ9Tracker.getLatestAssessment();
+  if (!latest) {
+    container.innerHTML = `
+      <div class="report-empty-copy">目前沒有 PHQ-9 紀錄。可從聊天頁右下角藍色按鈕進入自評。</div>
+      <button class="phq9-open-link-btn" type="button" onclick="openPhq9Assessment()">前往填寫 PHQ-9</button>
+    `;
+    return;
+  }
+  const severity = buildPhq9SeverityBand(latest.totalScore);
+  const preview = latest.answers
+    .slice(0, 3)
+    .map((answer, index) => `${index + 1}. ${answer.label}：${answer.score} 分`)
+    .join(' / ');
+  container.innerHTML = `
+    <div class="phq9-report-card">
+      <div class="phq9-report-top">
+        <div>
+          <div class="phq9-report-title">最新 PHQ-9</div>
+          <div class="phq9-report-meta">${escapeHtml(formatTimeLabel(latest.completedAt || latest.updatedAt || latest.createdAt || new Date().toISOString()))}</div>
+        </div>
+        <div class="phq9-report-score">${latest.totalScore}<span>/27</span></div>
+      </div>
+      <div class="phq9-report-band">${severity.zhLabel}</div>
+      <div class="phq9-report-preview">${escapeHtml(preview || '尚未有逐題內容')}</div>
+      <button class="phq9-open-link-btn" type="button" onclick="openPhq9Assessment()">重新填寫 PHQ-9</button>
+    </div>
+  `;
+}
+
+function openPhq9Assessment() {
+  showScreen('screen-phq9');
+  renderPhq9Screen();
+  const firstInput = document.getElementById('phq9-note-0');
+  window.requestAnimationFrame(() => firstInput?.focus());
+}
+
+function closePhq9Assessment() {
+  showScreen('screen-chat');
+}
+
+function submitPhq9Assessment() {
+  const assessment = PHQ9Tracker.commitDraft();
+  syncPhq9SessionState();
+  renderPhq9Screen();
+  renderPhq9ReportSummary();
+  appendSystemNotice(`已把 PHQ-9 最新版本帶入對話背景，總分 ${assessment.totalScore} 分。`);
+  showScreen('screen-chat');
 }
 
 function updateModeLabels() {
@@ -4343,6 +4738,8 @@ function applySessionRecord(session = {}, fallbackSessionId = '') {
   };
   syncReportOutputsFromSessionExport(APP_STATE.reportOutputs.session_export);
   syncTherapeuticMemoryFromSessionExport(APP_STATE.reportOutputs.session_export);
+  PHQ9Tracker.importFromSessionExport(APP_STATE.reportOutputs.session_export);
+  syncPhq9SessionState();
   renderChatHistory(APP_STATE.chatHistory);
   updateModeLabels();
   renderReportOutputs();
@@ -4377,7 +4774,8 @@ function buildConversationRequestState() {
     conversation_id: APP_STATE.conversationId,
     force_new_session: Boolean(!APP_STATE.conversationId && APP_STATE.pendingFreshSession),
     therapeutic_profile: TherapeuticMemory.get(),
-    patient_profile: PatientProfile.get()
+    patient_profile: PatientProfile.get(),
+    phq9_assessment: PHQ9Tracker.getLatestAssessment()
   };
 }
 
@@ -4693,6 +5091,7 @@ function buildSessionExportFromRecord(session = {}) {
     delivery_readiness_state: session.state?.delivery_readiness_state || {},
     summary_draft_state: trustStructuredOutputs ? (session.state?.summary_draft_state || {}) : {},
     therapeutic_profile: session.state?.therapeutic_profile || {},
+    phq9_assessment: session.state?.phq9_assessment || {},
     __requiresRegeneration: !trustStructuredOutputs,
     __source: trustStructuredOutputs ? 'server_session' : 'local_archive'
   });
@@ -5528,6 +5927,7 @@ async function fetchOutputPayload(outputType, instructionOverride = '') {
       client_history: buildClientHistorySnapshot(),
       therapeutic_profile: conversationState.therapeutic_profile,
       patient_profile: conversationState.patient_profile,
+      phq9_assessment: conversationState.phq9_assessment,
       user: config.userId,
       output_type: outputType,
       instruction: instructionOverride || (OUTPUT_DEFINITIONS[outputType]?.instruction || outputType),
@@ -5631,6 +6031,7 @@ async function ensureModeSynced() {
         force_new_session: conversationState.force_new_session,
         therapeutic_profile: conversationState.therapeutic_profile,
         patient_profile: conversationState.patient_profile,
+        phq9_assessment: conversationState.phq9_assessment,
         user: config.userId,
         ...buildRuntimeRequestConfig(config),
         hide_response: true
@@ -5692,7 +6093,8 @@ async function sendMessage() {
     const conversationState = buildConversationRequestState();
     const userPromptContext = buildUserPromptContextString();
     const memoryContext = TherapeuticMemory.buildContextString();
-    const contextParts = [userPromptContext, memoryContext].filter(Boolean);
+    const phq9Context = PHQ9Tracker.buildContextString();
+    const contextParts = [userPromptContext, memoryContext, phq9Context].filter(Boolean);
     const messageWithMemory = contextParts.length ? `${contextParts.join('\n\n')}\n\n用戶說：${message}` : message;
     const response = await fetch('/api/chat/message', {
       method: 'POST',
@@ -5704,6 +6106,7 @@ async function sendMessage() {
         force_new_session: conversationState.force_new_session,
         therapeutic_profile: conversationState.therapeutic_profile,
         patient_profile: conversationState.patient_profile,
+        phq9_assessment: conversationState.phq9_assessment,
         user: config.userId,
         ...buildRuntimeRequestConfig(config)
       })
@@ -5765,6 +6168,7 @@ async function extractProfileFromConversation() {
         force_new_session: conversationState.force_new_session,
         therapeutic_profile: conversationState.therapeutic_profile,
         patient_profile: conversationState.patient_profile,
+        phq9_assessment: conversationState.phq9_assessment,
         user: config.userId,
         ...buildRuntimeRequestConfig(config)
       })
@@ -6496,6 +6900,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initializeRuntimeConfig();
   PatientProfile.wireForm();
   restoreReportOutputsFromCache();
+  syncPhq9SessionState();
   showScreen('screen-home');
   wireHomeGuide();
   wireHomeSessionControls();
@@ -6505,6 +6910,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderShortcutPager();
   wireShortcutInteractions();
   renderReportOutputs();
+  renderPhq9ReportSummary();
   switchAutoAudience(APP_STATE.currentWeeklyAudience);
   TherapeuticMemory.renderProfileUI();
   PatientProfile.renderUI();

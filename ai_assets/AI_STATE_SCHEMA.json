@@ -90,6 +90,16 @@
     "description": "Structured formal HAM-D item-level assessment draft with direct and indirect evidence typing"
   },
   {
+    "name": "phq9_assessment",
+    "selector": [
+      "conversation",
+      "phq9_assessment"
+    ],
+    "default_value": "none",
+    "value_type": "string",
+    "description": "Structured PHQ-9 self-report assessment with item scores, narratives, and severity band"
+  },
+  {
     "name": "summary_draft_state",
     "selector": [
       "conversation",

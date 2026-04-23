@@ -303,11 +303,13 @@
   }
   // ─────────────────────────────────────────────────────────────────────────────
 
-  function collectQuestionnaireItems(input, hamdProgress, formalAssessment, clinicianSummary, patientReviewPacket, fhirDeliveryDraft) {
+  function collectQuestionnaireItems(input, hamdProgress, formalAssessment, phq9Assessment, clinicianSummary, patientReviewPacket, fhirDeliveryDraft) {
     const items = [];
+    const phq9 = phq9Assessment && typeof phq9Assessment === 'object' ? phq9Assessment : {};
     const formalItems = asArray(formalAssessment.items).filter(function (item) {
       return typeof item.ai_suggested_score === 'number' || typeof item.clinician_final_score === 'number' || asArray(item.evidence_summary).length;
     });
+    const phq9Items = asArray(phq9.answers);
     const summaryItemScores = asArray(clinicianSummary.hamd_item_scores);
 
     if (formalItems.length) {
@@ -362,6 +364,52 @@
             }
           ]
         });
+      });
+    }
+
+    if (phq9Items.length) {
+      phq9Items.forEach(function (item, index) {
+        const linkId = item.questionId || ('phq9_' + (index + 1));
+        const narrative = String(item.narrative || '').trim();
+        items.push({
+          linkId: linkId,
+          text: item.label || ('PHQ-9 Item ' + (index + 1)),
+          answer: [
+            {
+              valueInteger: typeof item.score === 'number' ? item.score : 0
+            }
+          ],
+          item: narrative
+            ? [{
+                linkId: linkId + '_narrative',
+                text: 'Patient narrative',
+                answer: [{ valueString: narrative }]
+              }]
+            : undefined
+        });
+      });
+    }
+
+    if (typeof phq9.totalScore === 'number') {
+      items.push({
+        linkId: 'phq9_total_score',
+        text: 'PHQ-9 total score',
+        answer: [
+          {
+            valueInteger: phq9.totalScore
+          }
+        ],
+        item: phq9.severityBand
+          ? [{
+              linkId: 'phq9_total_severity',
+              text: 'Severity band',
+              answer: [
+                {
+                  valueString: phq9.severityBand
+                }
+              ]
+            }]
+          : undefined
       });
     }
 
@@ -519,6 +567,24 @@
     return candidates;
   }
 
+  function gatherPhq9ObservationCandidates(phq9Assessment) {
+    const candidates = [];
+    const phq9 = phq9Assessment && typeof phq9Assessment === 'object' ? phq9Assessment : {};
+    if (typeof phq9.totalScore === 'number') {
+      candidates.push({
+        kind: 'phq9_total',
+        focus: 'phq9_total_score',
+        label: 'PHQ-9 total score',
+        category: 'survey',
+        evidence: phq9.severityBand ? ['severity_band: ' + phq9.severityBand] : [],
+        supported: true,
+        score: phq9.totalScore,
+        evidenceType: 'patient_reported'
+      });
+    }
+    return candidates;
+  }
+
   function buildPatientResource(input, fullUrl) {
     const telecom = Array.isArray(input.patient.telecom) && input.patient.telecom.length
       ? input.patient.telecom.filter(Boolean)
@@ -650,8 +716,8 @@
     };
   }
 
-  function buildQuestionnaireResponseResource(input, patientFullUrl, encounterFullUrl, hamdProgress, formalAssessment, clinicianSummary, patientReviewPacket, fhirDeliveryDraft) {
-    const items = collectQuestionnaireItems(input, hamdProgress, formalAssessment, clinicianSummary, patientReviewPacket, fhirDeliveryDraft);
+  function buildQuestionnaireResponseResource(input, patientFullUrl, encounterFullUrl, hamdProgress, formalAssessment, phq9Assessment, clinicianSummary, patientReviewPacket, fhirDeliveryDraft) {
+    const items = collectQuestionnaireItems(input, hamdProgress, formalAssessment, phq9Assessment, clinicianSummary, patientReviewPacket, fhirDeliveryDraft);
 
     return {
       resourceType: 'QuestionnaireResponse',
@@ -1168,6 +1234,7 @@
       patient_review_packet:   patientReviewPacket,
       fhir_delivery_draft:     fhirDeliveryDraft,
       hamd_formal_assessment:  formalAssessment,
+      phq9_assessment:        input.phq9_assessment,
       active_mode:             input.active_mode,
       risk_flag:               input.risk_flag,
       latest_tag_payload:      input.latest_tag_payload,
@@ -1356,6 +1423,7 @@
       fhir_delivery_draft: toObject(rawInput && rawInput.fhir_delivery_draft, 'fhir_delivery_draft', validationErrors),
       hamd_progress_state: toObject(rawInput && rawInput.hamd_progress_state, 'hamd_progress_state', validationErrors),
       hamd_formal_assessment: toObject(rawInput && rawInput.hamd_formal_assessment, 'hamd_formal_assessment', validationErrors),
+      phq9_assessment: toObject(rawInput && rawInput.phq9_assessment, 'phq9_assessment', validationErrors),
       red_flag_payload: toObject(rawInput && rawInput.red_flag_payload, 'red_flag_payload', validationErrors),
       patient_authorization_state: toObject(rawInput && rawInput.patient_authorization_state, 'patient_authorization_state', validationErrors),
       delivery_readiness_state: toObject(rawInput && rawInput.delivery_readiness_state, 'delivery_readiness_state', validationErrors),
@@ -1422,7 +1490,7 @@
         input.clinician_summary_draft,
         input.hamd_progress_state,
         input.red_flag_payload
-      ).concat(gatherFormalObservationCandidates(input.hamd_formal_assessment))
+      ).concat(gatherFormalObservationCandidates(input.hamd_formal_assessment)).concat(gatherPhq9ObservationCandidates(input.phq9_assessment))
     );
 
     const patientEntry = {
@@ -1443,6 +1511,7 @@
         encounterFullUrl,
         input.hamd_progress_state,
         input.hamd_formal_assessment,
+        input.phq9_assessment,
         input.clinician_summary_draft,
         input.patient_review_packet,
         input.fhir_delivery_draft

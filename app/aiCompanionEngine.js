@@ -355,6 +355,29 @@ function normalizeArray(value) {
   return Array.isArray(value) ? value.filter(Boolean) : [];
 }
 
+function normalizePhq9Assessment(assessment) {
+  const base = assessment && typeof assessment === 'object' ? assessment : {};
+  const answers = Array.isArray(base.answers)
+    ? base.answers.map((item) => ({
+        index: Number.isFinite(Number(item && item.index)) ? Number(item.index) : 0,
+        questionId: String(item && item.questionId ? item.questionId : '').trim(),
+        label: String(item && item.label ? item.label : '').trim(),
+        score: Number.isFinite(Number(item && item.score)) ? Number(item.score) : 0,
+        narrative: String(item && item.narrative ? item.narrative : '').trim()
+      }))
+    : [];
+
+  return {
+    version: typeof base.version === 'string' && base.version.trim() ? base.version.trim() : 'PHQ-9',
+    totalScore: Number.isFinite(Number(base.totalScore)) ? Number(base.totalScore) : 0,
+    severityBand: typeof base.severityBand === 'string' ? base.severityBand : '',
+    completedAt: typeof base.completedAt === 'string' ? base.completedAt : '',
+    updatedAt: typeof base.updatedAt === 'string' ? base.updatedAt : '',
+    note: typeof base.note === 'string' ? base.note : '',
+    answers
+  };
+}
+
 function normalizeTherapeuticProfile(profile, fallbackUser = '') {
   const base = profile && typeof profile === 'object' ? profile : {};
   return {
@@ -631,7 +654,8 @@ function defaultSessionExport(session) {
     summary_draft_state: normalizeObjectState(session.state, 'summary_draft_state', {}),
     symptom_bridge_state: normalizeObjectState(session.state, 'symptom_bridge_state', {}),
     patient_profile: normalizeObjectState(session.state, 'patient_profile', {}),
-    therapeutic_profile: normalizeObjectState(session.state, 'therapeutic_profile', normalizeTherapeuticProfile({}, session.user))
+    therapeutic_profile: normalizeObjectState(session.state, 'therapeutic_profile', normalizeTherapeuticProfile({}, session.user)),
+    phq9_assessment: normalizePhq9Assessment(normalizeObjectState(session.state, 'phq9_assessment', {}))
   };
 }
 
@@ -2631,6 +2655,11 @@ class AICompanionEngine {
     session.state.patient_profile = normalizePatientProfile(profile);
   }
 
+  syncPhq9Assessment(session, assessment) {
+    if (!session || !assessment || typeof assessment !== 'object') return;
+    session.state.phq9_assessment = normalizePhq9Assessment(assessment);
+  }
+
   getOrCreateSession(id, user, options = {}) {
     const forceNewSession = Boolean(options.forceNewSession);
     const sessionId = id || (!forceNewSession && this.findLatestSessionIdByUser(user)) || `conv-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
@@ -2675,6 +2704,7 @@ class AICompanionEngine {
     const state = session.state;
     this.syncTherapeuticProfile(session, payload.therapeutic_profile);
     this.syncPatientProfile(session, payload.patient_profile);
+    this.syncPhq9Assessment(session, payload.phq9_assessment);
     if (!message) {
       this.persistSessions();
       return {
@@ -3276,6 +3306,7 @@ class AICompanionEngine {
     });
     this.syncTherapeuticProfile(session, payload.therapeutic_profile);
     this.syncPatientProfile(session, payload.patient_profile);
+    this.syncPhq9Assessment(session, payload.phq9_assessment);
     if (Array.isArray(payload.client_history) && payload.client_history.length && (!Array.isArray(session.history) || session.history.length === 0)) {
       const hydratedHistory = normalizeClientHistoryForHydration(payload.client_history, MAX_TRANSCRIPT_TURNS_FOR_RETRIEVAL);
       if (hydratedHistory.length) {
