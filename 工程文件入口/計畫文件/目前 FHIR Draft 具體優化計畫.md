@@ -1,10 +1,40 @@
-# 目前 FHIR Draft 具體優化計畫
+﻿# 目前 FHIR Draft 具體優化計畫
 
-更新日期：`2026-04-22`
+更新日期：`2026-04-24`
 
 ## 一句話結論
-目前這份 FHIR draft 已經達到「可以成功送到 HAPI 測試伺服器」的程度，但仍未達到「內容可信、臨床可讀、適合決賽展示」的水準。  
-最大問題不是技術送出，而是：**摘要內容污染、重複句過多、風險判斷口徑過重、資源內容仍偏 demo 感。**
+目前這份 FHIR draft 已經不只是「可以成功送到 HAPI 測試伺服器」，而是開始進入「內容可信、結構完整、可拿來決賽展示」的階段。  
+目前最大剩餘風險已不再是 `Patient / Encounter` 骨架，而是：**摘要內容污染、重複句過多、風險判斷口徑過重，以及展示版去識別包裝仍需更精緻。**
+
+---
+
+## 2026-04-24 正式測試結論（Patient / Encounter）
+
+### 已確認改善很多的地方
+1. `Patient` 已能穩定輸出 `TW Core Patient` profile，不再只是空殼或明顯 demo placeholder。
+2. `Patient.identifier`、`name`、`telecom`、`gender`、`birthDate`、`contact` 已能形成完整的人物輪廓，評審一眼就看得出來這不是假的骨架。
+3. `Encounter` 已能穩定輸出 `TW Core Encounter` profile，且 `status = finished`、`class = AMB`、`serviceType`、`subject`、`period.start/end` 都有實際語意。
+4. `Encounter.identifier` 已能對應 AI 陪伴 session key，表示對話流程與 FHIR 交付之間的關聯更清楚。
+5. 兩個資源都已具備「可以現場展示結構完整性」的說服力，不再只是工程內部測試用 payload。
+
+### Patient 正式測試版的成熟度判讀
+1. 已具備 `meta.profile`、`identifier`、`active`、`name`、`telecom`、`gender`、`birthDate`、`contact`，完整度明顯高於早期版本。
+2. 已不再落回 `web-demo-user` 這類一看就很假的病人名稱。
+3. 已能呈現真實測試情境下的聯絡資訊與緊急聯絡人欄位，代表資料整合不是只停在單欄位填充。
+4. 對決賽展示而言，這份 `Patient` 已經可以當成「正式測試成果」來說明。
+5. 唯一需要額外注意的是：若決賽現場會投影、錄影或截圖，展示版應再做去識別處理，避免直接暴露真實個資。
+
+### Encounter 正式測試版的成熟度判讀
+1. `status = finished` 比早期長期卡在 `in-progress` 的版本成熟很多，語意上更符合「一段已完成的診前整理」。
+2. `class.code = AMB` 與 `serviceType = AI Companion pre-visit mental health screening` 讓 encounter 的情境更完整，不會像單純機器生成時間戳。
+3. `subject.reference = Patient/3680176` 已正確接回病人資源，這讓展示時可以直接說明資源之間的臨床鏈接。
+4. `period.start` 與 `period.end` 已經是可讀的真實對話區間，不再像之前那種幾乎同秒生成、很像假資料的樣子。
+5. 這份 `Encounter` 已經可以作為決賽答辯時的加分點，因為它會讓人感覺你們真的有在處理醫療流程語意，而不是只拚資源數量。
+
+### 決賽展示建議結論
+1. `Patient` 與 `Encounter` 現在都可以展示，而且是可以拿來講「我們確實優化成熟度」的那種展示，不只是勉強能用。
+2. 如果要更穩，決賽版只需要再補「展示用假資料包裝」與「更標準化的人名 / relationship coding」，而不是整個重做。
+3. 因此目前優化計畫的重心，應從「補 Patient / Encounter 骨架」轉向「摘要可讀性、風險敘述節制、展示版去識別」。
 
 ---
 
@@ -15,31 +45,34 @@
 2. 各資源 reference 關係成立，表示 bundle 骨架正確。
 3. 有授權狀態、review extension、Provenance，代表流程上已有最小治理概念。
 4. 已可成功送到 `https://hapi.fhir.org/baseR4`，代表交換鏈不是假的。
+5. `Patient` 與 `Encounter` 已完成一輪正式測試驗證，成熟度已明顯提升到可展示層級。
 
 ### 目前最明顯的缺口
 1. `ClinicalImpression.description` 與 `Composition` 內文仍有過度推論風險。
 2. `QuestionnaireResponse.item` 混入太多原始碎句、重複句、操作句。
 3. `Observation` 可送出，但內容太薄，醫師看不出重點。
 4. `DocumentReference` 雖然保留完整 payload，但 payload 本身仍偏髒。
-5. `Patient` 與整體識別仍像 demo，正式感不足。
+5. 展示版本仍需要額外的去識別包裝，避免正式測試資料直接上台。
 
 ---
 
 ## 這份 Draft 具體可以優化哪些地方
 
 ### 1. Patient 層
+> 註：以下多數是早期版本的缺口。到 `2026-04-24` 的正式測試版為止，`Patient` 結構完整度已明顯改善，現在主要剩下的是「決賽展示時要不要改成去識別版」。
+
 #### 目前問題
-1. `name = web-demo-user`，很明顯是展示型 placeholder。
-2. `gender = unknown` 雖然合法，但現在看起來像系統沒有整理到資料。
+1. 正式測試版已能帶出真實病人欄位，但展示版若直接使用，會有個資暴露風險。
+2. `contact.relationship` 目前可讀，但若要追求更嚴謹的 FHIR 味道，仍可再補 coding。
 
 #### 為什麼要修
-1. 送得出去不代表看起來可信。
-2. 評審若看到這種 placeholder，會直覺覺得這份交付還停在 demo。
+1. 現在不是「送不出去」，而是要讓正式測試成果在決賽呈現時更安全、更漂亮。
+2. 評審若看到真實資料雖然會覺得完整，但也可能反問隱私與展示治理。
 
 #### 建議優化
-1. 若使用者未提供真名，前端與輸出文件要明確標示「示範身分」或「匿名病人」。
-2. `Patient.name` 可改為較中性的匿名顯示格式，例如 `Anonymous Patient` 或 `Demo Patient A`。
-3. `gender` 若未知可保留，但 UI 與文件要解釋這是「尚未蒐集」而不是漏掉。
+1. 保留正式測試版對真實欄位的支援，但決賽輸出應可一鍵切成展示版匿名資料。
+2. `Patient.name` 在展示情境可切成較中性的匿名顯示格式，例如 `Anonymous Patient` 或 `Demo Patient A`。
+3. `contact.relationship` 可再補標準 coding，讓懂 FHIR 的評審也挑不太到毛病。
 
 #### 一個好的 Patient Draft 應該長什麼樣
 1. 不直接把登入帳號、測試帳號、`web-demo-user` 這類 system handle 當成病人姓名。
@@ -73,25 +106,27 @@
 ```
 
 #### 本次實作目標
-1. 預設情況下改用乾淨的匿名 patient，而不是直接輸出 `web-demo-user`。
-2. 如果未來 session state 已經有明確病人資料，則優先沿用該資料。
-3. 將 `Patient` 從「能送出去」提升到「看起來像一份正式匿名草稿」。
+1. 保留真實病人欄位通路，因為這已經證明系統真的能承接正式測試資料。
+2. 補一層展示版去識別策略，而不是把已完成的正式測試能力砍掉重來。
+3. 將 `Patient` 從「正式測試可用」再提升到「正式測試可用，而且決賽展示也安全」。
 
 ---
 
 ### 2. Encounter 層
+> 註：這一層在 `2026-04-24` 的正式測試版已經改善很多，目前主要是把成果寫清楚，讓答辯時能直接拿來講。
+
 #### 目前問題
-1. `period.start` 與 `period.end` 幾乎相同，像是系統生成時間，而不是實際會談區間。
-2. `status = in-progress` 和已完成交付的情境有點不一致。
+1. 舊版曾有 `period.start` 與 `period.end` 幾乎相同的問題，會看起來像系統生成時間。
+2. 舊版 `status = in-progress` 和已完成交付情境不一致，現在正式測試版已改善為 `finished`。
 
 #### 為什麼要修
-1. 會談摘要既然已送出，`Encounter` 若永遠維持 `in-progress`，語意上會讓人困惑。
-2. 決賽時若被問「這是正在進行的 encounter 還是已完成的會談整理」，你現在不容易答得漂亮。
+1. `Encounter` 是評審最容易秒懂的流程型資源，語意對了，整個系統成熟度就會一起被抬高。
+2. 現在這層已經變成可以拿來加分的地方，不該讓文件還停在舊狀態。
 
 #### 建議優化
-1. 若交付對應的是已完成的一段對話整理，可考慮在送出版本改成較符合情境的狀態。
-2. 若保留 `in-progress`，則在文件中說明這代表「持續中的診前整理會談」。
-3. 將 session 開始與結束時間改為真實對話區間，而不是僅取輸出當下時間。
+1. 保留 `finished` 與真實 `period.start/end` 的作法，這已經是對的方向。
+2. 在答辯文件中直接把 `serviceType` 與 `class = AMB` 當成你們理解就醫情境的證據點。
+3. 若後續還要再補強，可加入更清楚的會談階段說明，但不再需要回頭修基本骨架。
 
 #### 建議完整版範例
 ```json
@@ -779,5 +814,48 @@
 | 層 | 狀態 |
 |----|------|
 | Provenance | 待實作 |
-| Patient 匿名策略 | 待實作 |
+| Patient 展示版去識別策略 | 待實作 |
 
+
+---
+
+### ✅ Provenance 層（已完成）
+
+**Commit**：`fix(Provenance): location改可讀session說明、補patient-reviewer agent、entity人話描述、reason加白話治理說明`
+
+#### 實作了什麼
+
+**① `location.display` — 從 urn:uuid 改為人類可讀說明**
+
+| 舊 | 新 |
+|----|---|
+| `"urn:uuid:..."` | `"AI Companion Platform – Session <encounterKey> (<YYYY-MM-DD>)"` |
+
+**② `agent` — 補上 patient-reviewer（新增第二筆）**
+
+- author：`{ "display": "AI Companion" }`
+- patient-reviewer（新增）：`{ "reference": "urn:uuid:<Patient>" }`
+
+**③ `entity` — 改為人話授權狀態說明（三層）**
+
+| role | 舊 | 新 |
+|------|----|----|
+| `source` | `"AI draft with patient share allowed"` | `"AI companion conversation session (<日期>)"` |
+| `derivation` | authorization_status code 原文 | `"Patient has authorized sharing with clinician"` 等人話 |
+| `quotation`（新增）| 無 | `"Patient authorization status: <status>"` |
+
+**④ `reason` — 白話治理說明**
+
+> 「This record traces the origin of the FHIR bundle, confirms patient-level review has been initiated, and documents the sharing authorization status at time of export.」
+
+**⑤ `patient_authorization_state` 防護性存取**
+- 舊：直接存取，undefined 會崩潰
+- 新：`var authState = input.patient_authorization_state || {}`
+
+---
+
+### 🔲 尚未完成
+
+| 層 | 狀態 |
+|----|------|
+| Patient 展示版去識別策略 | 待實作 |
