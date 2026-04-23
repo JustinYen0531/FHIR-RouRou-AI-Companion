@@ -3007,6 +3007,14 @@ function showScreen(screenId) {
   }
 }
 
+function getSelectedModeDefinition() {
+  return MODE_DEFINITIONS[APP_STATE.selectedMode] || MODE_DEFINITIONS.natural;
+}
+
+function shouldPreferManualModeDisplay() {
+  return APP_STATE.selectedMode !== 'auto';
+}
+
 function switchAutoAudience(audience) {
   APP_STATE.currentWeeklyAudience = audience === 'doctor' ? 'doctor' : 'patient';
 
@@ -3316,10 +3324,14 @@ function submitPhq9Assessment() {
 }
 
 function updateModeLabels() {
-  const mode =
-    ENGINE_MODE_DISPLAY[APP_STATE.runtimeMode] ||
-    MODE_DEFINITIONS[APP_STATE.selectedMode] ||
-    MODE_DEFINITIONS.natural;
+  const selectedMode = getSelectedModeDefinition();
+  const mode = shouldPreferManualModeDisplay()
+    ? selectedMode
+    : (
+      ENGINE_MODE_DISPLAY[APP_STATE.runtimeMode] ||
+      selectedMode ||
+      MODE_DEFINITIONS.natural
+    );
   const chatModeLabel = document.getElementById('chat-mode-label');
   const currentModeName = document.getElementById('current-mode-name');
 
@@ -3388,6 +3400,10 @@ function saveModeSettings() {
   }
   APP_STATE.selectedMode = tempSelectedMode;
   localStorage.setItem('rourou.selectedMode', APP_STATE.selectedMode);
+  APP_STATE.syncedMode = '';
+  if (shouldPreferManualModeDisplay()) {
+    APP_STATE.runtimeMode = getSelectedModeDefinition().command;
+  }
   updateModeLabels();
   updateSettingsUI();
   refreshModeListUI();
