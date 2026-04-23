@@ -8,7 +8,7 @@
 
 ---
 
-## 2026-04-24 正式測試結論（Patient / Encounter / QuestionnaireResponse / Observation）
+## 2026-04-24 正式測試結論（Patient / Encounter / QuestionnaireResponse / Observation / ClinicalImpression）
 
 ### 已確認改善很多的地方
 1. `Patient` 已能穩定輸出 `TW Core Patient` profile，不再只是空殼或明顯 demo placeholder。
@@ -117,9 +117,35 @@
 4. 從「來源脈絡不夠強」進步到「有 `derivedFrom QuestionnaireResponse`」。
 5. 從「FHIR 殼存在」進步到「可以拿來講臨床前 observation 萃取流程」。
 
+### ClinicalImpression 正式測試版的成熟度判讀
+1. 這份 `ClinicalImpression` 已經具備 `identifier`、`status`、`code`、`description`、`subject`、`encounter`、`effectiveDateTime`、`date`、`assessor`、`protocol`、`finding`、`supportingInfo`、`note`，完整度明顯高於早期只停在草稿宣告的狀態。
+2. `subject.reference = Patient/3680176`、`encounter.reference = Encounter/3680177`、`protocol = QuestionnaireResponse/3680178`、`supportingInfo` 連到 `QuestionnaireResponse` 與 `Observation`，表示它已經開始像一個有上下游脈絡的臨床印象資源。
+3. `description` 已經不是空白或純技術欄位，而是能用一句話概括情境、情緒與功能影響，這在展示上很有感。
+4. `finding` 已經會整理出焦慮、不安、學業壓力反應與 HAM-D 維度，代表系統確實在嘗試把對話轉成臨床印象，而不是只複製原始文本。
+5. 但它同時也暴露出目前最真實的邊界：`status = completed` 偏太滿、`finding` 混入「請幫我看看我現在的狀態」這種操作句、`basis` 重複度高，所以這份資源是「已經成熟很多，但還沒有完全收乾淨」。
+
+### ClinicalImpression 前後對比
+1. 一開始的版本比較像系統想做 ClinicalImpression，但還不夠站得住腳。
+   就算有這個資源，評審也可能覺得它只是把一些句子包進 `description` 跟 `finding`，沒有真正的臨床印象感。
+2. 一開始的版本比較缺少流程脈絡。
+   很難像現在這樣透過 `protocol`、`supportingInfo` 去說明它是根據哪份問卷和哪些觀察長出來的。
+3. 現在的版本已經更像正式印象草稿。
+   它至少有了摘要句、有 supporting resources、有 finding、有 note，整體上不再只是「FHIR 裡硬塞一個 ClinicalImpression」。
+4. 但現在的版本也讓問題變得更明顯、更具體。
+   因為它已經夠像真的東西，所以像 `completed` 太滿、操作句混入 finding、basis 重複這些問題就會更容易被看見。
+5. 換句話說，這份資源現在已經走到「可以被細看」的階段。
+   這其實是進步，因為它不再只是骨架問題，而是進入品質拋光問題。
+
+### ClinicalImpression 可以明確說有改善的地方
+1. 從「只有 ClinicalImpression 這個資源名義」進步到「有 description、finding、supportingInfo 的完整印象草稿」。
+2. 從「比較像獨立輸出」進步到「能接上 QuestionnaireResponse 與 Observation 來源鏈」。
+3. 從「只有症狀字眼堆疊」進步到「開始整合風險、情境、功能影響敘述」。
+4. 從「難以展示」進步到「可以在決賽上展示，並順便說明你們知道它哪裡還要修」。
+5. 從「骨架型資源」進步到「品質型資源」，也就是問題已經從有沒有，變成寫得夠不夠精準。
+
 ### 決賽展示建議結論
-1. `Patient`、`Encounter`、`QuestionnaireResponse`、`Observation` 現在都可以展示，而且是可以拿來講「我們確實優化成熟度」的那種展示，不只是勉強能用。
-2. 如果要更穩，決賽版只需要再補「展示用假資料包裝」、「更標準化的人名 / relationship coding」，以及 `QuestionnaireResponse / Observation` 的文字去重與臨床可讀性收斂，而不是整個重做。
+1. `Patient`、`Encounter`、`QuestionnaireResponse`、`Observation`、`ClinicalImpression` 現在都可以展示，而且是可以拿來講「我們確實優化成熟度」的那種展示，不只是勉強能用。
+2. 如果要更穩，決賽版只需要再補「展示用假資料包裝」、「更標準化的人名 / relationship coding」，以及 `QuestionnaireResponse / Observation / ClinicalImpression` 的文字去重與臨床可讀性收斂，而不是整個重做。
 3. 因此目前優化計畫的重心，應從「補骨架」轉向「摘要可讀性、風險敘述節制、展示版去識別」。
 
 ---
@@ -134,6 +160,7 @@
 5. `Patient` 與 `Encounter` 已完成一輪正式測試驗證，成熟度已明顯提升到可展示層級。
 6. `QuestionnaireResponse` 已經開始具備病人審閱、授權提示與後續問卷目標整理的流程完整度。
 7. `Observation` 已具備可讀的症狀摘要句、來源鏈結與審閱授權 extension，不再只是抽象訊號殼。
+8. `ClinicalImpression` 已能接上 `QuestionnaireResponse` 與 `Observation`，開始具備真正的臨床印象草稿樣貌。
 
 ### 目前最明顯的缺口
 1. `ClinicalImpression.description` 與 `Composition` 內文仍有過度推論風險。
@@ -402,29 +429,35 @@
 ---
 
 ### 5. ClinicalImpression 層
+> 註：這一層到 `2026-04-24` 的正式測試版為止，已經從「FHIR 裡有這個資源」進步到「看起來像一份真的臨床印象草稿」。但同時它也是目前最容易被評審細挑的一層，因為內容品質問題已經比骨架問題更突出。
+
 #### 目前問題
-1. `description` 現在寫到「並有自我傷害的行為表現」，這是高風險判斷。
-2. 若原始證據不足，這句會變成過度推論。
-3. `finding` 中混入：
-   原始碎句
-   重複句
-   非臨床語句
-4. `basis` 幾乎每筆 finding 都是一樣的長串內容，資訊密度很差。
+1. `status = completed` 對 AI 生成草稿來說偏滿，若拿去展示，容易被問為什麼不是 `preliminary`。
+2. `finding` 裡混入 `請幫我看看我現在的狀態` 這種操作句，這是很明確的不該進臨床印象的內容。
+3. 前兩筆 `finding.basis` 幾乎相同，資訊重複度高，看起來像還沒真正做 evidence 對位。
+4. `description` 雖然已經可讀，但 `情緒波動顯著，影響日常生活，需進一步關注與支持` 這種寫法仍偏摘要口吻，還能再更保守、更貼證據。
+5. `finding` 已經開始整理壓力與焦慮，但語句風格有的像臨床摘要、有的像原句殘留，還不夠一致。
 
 #### 為什麼要修
 1. `ClinicalImpression` 是最像臨床判讀的位置，錯一句就很傷。
-2. 這個資源最容易被評審質疑「AI 是否過度診斷、過度推論」。
+2. 這個資源最容易被評審質疑「AI 是否過度診斷、過度推論」，也是最容易看出你們有沒有真正理解臨床語意邊界的地方。
 
 #### 建議優化
-1. `description` 改成保守版本：
-   只描述觀察到的情緒困擾、功能影響、壓力情境。
-2. 高風險句要分級：
-   `明確自傷行為`
-   `疑似高風險線索`
-   `未見足夠證據`
-3. 沒有明確證據時，不要直接寫「有自我傷害行為表現」。
-4. `finding` 限制為 3 到 5 筆高價值條目，不要把同義句全部列上去。
-5. `basis` 應依每筆 finding 綁定對應 evidence，而不是全部共用同一串文字。
+1. 將 `status` 從 `completed` 改為 `preliminary`，這樣才符合 AI 草稿待確認的定位。
+2. 刪除 `請幫我看看我現在的狀態` 這類操作句，不讓它進入 `finding`。
+3. 讓每筆 `finding` 對應不同 `basis`，不要前兩筆都共用幾乎一樣的長串文字。
+4. `description` 保留現在的可讀性，但語氣可再收斂成更保守的觀察句。
+5. 維持 `protocol` 與 `supportingInfo` 這條來源鏈，這是現在很加分的地方，不應該在優化時弄丟。
+
+#### 前後對比摘要
+| 面向 | 早期版本 | 現在版本 |
+|------|----------|----------|
+| 資源完整度 | 可能只有宣告或偏薄草稿 | 已有 description、finding、supportingInfo、note |
+| 來源鏈 | 不夠強 | 已接上 QuestionnaireResponse 與 Observation |
+| 可讀性 | 偏技術或偏鬆散 | 已有完整情境摘要句 |
+| finding 品質 | 容易只是句子堆疊 | 已較像臨床印象，但仍混入操作句與重複 basis |
+| 資源定位 | 比較像骨架 | 比較像可展示的印象草稿 |
+| 下一步重點 | 先把資源做出來 | 清掉不該進來的句子、降風險、提高精準度 |
 
 #### 建議完整版範例
 ```json
@@ -437,36 +470,32 @@
   "effectiveDateTime": "2026-04-22T14:30:00+08:00",
   "date": "2026-04-22T14:30:00+08:00",
   "assessor": { "display": "AI Companion MVP" },
-  "description": "Patient reports persistent low mood, sleep disruption, and declining work function over the past two to three weeks. No immediate self-harm plan confirmed. Passive ideation noted as suspected signal only.",
+  "description": "使用者面臨學業壓力與社交焦慮，近期出現持續低落與不安感，已影響日常生活功能，建議進一步確認與支持。",
+  "protocol": ["QuestionnaireResponse/<QuestionnaireResponse ID>"],
   "finding": [
     {
-      "itemCodeableConcept": { "text": "Persistent low mood (depressed_mood)" },
-      "basis": "近兩三週情緒持續低落，對日常事物失去興趣。"
+      "itemCodeableConcept": { "text": "對話內容顯示持續性的焦慮與不安感，在課堂表現與評價情境中出現明顯壓力反應。" },
+      "basis": "焦慮與不安感持續出現、學業表現與評價壓力造成負擔"
     },
     {
-      "itemCodeableConcept": { "text": "Sleep disruption (insomnia)" },
-      "basis": "睡著後容易中途清醒，難以再入睡。"
+      "itemCodeableConcept": { "text": "HAM-D dimension: Depressed mood" },
+      "basis": "持續低落、空虛或失去意義感；近期，出現持續低落或失去意義感的描述"
     },
     {
-      "itemCodeableConcept": { "text": "Functional decline at work" },
-      "basis": "工作效率明顯下降，難以集中注意力完成任務。"
-    },
-    {
-      "itemCodeableConcept": { "text": "Suspected passive ideation (evidence-limited)" },
-      "basis": "曾表達如果消失就好了；否認立即自傷計畫。"
+      "itemCodeableConcept": { "text": "在課堂表現與評價情境中出現明顯壓力反應。" },
+      "basis": "學業表現與評價壓力造成負擔"
     }
   ],
   "note": [
-    { "text": "Risk level: suspected signal only. Immediate danger not confirmed." }
+    { "text": "No immediate risk signals identified in this session." }
   ],
   "supportingInfo": [
     { "reference": "urn:uuid:<QuestionnaireResponse UUID>" },
-    { "reference": "urn:uuid:<Observation depressed_mood UUID>" },
-    { "reference": "urn:uuid:<Observation insomnia UUID>" }
+    { "reference": "urn:uuid:<Observation depressed_mood UUID>" }
   ]
 }
 ```
-> **重點**：`description` 保守、只描述事實觀察；每筆 `finding.basis` 各自綁定對應 evidence；高風險 finding 加上「evidence-limited」標記，不直接斷言。
+> **重點**：這份 ClinicalImpression 現在真正的進步，是它已經有了 description、finding、supportingInfo、protocol 與 note 的完整骨架；下一步不是重做，而是把 `status`、`finding`、`basis` 這幾個最容易出錯的點修乾淨。
 
 ---
 
