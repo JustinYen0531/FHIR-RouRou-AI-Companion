@@ -325,6 +325,36 @@ input, textarea {
   justify-content: flex-end;
 }
 
+.attending-doctor-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.attending-doctor-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  background: rgba(68, 102, 85, 0.1);
+  color: var(--primary);
+}
+
+.attending-doctor-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.attending-doctor-name {
+  margin-top: 4px;
+  color: var(--on-surface);
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
 /* ── Phone Frame (Desktop Preview) ── */
 #phone-frame {
   width: 393px;

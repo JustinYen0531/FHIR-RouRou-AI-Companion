@@ -1242,6 +1242,14 @@ function getLatestLocalDoctorAssignment() {
   return assignments[0] || null;
 }
 
+function getLatestLocalCareAccess() {
+  const assignments = Object.values(loadLocalDoctorAssignments()).filter((entry) => (
+    entry && typeof entry === 'object' && (entry.doctorName || entry.doctorId)
+  ));
+  assignments.sort((a, b) => String(b.syncedAt || '').localeCompare(String(a.syncedAt || '')));
+  return assignments[0] || null;
+}
+
 async function syncDoctorAssignmentInbox(patient = null) {
   const payload = buildDoctorAssignmentPayload(patient);
   if (!payload) return null;
@@ -1264,6 +1272,22 @@ async function syncDoctorAssignmentInbox(patient = null) {
   return assignment;
 }
 
+function getAttendingDoctorInfo() {
+  const entry = APP_STATE.patientCareAccess || APP_STATE.patientAssignment || getLatestLocalCareAccess();
+  if (!entry || typeof entry !== 'object') return null;
+  const doctorName = String(entry.doctorName || '').trim();
+  const doctorId = String(entry.doctorId || '').trim();
+  if (!doctorName && !doctorId) return null;
+  return {
+    name: doctorName || '未命名醫師',
+    id: doctorId,
+    patientId: String(entry.patientId || '').trim(),
+    syncedAt: String(entry.syncedAt || '').trim(),
+    hasMedicalRecord: entry.medicalRecordStatus === '已送入',
+    hasOrder: hasPublishedDoctorOrder(entry.orderDraft)
+  };
+}
+
 function shouldDisplayPatientAssignment(entry = null) {
   if (!entry || typeof entry !== 'object') return false;
   const hasRecord = entry.medicalRecordStatus === '已送入';
@@ -1275,6 +1299,7 @@ async function fetchCurrentPatientAssignment(options = {}) {
   const user = getCurrentAuthUser();
   if (!user || user.role !== 'patient') {
     APP_STATE.patientAssignment = null;
+    APP_STATE.patientCareAccess = null;
     return null;
   }
   try {
@@ -1284,6 +1309,8 @@ async function fetchCurrentPatientAssignment(options = {}) {
       throw new Error(result.error || '讀取醫生指派失敗。');
     }
     const fallback = getLocalDoctorAssignment(user.id) || getLatestLocalDoctorAssignment();
+    const careFallback = getLocalDoctorAssignment(user.id) || getLatestLocalCareAccess();
+    APP_STATE.patientCareAccess = result.assignment || careFallback || null;
     const entry = shouldDisplayPatientAssignment(result.assignment)
       ? result.assignment
       : shouldDisplayPatientAssignment(fallback)
@@ -1296,6 +1323,8 @@ async function fetchCurrentPatientAssignment(options = {}) {
     return entry;
   } catch (error) {
     const fallback = getLocalDoctorAssignment(user.id) || getLatestLocalDoctorAssignment();
+    const careFallback = getLocalDoctorAssignment(user.id) || getLatestLocalCareAccess();
+    APP_STATE.patientCareAccess = careFallback || null;
     APP_STATE.patientAssignment = shouldDisplayPatientAssignment(fallback) ? fallback : null;
     if (options.silent !== true) {
       appendSystemNotice(APP_STATE.patientAssignment
@@ -1319,6 +1348,7 @@ const APP_STATE = {
   },
   doctorWorkspace: loadDoctorWorkspace(),
   patientAssignment: null,
+  patientCareAccess: null,
   selectedMode: localStorage.getItem('rourou.selectedMode') || 'natural',
   runtimeMode: '',
   syncedMode: '',
@@ -3998,9 +4028,10 @@ async function submitDoctorAddPatient() {
     ];
     APP_STATE.doctorWorkspace.selectedPatientId = patient.id;
     saveDoctorWorkspace();
+    await syncDoctorAssignmentInbox(patient);
     renderDoctorDashboard();
     closeDoctorAddPatientModal();
-    appendSystemNotice(`已加入病人：${patient.name}。`);
+    appendSystemNotice(`已加入病人：${patient.name}。病人端設定頁會顯示你是目前主治醫師。`);
   } catch (error) {
     if (status) status.textContent = error.message || '加入病人失敗。';
   } finally {
@@ -5155,6 +5186,9 @@ function showScreen(screenId) {
   }
 
   if (screenId === 'screen-settings') {
+    fetchCurrentPatientAssignment({ silent: true, render: false })
+      .then(() => updateSettingsUI())
+      .catch(() => updateSettingsUI());
     updateSettingsUI();
   }
 
@@ -9219,6 +9253,33 @@ function updateSettingsUI() {
   // Sensing Toggle
   const sensingToggle = document.getElementById('settings-interaction-sensing');
   if (sensingToggle) sensingToggle.checked = APP_STATE.aiSettings.interactionSensing;
+
+  const attendingName = document.getElementById('settings-attending-name');
+  const attendingMeta = document.getElementById('settings-attending-meta');
+  const attendingStatus = document.getElementById('settings-attending-status');
+  const attending = getAttendingDoctorInfo();
+  if (attendingName) {
+    attendingName.textContent = attending ? attending.name : '尚未有醫師加入你的資料';
+  }
+  if (attendingMeta) {
+    if (attending) {
+      const syncedLabel = attending.syncedAt
+        ? new Date(attending.syncedAt).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : '剛剛';
+      const accessText = [
+        attending.hasMedicalRecord ? '已送入病歷' : '尚未送入病歷',
+        attending.hasOrder ? '已有醫囑' : '尚未送出醫囑'
+      ].join('・');
+      attendingMeta.textContent = `${accessText}・最近存取 ${syncedLabel}${attending.id ? `・醫師 ID：${attending.id}` : ''}`;
+    } else {
+      attendingMeta.textContent = '當醫師加入你的病人 ID 後，這裡會顯示目前正在存取資料的醫師。';
+    }
+  }
+  if (attendingStatus) {
+    attendingStatus.textContent = attending ? '已連結' : '未連結';
+    attendingStatus.classList.toggle('complete', Boolean(attending));
+    attendingStatus.classList.toggle('incomplete', !attending);
+  }
 }
 
 function wirePrivacyControls() {
