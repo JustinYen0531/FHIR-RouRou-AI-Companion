@@ -14,6 +14,10 @@ const {
   listSessionSummaries
 } = require('../app/sessionPersistence');
 const {
+  DEFAULT_ASSIGNMENT_STORE_PATH,
+  createAssignmentPersistence
+} = require('../app/assignmentPersistence');
+const {
   DEFAULT_GROQ_BASE_URL,
   DEFAULT_OPENROUTER_BASE_URL,
   DEFAULT_OPENROUTER_MODEL,
@@ -23,6 +27,7 @@ const {
 
 let sharedPersistence = null;
 let sharedAuthStore = null;
+let sharedAssignmentStore = null;
 
 function getSharedPersistence() {
   if (!sharedPersistence) {
@@ -40,6 +45,15 @@ function getSharedAuthStore() {
     });
   }
   return sharedAuthStore;
+}
+
+function getSharedAssignmentStore() {
+  if (!sharedAssignmentStore) {
+    sharedAssignmentStore = createAssignmentPersistence({
+      filePath: process.env.AI_COMPANION_ASSIGNMENT_STORE || DEFAULT_ASSIGNMENT_STORE_PATH
+    });
+  }
+  return sharedAssignmentStore;
 }
 
 function getBearerTokenFromRequest(req) {
@@ -73,6 +87,7 @@ function buildServerOptions() {
         ? DEFAULT_OPENROUTER_MODEL
         : '');
   const persistence = getSharedPersistence();
+  const assignmentStore = getSharedAssignmentStore();
 
   return {
     fhirBaseUrl,
@@ -86,6 +101,8 @@ function buildServerOptions() {
     llmModel,
     sessionStorePath: persistence.filePath,
     sessions: persistence.sessions,
+    assignmentStorePath: assignmentStore.filePath,
+    assignmentStore,
     authStorePath: process.env.AI_COMPANION_AUTH_STORE || DEFAULT_AUTH_STORE_PATH,
     authStore: getSharedAuthStore()
   };
@@ -94,6 +111,7 @@ function buildServerOptions() {
 module.exports = {
   buildServerOptions,
   getSharedAuthStore,
+  getSharedAssignmentStore,
   getAuthUserFromRequest,
   getSharedPersistence,
   listSessionSummaries,

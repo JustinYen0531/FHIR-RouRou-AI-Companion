@@ -19,7 +19,6 @@ const PINNED_SESSION_STORAGE_KEY = 'rourou.pinnedSession.v1';
 const AUTH_TOKEN_STORAGE_KEY = 'rourou.authToken.v1';
 const AUTH_USER_STORAGE_KEY = 'rourou.authUser.v1';
 const DOCTOR_WORKSPACE_STORAGE_KEY = 'rourou.doctorWorkspace.v1';
-const PATIENT_ASSIGNMENT_STORAGE_KEY = 'rourou.patientAssignments.v1';
 const PINNED_SESSION_EXAMPLE_PROMPTS = [
   '我現在很亂，先用樹洞模式接住我，不要急著給建議。',
   '幫我把這段對話整理成「可給醫師看的重點」條列版。',
@@ -1197,29 +1196,11 @@ function saveDoctorWorkspace() {
   }
 }
 
-function loadPatientAssignments() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(PATIENT_ASSIGNMENT_STORAGE_KEY) || '{}');
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function savePatientAssignments(assignments) {
-  try {
-    localStorage.setItem(PATIENT_ASSIGNMENT_STORAGE_KEY, JSON.stringify(assignments || {}));
-  } catch {
-    // Local demo state is best-effort only.
-  }
-}
-
-function syncDoctorAssignmentInbox(patient = null) {
-  if (!patient?.id) return;
-  const assignments = loadPatientAssignments();
+function buildDoctorAssignmentPayload(patient = null) {
+  if (!patient?.id) return null;
   const currentUser = getCurrentAuthUser();
   const normalizedOrder = normalizeDoctorOrder(patient.orderDraft, patient.orderStatus, patient);
-  assignments[patient.id] = {
+  return {
     patientId: patient.id,
     patientName: patient.name || '',
     patientNumber: patient.patientNumber || '',
@@ -1231,18 +1212,58 @@ function syncDoctorAssignmentInbox(patient = null) {
     orderDraft: normalizedOrder,
     syncedAt: new Date().toISOString()
   };
-  savePatientAssignments(assignments);
 }
 
-function getCurrentPatientAssignment() {
-  const user = getCurrentAuthUser();
-  if (!user || user.role !== 'patient') return null;
-  const assignments = loadPatientAssignments();
-  const entry = assignments[user.id] || null;
-  if (!entry) return null;
+async function syncDoctorAssignmentInbox(patient = null) {
+  const payload = buildDoctorAssignmentPayload(patient);
+  if (!payload) return null;
+  const response = await fetch(`/api/assignments?patient_id=${encodeURIComponent(payload.patientId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const result = await readJsonResponseSafe(response);
+  if (!response.ok) {
+    throw new Error(result.error || '醫師指派同步失敗。');
+  }
+  return result.assignment || null;
+}
+
+function shouldDisplayPatientAssignment(entry = null) {
+  if (!entry || typeof entry !== 'object') return false;
   const hasRecord = entry.medicalRecordStatus === '已送入';
   const hasOrder = hasPublishedDoctorOrder(entry.orderDraft);
-  return hasRecord || hasOrder ? entry : null;
+  return hasRecord || hasOrder;
+}
+
+async function fetchCurrentPatientAssignment(options = {}) {
+  const user = getCurrentAuthUser();
+  if (!user || user.role !== 'patient') {
+    APP_STATE.patientAssignment = null;
+    return null;
+  }
+  try {
+    const response = await fetch(`/api/assignments?patient_id=${encodeURIComponent(user.id)}`);
+    const result = await readJsonResponseSafe(response);
+    if (!response.ok) {
+      throw new Error(result.error || '讀取醫生指派失敗。');
+    }
+    const entry = shouldDisplayPatientAssignment(result.assignment) ? result.assignment : null;
+    APP_STATE.patientAssignment = entry;
+    if (options.render !== false) {
+      renderReportOutputs();
+    }
+    return entry;
+  } catch (error) {
+    APP_STATE.patientAssignment = null;
+    if (options.silent !== true) {
+      appendSystemNotice(error.message || '讀取醫生指派失敗。');
+    }
+    if (options.render !== false) {
+      renderReportOutputs();
+    }
+    return null;
+  }
 }
 
 const APP_STATE = {
@@ -1254,6 +1275,7 @@ const APP_STATE = {
     role: localStorage.getItem('rourou.authRoleDraft') || 'patient'
   },
   doctorWorkspace: loadDoctorWorkspace(),
+  patientAssignment: null,
   selectedMode: localStorage.getItem('rourou.selectedMode') || 'natural',
   runtimeMode: '',
   syncedMode: '',
@@ -1507,11 +1529,11 @@ function formatAuthErrorMessage(payload = {}, action = 'login') {
   const code = String(payload.code || '').trim();
   if (code === 'account_not_found') {
     return action === 'login'
-      ? '這個帳號還不存在。我會試著幫你建立帳號並登入。'
+      ? '這個帳號還不存在，請先註冊。'
       : '這個帳號還不存在。';
   }
   if (code === 'account_exists') {
-    return '這個帳號已經存在，我會改用登入試試看。';
+    return action === 'register' ? '這個帳號已經存在，請直接登入。' : '這個帳號已經存在。';
   }
   if (code === 'invalid_password') {
     return '密碼不正確，請再確認一次。';
@@ -1520,7 +1542,7 @@ function formatAuthErrorMessage(payload = {}, action = 'login') {
     return '這個帳號目前停用中。';
   }
   if (String(payload.error || '').includes('not found')) {
-    return '找不到這個帳號，請先註冊或補上顯示名稱讓我幫你建立。';
+    return '找不到這個帳號，請先註冊。';
   }
   return payload.error || (action === 'register' ? '註冊失敗。' : '登入失敗。');
 }
@@ -1540,6 +1562,7 @@ async function requestAuthAction(action, body) {
 
 function setAuthenticatedSession(token = '', user = null) {
   APP_STATE.auth = { token, user };
+  APP_STATE.patientAssignment = null;
   persistAuthState(token, user);
   syncAuthStateToApp();
   APP_STATE.pinnedSession = loadPinnedSession();
@@ -1550,11 +1573,14 @@ function setAuthenticatedSession(token = '', user = null) {
     APP_STATE.doctorWorkspace = loadDoctorWorkspace(user.id);
     renderDoctorDashboard();
     showScreen('screen-doctor-dashboard');
+    return;
   }
+  fetchCurrentPatientAssignment({ silent: true, render: false }).catch(() => {});
 }
 
 function clearAuthenticatedSession(options = {}) {
   APP_STATE.auth = { token: '', user: null };
+  APP_STATE.patientAssignment = null;
   persistAuthState('', null);
   if (!options.preserveUserId) {
     APP_STATE.userId = DEFAULT_USER_ID;
@@ -1638,18 +1664,8 @@ async function submitAuth(action = 'login') {
       login_identifier: loginIdentifier,
       password
     };
-    let result = await requestAuthAction(action, authBody);
-    let finalAction = action;
-
-    if (!result.ok && action === 'login' && result.payload.code === 'account_not_found' && displayName) {
-      if (status) status.textContent = '找不到帳號，正在幫你建立並登入...';
-      result = await requestAuthAction('register', authBody);
-      finalAction = 'register';
-    } else if (!result.ok && action === 'register' && result.payload.code === 'account_exists') {
-      if (status) status.textContent = '帳號已存在，正在改用登入...';
-      result = await requestAuthAction('login', authBody);
-      finalAction = 'login';
-    }
+    const result = await requestAuthAction(action, authBody);
+    const finalAction = action;
 
     if (!result.ok) {
       throw new Error(formatAuthErrorMessage(result.payload, action));
@@ -3480,7 +3496,7 @@ function renderReportOutputs() {
   const hamd = getHamdSummary(clinician, hamdProgress, hamdFormalAssessment);
   const hamdFormalStats = buildHamdFormalStats(hamdFormalAssessment);
   const doctorSummaryState = renderDoctorSummary(clinician);
-  const doctorAssignment = getCurrentPatientAssignment();
+  const doctorAssignment = APP_STATE.patientAssignment;
 
   const intro = document.getElementById('report-auto-intro');
   const heading = document.getElementById('report-hamd-heading');
@@ -4473,20 +4489,24 @@ function readDoctorOrderForm(patient = null, forcedStatus = '') {
   }, forcedStatus || currentOrder.status, patient || {});
 }
 
-function saveDoctorOrderDraft() {
+async function saveDoctorOrderDraft() {
   const patient = getSelectedDoctorPatient();
   if (!patient) return;
   const draft = readDoctorOrderForm(patient);
   patient.orderDraft = draft;
   patient.orderStatus = draft.content ? (draft.status || '草稿') : '未填寫';
   saveDoctorWorkspace();
-  syncDoctorAssignmentInbox(patient);
-  renderDoctorDashboard();
-  renderDoctorAssignScreen();
-  appendSystemNotice(draft.content ? `醫囑欄位已儲存，目前狀態為「${patient.orderStatus}」。` : '醫囑內容已清空。');
+  try {
+    await syncDoctorAssignmentInbox(patient);
+    renderDoctorDashboard();
+    renderDoctorAssignScreen();
+    appendSystemNotice(draft.content ? `醫囑欄位已儲存，目前狀態為「${patient.orderStatus}」。` : '醫囑內容已清空。');
+  } catch (error) {
+    appendSystemNotice(error.message || '醫囑同步失敗。');
+  }
 }
 
-function publishDoctorOrder() {
+async function publishDoctorOrder() {
   const patient = getSelectedDoctorPatient();
   if (!patient) return;
   const order = readDoctorOrderForm(patient, '已送出');
@@ -4497,21 +4517,29 @@ function publishDoctorOrder() {
   patient.orderDraft = order;
   patient.orderStatus = '已送出';
   saveDoctorWorkspace();
-  syncDoctorAssignmentInbox(patient);
-  renderDoctorDashboard();
-  renderDoctorAssignScreen();
-  appendSystemNotice('醫囑已送出，病人端現在可以在「醫生指派」查看。');
+  try {
+    await syncDoctorAssignmentInbox(patient);
+    renderDoctorDashboard();
+    renderDoctorAssignScreen();
+    appendSystemNotice('醫囑已送出，病人端現在可以在「醫生指派」查看。');
+  } catch (error) {
+    appendSystemNotice(error.message || '醫囑送出失敗。');
+  }
 }
 
-function markMedicalRecordSent() {
+async function markMedicalRecordSent() {
   const patient = getSelectedDoctorPatient();
   if (!patient) return;
   patient.medicalRecordStatus = '已送入';
   saveDoctorWorkspace();
-  syncDoctorAssignmentInbox(patient);
-  renderDoctorDashboard();
-  renderDoctorAssignScreen();
-  appendSystemNotice('已把此病人標示為「病歷已送入」。這是 prototype 狀態，不會寫入正式醫院系統。');
+  try {
+    await syncDoctorAssignmentInbox(patient);
+    renderDoctorDashboard();
+    renderDoctorAssignScreen();
+    appendSystemNotice('已把此病人標示為「病歷已送入」，病人端現在可同步看到。');
+  } catch (error) {
+    appendSystemNotice(error.message || '病歷同步失敗。');
+  }
 }
 
 function setByPath(target, path, value) {
@@ -4577,7 +4605,7 @@ function removeMedicalRecordItem(listPath, index) {
   renderDoctorAssignScreen();
 }
 
-function saveMedicalRecordForm() {
+async function saveMedicalRecordForm() {
   const patient = getSelectedDoctorPatient();
   if (!patient) return;
   const record = commitMedicalRecordFormToState();
@@ -4592,10 +4620,14 @@ function saveMedicalRecordForm() {
   }
   patient.medicalRecord = record;
   saveDoctorWorkspace();
-  syncDoctorAssignmentInbox(patient);
-  renderDoctorDashboard();
-  renderDoctorAssignScreen();
-  appendSystemNotice('病歷欄位已儲存於醫師工作台（本地 prototype，不會寫入 HIS / EMR / 正式 FHIR）。');
+  try {
+    await syncDoctorAssignmentInbox(patient);
+    renderDoctorDashboard();
+    renderDoctorAssignScreen();
+    appendSystemNotice('病歷欄位已儲存到後端指派資料。標示為「已送入」後，病人端就會看到。');
+  } catch (error) {
+    appendSystemNotice(error.message || '病歷儲存失敗。');
+  }
 }
 
 function buildMedicalRecordFhirPreview(patient) {
@@ -4855,6 +4887,7 @@ function showScreen(screenId) {
     renderReportOutputs();
     renderMoodChart();
     ensureReportFhirDraft();
+    fetchCurrentPatientAssignment({ silent: true }).catch(() => {});
   }
 
   if (screenId === 'screen-phq9') {

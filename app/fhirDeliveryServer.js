@@ -5,6 +5,7 @@ const { buildSessionExportBundle, buildPatientResourceOnly } = require('./fhirBu
 const { AICompanionEngine } = require('./aiCompanionEngine');
 const { createAuthStore, DEFAULT_AUTH_STORE_PATH } = require('./authStore');
 const { createSessionPersistence, DEFAULT_SESSION_STORE_PATH, listSessionSummaries } = require('./sessionPersistence');
+const { createAssignmentPersistence, DEFAULT_ASSIGNMENT_STORE_PATH, normalizeAssignmentRecord } = require('./assignmentPersistence');
 const {
   DEFAULT_GROQ_BASE_URL,
   DEFAULT_OPENROUTER_BASE_URL,
@@ -53,7 +54,8 @@ function loadLocalEnvFile(filePath) {
     'GOOGLE_API_KEY',
     'GOOGLE_API_BASE_URL',
     'FHIR_SERVER_URL',
-    'AI_COMPANION_SESSION_STORE'
+    'AI_COMPANION_SESSION_STORE',
+    'AI_COMPANION_ASSIGNMENT_STORE'
   ]);
 
   const content = fs.readFileSync(filePath, 'utf8');
@@ -820,8 +822,20 @@ function createServer(options = {}) {
           filePath: options.sessionStorePath || process.env.AI_COMPANION_SESSION_STORE || DEFAULT_SESSION_STORE_PATH
         })
   );
+  const assignmentPersistence = options.assignmentPersistence || (
+    options.assignments
+      ? {
+          filePath: options.assignmentStorePath || 'memory://ai-companion-assignments',
+          assignments: options.assignments,
+          save() {}
+        }
+      : createAssignmentPersistence({
+          filePath: options.assignmentStorePath || process.env.AI_COMPANION_ASSIGNMENT_STORE || DEFAULT_ASSIGNMENT_STORE_PATH
+        })
+  );
   const activeFhirBaseUrl = String(options.fhirBaseUrl || '').trim();
   const sharedSessions = options.sessions || persistence.sessions || new Map();
+  const sharedAssignments = options.assignments || assignmentPersistence.assignments || new Map();
   const sharedProvider = options.llmProvider || (options.googleApiKey || process.env.GOOGLE_API_KEY ? 'google' : options.openrouterApiKey || process.env.OPENROUTER_API_KEY ? 'openrouter' : 'groq');
   const sharedEngine = options.engine || new AICompanionEngine({
     provider: sharedProvider,
@@ -923,6 +937,24 @@ function createServer(options = {}) {
       return;
     }
 
+    if (req.method === 'GET' && parsedUrl.pathname === '/api/assignments') {
+      if (!authUser) {
+        sendJson(res, 401, { error: 'Unauthorized', code: 'unauthorized' });
+        return;
+      }
+      const requestedPatientId = String(parsedUrl.searchParams.get('patient_id') || '').trim();
+      const patientId = authUser.role === 'patient' ? authUser.id : requestedPatientId;
+      if (!patientId) {
+        sendJson(res, 400, { error: 'patient_id is required', code: 'missing_patient_id' });
+        return;
+      }
+      sendJson(res, 200, {
+        ok: true,
+        assignment: sharedAssignments.get(patientId) || null
+      });
+      return;
+    }
+
     if ((req.method === 'GET' || req.method === 'DELETE') && parsedUrl.pathname === '/api/chat/session') {
       const sessionId = String(parsedUrl.searchParams.get('id') || '').trim();
       if (!sessionId) {
@@ -981,7 +1013,7 @@ function createServer(options = {}) {
       return;
     }
 
-    if (!['POST', 'PATCH'].includes(req.method) || !['/auth/register', '/auth/login', '/api/auth/register', '/api/auth/login', '/api/fhir/bundle', '/api/fhir/check', '/api/fhir/resource-refresh', '/api/chat/message', '/api/chat/output', '/api/chat/session'].includes(parsedUrl.pathname)) {
+    if (!['POST', 'PATCH'].includes(req.method) || !['/auth/register', '/auth/login', '/api/auth/register', '/api/auth/login', '/api/fhir/bundle', '/api/fhir/check', '/api/fhir/resource-refresh', '/api/chat/message', '/api/chat/output', '/api/chat/session', '/api/assignments'].includes(parsedUrl.pathname)) {
       sendJson(res, 404, { error: 'Not found' });
       return;
     }
@@ -1023,26 +1055,37 @@ function createServer(options = {}) {
           const loginResult = authStore.login(payload);
           sendJson(res, 200, buildLoginResponsePayload(loginResult));
         } catch (error) {
-          const canCreateOnFirstLogin = error.code === 'account_not_found' && String(payload.display_name || '').trim();
-          if (canCreateOnFirstLogin) {
-            try {
-              authStore.registerUser(payload);
-              const loginResult = authStore.login(payload);
-              sendJson(res, 201, buildLoginResponsePayload(loginResult, true));
-              return;
-            } catch (registerError) {
-              sendJson(res, 400, {
-                error: registerError.message || 'Unable to create account.',
-                code: registerError.message === 'login_identifier already exists' ? 'account_exists' : (registerError.code || 'register_failed')
-              });
-              return;
-            }
-          }
           sendJson(res, 401, {
             error: error.message || 'Unable to login.',
             code: error.code || 'login_failed'
           });
         }
+        return;
+      }
+
+      if (req.method === 'PATCH' && parsedUrl.pathname === '/api/assignments') {
+        if (!authUser) {
+          sendJson(res, 401, { error: 'Unauthorized', code: 'unauthorized' });
+          return;
+        }
+        if (authUser.role !== 'doctor') {
+          sendJson(res, 403, { error: 'Forbidden', code: 'forbidden' });
+          return;
+        }
+        const patientId = String(parsedUrl.searchParams.get('patient_id') || payload.patientId || '').trim();
+        const assignment = normalizeAssignmentRecord(Object.assign({}, payload, {
+          patientId,
+          doctorId: authUser.id,
+          doctorName: payload?.doctorName || authUser.display_name || authUser.login_identifier || '醫師',
+          syncedAt: new Date().toISOString()
+        }));
+        if (!assignment) {
+          sendJson(res, 400, { error: 'Invalid assignment payload', code: 'invalid_assignment' });
+          return;
+        }
+        sharedAssignments.set(patientId, assignment);
+        assignmentPersistence.save(sharedAssignments);
+        sendJson(res, 200, { ok: true, assignment });
         return;
       }
 

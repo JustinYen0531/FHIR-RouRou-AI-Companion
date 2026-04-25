@@ -38,22 +38,6 @@ module.exports = async function handler(req, res) {
     const loginResult = authStore.login(payload);
     sendLoginResult(res, loginResult);
   } catch (error) {
-    const canCreateOnFirstLogin = error.code === 'account_not_found' && String(payload.display_name || '').trim();
-    if (canCreateOnFirstLogin) {
-      try {
-        authStore.registerUser(payload);
-        const loginResult = authStore.login(payload);
-        sendLoginResult(res, loginResult, true);
-        return;
-      } catch (registerError) {
-        sendJson(res, 400, {
-          error: registerError.message || 'Unable to create account.',
-          code: registerError.message === 'login_identifier already exists' ? 'account_exists' : (registerError.code || 'register_failed')
-        });
-        return;
-      }
-    }
-
     sendJson(res, 401, {
       error: error.message || 'Unable to login.',
       code: error.code || 'login_failed'
