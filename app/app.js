@@ -7556,7 +7556,7 @@ function applySessionRecord(session = {}, fallbackSessionId = '') {
     latest_tag_payload: normalizedSession.state?.latest_tag_payload || {},
     burden_level_state: normalizedSession.state?.burden_level_state || {}
   };
-  APP_STATE.chatHistory = normalizeChatHistoryEntries(normalizedSession.history).slice(-24);
+  APP_STATE.chatHistory = normalizeChatHistoryEntries(normalizedSession.history).filter((e) => !e.ephemeral).slice(-24);
   APP_STATE.reportOutputs.clinician_summary = null;
   APP_STATE.reportOutputs.patient_analysis = null;
   APP_STATE.reportOutputs.patient_review = null;
@@ -7882,7 +7882,7 @@ function renderChatHistory(history = []) {
   if (sensorBadge) container.appendChild(sensorBadge);
   if (dateChip) container.appendChild(dateChip);
 
-  const items = Array.isArray(history) ? history : [];
+  const items = (Array.isArray(history) ? history : []).filter((e) => !e.ephemeral);
   items.forEach((item) => {
     if (!item || !item.role || !item.content) return;
     const { bubble } = createMessageBubble(item.role);
