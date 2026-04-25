@@ -4220,6 +4220,7 @@ function renderDoctorAssignScreen() {
         <h4>送入病歷</h4>
         <p>填寫下方欄位後，在此送出病歷。</p>
         <div class="doctor-action-state">目前狀態：${escapeHtml(patient.medicalRecordStatus)}</div>
+        <button class="ghost-btn doctor-action-btn" type="button" onclick="generateDemoMedicalRecordAndOrder()">一鍵產生測試病歷與醫囑</button>
         <button class="primary-btn doctor-action-btn" type="button" onclick="markMedicalRecordSent()">標示為已送入</button>
       </section>
     </div>
@@ -4526,6 +4527,206 @@ function readDoctorOrderForm(patient = null, forcedStatus = '') {
     summaryRef: document.getElementById('doctor-order-summary-ref')?.value || '',
     observationRef: document.getElementById('doctor-order-observation-ref')?.value || ''
   }, forcedStatus || currentOrder.status, patient || {});
+}
+
+function pickRandomItem(items = []) {
+  return items[Math.floor(Math.random() * items.length)] || items[0];
+}
+
+function formatDateOffset(days = 0) {
+  const date = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+  return date.toISOString().slice(0, 10);
+}
+
+function formatDateTimeLocalOffset(hours = 0) {
+  const date = new Date(Date.now() + hours * 60 * 60 * 1000);
+  return date.toISOString().slice(0, 16);
+}
+
+function buildDemoClinicalPacket(patient = {}) {
+  const currentUser = getCurrentAuthUser();
+  const doctorName = currentUser?.display_name || currentUser?.login_identifier || '王醫師';
+  const patientName = patient.name || '測試病人';
+  const patientRef = patient.patientNumber || patient.id || 'P-DEMO';
+  const cases = [
+    {
+      riskLevel: '中度',
+      chiefComplaint: '近兩週心情低落、睡眠中斷，覺得白天專注力明顯下降。',
+      symptomSummary: '病人描述入睡時間延長，夜間醒來 2 到 3 次；近期工作壓力升高，對原本有興趣的活動動機下降。否認立即自傷計畫，但表示有明顯疲憊與無力感。',
+      riskAlert: '目前未表達具體自傷計畫，但因持續失眠與功能下降，建議一週內追蹤情緒與安全狀態。',
+      followupSuggestion: '回診時確認睡眠型態、食慾變化、是否出現自傷意念，並檢視 PHQ-9 / GAD-7 量表結果。',
+      observations: [
+        { code: 'insomnia', display: '睡眠困擾', value: '夜醒 2-3 次，睡眠品質差', interpretation: 'moderate', derivedFrom: '病人自述與 AI 對話摘要' },
+        { code: 'depressed-mood', display: '情緒低落', value: 'PHQ-9 初估 12 分', interpretation: 'moderate', derivedFrom: 'PHQ-9 草稿' }
+      ],
+      condition: '憂鬱症狀待評估',
+      order: {
+        type: '填寫量表',
+        content: '請於三天內完成 PHQ-9 與睡眠紀錄，若出現自傷想法或安全疑慮，請立即聯絡醫療單位或身邊可信任的人。',
+        taskRef: 'PHQ-9',
+        duePreset: '三天內',
+        priority: '重要',
+        replyRequirement: '需填寫資料',
+        note: '下次回診前請帶著最近一週睡眠紀錄，方便評估是否需要調整治療計畫。'
+      }
+    },
+    {
+      riskLevel: '觀察',
+      chiefComplaint: '近期焦慮感增加，常擔心事情做不好，伴隨胸悶與反覆檢查訊息。',
+      symptomSummary: '病人表示焦慮主要出現在工作與人際互動後，會反覆回想對話內容；睡眠尚可但淺眠，白天容易緊繃。',
+      riskAlert: '目前未見急性危險訊號，建議持續觀察焦慮頻率與是否影響工作表現。',
+      followupSuggestion: '下次回診可補問焦慮發作時間、身體症狀、咖啡因攝取與壓力源。',
+      observations: [
+        { code: 'anxiety', display: '焦慮', value: '工作情境後明顯升高', interpretation: 'mild-moderate', derivedFrom: 'AI 對話摘要' },
+        { code: 'somatic-tension', display: '身體緊繃', value: '偶發胸悶、肩頸僵硬', interpretation: 'mild', derivedFrom: '病人自述' }
+      ],
+      condition: '焦慮症狀待評估',
+      order: {
+        type: '生活作息建議',
+        content: '請連續七天記錄焦慮出現的時間、觸發事件、身體感覺與緩解方式，回診時一起討論。',
+        taskRef: '情緒日記',
+        duePreset: '回診前',
+        priority: '一般',
+        replyRequirement: '需回傳狀況',
+        note: '若胸悶持續或加劇，請優先就醫排除身體因素。'
+      }
+    },
+    {
+      riskLevel: '高關注',
+      chiefComplaint: '最近明顯疲憊、社交退縮，曾提到「不想面對明天」但未說明具體計畫。',
+      symptomSummary: '病人近期互動量下降，回覆變短，提及自責與無望感；目前需要更密集追蹤安全狀態與支持系統。',
+      riskAlert: '出現消極語句與退縮跡象，雖未揭露具體計畫，仍建議安排近期追蹤並確認緊急聯絡資源。',
+      followupSuggestion: '請回診時直接評估自傷意念、計畫、可取得工具、保護因子與是否需要安全計畫。',
+      observations: [
+        { code: 'social-withdrawal', display: '社交退縮', value: '互動量下降且避免聯絡朋友', interpretation: 'moderate', derivedFrom: 'AI 使用紀錄' },
+        { code: 'hopelessness', display: '無望感', value: '曾表達不想面對明天', interpretation: 'moderate-severe', derivedFrom: '病人語句' }
+      ],
+      condition: '自傷風險需進一步評估',
+      order: {
+        type: '追蹤觀察',
+        content: '請今天先完成安全確認：列出一位可聯絡的人、今晚會待的安全地點，以及若情緒急遽惡化時的求助方式。',
+        taskRef: '回診前摘要確認',
+        duePreset: '今日',
+        priority: '需盡快處理',
+        replyRequirement: '需確認已讀',
+        note: '若病人回覆出現急性危險訊號，請啟動緊急處置或聯繫照護團隊。'
+      }
+    }
+  ];
+  const selected = pickRandomItem(cases);
+  const now = formatDateTimeLocalOffset(0);
+  const encounterStart = formatDateTimeLocalOffset(-2);
+  const dueDate = selected.order.duePreset === '今日'
+    ? formatDateOffset(0)
+    : selected.order.duePreset === '三天內'
+      ? formatDateOffset(3)
+      : formatDateOffset(7);
+
+  const record = normalizeMedicalRecord({
+    patient: {
+      name: patientName,
+      gender: 'unknown',
+      birthDate: '1998-05-13',
+      identifier: patientRef
+    },
+    encounter: {
+      periodStart: encounterStart,
+      periodEnd: now,
+      class: 'PRENC',
+      serviceType: '身心科 / 診前 AI 摘要',
+      practitionerName: doctorName
+    },
+    observations: selected.observations.map((item) => ({
+      ...item,
+      effectiveDateTime: now
+    })),
+    questionnaire: {
+      name: selected.order.taskRef || 'PHQ-9',
+      authored: now,
+      items: [
+        { linkId: 'q1', text: '過去兩週是否感到心情低落或沒有希望', answer: selected.riskLevel === '高關注' ? '3' : '2' },
+        { linkId: 'q2', text: '過去兩週是否失去興趣或樂趣', answer: selected.riskLevel === '觀察' ? '1' : '2' }
+      ]
+    },
+    composition: {
+      title: `RouRou 診前摘要 - ${patientName}`,
+      status: 'final',
+      chiefComplaint: selected.chiefComplaint,
+      symptomSummary: selected.symptomSummary,
+      riskAlert: selected.riskAlert,
+      followupSuggestion: selected.followupSuggestion
+    },
+    documents: [
+      {
+        type: 'AI 診前摘要',
+        filename: `rourou-previsit-${Date.now()}.json`,
+        url: '',
+        contentType: 'application/json',
+        date: now
+      }
+    ],
+    conditions: [
+      {
+        code: selected.condition,
+        clinicalStatus: 'active',
+        verificationStatus: 'provisional',
+        onsetDateTime: encounterStart
+      }
+    ],
+    medications: [
+      {
+        kind: 'statement',
+        name: '目前未填寫正式用藥',
+        dosage: '待醫師確認',
+        start: '',
+        end: ''
+      }
+    ],
+    provenance: {
+      sourceType: 'doctor_edited',
+      recorded: now,
+      activity: '一鍵產生測試病歷與醫囑，供 demo 同步流程驗證',
+      agent: doctorName
+    },
+    updatedAt: now.replace('T', ' ')
+  });
+
+  const order = normalizeDoctorOrder({
+    ...selected.order,
+    assignee: '病人',
+    dueDate,
+    status: '已送出',
+    createdBy: doctorName,
+    createdAt: now.replace('T', ' '),
+    patientRef,
+    encounterRef: `Encounter/${patient.id || patientRef}`,
+    summaryRef: record.composition.title,
+    observationRef: record.observations[0]?.code || ''
+  }, '已送出', patient);
+
+  return { record, order, riskLevel: selected.riskLevel };
+}
+
+async function generateDemoMedicalRecordAndOrder() {
+  const patient = getSelectedDoctorPatient();
+  if (!patient) return;
+  const packet = buildDemoClinicalPacket(patient);
+  patient.medicalRecord = packet.record;
+  patient.medicalRecordStatus = '已送入';
+  patient.orderDraft = packet.order;
+  patient.orderStatus = '已送出';
+  patient.riskLevel = packet.riskLevel;
+  saveDoctorWorkspace();
+  try {
+    const assignment = await syncDoctorAssignmentInbox(patient);
+    renderDoctorDashboard();
+    renderDoctorAssignScreen();
+    appendSystemNotice(`已產生一組測試病歷與醫囑，並同步到病人 ID：${assignment?.patientId || patient.id}。`);
+  } catch (error) {
+    renderDoctorDashboard();
+    renderDoctorAssignScreen();
+    appendSystemNotice(error.message || '測試病歷與醫囑已產生，但同步時發生問題。');
+  }
 }
 
 async function saveDoctorOrderDraft() {
@@ -9298,6 +9499,7 @@ window.selectDoctorPatient = selectDoctorPatient;
 window.saveDoctorOrderDraft = saveDoctorOrderDraft;
 window.publishDoctorOrder = publishDoctorOrder;
 window.markMedicalRecordSent = markMedicalRecordSent;
+window.generateDemoMedicalRecordAndOrder = generateDemoMedicalRecordAndOrder;
 window.addMedicalRecordItem = addMedicalRecordItem;
 window.removeMedicalRecordItem = removeMedicalRecordItem;
 window.saveMedicalRecordForm = saveMedicalRecordForm;
