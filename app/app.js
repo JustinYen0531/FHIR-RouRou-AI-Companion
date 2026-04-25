@@ -8,6 +8,7 @@ const DEFAULT_GOOGLE_API_KEY = '';
 const DEFAULT_OPENROUTER_MODEL = 'openai/gpt-4o-mini';
 const DEFAULT_GOOGLE_MODEL = 'gemini-2.0-flash';
 const DEFAULT_USER_ID = 'web-demo-user';
+const PROTOTYPE_SHARED_CHAT_USER_ID = DEFAULT_USER_ID;
 const DEFAULT_PROVIDER = 'google';
 const RUNTIME_CONFIG_SOURCE_KEY = 'rourou.aiConfigSource';
 const LEGACY_LOCAL_SESSION_ARCHIVE_KEY = 'rourou.localSessionArchive';
@@ -1020,7 +1021,7 @@ function saveDoctorWorkspace() {
 const APP_STATE = {
   currentScreen: 'screen-chat',
   conversationId: '',
-  userId: loadStoredAuthState().user?.id || localStorage.getItem('rourou.userId') || DEFAULT_USER_ID,
+  userId: PROTOTYPE_SHARED_CHAT_USER_ID,
   auth: loadStoredAuthState(),
   authForm: {
     role: localStorage.getItem('rourou.authRoleDraft') || 'patient'
@@ -1142,9 +1143,8 @@ function persistAuthState(token = '', user = null) {
 }
 
 function syncAuthStateToApp() {
-  const authUser = getCurrentAuthUser();
-  APP_STATE.userId = authUser?.id || localStorage.getItem('rourou.userId') || DEFAULT_USER_ID;
-  localStorage.setItem('rourou.userId', APP_STATE.userId);
+  APP_STATE.userId = PROTOTYPE_SHARED_CHAT_USER_ID;
+  localStorage.setItem('rourou.userId', PROTOTYPE_SHARED_CHAT_USER_ID);
 }
 
 function updateAuthUI() {
@@ -5297,7 +5297,7 @@ function getRuntimeConfig() {
     model: source === 'custom'
       ? (localStorage.getItem('rourou.aiModel') || defaults.model)
       : serverConfig.model,
-    userId: getCurrentAuthUser()?.id || APP_STATE.userId
+    userId: APP_STATE.userId || PROTOTYPE_SHARED_CHAT_USER_ID
   };
 }
 
@@ -7029,9 +7029,7 @@ async function openConsentPreview() {
 
 function initializeRuntimeConfig() {
   localStorage.removeItem(LEGACY_LOCAL_SESSION_ARCHIVE_KEY);
-  if (!localStorage.getItem('rourou.userId') && !getCurrentAuthUser()) {
-    localStorage.setItem('rourou.userId', DEFAULT_USER_ID);
-  }
+  localStorage.setItem('rourou.userId', PROTOTYPE_SHARED_CHAT_USER_ID);
   syncAuthStateToApp();
 
   if (!localStorage.getItem('rourou.fhirRealtimeSync')) {
@@ -8016,8 +8014,8 @@ function injectRuntimeSettings() {
     const apiBaseUrl = document.getElementById('ai-base-url').value.trim() || defaults.apiBaseUrl;
     const model = document.getElementById('ai-model').value.trim() || defaults.model;
     const apiKey = document.getElementById('ai-api-key').value.trim();
-    localStorage.setItem('rourou.userId', document.getElementById('ai-user-id').value.trim() || APP_STATE.userId);
-    APP_STATE.userId = localStorage.getItem('rourou.userId') || APP_STATE.userId;
+    localStorage.setItem('rourou.userId', PROTOTYPE_SHARED_CHAT_USER_ID);
+    APP_STATE.userId = PROTOTYPE_SHARED_CHAT_USER_ID;
     const useServerDefault = !apiKey && provider === serverConfig.provider && apiBaseUrl === serverConfig.apiBaseUrl && model === serverConfig.model;
     if (useServerDefault) {
       localStorage.removeItem(RUNTIME_CONFIG_SOURCE_KEY);
