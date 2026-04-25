@@ -760,7 +760,12 @@ function normalizePhq9Draft(value = {}) {
 function normalizePhq9Assessment(value = {}) {
   const source = value && typeof value === 'object' ? value : {};
   const answers = PHQ9_QUESTION_DEFS.map((question, index) => {
-    const answerSource = Array.isArray(source.answers) ? source.answers[index] || {} : {};
+    const answerSource = Array.isArray(source.answers)
+      ? source.answers.find((item) => {
+          const code = String(item?.itemCode || item?.item_code || item?.questionId || item?.question_id || '').trim();
+          return code === question.itemCode;
+        }) || source.answers[index] || {}
+      : {};
     const score = Number.isFinite(Number(answerSource.score))
       ? Math.max(0, Math.min(3, Number(answerSource.score)))
       : Math.max(0, Math.min(3, Number(Array.isArray(source.scores) ? source.scores[index] : 0) || 0));
@@ -773,7 +778,9 @@ function normalizePhq9Assessment(value = {}) {
       narrative
     };
   });
-  const totalScore = answers.reduce((sum, answer) => sum + (Number(answer.score) || 0), 0);
+  const answerTotalScore = answers.reduce((sum, answer) => sum + (Number(answer.score) || 0), 0);
+  const explicitTotalScore = Number.isFinite(Number(source.totalScore)) ? Math.max(0, Math.min(27, Number(source.totalScore))) : 0;
+  const totalScore = Math.max(answerTotalScore, explicitTotalScore);
   return {
     id: String(source.id || '').trim(),
     version: typeof source.version === 'string' && source.version.trim() ? source.version.trim() : PHQ9_VERSION,
@@ -786,6 +793,19 @@ function normalizePhq9Assessment(value = {}) {
     answers,
     note: String(source.note || '').trim()
   };
+}
+
+function hasSourcePhq9AssessmentContent(value = {}) {
+  if (!value || typeof value !== 'object') return false;
+  if (String(value.completedAt || value.updatedAt || value.createdAt || value.note || value.summary || '').trim()) return true;
+  if (Array.isArray(value.answers) && value.answers.length) return true;
+  if (Array.isArray(value.scores) && value.scores.length) return true;
+  return Number.isFinite(Number(value.totalScore)) && Number(value.totalScore) > 0;
+}
+
+function getPhq9AssessmentTimeValue(assessment = {}) {
+  const timestamp = Date.parse(assessment.completedAt || assessment.updatedAt || assessment.createdAt || '');
+  return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
 function buildPhq9SeverityBand(totalScore = 0) {
@@ -825,7 +845,8 @@ const PHQ9Tracker = {
   },
 
   saveAssessments(list) {
-    const normalized = Array.isArray(list) ? list.map((item) => normalizePhq9Assessment(item)) : [];
+    const normalized = (Array.isArray(list) ? list.map((item) => normalizePhq9Assessment(item)) : [])
+      .sort((a, b) => getPhq9AssessmentTimeValue(b) - getPhq9AssessmentTimeValue(a));
     localStorage.setItem(PHQ9_STORAGE_KEY, JSON.stringify(normalized));
     APP_STATE.phq9Assessments = normalized;
     return normalized;
@@ -905,14 +926,17 @@ ${recentAssessments.length ? `近期趨勢：${recentAssessments.join(' → ')}`
   },
 
   importFromSessionExport(sessionExport = {}) {
-    const payload = sessionExport && typeof sessionExport.phq9_assessment === 'object'
+    const source = sessionExport && typeof sessionExport.phq9_assessment === 'object'
+      ? sessionExport.phq9_assessment
+      : null;
+    if (!hasSourcePhq9AssessmentContent(source)) return;
+    const payload = source
       ? normalizePhq9Assessment(sessionExport.phq9_assessment)
       : null;
     if (!payload) return;
     const current = this.getAssessments();
     const next = [payload, ...current.filter((item) => item.id !== payload.id)];
-    localStorage.setItem(PHQ9_STORAGE_KEY, JSON.stringify(next));
-    APP_STATE.phq9Assessments = next;
+    this.saveAssessments(next);
     this.renderUI();
   },
 
@@ -2546,10 +2570,26 @@ function normalizeCachedReportOutputs(source = {}) {
   };
 }
 
-function saveReportOutputsToCache() {
+function hasMeaningfulReportOutputs(outputs = {}) {
+  if (!outputs || typeof outputs !== 'object') return false;
+  return Boolean(
+    isValidClinicianSummaryOutput(outputs.clinician_summary) ||
+    isValidPatientAnalysisOutput(outputs.patient_analysis) ||
+    (outputs.patient_review && typeof outputs.patient_review === 'object' && Object.keys(outputs.patient_review).length) ||
+    isValidFhirDraftOutput(outputs.fhir_delivery) ||
+    (outputs.fhir_delivery_result && typeof outputs.fhir_delivery_result === 'object' && Object.keys(outputs.fhir_delivery_result).length) ||
+    (outputs.session_export && typeof outputs.session_export === 'object' && Object.keys(outputs.session_export).length)
+  );
+}
+
+function saveReportOutputsToCache(options = {}) {
   try {
+    const reportOutputs = APP_STATE.reportOutputs || createEmptyReportOutputs();
+    if (!options.allowEmpty && !hasMeaningfulReportOutputs(reportOutputs)) {
+      return;
+    }
     localStorage.setItem(REPORT_OUTPUT_CACHE_KEY, JSON.stringify({
-      reportOutputs: APP_STATE.reportOutputs || createEmptyReportOutputs(),
+      reportOutputs,
       conversationId: APP_STATE.conversationId || '',
       savedAt: new Date().toISOString()
     }));
@@ -3691,7 +3731,18 @@ function syncTherapeuticMemoryFromSessionExport(sessionExport = {}) {
   if (!sessionExport || typeof sessionExport !== 'object') return;
 
   if (sessionExport.therapeutic_profile && typeof sessionExport.therapeutic_profile === 'object') {
-    TherapeuticMemory.replace(sessionExport.therapeutic_profile, { skipSessionSync: true });
+    const incomingProfile = TherapeuticMemory._normalize(sessionExport.therapeutic_profile);
+    const currentProfile = TherapeuticMemory.get();
+    const incomingItemCount = getTherapeuticProfileItemCount(incomingProfile);
+    const currentItemCount = getTherapeuticProfileItemCount(currentProfile);
+    const incomingTime = Date.parse(incomingProfile.lastUpdatedAt || incomingProfile.updatedAt || '');
+    const currentTime = Date.parse(currentProfile.lastUpdatedAt || currentProfile.updatedAt || '');
+
+    if (!incomingItemCount) return;
+    if (currentItemCount && Number.isFinite(currentTime) && Number.isFinite(incomingTime) && incomingTime < currentTime) {
+      return;
+    }
+    TherapeuticMemory.replace(incomingProfile, { skipSessionSync: true });
     return;
   }
 
@@ -3720,6 +3771,19 @@ function syncTherapeuticMemoryFromSessionExport(sessionExport = {}) {
     positiveAnchors,
     copingStyleHint
   });
+}
+
+function getTherapeuticProfileItemCount(profile = {}) {
+  if (!profile || typeof profile !== 'object') return 0;
+  return [
+    profile.stressors,
+    profile.triggers,
+    profile.keyThemes,
+    profile.positiveAnchors,
+    profile.memoryChunks
+  ].reduce((count, items) => count + (Array.isArray(items) ? items.filter(Boolean).length : 0), 0) +
+    (String(profile?.copingProfile?.preferredStyle || '').trim() ? 1 : 0) +
+    (String(profile?.clinicianNotes || '').trim() ? 1 : 0);
 }
 
 function renderReportOutputs() {
@@ -7491,14 +7555,18 @@ function applySessionRecord(session = {}, fallbackSessionId = '') {
   showScreen('screen-chat');
 }
 
-function resetConversationState() {
+function resetConversationState(options = {}) {
+  const shouldPreserveReports = options.preserveReports !== false;
+  const preservedReportOutputs = shouldPreserveReports
+    ? normalizeCachedReportOutputs(APP_STATE.reportOutputs || createEmptyReportOutputs())
+    : createEmptyReportOutputs();
   APP_STATE.conversationId = '';
   APP_STATE.pendingFreshSession = false;
   APP_STATE.syncedMode = '';
   APP_STATE.runtimeMode = '';
   APP_STATE.lastChatMetadata = null;
   APP_STATE.chatHistory = [];
-  APP_STATE.reportOutputs = createEmptyReportOutputs();
+  APP_STATE.reportOutputs = preservedReportOutputs;
   APP_STATE.pendingConsent = {
     sessionExport: null,
     fhirDraft: null,

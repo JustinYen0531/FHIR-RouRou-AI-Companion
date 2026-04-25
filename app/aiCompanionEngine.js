@@ -359,21 +359,28 @@ function normalizeArray(value) {
   return Array.isArray(value) ? value.filter(Boolean) : [];
 }
 
+function normalizePhq9Score(value) {
+  return Math.max(0, Math.min(3, Number.isFinite(Number(value)) ? Number(value) : 0));
+}
+
 function normalizePhq9Assessment(assessment) {
   const base = assessment && typeof assessment === 'object' ? assessment : {};
   const answers = Array.isArray(base.answers)
     ? base.answers.map((item) => ({
         index: Number.isFinite(Number(item && item.index)) ? Number(item.index) : 0,
-        questionId: String(item && item.questionId ? item.questionId : '').trim(),
-        label: String(item && item.label ? item.label : '').trim(),
-        score: Number.isFinite(Number(item && item.score)) ? Number(item.score) : 0,
+        questionId: String(item?.questionId || item?.question_id || item?.itemCode || item?.item_code || '').trim(),
+        label: String(item?.label || item?.item_label || '').trim(),
+        score: normalizePhq9Score(item?.score),
         narrative: String(item && item.narrative ? item.narrative : '').trim()
       }))
     : [];
+  const answerTotalScore = answers.reduce((sum, answer) => sum + normalizePhq9Score(answer.score), 0);
+  const explicitTotalScore = Math.max(0, Math.min(27, Number.isFinite(Number(base.totalScore)) ? Number(base.totalScore) : 0));
+  const totalScore = Math.max(answerTotalScore, explicitTotalScore);
 
   return {
     version: typeof base.version === 'string' && base.version.trim() ? base.version.trim() : 'PHQ-9',
-    totalScore: Number.isFinite(Number(base.totalScore)) ? Number(base.totalScore) : 0,
+    totalScore,
     severityBand: typeof base.severityBand === 'string' ? base.severityBand : '',
     completedAt: typeof base.completedAt === 'string' ? base.completedAt : '',
     updatedAt: typeof base.updatedAt === 'string' ? base.updatedAt : '',
