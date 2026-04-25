@@ -1236,6 +1236,12 @@ function getLocalDoctorAssignment(patientId = '') {
   return assignments[String(patientId || '').trim()] || null;
 }
 
+function getLatestLocalDoctorAssignment() {
+  const assignments = Object.values(loadLocalDoctorAssignments()).filter(shouldDisplayPatientAssignment);
+  assignments.sort((a, b) => String(b.syncedAt || '').localeCompare(String(a.syncedAt || '')));
+  return assignments[0] || null;
+}
+
 async function syncDoctorAssignmentInbox(patient = null) {
   const payload = buildDoctorAssignmentPayload(patient);
   if (!payload) return null;
@@ -1277,7 +1283,7 @@ async function fetchCurrentPatientAssignment(options = {}) {
     if (!response.ok) {
       throw new Error(result.error || '讀取醫生指派失敗。');
     }
-    const fallback = getLocalDoctorAssignment(user.id);
+    const fallback = getLocalDoctorAssignment(user.id) || getLatestLocalDoctorAssignment();
     const entry = shouldDisplayPatientAssignment(result.assignment)
       ? result.assignment
       : shouldDisplayPatientAssignment(fallback)
@@ -1289,7 +1295,7 @@ async function fetchCurrentPatientAssignment(options = {}) {
     }
     return entry;
   } catch (error) {
-    const fallback = getLocalDoctorAssignment(user.id);
+    const fallback = getLocalDoctorAssignment(user.id) || getLatestLocalDoctorAssignment();
     APP_STATE.patientAssignment = shouldDisplayPatientAssignment(fallback) ? fallback : null;
     if (options.silent !== true) {
       appendSystemNotice(APP_STATE.patientAssignment
@@ -4530,10 +4536,12 @@ async function saveDoctorOrderDraft() {
   patient.orderStatus = draft.content ? (draft.status || '草稿') : '未填寫';
   saveDoctorWorkspace();
   try {
-    await syncDoctorAssignmentInbox(patient);
+    const assignment = await syncDoctorAssignmentInbox(patient);
     renderDoctorDashboard();
     renderDoctorAssignScreen();
-    appendSystemNotice(draft.content ? `醫囑欄位已儲存，目前狀態為「${patient.orderStatus}」。` : '醫囑內容已清空。');
+    appendSystemNotice(draft.content
+      ? `醫囑欄位已儲存，目前狀態為「${patient.orderStatus}」，已同步到病人 ID：${assignment?.patientId || patient.id}。`
+      : '醫囑內容已清空。');
   } catch (error) {
     appendSystemNotice(error.message || '醫囑同步失敗。');
   }
@@ -4551,10 +4559,10 @@ async function publishDoctorOrder() {
   patient.orderStatus = '已送出';
   saveDoctorWorkspace();
   try {
-    await syncDoctorAssignmentInbox(patient);
+    const assignment = await syncDoctorAssignmentInbox(patient);
     renderDoctorDashboard();
     renderDoctorAssignScreen();
-    appendSystemNotice('醫囑已送出，病人端現在可以在「醫生指派」查看。');
+    appendSystemNotice(`醫囑已送出給病人 ID：${assignment?.patientId || patient.id}，病人端可在「醫生指派」查看。`);
   } catch (error) {
     appendSystemNotice(error.message || '醫囑送出失敗。');
   }
@@ -4566,10 +4574,10 @@ async function markMedicalRecordSent() {
   patient.medicalRecordStatus = '已送入';
   saveDoctorWorkspace();
   try {
-    await syncDoctorAssignmentInbox(patient);
+    const assignment = await syncDoctorAssignmentInbox(patient);
     renderDoctorDashboard();
     renderDoctorAssignScreen();
-    appendSystemNotice('已把此病人標示為「病歷已送入」，病人端現在可同步看到。');
+    appendSystemNotice(`已把此病人標示為「病歷已送入」，同步到病人 ID：${assignment?.patientId || patient.id}。`);
   } catch (error) {
     appendSystemNotice(error.message || '病歷同步失敗。');
   }
@@ -4654,10 +4662,10 @@ async function saveMedicalRecordForm() {
   patient.medicalRecord = record;
   saveDoctorWorkspace();
   try {
-    await syncDoctorAssignmentInbox(patient);
+    const assignment = await syncDoctorAssignmentInbox(patient);
     renderDoctorDashboard();
     renderDoctorAssignScreen();
-    appendSystemNotice('病歷欄位已儲存到後端指派資料。標示為「已送入」後，病人端就會看到。');
+    appendSystemNotice(`病歷欄位已儲存到病人 ID：${assignment?.patientId || patient.id}。標示為「已送入」後，病人端就會看到。`);
   } catch (error) {
     appendSystemNotice(error.message || '病歷儲存失敗。');
   }
@@ -5001,6 +5009,10 @@ function switchReportTab(tabId) {
 
   if (tabId === 'manual') {
     setTimeout(renderMoodChart, 50); // Small delay to ensure container is visible for sizing
+  }
+  if (tabId === 'doctor-assignment') {
+    renderReportOutputs();
+    fetchCurrentPatientAssignment({ silent: false }).catch(() => {});
   }
 }
 
