@@ -964,6 +964,77 @@ function createDefaultDoctorPatients() {
   ];
 }
 
+function createEmptyMedicalRecord() {
+  return {
+    patient: { name: '', gender: '', birthDate: '', identifier: '' },
+    encounter: { periodStart: '', periodEnd: '', class: '', serviceType: '', practitionerName: '' },
+    observations: [],
+    questionnaire: { name: '', authored: '', items: [] },
+    composition: { title: '', status: 'preliminary', chiefComplaint: '', symptomSummary: '', riskAlert: '', followupSuggestion: '' },
+    documents: [],
+    conditions: [],
+    medications: [],
+    provenance: { sourceType: 'doctor_edited', recorded: '', activity: '', agent: '' },
+    updatedAt: ''
+  };
+}
+
+function normalizeMedicalRecordItem(item, shape) {
+  const out = {};
+  Object.keys(shape).forEach((key) => {
+    out[key] = String((item && item[key]) || shape[key] || '');
+  });
+  return out;
+}
+
+function normalizeMedicalRecord(record) {
+  const base = createEmptyMedicalRecord();
+  if (!record || typeof record !== 'object') return base;
+  const observationShape = { code: '', display: '', value: '', interpretation: '', effectiveDateTime: '', derivedFrom: '' };
+  const documentShape = { type: '', filename: '', url: '', contentType: '', date: '' };
+  const conditionShape = { code: '', clinicalStatus: '', verificationStatus: '', onsetDateTime: '' };
+  const questionnaireItemShape = { linkId: '', text: '', answer: '' };
+  return {
+    patient: normalizeMedicalRecordItem(record.patient, base.patient),
+    encounter: normalizeMedicalRecordItem(record.encounter, base.encounter),
+    observations: Array.isArray(record.observations)
+      ? record.observations.map((item) => normalizeMedicalRecordItem(item, observationShape))
+      : [],
+    questionnaire: {
+      name: String(record.questionnaire?.name || ''),
+      authored: String(record.questionnaire?.authored || ''),
+      items: Array.isArray(record.questionnaire?.items)
+        ? record.questionnaire.items.map((item) => normalizeMedicalRecordItem(item, questionnaireItemShape))
+        : []
+    },
+    composition: normalizeMedicalRecordItem(record.composition, base.composition),
+    documents: Array.isArray(record.documents)
+      ? record.documents.map((item) => normalizeMedicalRecordItem(item, documentShape))
+      : [],
+    conditions: Array.isArray(record.conditions)
+      ? record.conditions.map((item) => normalizeMedicalRecordItem(item, conditionShape))
+      : [],
+    medications: Array.isArray(record.medications)
+      ? record.medications.map((item) => ({
+          kind: item?.kind === 'request' ? 'request' : 'statement',
+          name: String(item?.name || ''),
+          dosage: String(item?.dosage || ''),
+          start: String(item?.start || ''),
+          end: String(item?.end || '')
+        }))
+      : [],
+    provenance: {
+      sourceType: ['ai_generated', 'patient_confirmed', 'doctor_edited'].includes(record.provenance?.sourceType)
+        ? record.provenance.sourceType
+        : 'doctor_edited',
+      recorded: String(record.provenance?.recorded || ''),
+      activity: String(record.provenance?.activity || ''),
+      agent: String(record.provenance?.agent || '')
+    },
+    updatedAt: String(record.updatedAt || '')
+  };
+}
+
 function normalizeDoctorPatient(patient = {}) {
   return {
     id: String(patient.id || `patient-${Date.now()}`),
@@ -978,7 +1049,8 @@ function normalizeDoctorPatient(patient = {}) {
     riskLevel: String(patient.riskLevel || '觀察'),
     aiSummary: String(patient.aiSummary || '目前沒有可展示的 AI 使用紀錄摘要。'),
     lastVisitNote: String(patient.lastVisitNote || '尚無補充紀錄。'),
-    orderDraft: String(patient.orderDraft || '')
+    orderDraft: String(patient.orderDraft || ''),
+    medicalRecord: normalizeMedicalRecord(patient.medicalRecord)
   };
 }
 
@@ -3508,7 +3580,11 @@ function openDoctorAddPatientModal() {
   const status = document.getElementById('doctor-add-patient-status');
   if (!overlay) return;
   if (input) input.value = '';
-  if (status) status.textContent = '輸入病人 ID 後加入。';
+  if (status) {
+    status.textContent = APP_STATE.auth?.token
+      ? '輸入病人 ID 後加入。'
+      : '尚未取得登入 token，請先在登入頁完成醫師登入再回來加入病人。';
+  }
   overlay.classList.add('active');
   overlay.setAttribute('aria-hidden', 'false');
   window.requestAnimationFrame(() => input?.focus());
@@ -3547,6 +3623,11 @@ async function submitDoctorAddPatient() {
     return;
   }
 
+  if (!APP_STATE.auth?.token) {
+    if (status) status.textContent = '尚未登入，請先用醫師帳號完成登入後再加入病人。';
+    return;
+  }
+
   if (submitButton) submitButton.disabled = true;
   if (status) status.textContent = '正在查找病人...';
 
@@ -3554,6 +3635,12 @@ async function submitDoctorAddPatient() {
     const result = await fetchUserById(patientId);
     if (!result.ok) {
       const code = result.payload?.code || '';
+      if (result.status === 401) {
+        throw new Error('登入狀態已過期，請重新登入醫師帳號。');
+      }
+      if (result.status === 403) {
+        throw new Error('目前帳號沒有查找其他病人的權限（必須是醫師帳號）。');
+      }
       throw new Error(code === 'user_not_found' ? '找不到這個病人 ID。' : (result.payload?.error || '查找病人失敗。'));
     }
     const user = result.payload?.user;
@@ -3666,7 +3753,284 @@ function renderDoctorPatientDetail() {
         <button class="primary-btn doctor-action-btn" type="button" onclick="saveDoctorOrderDraft()">暫存醫囑</button>
       </section>
     </div>
+
+    ${renderMedicalRecordForm(patient)}
   `;
+}
+
+function renderMedicalRecordForm(patient) {
+  const record = patient.medicalRecord || createEmptyMedicalRecord();
+  const updatedHint = record.updatedAt
+    ? `最後更新：${escapeHtml(record.updatedAt)}`
+    : '尚未填寫病歷欄位。';
+  return `
+    <section class="doctor-fhir-form" aria-label="病歷輸入（FHIR 對應欄位）">
+      <header class="doctor-fhir-form-head">
+        <div>
+          <div class="doctor-action-kicker">MEDICAL RECORD INPUT</div>
+          <h4>病歷輸入（依 FHIR 標準分區）</h4>
+          <p class="doctor-fhir-form-sub">每一區對應一種 FHIR Resource，留白欄位在輸出時會自動省略。${escapeHtml(updatedHint)}</p>
+        </div>
+        <div class="doctor-fhir-form-actions">
+          <button class="ghost-btn" type="button" onclick="previewMedicalRecordFhir()">預覽 FHIR JSON</button>
+          <button class="primary-btn" type="button" onclick="saveMedicalRecordForm()">儲存病歷</button>
+        </div>
+      </header>
+
+      ${renderMrSectionPatient(record.patient)}
+      ${renderMrSectionEncounter(record.encounter)}
+      ${renderMrSectionObservations(record.observations)}
+      ${renderMrSectionQuestionnaire(record.questionnaire)}
+      ${renderMrSectionComposition(record.composition)}
+      ${renderMrSectionDocuments(record.documents)}
+      ${renderMrSectionConditions(record.conditions)}
+      ${renderMrSectionMedications(record.medications)}
+      ${renderMrSectionProvenance(record.provenance)}
+    </section>
+  `;
+}
+
+function mrField(path, label, value, opts = {}) {
+  const type = opts.type || 'text';
+  const placeholder = opts.placeholder || '';
+  const safeValue = escapeHtml(value || '');
+  if (type === 'textarea') {
+    return `
+      <label class="doctor-fhir-field">
+        <span>${escapeHtml(label)}</span>
+        <textarea data-mr-field="${escapeHtml(path)}" placeholder="${escapeHtml(placeholder)}" rows="${opts.rows || 2}">${safeValue}</textarea>
+      </label>`;
+  }
+  if (type === 'select') {
+    const options = (opts.options || []).map((opt) => {
+      const selected = String(opt.value) === String(value || '') ? 'selected' : '';
+      return `<option value="${escapeHtml(opt.value)}" ${selected}>${escapeHtml(opt.label)}</option>`;
+    }).join('');
+    return `
+      <label class="doctor-fhir-field">
+        <span>${escapeHtml(label)}</span>
+        <select data-mr-field="${escapeHtml(path)}">${options}</select>
+      </label>`;
+  }
+  return `
+    <label class="doctor-fhir-field">
+      <span>${escapeHtml(label)}</span>
+      <input data-mr-field="${escapeHtml(path)}" type="${escapeHtml(type)}" value="${safeValue}" placeholder="${escapeHtml(placeholder)}" />
+    </label>`;
+}
+
+function renderMrSectionPatient(p) {
+  return `
+    <fieldset class="doctor-fhir-section">
+      <legend><span class="doctor-fhir-tag">Patient</span> 1. 病人是誰</legend>
+      <div class="doctor-fhir-grid">
+        ${mrField('patient.name', '姓名 → Patient.name', p.name, { placeholder: '林小明' })}
+        ${mrField('patient.gender', '性別 → Patient.gender', p.gender, { type: 'select', options: [
+          { value: '', label: '請選擇' },
+          { value: 'male', label: 'male' },
+          { value: 'female', label: 'female' },
+          { value: 'other', label: 'other' },
+          { value: 'unknown', label: 'unknown' }
+        ] })}
+        ${mrField('patient.birthDate', '生日 → Patient.birthDate', p.birthDate, { type: 'date' })}
+        ${mrField('patient.identifier', '病人識別碼 → Patient.identifier', p.identifier, { placeholder: '例如 P-2026-001' })}
+      </div>
+    </fieldset>`;
+}
+
+function renderMrSectionEncounter(e) {
+  return `
+    <fieldset class="doctor-fhir-section">
+      <legend><span class="doctor-fhir-tag">Encounter</span> 2. 這次就醫 / 互動</legend>
+      <div class="doctor-fhir-grid">
+        ${mrField('encounter.periodStart', '看診開始 → Encounter.period.start', e.periodStart, { type: 'datetime-local' })}
+        ${mrField('encounter.periodEnd', '看診結束 → Encounter.period.end', e.periodEnd, { type: 'datetime-local' })}
+        ${mrField('encounter.class', '型態 → Encounter.class', e.class, { type: 'select', options: [
+          { value: '', label: '請選擇' },
+          { value: 'AMB', label: '門診（AMB）' },
+          { value: 'VR', label: '遠距（VR）' },
+          { value: 'PRENC', label: '診前整理（PRENC）' },
+          { value: 'IMP', label: '住院（IMP）' }
+        ] })}
+        ${mrField('encounter.serviceType', '科別 → Encounter.serviceType', e.serviceType, { placeholder: '精神科 / 身心科' })}
+        ${mrField('encounter.practitionerName', '醫師 → Encounter.participant', e.practitionerName, { placeholder: '王醫師' })}
+      </div>
+    </fieldset>`;
+}
+
+function renderMrSectionObservations(list) {
+  const rows = (list || []).map((obs, idx) => `
+    <div class="doctor-fhir-row" data-mr-row="observations-${idx}">
+      <div class="doctor-fhir-row-head">
+        <span class="doctor-fhir-row-title">Observation #${idx + 1}</span>
+        <button class="doctor-fhir-row-remove" type="button" onclick="removeMedicalRecordItem('observations', ${idx})">移除</button>
+      </div>
+      <div class="doctor-fhir-grid">
+        ${mrField(`observations.${idx}.code`, 'code → Observation.code (code)', obs.code, { placeholder: 'depressed-mood / insomnia / anxiety' })}
+        ${mrField(`observations.${idx}.display`, 'display → Observation.code.display', obs.display, { placeholder: '情緒低落 / 睡眠困擾' })}
+        ${mrField(`observations.${idx}.value`, '值 → Observation.value[x]', obs.value, { placeholder: '例如 PHQ-9 分數 12' })}
+        ${mrField(`observations.${idx}.interpretation`, '嚴重程度 → Observation.interpretation', obs.interpretation, { placeholder: 'mild / moderate / severe' })}
+        ${mrField(`observations.${idx}.effectiveDateTime`, '時間 → Observation.effectiveDateTime', obs.effectiveDateTime, { type: 'datetime-local' })}
+        ${mrField(`observations.${idx}.derivedFrom`, '來源 → Observation.derivedFrom', obs.derivedFrom, { placeholder: '來自 PHQ-9 / 對話節錄' })}
+      </div>
+    </div>
+  `).join('');
+  return `
+    <fieldset class="doctor-fhir-section">
+      <legend><span class="doctor-fhir-tag">Observation</span> 3. 症狀與觀察</legend>
+      ${rows || '<div class="doctor-fhir-empty">尚未新增任何觀察項目。</div>'}
+      <button class="doctor-fhir-add" type="button" onclick="addMedicalRecordItem('observations')">＋ 新增 Observation</button>
+    </fieldset>`;
+}
+
+function renderMrSectionQuestionnaire(q) {
+  const items = (q.items || []).map((item, idx) => `
+    <div class="doctor-fhir-row" data-mr-row="questionnaire-item-${idx}">
+      <div class="doctor-fhir-row-head">
+        <span class="doctor-fhir-row-title">item #${idx + 1}</span>
+        <button class="doctor-fhir-row-remove" type="button" onclick="removeMedicalRecordItem('questionnaire.items', ${idx})">移除</button>
+      </div>
+      <div class="doctor-fhir-grid">
+        ${mrField(`questionnaire.items.${idx}.linkId`, 'linkId → item.linkId', item.linkId, { placeholder: 'phq9-q1' })}
+        ${mrField(`questionnaire.items.${idx}.text`, '題目 → item.text', item.text, { placeholder: '感覺心情低落或沒有希望' })}
+        ${mrField(`questionnaire.items.${idx}.answer`, '答案 → item.answer.value[x]', item.answer, { placeholder: '0 / 1 / 2 / 3 或文字' })}
+      </div>
+    </div>
+  `).join('');
+  return `
+    <fieldset class="doctor-fhir-section">
+      <legend><span class="doctor-fhir-tag">QuestionnaireResponse</span> 4. 問卷 / 量表</legend>
+      <div class="doctor-fhir-grid">
+        ${mrField('questionnaire.name', '問卷名稱 → questionnaire', q.name, { placeholder: 'PHQ-9 / GAD-7 / 自評' })}
+        ${mrField('questionnaire.authored', '填寫時間 → authored', q.authored, { type: 'datetime-local' })}
+      </div>
+      ${items || '<div class="doctor-fhir-empty">尚未新增題目。</div>'}
+      <button class="doctor-fhir-add" type="button" onclick="addMedicalRecordItem('questionnaire.items')">＋ 新增題目</button>
+    </fieldset>`;
+}
+
+function renderMrSectionComposition(c) {
+  return `
+    <fieldset class="doctor-fhir-section">
+      <legend><span class="doctor-fhir-tag">Composition</span> 5. 醫師摘要 / 臨床文件</legend>
+      <div class="doctor-fhir-grid">
+        ${mrField('composition.title', '文件標題 → Composition.title', c.title, { placeholder: '診前摘要 2026-04-25' })}
+        ${mrField('composition.status', '狀態 → Composition.status', c.status, { type: 'select', options: [
+          { value: 'preliminary', label: 'preliminary（草稿）' },
+          { value: 'final', label: 'final（定稿）' },
+          { value: 'amended', label: 'amended（修訂）' },
+          { value: 'entered-in-error', label: 'entered-in-error' }
+        ] })}
+      </div>
+      ${mrField('composition.chiefComplaint', '主訴 → section[chief-complaint]', c.chiefComplaint, { type: 'textarea', rows: 2 })}
+      ${mrField('composition.symptomSummary', '症狀整理 → section[symptoms]', c.symptomSummary, { type: 'textarea', rows: 3 })}
+      ${mrField('composition.riskAlert', '風險提醒 → section[risk-alert]', c.riskAlert, { type: 'textarea', rows: 2 })}
+      ${mrField('composition.followupSuggestion', '建議補問 → section[followup]', c.followupSuggestion, { type: 'textarea', rows: 2 })}
+    </fieldset>`;
+}
+
+function renderMrSectionDocuments(list) {
+  const rows = (list || []).map((doc, idx) => `
+    <div class="doctor-fhir-row" data-mr-row="documents-${idx}">
+      <div class="doctor-fhir-row-head">
+        <span class="doctor-fhir-row-title">DocumentReference #${idx + 1}</span>
+        <button class="doctor-fhir-row-remove" type="button" onclick="removeMedicalRecordItem('documents', ${idx})">移除</button>
+      </div>
+      <div class="doctor-fhir-grid">
+        ${mrField(`documents.${idx}.type`, '文件類型 → DocumentReference.type', doc.type, { placeholder: '病歷 PDF / 診斷書 / 檢驗報告' })}
+        ${mrField(`documents.${idx}.filename`, '檔名 → attachment.title', doc.filename, { placeholder: 'discharge-summary.pdf' })}
+        ${mrField(`documents.${idx}.url`, '檔案連結 → attachment.url', doc.url, { type: 'url', placeholder: 'https://...' })}
+        ${mrField(`documents.${idx}.contentType`, 'MIME → attachment.contentType', doc.contentType, { placeholder: 'application/pdf' })}
+        ${mrField(`documents.${idx}.date`, '建立時間 → DocumentReference.date', doc.date, { type: 'datetime-local' })}
+      </div>
+    </div>
+  `).join('');
+  return `
+    <fieldset class="doctor-fhir-section">
+      <legend><span class="doctor-fhir-tag">DocumentReference</span> 6. 原始文件 / PDF / 報告檔</legend>
+      ${rows || '<div class="doctor-fhir-empty">尚未掛上文件。</div>'}
+      <button class="doctor-fhir-add" type="button" onclick="addMedicalRecordItem('documents')">＋ 新增文件</button>
+    </fieldset>`;
+}
+
+function renderMrSectionConditions(list) {
+  const rows = (list || []).map((cond, idx) => `
+    <div class="doctor-fhir-row" data-mr-row="conditions-${idx}">
+      <div class="doctor-fhir-row-head">
+        <span class="doctor-fhir-row-title">Condition #${idx + 1}</span>
+        <button class="doctor-fhir-row-remove" type="button" onclick="removeMedicalRecordItem('conditions', ${idx})">移除</button>
+      </div>
+      <div class="doctor-fhir-grid">
+        ${mrField(`conditions.${idx}.code`, '診斷名稱 → Condition.code', cond.code, { placeholder: '憂鬱症 / 焦慮症 / 失眠症' })}
+        ${mrField(`conditions.${idx}.clinicalStatus`, 'clinicalStatus', cond.clinicalStatus, { type: 'select', options: [
+          { value: '', label: '請選擇' },
+          { value: 'active', label: 'active' },
+          { value: 'recurrence', label: 'recurrence' },
+          { value: 'remission', label: 'remission' },
+          { value: 'resolved', label: 'resolved' }
+        ] })}
+        ${mrField(`conditions.${idx}.verificationStatus`, 'verificationStatus', cond.verificationStatus, { type: 'select', options: [
+          { value: '', label: '請選擇' },
+          { value: 'unconfirmed', label: 'unconfirmed' },
+          { value: 'provisional', label: 'provisional' },
+          { value: 'differential', label: 'differential' },
+          { value: 'confirmed', label: 'confirmed' }
+        ] })}
+        ${mrField(`conditions.${idx}.onsetDateTime`, 'onsetDateTime', cond.onsetDateTime, { type: 'datetime-local' })}
+      </div>
+    </div>
+  `).join('');
+  return `
+    <fieldset class="doctor-fhir-section">
+      <legend><span class="doctor-fhir-tag">Condition</span> 7. 診斷 / 問題清單</legend>
+      <p class="doctor-fhir-section-note">AI 不應自行創造正式診斷，必須是醫師確認過再寫入。</p>
+      ${rows || '<div class="doctor-fhir-empty">尚未新增診斷。</div>'}
+      <button class="doctor-fhir-add" type="button" onclick="addMedicalRecordItem('conditions')">＋ 新增診斷</button>
+    </fieldset>`;
+}
+
+function renderMrSectionMedications(list) {
+  const rows = (list || []).map((med, idx) => `
+    <div class="doctor-fhir-row" data-mr-row="medications-${idx}">
+      <div class="doctor-fhir-row-head">
+        <span class="doctor-fhir-row-title">${med.kind === 'request' ? 'MedicationRequest' : 'MedicationStatement'} #${idx + 1}</span>
+        <button class="doctor-fhir-row-remove" type="button" onclick="removeMedicalRecordItem('medications', ${idx})">移除</button>
+      </div>
+      <div class="doctor-fhir-grid">
+        ${mrField(`medications.${idx}.kind`, '類型', med.kind, { type: 'select', options: [
+          { value: 'statement', label: 'MedicationStatement（病人正在吃）' },
+          { value: 'request', label: 'MedicationRequest（醫師處方）' }
+        ] })}
+        ${mrField(`medications.${idx}.name`, '藥名 → medicationCodeableConcept', med.name, { placeholder: 'Sertraline 50mg' })}
+        ${mrField(`medications.${idx}.dosage`, '劑量 → dosage', med.dosage, { placeholder: '每日一次，早餐後' })}
+        ${mrField(`medications.${idx}.start`, '開始 → effectivePeriod.start', med.start, { type: 'date' })}
+        ${mrField(`medications.${idx}.end`, '結束 → effectivePeriod.end', med.end, { type: 'date' })}
+      </div>
+    </div>
+  `).join('');
+  return `
+    <fieldset class="doctor-fhir-section">
+      <legend><span class="doctor-fhir-tag">Medication</span> 8. 用藥</legend>
+      ${rows || '<div class="doctor-fhir-empty">尚未新增藥物。</div>'}
+      <button class="doctor-fhir-add" type="button" onclick="addMedicalRecordItem('medications')">＋ 新增用藥</button>
+    </fieldset>`;
+}
+
+function renderMrSectionProvenance(p) {
+  return `
+    <fieldset class="doctor-fhir-section">
+      <legend><span class="doctor-fhir-tag">Provenance</span> 9. AI 生成與審閱紀錄</legend>
+      <div class="doctor-fhir-grid">
+        ${mrField('provenance.sourceType', '產生方式 → Provenance.activity', p.sourceType, { type: 'select', options: [
+          { value: 'ai_generated', label: 'AI 生成' },
+          { value: 'patient_confirmed', label: '病人確認' },
+          { value: 'doctor_edited', label: '醫師修改' }
+        ] })}
+        ${mrField('provenance.recorded', '時間 → Provenance.recorded', p.recorded, { type: 'datetime-local' })}
+        ${mrField('provenance.agent', '產生者 → Provenance.agent', p.agent, { placeholder: 'RouRou AI / 王醫師 / 病人本人' })}
+        ${mrField('provenance.activity', '活動描述 → Provenance.activity.text', p.activity, { placeholder: 'AI 抽取症狀後由醫師審閱' })}
+      </div>
+    </fieldset>`;
 }
 
 function saveDoctorOrderDraft() {
@@ -3687,6 +4051,303 @@ function markMedicalRecordSent() {
   saveDoctorWorkspace();
   renderDoctorDashboard();
   appendSystemNotice('已把此病人標示為「病歷已送入」。這是 prototype 狀態，不會寫入正式醫院系統。');
+}
+
+function setByPath(target, path, value) {
+  const segments = String(path).split('.');
+  let cursor = target;
+  for (let i = 0; i < segments.length - 1; i += 1) {
+    const segment = segments[i];
+    const next = segments[i + 1];
+    const nextIsIndex = /^\d+$/.test(next);
+    if (cursor[segment] == null) {
+      cursor[segment] = nextIsIndex ? [] : {};
+    }
+    cursor = cursor[segment];
+  }
+  cursor[segments[segments.length - 1]] = value;
+}
+
+function commitMedicalRecordFormToState() {
+  const patient = getSelectedDoctorPatient();
+  if (!patient) return null;
+  const form = document.querySelector('.doctor-fhir-form');
+  if (!form) return patient.medicalRecord;
+  const record = normalizeMedicalRecord(patient.medicalRecord);
+  form.querySelectorAll('[data-mr-field]').forEach((input) => {
+    const path = input.getAttribute('data-mr-field');
+    if (!path) return;
+    setByPath(record, path, input.value);
+  });
+  patient.medicalRecord = normalizeMedicalRecord(record);
+  return patient.medicalRecord;
+}
+
+function addMedicalRecordItem(listPath) {
+  const patient = getSelectedDoctorPatient();
+  if (!patient) return;
+  commitMedicalRecordFormToState();
+  const record = patient.medicalRecord;
+  const blanks = {
+    observations: { code: '', display: '', value: '', interpretation: '', effectiveDateTime: '', derivedFrom: '' },
+    documents: { type: '', filename: '', url: '', contentType: '', date: '' },
+    conditions: { code: '', clinicalStatus: '', verificationStatus: '', onsetDateTime: '' },
+    medications: { kind: 'statement', name: '', dosage: '', start: '', end: '' },
+    'questionnaire.items': { linkId: '', text: '', answer: '' }
+  };
+  const blank = blanks[listPath];
+  if (!blank) return;
+  if (listPath === 'questionnaire.items') {
+    record.questionnaire.items.push({ ...blank });
+  } else {
+    record[listPath].push({ ...blank });
+  }
+  renderDoctorPatientDetail();
+}
+
+function removeMedicalRecordItem(listPath, index) {
+  const patient = getSelectedDoctorPatient();
+  if (!patient) return;
+  commitMedicalRecordFormToState();
+  const record = patient.medicalRecord;
+  const list = listPath === 'questionnaire.items' ? record.questionnaire.items : record[listPath];
+  if (!Array.isArray(list)) return;
+  list.splice(index, 1);
+  renderDoctorPatientDetail();
+}
+
+function saveMedicalRecordForm() {
+  const patient = getSelectedDoctorPatient();
+  if (!patient) return;
+  const record = commitMedicalRecordFormToState();
+  if (!record) return;
+  record.updatedAt = new Date().toISOString().replace('T', ' ').slice(0, 16);
+  if (!record.provenance.recorded) {
+    record.provenance.recorded = record.updatedAt;
+  }
+  if (!record.provenance.agent) {
+    const currentUser = getCurrentAuthUser();
+    record.provenance.agent = currentUser?.display_name || currentUser?.login_identifier || '醫師';
+  }
+  patient.medicalRecord = record;
+  saveDoctorWorkspace();
+  renderDoctorDashboard();
+  appendSystemNotice('病歷欄位已儲存於醫師工作台（本地 prototype，不會寫入 HIS / EMR / 正式 FHIR）。');
+}
+
+function buildMedicalRecordFhirPreview(patient) {
+  const record = patient.medicalRecord || createEmptyMedicalRecord();
+  const patientFullUrl = `urn:uuid:patient-${patient.id}`;
+  const encounterFullUrl = `urn:uuid:encounter-${patient.id}`;
+  const subjectRef = { reference: patientFullUrl };
+  const encounterRef = { reference: encounterFullUrl };
+
+  const entries = [];
+
+  entries.push({
+    fullUrl: patientFullUrl,
+    resource: {
+      resourceType: 'Patient',
+      identifier: record.patient.identifier ? [{ value: record.patient.identifier }] : undefined,
+      name: record.patient.name ? [{ text: record.patient.name }] : undefined,
+      gender: record.patient.gender || undefined,
+      birthDate: record.patient.birthDate || undefined
+    }
+  });
+
+  entries.push({
+    fullUrl: encounterFullUrl,
+    resource: {
+      resourceType: 'Encounter',
+      status: 'finished',
+      class: record.encounter.class ? { code: record.encounter.class } : undefined,
+      serviceType: record.encounter.serviceType ? { text: record.encounter.serviceType } : undefined,
+      subject: subjectRef,
+      participant: record.encounter.practitionerName
+        ? [{ individual: { display: record.encounter.practitionerName } }]
+        : undefined,
+      period: (record.encounter.periodStart || record.encounter.periodEnd) ? {
+        start: record.encounter.periodStart || undefined,
+        end: record.encounter.periodEnd || undefined
+      } : undefined
+    }
+  });
+
+  record.observations.forEach((obs, idx) => {
+    if (!obs.code && !obs.display && !obs.value) return;
+    entries.push({
+      fullUrl: `urn:uuid:observation-${patient.id}-${idx}`,
+      resource: {
+        resourceType: 'Observation',
+        status: 'preliminary',
+        code: { coding: obs.code ? [{ code: obs.code, display: obs.display || undefined }] : undefined, text: obs.display || undefined },
+        subject: subjectRef,
+        encounter: encounterRef,
+        effectiveDateTime: obs.effectiveDateTime || undefined,
+        valueString: obs.value || undefined,
+        interpretation: obs.interpretation ? [{ text: obs.interpretation }] : undefined,
+        derivedFrom: obs.derivedFrom ? [{ display: obs.derivedFrom }] : undefined
+      }
+    });
+  });
+
+  if (record.questionnaire.name || record.questionnaire.items.length) {
+    entries.push({
+      fullUrl: `urn:uuid:questionnaireResponse-${patient.id}`,
+      resource: {
+        resourceType: 'QuestionnaireResponse',
+        status: 'completed',
+        questionnaire: record.questionnaire.name || undefined,
+        subject: subjectRef,
+        encounter: encounterRef,
+        authored: record.questionnaire.authored || undefined,
+        item: record.questionnaire.items.map((item) => ({
+          linkId: item.linkId || undefined,
+          text: item.text || undefined,
+          answer: item.answer ? [{ valueString: item.answer }] : undefined
+        }))
+      }
+    });
+  }
+
+  const compositionSections = [];
+  if (record.composition.chiefComplaint) compositionSections.push({ title: '主訴', code: { text: 'chief-complaint' }, text: { div: record.composition.chiefComplaint } });
+  if (record.composition.symptomSummary) compositionSections.push({ title: '症狀整理', code: { text: 'symptoms' }, text: { div: record.composition.symptomSummary } });
+  if (record.composition.riskAlert) compositionSections.push({ title: '風險提醒', code: { text: 'risk-alert' }, text: { div: record.composition.riskAlert } });
+  if (record.composition.followupSuggestion) compositionSections.push({ title: '建議補問', code: { text: 'followup' }, text: { div: record.composition.followupSuggestion } });
+  if (record.composition.title || compositionSections.length) {
+    entries.push({
+      fullUrl: `urn:uuid:composition-${patient.id}`,
+      resource: {
+        resourceType: 'Composition',
+        status: record.composition.status || 'preliminary',
+        type: { text: 'Clinician summary' },
+        subject: subjectRef,
+        encounter: encounterRef,
+        title: record.composition.title || undefined,
+        section: compositionSections
+      }
+    });
+  }
+
+  record.documents.forEach((doc, idx) => {
+    if (!doc.url && !doc.filename && !doc.type) return;
+    entries.push({
+      fullUrl: `urn:uuid:documentReference-${patient.id}-${idx}`,
+      resource: {
+        resourceType: 'DocumentReference',
+        status: 'current',
+        type: doc.type ? { text: doc.type } : undefined,
+        subject: subjectRef,
+        date: doc.date || undefined,
+        content: [{
+          attachment: {
+            contentType: doc.contentType || undefined,
+            url: doc.url || undefined,
+            title: doc.filename || undefined
+          }
+        }]
+      }
+    });
+  });
+
+  record.conditions.forEach((cond, idx) => {
+    if (!cond.code) return;
+    entries.push({
+      fullUrl: `urn:uuid:condition-${patient.id}-${idx}`,
+      resource: {
+        resourceType: 'Condition',
+        clinicalStatus: cond.clinicalStatus ? { coding: [{ code: cond.clinicalStatus }] } : undefined,
+        verificationStatus: cond.verificationStatus ? { coding: [{ code: cond.verificationStatus }] } : undefined,
+        code: { text: cond.code },
+        subject: subjectRef,
+        onsetDateTime: cond.onsetDateTime || undefined
+      }
+    });
+  });
+
+  record.medications.forEach((med, idx) => {
+    if (!med.name) return;
+    const isRequest = med.kind === 'request';
+    entries.push({
+      fullUrl: `urn:uuid:${isRequest ? 'medicationRequest' : 'medicationStatement'}-${patient.id}-${idx}`,
+      resource: {
+        resourceType: isRequest ? 'MedicationRequest' : 'MedicationStatement',
+        status: isRequest ? 'active' : 'recorded',
+        medicationCodeableConcept: { text: med.name },
+        subject: subjectRef,
+        dosage: med.dosage ? [{ text: med.dosage }] : undefined,
+        effectivePeriod: (med.start || med.end) ? {
+          start: med.start || undefined,
+          end: med.end || undefined
+        } : undefined
+      }
+    });
+  });
+
+  const provenanceTargets = entries
+    .filter((entry) => entry.resource.resourceType !== 'Patient')
+    .map((entry) => ({ reference: entry.fullUrl }));
+  if (provenanceTargets.length) {
+    entries.push({
+      fullUrl: `urn:uuid:provenance-${patient.id}`,
+      resource: {
+        resourceType: 'Provenance',
+        target: provenanceTargets,
+        recorded: record.provenance.recorded || record.updatedAt || undefined,
+        activity: record.provenance.activity ? { text: record.provenance.activity } : { text: record.provenance.sourceType },
+        agent: [{
+          type: { text: record.provenance.sourceType },
+          who: { display: record.provenance.agent || undefined }
+        }]
+      }
+    });
+  }
+
+  return {
+    resourceType: 'Bundle',
+    type: 'collection',
+    entry: entries.map((entry) => ({
+      fullUrl: entry.fullUrl,
+      resource: JSON.parse(JSON.stringify(entry.resource))
+    }))
+  };
+}
+
+function previewMedicalRecordFhir() {
+  const patient = getSelectedDoctorPatient();
+  if (!patient) return;
+  commitMedicalRecordFormToState();
+  const bundle = buildMedicalRecordFhirPreview(patient);
+  const text = JSON.stringify(bundle, null, 2);
+  const overlay = document.getElementById('doctor-fhir-preview-overlay');
+  const body = document.getElementById('doctor-fhir-preview-body');
+  if (overlay && body) {
+    body.textContent = text;
+    overlay.classList.add('active');
+    overlay.setAttribute('aria-hidden', 'false');
+  } else {
+    console.log('[FHIR PREVIEW]', bundle);
+    appendSystemNotice('已在主控台輸出 FHIR JSON 預覽。');
+  }
+}
+
+function closeMedicalRecordPreview() {
+  const overlay = document.getElementById('doctor-fhir-preview-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('active');
+  overlay.setAttribute('aria-hidden', 'true');
+}
+
+async function copyMedicalRecordPreview() {
+  const body = document.getElementById('doctor-fhir-preview-body');
+  if (!body) return;
+  try {
+    await navigator.clipboard.writeText(body.textContent || '');
+    appendSystemNotice('已複製 FHIR JSON 到剪貼簿。');
+  } catch {
+    appendSystemNotice('複製失敗，請手動框選 JSON 文字。');
+  }
 }
 
 function focusDoctorPendingTasks() {
@@ -8091,6 +8752,12 @@ window.returnFromSettings = returnFromSettings;
 window.selectDoctorPatient = selectDoctorPatient;
 window.saveDoctorOrderDraft = saveDoctorOrderDraft;
 window.markMedicalRecordSent = markMedicalRecordSent;
+window.addMedicalRecordItem = addMedicalRecordItem;
+window.removeMedicalRecordItem = removeMedicalRecordItem;
+window.saveMedicalRecordForm = saveMedicalRecordForm;
+window.previewMedicalRecordFhir = previewMedicalRecordFhir;
+window.closeMedicalRecordPreview = closeMedicalRecordPreview;
+window.copyMedicalRecordPreview = copyMedicalRecordPreview;
 window.focusDoctorPendingTasks = focusDoctorPendingTasks;
 window.openDoctorAddPatientModal = openDoctorAddPatientModal;
 window.closeDoctorAddPatientModal = closeDoctorAddPatientModal;

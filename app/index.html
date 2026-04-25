@@ -1050,6 +1050,26 @@
     </div>
   </div>
 
+  <div id="doctor-fhir-preview-overlay" class="doctor-fhir-preview-overlay" aria-hidden="true">
+    <div class="doctor-fhir-preview-card">
+      <div class="doctor-fhir-preview-head">
+        <div>
+          <div class="auth-hero-kicker">FHIR PREVIEW</div>
+          <div class="auth-hero-title">病歷 FHIR JSON 預覽（local prototype）</div>
+          <p class="doctor-fhir-preview-sub">這是依照你輸入的欄位產生的 FHIR Bundle 草稿，僅供檢視，不會自動送出。</p>
+        </div>
+        <button class="icon-btn" type="button" aria-label="關閉預覽" onclick="closeMedicalRecordPreview()">
+          <span class="mat-icon">close</span>
+        </button>
+      </div>
+      <pre id="doctor-fhir-preview-body" class="doctor-fhir-preview-body"></pre>
+      <div class="auth-action-row">
+        <button class="auth-primary-btn" type="button" onclick="copyMedicalRecordPreview()">複製 JSON</button>
+        <button class="auth-secondary-btn" type="button" onclick="closeMedicalRecordPreview()">關閉</button>
+      </div>
+    </div>
+  </div>
+
   <div id="consent-preview-overlay" class="consent-preview-overlay" aria-hidden="true">
       <div class="consent-preview-card">
         <div class="consent-preview-header">

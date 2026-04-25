@@ -3376,6 +3376,237 @@ body {
   font-size: 13px;
 }
 
+.doctor-fhir-form {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(168, 180, 187, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.doctor-fhir-form-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.doctor-fhir-form-head h4 {
+  margin-top: 4px;
+  font-size: 1rem;
+  color: #25353d;
+}
+
+.doctor-fhir-form-sub {
+  margin-top: 4px;
+  color: #61727a;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.doctor-fhir-form-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.doctor-fhir-section {
+  border: 1px solid rgba(168, 180, 187, 0.22);
+  border-radius: 18px;
+  padding: 12px 14px 14px;
+  background: #f8fbfd;
+  margin: 0;
+}
+
+.doctor-fhir-section legend {
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #25353d;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.doctor-fhir-tag {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(95, 156, 198, 0.18);
+  color: #2f6489;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.doctor-fhir-section-note {
+  margin: 6px 0 8px;
+  color: #8a99a3;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.doctor-fhir-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px 12px;
+  margin-top: 8px;
+}
+
+.doctor-fhir-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  color: #56666e;
+}
+
+.doctor-fhir-field span {
+  font-weight: 700;
+  color: #3b4b53;
+}
+
+.doctor-fhir-field input,
+.doctor-fhir-field select,
+.doctor-fhir-field textarea {
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(168, 180, 187, 0.32);
+  background: #ffffff;
+  color: #29343a;
+  font-size: 13px;
+  line-height: 1.45;
+  font-family: inherit;
+}
+
+.doctor-fhir-field textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.doctor-fhir-row {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid rgba(168, 180, 187, 0.18);
+}
+
+.doctor-fhir-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.doctor-fhir-row-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: #2f6489;
+  letter-spacing: 0.03em;
+}
+
+.doctor-fhir-row-remove {
+  background: transparent;
+  border: none;
+  color: #c25e5e;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.doctor-fhir-row-remove:hover {
+  background: rgba(194, 94, 94, 0.08);
+}
+
+.doctor-fhir-add {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px dashed rgba(95, 156, 198, 0.55);
+  background: rgba(95, 156, 198, 0.08);
+  color: #2f6489;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.doctor-fhir-add:hover {
+  background: rgba(95, 156, 198, 0.16);
+}
+
+.doctor-fhir-empty {
+  margin-top: 8px;
+  color: #8a99a3;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.doctor-fhir-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 32, 40, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  padding: 24px;
+}
+
+.doctor-fhir-preview-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.doctor-fhir-preview-card {
+  width: min(720px, 100%);
+  max-height: 86vh;
+  background: #ffffff;
+  border-radius: 22px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 18px 48px rgba(20, 32, 40, 0.25);
+}
+
+.doctor-fhir-preview-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.doctor-fhir-preview-sub {
+  margin-top: 6px;
+  color: #61727a;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.doctor-fhir-preview-body {
+  flex: 1;
+  overflow: auto;
+  padding: 14px;
+  border-radius: 14px;
+  background: #0f1b23;
+  color: #d6e3eb;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre;
+  margin: 0;
+}
+
 .settings-auth-id {
   width: fit-content;
   margin-top: 8px;
