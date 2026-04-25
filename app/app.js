@@ -1823,6 +1823,9 @@ function setAuthenticatedSession(token = '', user = null) {
   persistAuthState(token, user);
   syncAuthStateToApp();
   migrateGuestSessionsToAuthUser(user?.id);
+  restoreReportOutputsFromCache();
+  TherapeuticMemory.renderProfileUI();
+  renderReportOutputs();
   APP_STATE.pinnedSession = loadPinnedSession();
   APP_STATE.recentSessions = getRecentSessionSummaries();
   updateAuthUI();
