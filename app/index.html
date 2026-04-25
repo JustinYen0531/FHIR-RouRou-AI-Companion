@@ -22,41 +22,6 @@
       <h1 class="home-headline">今天想聊聊嗎？</h1>
       <p class="home-sub">Rou Rou 準備好聽你說了</p>
 
-      <section class="auth-hero-card">
-        <div class="auth-hero-top">
-          <div>
-            <div class="auth-hero-kicker">IDENTITY SYSTEM V1</div>
-            <div class="auth-hero-title">先讓系統知道你是病人還是醫師</div>
-          </div>
-          <span id="home-auth-role-badge" class="auth-role-badge">未登入</span>
-        </div>
-
-        <div id="home-auth-guest">
-          <div class="auth-role-switch">
-            <button class="auth-role-chip active" type="button" data-auth-role="patient" onclick="selectAuthRole('patient')">病人</button>
-            <button class="auth-role-chip" type="button" data-auth-role="doctor" onclick="selectAuthRole('doctor')">醫師</button>
-          </div>
-          <div class="auth-form-grid">
-            <input id="auth-display-name" class="auth-input" type="text" placeholder="顯示名稱（註冊用）" />
-            <input id="auth-login-identifier" class="auth-input" type="text" placeholder="帳號，例如 patient_lin / doctor_wang" />
-            <input id="auth-password" class="auth-input" type="password" placeholder="密碼（至少 4 碼）" />
-          </div>
-          <div class="auth-action-row">
-            <button id="auth-login-btn" class="auth-primary-btn" type="button" onclick="loginAuth()">登入</button>
-            <button id="auth-register-btn" class="auth-secondary-btn" type="button" onclick="registerAuth()">註冊並登入</button>
-          </div>
-          <div id="home-auth-status" class="auth-status-copy">先選角色，再登入或註冊。</div>
-        </div>
-
-        <div id="home-auth-member" class="auth-member-card" style="display:none">
-          <div class="auth-member-copy">
-            <div id="home-auth-name" class="auth-member-name">尚未登入</div>
-            <div id="home-auth-meta" class="auth-member-meta">請先建立或登入帳號</div>
-          </div>
-          <button class="auth-inline-logout" type="button" onclick="logoutAuth()">登出</button>
-        </div>
-      </section>
-      
       <button id="home-entry-button" class="home-input-wrap" type="button" onclick="enterChatFromHome()">
         <div class="home-plus-btn">
           <span class="mat-icon">add</span>
@@ -939,6 +904,45 @@
       <div class="shortcut-composer-actions">
         <button class="micro-card-secondary" type="button" onclick="closeShortcutComposer()">取消</button>
         <button class="micro-card-primary" type="button" onclick="submitShortcutComposer()">加入快捷</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="auth-modal-overlay" class="auth-modal-overlay" aria-hidden="true">
+    <div class="auth-modal-card">
+      <div class="auth-modal-top">
+        <div>
+          <div class="auth-hero-kicker">IDENTITY SYSTEM V1</div>
+          <div class="auth-hero-title">先讓系統知道你是病人還是醫師</div>
+        </div>
+        <button id="auth-modal-close" class="icon-btn" type="button" aria-label="關閉登入視窗" onclick="closeAuthModal()">
+          <span class="mat-icon">close</span>
+        </button>
+      </div>
+
+      <div id="auth-modal-guest">
+        <div class="auth-role-switch">
+          <button class="auth-role-chip active" type="button" data-auth-role="patient" onclick="selectAuthRole('patient')">病人</button>
+          <button class="auth-role-chip" type="button" data-auth-role="doctor" onclick="selectAuthRole('doctor')">醫師</button>
+        </div>
+        <div class="auth-form-grid">
+          <input id="auth-display-name" class="auth-input" type="text" placeholder="顯示名稱（註冊用）" />
+          <input id="auth-login-identifier" class="auth-input" type="text" placeholder="帳號，例如 patient_lin / doctor_wang" />
+          <input id="auth-password" class="auth-input" type="password" placeholder="密碼（至少 4 碼）" />
+        </div>
+        <div class="auth-action-row">
+          <button id="auth-login-btn" class="auth-primary-btn" type="button" onclick="loginAuth()">登入</button>
+          <button id="auth-register-btn" class="auth-secondary-btn" type="button" onclick="registerAuth()">註冊並登入</button>
+        </div>
+        <div id="home-auth-status" class="auth-status-copy">先選角色，再登入或註冊。</div>
+      </div>
+
+      <div id="auth-modal-member" class="auth-member-card" style="display:none">
+        <div class="auth-member-copy">
+          <div id="home-auth-name" class="auth-member-name">尚未登入</div>
+          <div id="home-auth-meta" class="auth-member-meta">請先建立或登入帳號</div>
+        </div>
+        <span id="home-auth-role-badge" class="auth-role-badge">未登入</span>
       </div>
     </div>
   </div>

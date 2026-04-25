@@ -1034,11 +1034,12 @@ function updateAuthUI() {
   const homeSub = document.querySelector('.home-sub');
   const homeEntryButton = document.getElementById('home-entry-button');
   const homeEntryPlaceholder = document.getElementById('home-entry-placeholder');
-  const authGuest = document.getElementById('home-auth-guest');
-  const authMember = document.getElementById('home-auth-member');
+  const authGuest = document.getElementById('auth-modal-guest');
+  const authMember = document.getElementById('auth-modal-member');
   const authRoleBadge = document.getElementById('home-auth-role-badge');
   const authName = document.getElementById('home-auth-name');
   const authMeta = document.getElementById('home-auth-meta');
+  const authModalClose = document.getElementById('auth-modal-close');
   const settingsAuthName = document.getElementById('settings-auth-name');
   const settingsAuthMeta = document.getElementById('settings-auth-meta');
   const settingsAuthBadge = document.getElementById('settings-auth-badge');
@@ -1101,6 +1102,9 @@ function updateAuthUI() {
   if (settingsLogout) {
     settingsLogout.disabled = !isLoggedIn;
   }
+  if (authModalClose) {
+    authModalClose.style.display = isLoggedIn ? 'inline-flex' : 'none';
+  }
   const homeSessionList = document.getElementById('home-session-list');
   if (homeSessionList) {
     if (isLoggedIn) {
@@ -1111,6 +1115,35 @@ function updateAuthUI() {
   }
 }
 
+function openAuthModal(force = false) {
+  const overlay = document.getElementById('auth-modal-overlay');
+  if (!overlay) return;
+  if (isAuthenticated() && !force) return;
+  overlay.classList.add('active');
+  overlay.setAttribute('aria-hidden', 'false');
+}
+
+function closeAuthModal() {
+  if (!isAuthenticated()) return;
+  const overlay = document.getElementById('auth-modal-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('active');
+  overlay.setAttribute('aria-hidden', 'true');
+}
+
+async function readJsonResponseSafe(response) {
+  const raw = await response.text();
+  try {
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {
+      error: raw && raw.trim()
+        ? `登入 API 回傳了非 JSON 內容：${raw.trim().slice(0, 120)}`
+        : '登入 API 沒有回傳可讀資料。'
+    };
+  }
+}
+
 function setAuthenticatedSession(token = '', user = null) {
   APP_STATE.auth = { token, user };
   persistAuthState(token, user);
@@ -1118,6 +1151,7 @@ function setAuthenticatedSession(token = '', user = null) {
   APP_STATE.pinnedSession = loadPinnedSession();
   APP_STATE.recentSessions = getRecentSessionSummaries();
   updateAuthUI();
+  closeAuthModal();
 }
 
 function clearAuthenticatedSession(options = {}) {
@@ -1139,6 +1173,7 @@ function clearAuthenticatedSession(options = {}) {
 function ensureAuthenticated(actionLabel = '使用這個功能') {
   if (isAuthenticated()) return true;
   appendSystemNotice(`請先登入病人或醫師帳號，才能${actionLabel}。`);
+  openAuthModal(true);
   showScreen('screen-home');
   return false;
 }
@@ -1147,19 +1182,21 @@ async function restoreAuthenticatedSession() {
   const token = String(APP_STATE.auth?.token || '').trim();
   if (!token) {
     updateAuthUI();
+    openAuthModal(true);
     return;
   }
 
   try {
-    const response = await fetch('/auth/me');
+    const response = await fetch('/api/auth/me');
     if (!response.ok) {
       throw new Error('Session expired');
     }
-    const payload = await response.json();
+    const payload = await readJsonResponseSafe(response);
     setAuthenticatedSession(token, payload.user || null);
   } catch {
     clearAuthenticatedSession({ resetConversation: false });
     appendSystemNotice('登入狀態已失效，請重新登入。');
+    openAuthModal(true);
   }
 }
 
@@ -1188,7 +1225,7 @@ async function submitAuth(action = 'login') {
   }
 
   try {
-    const response = await fetch(action === 'register' ? '/auth/register' : '/auth/login', {
+    const response = await fetch(action === 'register' ? '/api/auth/register' : '/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1198,7 +1235,7 @@ async function submitAuth(action = 'login') {
         password
       })
     });
-    const payload = await response.json();
+    const payload = await readJsonResponseSafe(response);
     if (!response.ok) {
       throw new Error(payload.error || '登入失敗');
     }
@@ -1221,12 +1258,13 @@ async function submitAuth(action = 'login') {
 
 async function logoutAuth() {
   try {
-    await fetch('/auth/logout', { method: 'POST' });
+    await fetch('/api/auth/logout', { method: 'POST' });
   } catch {
     // Ignore network errors on logout and clear local auth anyway.
   }
   clearAuthenticatedSession();
   appendSystemNotice('已登出，目前回到訪客狀態。');
+  openAuthModal(true);
   showScreen('screen-home');
 }
 
@@ -7624,6 +7662,7 @@ window.selectAuthRole = selectAuthRole;
 window.loginAuth = () => submitAuth('login');
 window.registerAuth = () => submitAuth('register');
 window.logoutAuth = logoutAuth;
+window.closeAuthModal = closeAuthModal;
 window.sendQuickReply = sendQuickReply;
 window.activateShortcut = activateShortcut;
 window.sendMessage = sendMessage;

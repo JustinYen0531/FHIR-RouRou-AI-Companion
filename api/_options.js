@@ -5,6 +5,10 @@ const {
   DEFAULT_PUBLIC_FHIR_BASE_URL
 } = require('../app/fhirDeliveryServer');
 const {
+  createAuthStore,
+  DEFAULT_AUTH_STORE_PATH
+} = require('../app/authStore');
+const {
   DEFAULT_SESSION_STORE_PATH,
   createSessionPersistence,
   listSessionSummaries
@@ -18,6 +22,7 @@ const {
 } = require('../app/llmChatClient');
 
 let sharedPersistence = null;
+let sharedAuthStore = null;
 
 function getSharedPersistence() {
   if (!sharedPersistence) {
@@ -26,6 +31,29 @@ function getSharedPersistence() {
     });
   }
   return sharedPersistence;
+}
+
+function getSharedAuthStore() {
+  if (!sharedAuthStore) {
+    sharedAuthStore = createAuthStore({
+      filePath: process.env.AI_COMPANION_AUTH_STORE || DEFAULT_AUTH_STORE_PATH
+    });
+  }
+  return sharedAuthStore;
+}
+
+function getBearerTokenFromRequest(req) {
+  const header = String(req.headers?.authorization || '').trim();
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match ? String(match[1] || '').trim() : '';
+}
+
+function getAuthUserFromRequest(req) {
+  const token = getBearerTokenFromRequest(req);
+  if (!token) return null;
+  const authStore = getSharedAuthStore();
+  const result = authStore.getSessionByToken(token);
+  return result?.user || null;
 }
 
 function buildServerOptions() {
@@ -57,12 +85,16 @@ function buildServerOptions() {
     llmProvider,
     llmModel,
     sessionStorePath: persistence.filePath,
-    sessions: persistence.sessions
+    sessions: persistence.sessions,
+    authStorePath: process.env.AI_COMPANION_AUTH_STORE || DEFAULT_AUTH_STORE_PATH,
+    authStore: getSharedAuthStore()
   };
 }
 
 module.exports = {
   buildServerOptions,
+  getSharedAuthStore,
+  getAuthUserFromRequest,
   getSharedPersistence,
   listSessionSummaries,
   processChatPayload,

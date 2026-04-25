@@ -884,7 +884,7 @@ function createServer(options = {}) {
       return;
     }
 
-    if (req.method === 'GET' && parsedUrl.pathname === '/auth/me') {
+    if (req.method === 'GET' && (parsedUrl.pathname === '/auth/me' || parsedUrl.pathname === '/api/auth/me')) {
       if (!authUser) {
         sendJson(res, 401, { error: 'Unauthorized' });
         return;
@@ -893,7 +893,7 @@ function createServer(options = {}) {
       return;
     }
 
-    if (req.method === 'POST' && parsedUrl.pathname === '/auth/logout') {
+    if (req.method === 'POST' && (parsedUrl.pathname === '/auth/logout' || parsedUrl.pathname === '/api/auth/logout')) {
       if (bearerToken) {
         authStore.revokeSession(bearerToken);
       }
@@ -974,7 +974,7 @@ function createServer(options = {}) {
       return;
     }
 
-    if (!['POST', 'PATCH'].includes(req.method) || !['/auth/register', '/auth/login', '/api/fhir/bundle', '/api/fhir/check', '/api/fhir/resource-refresh', '/api/chat/message', '/api/chat/output', '/api/chat/session'].includes(parsedUrl.pathname)) {
+    if (!['POST', 'PATCH'].includes(req.method) || !['/auth/register', '/auth/login', '/api/auth/register', '/api/auth/login', '/api/fhir/bundle', '/api/fhir/check', '/api/fhir/resource-refresh', '/api/chat/message', '/api/chat/output', '/api/chat/session'].includes(parsedUrl.pathname)) {
       sendJson(res, 404, { error: 'Not found' });
       return;
     }
@@ -994,7 +994,7 @@ function createServer(options = {}) {
         return;
       }
 
-      if (req.method === 'POST' && parsedUrl.pathname === '/auth/register') {
+      if (req.method === 'POST' && (parsedUrl.pathname === '/auth/register' || parsedUrl.pathname === '/api/auth/register')) {
         try {
           const user = authStore.registerUser(payload);
           const loginResult = authStore.login(payload);
@@ -1008,7 +1008,7 @@ function createServer(options = {}) {
         return;
       }
 
-      if (req.method === 'POST' && parsedUrl.pathname === '/auth/login') {
+      if (req.method === 'POST' && (parsedUrl.pathname === '/auth/login' || parsedUrl.pathname === '/api/auth/login')) {
         try {
           const loginResult = authStore.login(payload);
           sendJson(res, 200, Object.assign(buildSafeAuthPayload(loginResult), {

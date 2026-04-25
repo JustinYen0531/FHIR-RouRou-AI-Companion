@@ -160,6 +160,51 @@ input, textarea {
   white-space: nowrap;
 }
 
+.auth-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(18, 26, 31, 0.34);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.24s ease;
+}
+
+.auth-modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.auth-modal-card {
+  width: min(100%, 360px);
+  border-radius: 30px;
+  padding: 20px 18px 18px;
+  background:
+    radial-gradient(circle at top right, rgba(200, 231, 251, 0.95), transparent 38%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(236, 245, 239, 0.98));
+  box-shadow: 0 24px 60px rgba(18, 26, 31, 0.18);
+  transform: translateY(18px) scale(0.98);
+  transition: transform 0.24s var(--ease-natural);
+}
+
+.auth-modal-overlay.active .auth-modal-card {
+  transform: translateY(0) scale(1);
+}
+
+.auth-modal-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
 .auth-role-switch {
   display: flex;
   gap: 8px;

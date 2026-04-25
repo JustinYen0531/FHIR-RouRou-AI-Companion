@@ -1,4 +1,4 @@
-const { buildServerOptions, processChatPayload } = require('../_options');
+const { buildServerOptions, getAuthUserFromRequest, processChatPayload } = require('../_options');
 const { handleCors, readJsonBody, sendJson } = require('../_shared');
 
 module.exports = async function handler(req, res) {
@@ -19,6 +19,10 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const result = await processChatPayload(payload, buildServerOptions());
+  const authUser = getAuthUserFromRequest(req);
+  if (authUser) {
+    payload.user = authUser.id;
+  }
+  const result = await processChatPayload(payload, Object.assign({}, buildServerOptions(), { authUser }));
   sendJson(res, result.statusCode, result.body);
 };

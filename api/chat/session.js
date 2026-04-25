@@ -1,4 +1,4 @@
-const { buildServerOptions, getSharedPersistence } = require('../_options');
+const { buildServerOptions, getAuthUserFromRequest, getSharedPersistence } = require('../_options');
 const { handleCors, readJsonBody, sendJson } = require('../_shared');
 
 module.exports = async function handler(req, res) {
@@ -20,6 +20,7 @@ module.exports = async function handler(req, res) {
 
   const persistence = getSharedPersistence();
   buildServerOptions();
+  const authUser = getAuthUserFromRequest(req);
 
   if (req.method === 'PATCH') {
     let payload;
@@ -31,10 +32,14 @@ module.exports = async function handler(req, res) {
     }
 
     let session = persistence.sessions.get(sessionId);
+    if (session && authUser && String(session.user || '').trim() !== authUser.id) {
+      sendJson(res, 403, { error: 'Forbidden' });
+      return;
+    }
     if (!session) {
       session = {
         id: sessionId,
-        user: payload.user || 'web-demo-user',
+        user: authUser?.id || payload.user || 'web-demo-user',
         startedAt: payload.startedAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         history: [],
@@ -72,7 +77,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (payload.user) {
-      session.user = payload.user;
+      session.user = authUser?.id || payload.user;
     }
 
     if (payload.startedAt) {
@@ -90,8 +95,13 @@ module.exports = async function handler(req, res) {
   }
 
   if (req.method === 'DELETE') {
-    if (!persistence.sessions.has(sessionId)) {
+    const existing = persistence.sessions.get(sessionId);
+    if (!existing) {
       sendJson(res, 404, { error: 'Session not found.' });
+      return;
+    }
+    if (authUser && String(existing.user || '').trim() !== authUser.id) {
+      sendJson(res, 403, { error: 'Forbidden' });
       return;
     }
 
@@ -104,6 +114,10 @@ module.exports = async function handler(req, res) {
   const session = persistence.sessions.get(sessionId);
   if (!session) {
     sendJson(res, 404, { error: 'Session not found.' });
+    return;
+  }
+  if (authUser && String(session.user || '').trim() !== authUser.id) {
+    sendJson(res, 403, { error: 'Forbidden' });
     return;
   }
 
