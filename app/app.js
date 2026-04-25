@@ -1648,8 +1648,9 @@ function persistAuthState(token = '', user = null) {
 }
 
 function syncAuthStateToApp() {
-  APP_STATE.userId = PROTOTYPE_SHARED_CHAT_USER_ID;
-  localStorage.setItem('rourou.userId', PROTOTYPE_SHARED_CHAT_USER_ID);
+  const userId = APP_STATE.auth?.user?.id || PROTOTYPE_SHARED_CHAT_USER_ID;
+  APP_STATE.userId = userId;
+  localStorage.setItem('rourou.userId', userId);
 }
 
 function updateAuthUI() {
