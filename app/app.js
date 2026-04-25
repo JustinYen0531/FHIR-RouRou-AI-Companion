@@ -1822,6 +1822,7 @@ function setAuthenticatedSession(token = '', user = null) {
   APP_STATE.patientAssignment = null;
   persistAuthState(token, user);
   syncAuthStateToApp();
+  migrateGuestSessionsToAuthUser(user?.id);
   APP_STATE.pinnedSession = loadPinnedSession();
   APP_STATE.recentSessions = getRecentSessionSummaries();
   updateAuthUI();
@@ -7359,6 +7360,21 @@ function saveLocalSessionArchiveRecords(records = []) {
     .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
     .slice(0, MAX_LOCAL_SESSION_ARCHIVE_RECORDS);
   localStorage.setItem(LOCAL_SESSION_ARCHIVE_KEY, JSON.stringify(normalized));
+}
+
+function migrateGuestSessionsToAuthUser(authUserId) {
+  if (!authUserId || authUserId === DEFAULT_USER_ID) return;
+  const records = loadLocalSessionArchiveRecords();
+  const hasChanges = records.some((record) => record.user === DEFAULT_USER_ID);
+  if (!hasChanges) return;
+
+  const migratedRecords = records.map((record) => {
+    if (record.user === DEFAULT_USER_ID) {
+      return { ...record, user: authUserId };
+    }
+    return record;
+  });
+  saveLocalSessionArchiveRecords(migratedRecords);
 }
 
 function findLocalSessionArchiveById(sessionId) {
