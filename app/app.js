@@ -3928,7 +3928,9 @@ async function submitDoctorAddPatient() {
     if (!result.ok) {
       const code = result.payload?.code || '';
       if (result.status === 401) {
-        throw new Error('登入狀態已過期，請重新登入醫師帳號。');
+        clearAuthenticatedSession({ resetConversation: false });
+        openAuthModal(true);
+        throw new Error('為了保護病人資料，醫師登入驗證已失效，請重新用醫師帳號登入後再加入病人。');
       }
       if (result.status === 403) {
         throw new Error('目前帳號沒有查找其他病人的權限（必須是醫師帳號）。');
