@@ -136,9 +136,49 @@
         <span class="mat-icon fill">groups</span>
         <span>病人</span>
       </button>
-      <button class="nav-item" onclick="focusDoctorPendingTasks()">
-        <span class="mat-icon fill">assignment</span>
-        <span>待處理</span>
+      <button class="nav-item" onclick="showScreen('screen-doctor-assign')">
+        <span class="mat-icon fill">edit_note</span>
+        <span>指派</span>
+      </button>
+      <button class="nav-item" onclick="showScreen('screen-settings')">
+        <span class="mat-icon">person_2</span>
+        <span>設定</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- ===== SCREEN: DOCTOR ASSIGN ===== -->
+  <div class="screen" id="screen-doctor-assign">
+    <header class="top-bar glass doctor-topbar">
+      <div class="top-bar-left">
+        <div class="avatar-orb doctor-orb">
+          <span class="mat-icon fill">edit_note</span>
+        </div>
+        <div>
+          <h1 class="app-title">指派 / 送出病歷</h1>
+          <div class="status-row">
+            <span class="status-dot"></span>
+            <span class="status-label">病歷 &amp; 醫囑輸入</span>
+          </div>
+        </div>
+      </div>
+      <button class="icon-btn" type="button" aria-label="設定" onclick="showScreen('screen-settings')">
+        <span class="mat-icon">settings</span>
+      </button>
+    </header>
+
+    <main class="page-scroll doctor-dashboard-scroll">
+      <section id="doctor-assign-content" class="doctor-detail"></section>
+    </main>
+
+    <nav class="bottom-nav glass doctor-nav">
+      <button class="nav-item" onclick="showScreen('screen-doctor-dashboard')">
+        <span class="mat-icon fill">groups</span>
+        <span>病人</span>
+      </button>
+      <button class="nav-item active" onclick="showScreen('screen-doctor-assign')">
+        <span class="mat-icon fill">edit_note</span>
+        <span>指派</span>
       </button>
       <button class="nav-item" onclick="showScreen('screen-settings')">
         <span class="mat-icon">person_2</span>

@@ -3737,11 +3737,47 @@ function renderDoctorPatientDetail() {
       <div class="doctor-summary-note">${escapeHtml(patient.lastVisitNote)}</div>
     </div>
 
+    <div class="doctor-usage-status-grid">
+      <div class="doctor-stat">
+        <span class="doctor-status-pill ${getDoctorStatusClass(patient.medicalRecordStatus)}">${escapeHtml(patient.medicalRecordStatus)}</span>
+        <span class="doctor-stat-label">病歷狀態</span>
+      </div>
+      <div class="doctor-stat">
+        <span class="doctor-status-pill ${getDoctorStatusClass(patient.orderStatus)}">${escapeHtml(patient.orderStatus)}</span>
+        <span class="doctor-stat-label">醫囑狀態</span>
+      </div>
+    </div>
+
+    <div style="margin-top:1rem;text-align:center;">
+      <button class="primary-btn" type="button" onclick="showScreen('screen-doctor-assign')">前往指派 / 輸入病歷醫囑</button>
+    </div>
+  `;
+}
+
+function renderDoctorAssignScreen() {
+  const content = document.getElementById('doctor-assign-content');
+  if (!content) return;
+  const patient = getSelectedDoctorPatient();
+  if (!patient) {
+    content.innerHTML = '<div class="doctor-empty">請先在「病人」頁面選取一位病人，再來此輸入病歷與醫囑。</div>';
+    return;
+  }
+
+  content.innerHTML = `
+    <div class="doctor-detail-head">
+      <div>
+        <div class="section-label">ASSIGN / SUBMIT</div>
+        <h3 class="doctor-detail-title">${escapeHtml(patient.name)}</h3>
+        <div class="doctor-detail-meta">${escapeHtml(patient.patientNumber)} ・ 風險觀察：${escapeHtml(patient.riskLevel)}</div>
+      </div>
+      <span class="doctor-status-pill ${getDoctorStatusClass(patient.aiSummaryStatus)}">${escapeHtml(patient.aiSummaryStatus)}</span>
+    </div>
+
     <div class="doctor-action-grid">
       <section class="doctor-action-panel">
         <div class="doctor-action-kicker">病歷送入</div>
-        <h4>送入病歷展示入口</h4>
-        <p>目前只切換 prototype 狀態，不寫入 HIS / EMR / FHIR。</p>
+        <h4>送入病歷</h4>
+        <p>填寫下方欄位後，在此送出病歷。</p>
         <div class="doctor-action-state">目前狀態：${escapeHtml(patient.medicalRecordStatus)}</div>
         <button class="primary-btn doctor-action-btn" type="button" onclick="markMedicalRecordSent()">標示為已送入</button>
       </section>
@@ -4041,6 +4077,7 @@ function saveDoctorOrderDraft() {
   patient.orderStatus = draft ? '已暫存' : '未填寫';
   saveDoctorWorkspace();
   renderDoctorDashboard();
+  renderDoctorAssignScreen();
   appendSystemNotice(draft ? '醫囑草稿已暫存於醫師工作台。' : '醫囑草稿已清空。');
 }
 
@@ -4050,6 +4087,7 @@ function markMedicalRecordSent() {
   patient.medicalRecordStatus = '已送入';
   saveDoctorWorkspace();
   renderDoctorDashboard();
+  renderDoctorAssignScreen();
   appendSystemNotice('已把此病人標示為「病歷已送入」。這是 prototype 狀態，不會寫入正式醫院系統。');
 }
 
@@ -4102,7 +4140,7 @@ function addMedicalRecordItem(listPath) {
   } else {
     record[listPath].push({ ...blank });
   }
-  renderDoctorPatientDetail();
+  renderDoctorAssignScreen();
 }
 
 function removeMedicalRecordItem(listPath, index) {
@@ -4113,7 +4151,7 @@ function removeMedicalRecordItem(listPath, index) {
   const list = listPath === 'questionnaire.items' ? record.questionnaire.items : record[listPath];
   if (!Array.isArray(list)) return;
   list.splice(index, 1);
-  renderDoctorPatientDetail();
+  renderDoctorAssignScreen();
 }
 
 function saveMedicalRecordForm() {
@@ -4132,6 +4170,7 @@ function saveMedicalRecordForm() {
   patient.medicalRecord = record;
   saveDoctorWorkspace();
   renderDoctorDashboard();
+  renderDoctorAssignScreen();
   appendSystemNotice('病歷欄位已儲存於醫師工作台（本地 prototype，不會寫入 HIS / EMR / 正式 FHIR）。');
 }
 
@@ -4365,6 +4404,10 @@ function focusDoctorPendingTasks() {
 function showScreen(screenId) {
   if (isDoctorUser() && ['screen-chat', 'screen-phq9', 'screen-report', 'screen-energy'].includes(screenId)) {
     screenId = 'screen-doctor-dashboard';
+  }
+
+  if (screenId === 'screen-doctor-assign') {
+    renderDoctorAssignScreen();
   }
 
   document.querySelectorAll('.screen').forEach((screen) => {
