@@ -5998,6 +5998,24 @@ function buildOutputShortcutMessage(outputType) {
   return messages[outputType] || `請幫我處理${OUTPUT_DEFINITIONS[outputType]?.label || outputType}。`;
 }
 
+const SHORTCUT_USER_MESSAGES = new Set([
+  '請幫我整理成給醫師看的重點。',
+  '請幫我看看我現在的狀態。',
+  '請幫我整理成我自己看得懂的版本。',
+  '請幫我準備 FHIR 草稿。'
+]);
+
+function isEphemeralShortcutMessage(item) {
+  if (!item || typeof item !== 'object') return false;
+  if (item.ephemeral) return true;
+  const content = String(item.content || '').trim();
+  if (!content) return false;
+  if (item.role === 'user' && SHORTCUT_USER_MESSAGES.has(content)) return true;
+  if ((item.role === 'ai' || item.role === 'assistant')
+      && /^.+ 已更新。你可以到 Reports 頁面查看最新內容。$/.test(content)) return true;
+  return false;
+}
+
 async function activateShortcut(command) {
   const normalized = decodeURIComponent(String(command || '')).trim();
   if (!normalized) return;
@@ -7404,7 +7422,7 @@ function getRecentSessionSummaries(limit = MAX_LOCAL_SESSION_ARCHIVE_RECORDS) {
 function buildCurrentSessionRecord() {
   if (!APP_STATE.conversationId) return null;
   const sessionExport = APP_STATE.reportOutputs.session_export || {};
-  const history = normalizeChatHistoryEntries(APP_STATE.chatHistory.filter((e) => !e.ephemeral));
+  const history = normalizeChatHistoryEntries(APP_STATE.chatHistory.filter((e) => !isEphemeralShortcutMessage(e)));
   const lastUserMessage = findLatestHistoryContent(history, 'user');
   const lastAssistantMessage = findLatestHistoryContent(history, ['ai', 'assistant']);
   const latestTagPayload = APP_STATE.lastChatMetadata?.latest_tag_payload || sessionExport.latest_tag_payload || {};
@@ -7556,7 +7574,7 @@ function applySessionRecord(session = {}, fallbackSessionId = '') {
     latest_tag_payload: normalizedSession.state?.latest_tag_payload || {},
     burden_level_state: normalizedSession.state?.burden_level_state || {}
   };
-  APP_STATE.chatHistory = normalizeChatHistoryEntries(normalizedSession.history).filter((e) => !e.ephemeral).slice(-24);
+  APP_STATE.chatHistory = normalizeChatHistoryEntries(normalizedSession.history).filter((e) => !isEphemeralShortcutMessage(e)).slice(-24);
   APP_STATE.reportOutputs.clinician_summary = null;
   APP_STATE.reportOutputs.patient_analysis = null;
   APP_STATE.reportOutputs.patient_review = null;
@@ -7882,7 +7900,7 @@ function renderChatHistory(history = []) {
   if (sensorBadge) container.appendChild(sensorBadge);
   if (dateChip) container.appendChild(dateChip);
 
-  const items = (Array.isArray(history) ? history : []).filter((e) => !e.ephemeral);
+  const items = (Array.isArray(history) ? history : []).filter((e) => !isEphemeralShortcutMessage(e));
   items.forEach((item) => {
     if (!item || !item.role || !item.content) return;
     const { bubble } = createMessageBubble(item.role);
