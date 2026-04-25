@@ -1003,7 +1003,10 @@ function createServer(options = {}) {
             user
           }));
         } catch (error) {
-          sendJson(res, 400, { error: error.message || 'Unable to register user.' });
+          sendJson(res, 400, {
+            error: error.message || 'Unable to register user.',
+            code: error.message === 'login_identifier already exists' ? 'account_exists' : (error.code || 'register_failed')
+          });
         }
         return;
       }
@@ -1015,7 +1018,10 @@ function createServer(options = {}) {
             token: loginResult.token
           }));
         } catch (error) {
-          sendJson(res, 401, { error: error.message || 'Unable to login.' });
+          sendJson(res, 401, {
+            error: error.message || 'Unable to login.',
+            code: error.code || 'login_failed'
+          });
         }
         return;
       }

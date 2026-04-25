@@ -10,6 +10,12 @@ const PASSWORD_ITERATIONS = 120000;
 const PASSWORD_KEYLEN = 64;
 const PASSWORD_DIGEST = 'sha512';
 
+function createAuthError(message, code) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
 function ensureParentDir(filePath) {
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) {
@@ -221,8 +227,14 @@ function createAuthStore(options = {}) {
     const loginIdentifier = normalizeLoginIdentifier(input.login_identifier);
     const password = String(input.password || '');
     const user = findUserByLoginIdentifier(loginIdentifier);
-    if (!user || user.status !== 'active' || !verifyPassword(password, user.password_hash)) {
-      throw new Error('invalid credentials');
+    if (!user) {
+      throw createAuthError('account not found', 'account_not_found');
+    }
+    if (user.status !== 'active') {
+      throw createAuthError('account disabled', 'account_disabled');
+    }
+    if (!verifyPassword(password, user.password_hash)) {
+      throw createAuthError('password is incorrect', 'invalid_password');
     }
     const { token, session } = createSessionForUser(user.id);
     return {

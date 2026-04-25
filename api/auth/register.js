@@ -34,6 +34,9 @@ module.exports = async function handler(req, res) {
       }
     });
   } catch (error) {
-    sendJson(res, 400, { error: error.message || 'Unable to register user.' });
+    sendJson(res, 400, {
+      error: error.message || 'Unable to register user.',
+      code: error.message === 'login_identifier already exists' ? 'account_exists' : (error.code || 'register_failed')
+    });
   }
 };

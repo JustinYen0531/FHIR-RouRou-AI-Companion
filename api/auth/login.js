@@ -33,6 +33,9 @@ module.exports = async function handler(req, res) {
       }
     });
   } catch (error) {
-    sendJson(res, 401, { error: error.message || 'Unable to login.' });
+    sendJson(res, 401, {
+      error: error.message || 'Unable to login.',
+      code: error.code || 'login_failed'
+    });
   }
 };

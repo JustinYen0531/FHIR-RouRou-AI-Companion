@@ -1144,6 +1144,41 @@ async function readJsonResponseSafe(response) {
   }
 }
 
+function formatAuthErrorMessage(payload = {}, action = 'login') {
+  const code = String(payload.code || '').trim();
+  if (code === 'account_not_found') {
+    return action === 'login'
+      ? '這個帳號還不存在。我會試著幫你建立帳號並登入。'
+      : '這個帳號還不存在。';
+  }
+  if (code === 'account_exists') {
+    return '這個帳號已經存在，我會改用登入試試看。';
+  }
+  if (code === 'invalid_password') {
+    return '密碼不正確，請再確認一次。';
+  }
+  if (code === 'account_disabled') {
+    return '這個帳號目前停用中。';
+  }
+  if (String(payload.error || '').includes('not found')) {
+    return '找不到這個帳號，請先註冊或補上顯示名稱讓我幫你建立。';
+  }
+  return payload.error || (action === 'register' ? '註冊失敗。' : '登入失敗。');
+}
+
+async function requestAuthAction(action, body) {
+  const response = await fetch(action === 'register' ? '/api/auth/register' : '/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const payload = await readJsonResponseSafe(response);
+  return {
+    ok: response.ok,
+    payload
+  };
+}
+
 function setAuthenticatedSession(token = '', user = null) {
   APP_STATE.auth = { token, user };
   persistAuthState(token, user);
@@ -1225,25 +1260,34 @@ async function submitAuth(action = 'login') {
   }
 
   try {
-    const response = await fetch(action === 'register' ? '/api/auth/register' : '/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        role,
-        display_name: displayName,
-        login_identifier: loginIdentifier,
-        password
-      })
-    });
-    const payload = await readJsonResponseSafe(response);
-    if (!response.ok) {
-      throw new Error(payload.error || '登入失敗');
+    const authBody = {
+      role,
+      display_name: displayName,
+      login_identifier: loginIdentifier,
+      password
+    };
+    let result = await requestAuthAction(action, authBody);
+    let finalAction = action;
+
+    if (!result.ok && action === 'login' && result.payload.code === 'account_not_found' && displayName) {
+      if (status) status.textContent = '找不到帳號，正在幫你建立並登入...';
+      result = await requestAuthAction('register', authBody);
+      finalAction = 'register';
+    } else if (!result.ok && action === 'register' && result.payload.code === 'account_exists') {
+      if (status) status.textContent = '帳號已存在，正在改用登入...';
+      result = await requestAuthAction('login', authBody);
+      finalAction = 'login';
     }
+
+    if (!result.ok) {
+      throw new Error(formatAuthErrorMessage(result.payload, action));
+    }
+    const payload = result.payload;
     setAuthenticatedSession(payload.token || '', payload.user || null);
     if (status) {
-      status.textContent = action === 'register' ? '帳號建立成功，已自動登入。' : '登入成功。';
+      status.textContent = finalAction === 'register' ? '帳號建立成功，已自動登入。' : '登入成功。';
     }
-    appendSystemNotice(action === 'register' ? '帳號建立完成，現在系統知道你是誰了。' : '登入成功，身份系統已啟用。');
+    appendSystemNotice(finalAction === 'register' ? '帳號建立完成，現在系統知道你是誰了。' : '登入成功，身份系統已啟用。');
     showScreen('screen-home');
   } catch (error) {
     if (status) {
