@@ -3178,6 +3178,25 @@ body {
   margin-bottom: 12px;
 }
 
+.doctor-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.doctor-add-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow: 0 8px 18px rgba(68, 102, 85, 0.18);
+}
+
 .doctor-lite-btn {
   padding: 8px 10px;
   border-radius: 999px;
@@ -3355,6 +3374,69 @@ body {
 .doctor-empty {
   color: #60717b;
   font-size: 13px;
+}
+
+.settings-auth-id {
+  width: fit-content;
+  margin-top: 8px;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: rgba(200, 231, 251, 0.55);
+  color: var(--secondary-dim);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.doctor-add-patient-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 132;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(18, 26, 31, 0.34);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.24s ease;
+}
+
+.doctor-add-patient-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.doctor-add-patient-card {
+  width: min(100%, 360px);
+  border-radius: 30px;
+  padding: 20px 18px 18px;
+  background:
+    radial-gradient(circle at top right, rgba(200, 231, 251, 0.95), transparent 38%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(236, 245, 239, 0.98));
+  box-shadow: 0 24px 60px rgba(18, 26, 31, 0.18);
+  transform: translateY(18px) scale(0.98);
+  transition: transform 0.24s var(--ease-natural);
+}
+
+.doctor-add-patient-overlay.active .doctor-add-patient-card {
+  transform: translateY(0) scale(1);
+}
+
+.doctor-add-patient-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.doctor-add-patient-copy {
+  margin-bottom: 12px;
+  color: #566a72;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .energy-headline,

@@ -968,6 +968,8 @@ function normalizeDoctorPatient(patient = {}) {
     id: String(patient.id || `patient-${Date.now()}`),
     patientNumber: String(patient.patientNumber || 'P-DEMO'),
     name: String(patient.name || '未命名病人'),
+    loginIdentifier: String(patient.loginIdentifier || patient.login_identifier || ''),
+    source: String(patient.source || 'demo'),
     latestAiRecordAt: String(patient.latestAiRecordAt || '尚無紀錄'),
     aiSummaryStatus: String(patient.aiSummaryStatus || '尚未整理'),
     medicalRecordStatus: String(patient.medicalRecordStatus || '待送入'),
@@ -993,9 +995,14 @@ function normalizeDoctorWorkspace(workspace = {}) {
   };
 }
 
-function loadDoctorWorkspace() {
+function getDoctorWorkspaceStorageKey(ownerId = '') {
+  const normalizedOwnerId = String(ownerId || '').trim();
+  return normalizedOwnerId ? `${DOCTOR_WORKSPACE_STORAGE_KEY}.${normalizedOwnerId}` : DOCTOR_WORKSPACE_STORAGE_KEY;
+}
+
+function loadDoctorWorkspace(ownerId = '') {
   try {
-    return normalizeDoctorWorkspace(JSON.parse(localStorage.getItem(DOCTOR_WORKSPACE_STORAGE_KEY) || 'null') || {});
+    return normalizeDoctorWorkspace(JSON.parse(localStorage.getItem(getDoctorWorkspaceStorageKey(ownerId)) || 'null') || {});
   } catch {
     return normalizeDoctorWorkspace({});
   }
@@ -1003,7 +1010,8 @@ function loadDoctorWorkspace() {
 
 function saveDoctorWorkspace() {
   try {
-    localStorage.setItem(DOCTOR_WORKSPACE_STORAGE_KEY, JSON.stringify(APP_STATE.doctorWorkspace));
+    const ownerId = isDoctorUser() ? getCurrentAuthUser()?.id : '';
+    localStorage.setItem(getDoctorWorkspaceStorageKey(ownerId), JSON.stringify(APP_STATE.doctorWorkspace));
   } catch {
     // Local demo state is best-effort only.
   }
@@ -1154,6 +1162,7 @@ function updateAuthUI() {
   const authModalClose = document.getElementById('auth-modal-close');
   const settingsAuthName = document.getElementById('settings-auth-name');
   const settingsAuthMeta = document.getElementById('settings-auth-meta');
+  const settingsAuthId = document.getElementById('settings-auth-id');
   const settingsAuthBadge = document.getElementById('settings-auth-badge');
   const settingsAuthActions = document.getElementById('settings-auth-actions');
   const settingsLogout = document.getElementById('settings-auth-logout');
@@ -1206,6 +1215,11 @@ function updateAuthUI() {
     settingsAuthMeta.textContent = isLoggedIn
       ? `${getAuthRoleLabel(user.role)} ・ ${user.login_identifier}`
       : '登入後，系統才會知道你是病人還是醫師';
+  }
+  if (settingsAuthId) {
+    settingsAuthId.style.display = isLoggedIn ? 'inline-flex' : 'none';
+    settingsAuthId.textContent = isLoggedIn ? `帳號 ID：${user.id}` : '';
+    settingsAuthId.title = isLoggedIn ? '這個 ID 可提供給醫師加入病人清單' : '';
   }
   if (settingsAuthBadge) {
     settingsAuthBadge.textContent = isLoggedIn ? getAuthRoleLabel(user.role) : '訪客';
@@ -1306,6 +1320,7 @@ function setAuthenticatedSession(token = '', user = null) {
   updateAuthUI();
   closeAuthModal();
   if (user?.role === 'doctor') {
+    APP_STATE.doctorWorkspace = loadDoctorWorkspace(user.id);
     renderDoctorDashboard();
     showScreen('screen-doctor-dashboard');
   }
@@ -3461,6 +3476,105 @@ function getDoctorStatusClass(status = '') {
   if (String(status).includes('已')) return 'complete';
   if (String(status).includes('待') || String(status).includes('未')) return 'pending';
   return 'draft';
+}
+
+function buildDoctorPatientFromUser(user = {}) {
+  const patientId = String(user.id || '').trim();
+  const displayName = String(user.display_name || user.login_identifier || patientId || '未命名病人').trim();
+  return normalizeDoctorPatient({
+    id: patientId,
+    patientNumber: patientId,
+    name: displayName,
+    loginIdentifier: user.login_identifier || '',
+    source: 'manual_id',
+    latestAiRecordAt: '尚未同步',
+    aiSummaryStatus: '尚未整理',
+    medicalRecordStatus: '待送入',
+    orderStatus: '未填寫',
+    riskLevel: '待評估',
+    aiSummary: '此病人是由醫師輸入病人 ID 加入。AI 使用紀錄摘要尚未接上 CareLink / 正式資料同步。',
+    lastVisitNote: '目前只建立醫師工作台清單項目，尚未完成病人端授權確認。',
+    orderDraft: ''
+  });
+}
+
+function openDoctorAddPatientModal() {
+  if (!isDoctorUser()) {
+    appendSystemNotice('只有醫師身份可以用病人 ID 加入病人。');
+    return;
+  }
+  const overlay = document.getElementById('doctor-add-patient-overlay');
+  const input = document.getElementById('doctor-add-patient-id');
+  const status = document.getElementById('doctor-add-patient-status');
+  if (!overlay) return;
+  if (input) input.value = '';
+  if (status) status.textContent = '輸入病人 ID 後加入。';
+  overlay.classList.add('active');
+  overlay.setAttribute('aria-hidden', 'false');
+  window.requestAnimationFrame(() => input?.focus());
+}
+
+function closeDoctorAddPatientModal() {
+  const overlay = document.getElementById('doctor-add-patient-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('active');
+  overlay.setAttribute('aria-hidden', 'true');
+}
+
+async function fetchUserById(userId = '') {
+  const response = await fetch(`/api/auth/users?id=${encodeURIComponent(userId)}`);
+  const payload = await readJsonResponseSafe(response);
+  return {
+    ok: response.ok,
+    status: response.status,
+    payload
+  };
+}
+
+async function submitDoctorAddPatient() {
+  if (!isDoctorUser()) return;
+  const input = document.getElementById('doctor-add-patient-id');
+  const status = document.getElementById('doctor-add-patient-status');
+  const submitButton = document.getElementById('doctor-add-patient-submit');
+  const patientId = String(input?.value || '').trim();
+
+  if (!patientId) {
+    if (status) status.textContent = '請先輸入病人 ID。';
+    return;
+  }
+  if (APP_STATE.doctorWorkspace.patients.some((patient) => patient.id === patientId)) {
+    if (status) status.textContent = '這位病人已經在你的清單裡。';
+    return;
+  }
+
+  if (submitButton) submitButton.disabled = true;
+  if (status) status.textContent = '正在查找病人...';
+
+  try {
+    const result = await fetchUserById(patientId);
+    if (!result.ok) {
+      const code = result.payload?.code || '';
+      throw new Error(code === 'user_not_found' ? '找不到這個病人 ID。' : (result.payload?.error || '查找病人失敗。'));
+    }
+    const user = result.payload?.user;
+    if (!user || user.role !== 'patient') {
+      throw new Error('這個 ID 不是病人帳號，不能加入病人清單。');
+    }
+    const patient = buildDoctorPatientFromUser(user);
+    APP_STATE.doctorWorkspace.patients = [
+      patient,
+      ...APP_STATE.doctorWorkspace.patients.filter((item) => item.id !== patient.id)
+    ];
+    APP_STATE.doctorWorkspace.selectedPatientId = patient.id;
+    saveDoctorWorkspace();
+    renderDoctorDashboard();
+    closeDoctorAddPatientModal();
+    appendSystemNotice(`已加入病人：${patient.name}。`);
+  } catch (error) {
+    if (status) status.textContent = error.message || '加入病人失敗。';
+  } finally {
+    if (submitButton) submitButton.disabled = false;
+  }
 }
 
 function renderDoctorDashboard() {
@@ -7980,6 +8094,9 @@ window.selectDoctorPatient = selectDoctorPatient;
 window.saveDoctorOrderDraft = saveDoctorOrderDraft;
 window.markMedicalRecordSent = markMedicalRecordSent;
 window.focusDoctorPendingTasks = focusDoctorPendingTasks;
+window.openDoctorAddPatientModal = openDoctorAddPatientModal;
+window.closeDoctorAddPatientModal = closeDoctorAddPatientModal;
+window.submitDoctorAddPatient = submitDoctorAddPatient;
 window.switchReportTab = switchReportTab;
 window.toggleMoodTag = toggleMoodTag;
 window.setPHQ = setPHQ;

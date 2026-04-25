@@ -118,7 +118,12 @@
             <div class="section-label">PATIENT LIST</div>
             <h3 class="section-heading">我的病人</h3>
           </div>
-          <button class="doctor-lite-btn" type="button" onclick="focusDoctorPendingTasks()">只看待處理</button>
+          <div class="doctor-panel-actions">
+            <button class="doctor-add-btn" type="button" onclick="openDoctorAddPatientModal()" aria-label="用病人 ID 加入病人">
+              <span class="mat-icon">add</span>
+            </button>
+            <button class="doctor-lite-btn" type="button" onclick="focusDoctorPendingTasks()">只看待處理</button>
+          </div>
         </div>
         <div id="doctor-patient-list" class="doctor-patient-list"></div>
       </section>
@@ -847,6 +852,7 @@
           <div class="settings-auth-copy">
             <div id="settings-auth-name" class="settings-auth-name">尚未登入帳號</div>
             <div id="settings-auth-meta" class="settings-auth-meta">登入後，系統才會知道你是病人還是醫師</div>
+            <div id="settings-auth-id" class="settings-auth-id" style="display:none"></div>
           </div>
           <span id="settings-auth-badge" class="profile-status-badge incomplete">訪客</span>
         </div>
@@ -1020,6 +1026,27 @@
         </div>
         <span id="home-auth-role-badge" class="auth-role-badge">未登入</span>
       </div>
+    </div>
+  </div>
+
+  <div id="doctor-add-patient-overlay" class="doctor-add-patient-overlay" aria-hidden="true">
+    <div class="doctor-add-patient-card">
+      <div class="doctor-add-patient-top">
+        <div>
+          <div class="auth-hero-kicker">ADD PATIENT</div>
+          <div class="auth-hero-title">用病人 ID 加入清單</div>
+        </div>
+        <button class="icon-btn" type="button" aria-label="關閉加入病人視窗" onclick="closeDoctorAddPatientModal()">
+          <span class="mat-icon">close</span>
+        </button>
+      </div>
+      <p class="doctor-add-patient-copy">請輸入病人在設定頁看到的帳號 ID。第一版會先加入醫師本機工作台，正式授權之後再接 CareLink。</p>
+      <input id="doctor-add-patient-id" class="auth-input" type="text" placeholder="例如 patient_abc123" />
+      <div class="auth-action-row">
+        <button id="doctor-add-patient-submit" class="auth-primary-btn" type="button" onclick="submitDoctorAddPatient()">加入病人</button>
+        <button class="auth-secondary-btn" type="button" onclick="closeDoctorAddPatientModal()">取消</button>
+      </div>
+      <div id="doctor-add-patient-status" class="auth-status-copy">輸入病人 ID 後加入。</div>
     </div>
   </div>
 

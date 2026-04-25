@@ -70,10 +70,27 @@ function testRevokeSession() {
   assert.strictEqual(store.getSessionByToken(login.token), null);
 }
 
+function testFindUserByIdReturnsSafeUser() {
+  const store = createAuthStore({ filePath: createTempStorePath() });
+  const user = store.registerUser({
+    role: 'patient',
+    display_name: '黃小安',
+    login_identifier: 'patient_huang',
+    password: 'abcd1234'
+  });
+
+  const found = store.findUserById(user.id);
+  assert.strictEqual(found.id, user.id);
+  assert.strictEqual(found.role, 'patient');
+  assert.strictEqual(found.display_name, '黃小安');
+  assert.strictEqual(found.password_hash, undefined);
+}
+
 function run() {
   testRegisterAndLogin();
   testRejectDuplicateLoginIdentifier();
   testRevokeSession();
+  testFindUserByIdReturnsSafeUser();
   console.log('Auth store tests passed.');
 }
 
