@@ -6003,8 +6003,8 @@ async function activateShortcut(command) {
   if (normalized.startsWith('OUTPUT:')) {
     const outputType = normalized.replace(/^OUTPUT:/, '');
     const visibleMessage = buildOutputShortcutMessage(outputType);
-    await appendMessage('user', visibleMessage);
-    await requestOutput(outputType, { fromShortcut: true, visibleMessage });
+    await appendMessage('user', visibleMessage, { ephemeral: true });
+    await requestOutput(outputType, { fromShortcut: true, visibleMessage, ephemeral: true });
     return;
   }
 
@@ -6801,7 +6801,7 @@ async function appendMessage(role, text, options = {}) {
   const { bubble } = createMessageBubble(role);
   if (!bubble) return;
 
-  APP_STATE.chatHistory.push({ role, content: text, createdAt: new Date().toISOString() });
+  APP_STATE.chatHistory.push({ role, content: text, createdAt: new Date().toISOString(), ...(options.ephemeral ? { ephemeral: true } : {}) });
   APP_STATE.chatHistory = APP_STATE.chatHistory.slice(-24);
 
   if (role === 'ai' && options.animate) {
@@ -7380,7 +7380,7 @@ function getRecentSessionSummaries(limit = MAX_LOCAL_SESSION_ARCHIVE_RECORDS) {
 function buildCurrentSessionRecord() {
   if (!APP_STATE.conversationId) return null;
   const sessionExport = APP_STATE.reportOutputs.session_export || {};
-  const history = normalizeChatHistoryEntries(APP_STATE.chatHistory);
+  const history = normalizeChatHistoryEntries(APP_STATE.chatHistory.filter((e) => !e.ephemeral));
   const lastUserMessage = findLatestHistoryContent(history, 'user');
   const lastAssistantMessage = findLatestHistoryContent(history, ['ai', 'assistant']);
   const latestTagPayload = APP_STATE.lastChatMetadata?.latest_tag_payload || sessionExport.latest_tag_payload || {};
@@ -9225,7 +9225,7 @@ async function requestOutput(outputType, options = {}) {
     }
     appendSystemNotice(`${definition.label} 已更新，請到 Reports 查看。`);
     if (options.fromChatCommand || options.fromShortcut) {
-      await appendMessage('ai', `${definition.label} 已更新。你可以到 Reports 頁面查看最新內容。`, { animate: true });
+      await appendMessage('ai', `${definition.label} 已更新。你可以到 Reports 頁面查看最新內容。`, { animate: true, ephemeral: !!options.ephemeral });
     }
     showScreen('screen-report');
     switchReportTab('auto');
