@@ -4063,6 +4063,10 @@ class AICompanionEngine {
     ,}));
     const parsed = tryParseJson(text, null);
     if (!parsed && options.requireValidJson) {
+      if (options.fallback != null) {
+        console.warn(`AI task ${promptKey} did not return valid JSON; using fallback.`);
+        return options.fallback;
+      }
       const error = new Error(`AI task ${promptKey} did not return valid JSON.`);
       error.code = 'ai_invalid_json_output';
       error.status = 502;
