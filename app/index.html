@@ -269,13 +269,11 @@
       </div>
       <div class="input-row">
         <div class="text-input-wrap">
-          <span class="mat-icon" style="color:#a0aab0">sentiment_satisfied</span>
           <input id="chat-input" type="text" placeholder="跟 Rou Rou 說說心事..." 
             oninput="handleInput(this, 'input')" 
             onfocus="handleInput(this, 'focus')" 
             onblur="setTimeout(() => handleInput(this, 'blur'), 200)"
             onkeydown="if(event.key==='Enter')sendMessage()"/>
-          <button class="icon-btn" style="color:#395a49"><span class="mat-icon">mic</span></button>
         </div>
         <button class="send-btn" onclick="sendMessage()">
           <span class="mat-icon fill">send</span>
@@ -959,21 +957,6 @@
             <div id="settings-attending-meta" class="settings-sub">當醫師加入你的病人 ID 後，這裡會顯示目前正在存取資料的醫師。</div>
           </div>
           <span id="settings-attending-status" class="profile-status-badge incomplete">未連結</span>
-        </div>
-      </div>
-
-      <div class="settings-group-label">安全性</div>
-      <div class="settings-card">
-        <div class="security-item">
-          <span class="mat-icon fill" style="color:#446655;font-size:32px">fingerprint</span>
-          <div><div class="settings-label">生物辨識鎖定</div><div class="settings-sub">Face ID 或指紋</div></div>
-          <button class="text-link">設定</button>
-        </div>
-        <div class="settings-divider"></div>
-        <div class="security-item">
-          <span class="mat-icon fill" style="color:#446655;font-size:32px">shield</span>
-          <div><div class="settings-label">加密備份</div><div class="settings-sub" style="color:#446655">狀態：已啟用</div></div>
-          <button class="text-link">查看紀錄</button>
         </div>
       </div>
 

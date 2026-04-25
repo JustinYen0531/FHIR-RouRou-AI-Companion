@@ -9449,11 +9449,18 @@ function injectRuntimeSettings() {
   if (!settingsMain) return;
 
   const wrapper = document.createElement('section');
-  wrapper.className = 'settings-card';
   wrapper.id = 'ai-engine-runtime-card';
+  wrapper.className = 'settings-runtime-panel';
   wrapper.innerHTML = `
-    <div class="settings-group-label">AI COMPANION ENGINE</div>
-    <div class="settings-inner">
+    <details class="settings-card runtime-settings-details">
+      <summary class="runtime-settings-summary">
+        <div>
+          <div class="settings-group-label">聊天流連線設定</div>
+          <div class="settings-sub">一般使用者不用調整，只有切換模型或 API key 時才需要打開。</div>
+        </div>
+        <span class="mat-icon">expand_more</span>
+      </summary>
+      <div class="settings-inner">
       <div class="setting-group">
         <div class="setting-title">
           <span class="mat-icon">link</span>
@@ -9475,10 +9482,13 @@ function injectRuntimeSettings() {
           這裡設定模型 provider、base URL、model、API key 與 user id。若 API key 留空，系統會優先使用部署端預設金鑰與模型設定。
         </p>
       </div>
-    </div>
+      </div>
+    </details>
   `;
 
-  settingsMain.insertBefore(wrapper, settingsMain.firstChild);
+  const footer = settingsMain.querySelector('.app-footer');
+  if (footer) settingsMain.insertBefore(wrapper, footer);
+  else settingsMain.appendChild(wrapper);
 
   syncRuntimeSettingsForm();
 
