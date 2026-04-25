@@ -7575,11 +7575,6 @@ function applySessionRecord(session = {}, fallbackSessionId = '') {
     burden_level_state: normalizedSession.state?.burden_level_state || {}
   };
   APP_STATE.chatHistory = normalizeChatHistoryEntries(normalizedSession.history).filter((e) => !isEphemeralShortcutMessage(e)).slice(-24);
-  APP_STATE.reportOutputs.clinician_summary = null;
-  APP_STATE.reportOutputs.patient_analysis = null;
-  APP_STATE.reportOutputs.patient_review = null;
-  APP_STATE.reportOutputs.fhir_delivery = null;
-  APP_STATE.reportOutputs.fhir_delivery_result = null;
   APP_STATE.reportOutputs.session_export = buildSessionExportFromRecord(normalizedSession);
   APP_STATE.reportFhirDraft = {
     isLoading: false,
