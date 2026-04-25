@@ -5883,6 +5883,7 @@ body.micro-detail-open {
   border: 1px solid rgba(68,102,85,0.1);
   padding: 20px;
   box-shadow: var(--shadow-card);
+  overflow: hidden;
 }
 
 .doctor-assignment-empty,
@@ -5940,15 +5941,22 @@ body.micro-detail-open {
 }
 
 .doctor-assignment-grid {
-  display: grid;
+  display: flex;
   gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
 }
 
 .doctor-assignment-block {
+  flex: 0 0 min(100%, 320px);
+  min-width: 280px;
   background: rgba(168, 180, 187, 0.08);
   border: 1px solid rgba(168, 180, 187, 0.12);
   border-radius: 16px;
   padding: 16px;
+  scroll-snap-align: start;
 }
 
 .doctor-assignment-block-title,
@@ -6002,17 +6010,52 @@ body.micro-detail-open {
   gap: 10px;
 }
 
-.doctor-assignment-order-line {
+.doctor-assignment-order-content {
   display: grid;
-  grid-template-columns: 88px 1fr;
-  gap: 10px;
-  align-items: start;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(168, 180, 187, 0.12);
   color: var(--on-surface);
 }
 
-.doctor-assignment-order-line b {
+.doctor-assignment-order-content b,
+.doctor-assignment-order-pill b {
   color: var(--on-surface-variant);
   font-size: 12px;
+}
+
+.doctor-assignment-order-content span {
+  line-height: 1.65;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+.doctor-assignment-order-meta-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.doctor-assignment-order-pill {
+  flex: 0 0 auto;
+  min-width: 112px;
+  max-width: 180px;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(68, 102, 85, 0.07);
+  color: var(--on-surface);
+}
+
+.doctor-assignment-order-pill span {
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .doctor-assignment-order-note {
@@ -6040,7 +6083,11 @@ body.micro-detail-open {
 
 @media (min-width: 720px) {
   .doctor-assignment-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow-x: visible;
+  }
+
+  .doctor-assignment-block {
+    flex: 1 1 0;
   }
 }
 

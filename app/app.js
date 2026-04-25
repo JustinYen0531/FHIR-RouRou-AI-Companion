@@ -2910,6 +2910,14 @@ function renderDoctorAssignmentCard(entry = null) {
   const order = normalizeDoctorOrder(entry.orderDraft, entry.orderStatus, entry);
   const hasOrder = hasPublishedDoctorOrder(order);
   const blocks = buildDoctorAssignmentBlocks(entry);
+  const orderMetaItems = [
+    ['類型', order.type || '未分類'],
+    ['執行對象', order.assignee || '病人'],
+    ['期限', order.duePreset === '指定日期' && order.dueDate ? order.dueDate : (order.duePreset || '未指定')],
+    ['優先程度', order.priority || '一般'],
+    ['回覆需求', order.replyRequirement || '不需回覆'],
+    ['對應任務', order.taskRef || '未指定']
+  ];
   const syncedLabel = entry.syncedAt
     ? new Date(entry.syncedAt).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '剛剛';
@@ -2946,13 +2954,18 @@ function renderDoctorAssignmentCard(entry = null) {
         <div class="doctor-assignment-block-title">醫囑</div>
         ${hasOrder ? `
           <div class="doctor-assignment-order-card">
-            <div class="doctor-assignment-order-line"><b>類型</b><span>${escapeHtml(order.type || '未分類')}</span></div>
-            <div class="doctor-assignment-order-line"><b>內容</b><span>${escapeHtml(order.content)}</span></div>
-            <div class="doctor-assignment-order-line"><b>執行對象</b><span>${escapeHtml(order.assignee || '病人')}</span></div>
-            <div class="doctor-assignment-order-line"><b>期限</b><span>${escapeHtml(order.duePreset === '指定日期' && order.dueDate ? order.dueDate : (order.duePreset || '未指定'))}</span></div>
-            <div class="doctor-assignment-order-line"><b>優先程度</b><span>${escapeHtml(order.priority || '一般')}</span></div>
-            <div class="doctor-assignment-order-line"><b>回覆需求</b><span>${escapeHtml(order.replyRequirement || '不需回覆')}</span></div>
-            <div class="doctor-assignment-order-line"><b>對應任務</b><span>${escapeHtml(order.taskRef || '未指定')}</span></div>
+            <div class="doctor-assignment-order-content">
+              <b>內容</b>
+              <span>${escapeHtml(order.content)}</span>
+            </div>
+            <div class="doctor-assignment-order-meta-row">
+              ${orderMetaItems.map(([label, value]) => `
+                <div class="doctor-assignment-order-pill">
+                  <b>${escapeHtml(label)}</b>
+                  <span>${escapeHtml(value)}</span>
+                </div>
+              `).join('')}
+            </div>
             ${order.note ? `<div class="doctor-assignment-order-note">${escapeHtml(order.note)}</div>` : ''}
             <div class="doctor-assignment-trace">
               ${order.createdBy ? `<span>建立者：${escapeHtml(order.createdBy)}</span>` : ''}
