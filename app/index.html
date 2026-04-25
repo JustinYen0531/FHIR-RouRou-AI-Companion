@@ -66,6 +66,82 @@
     </main>
   </div>
 
+  <!-- ===== SCREEN: DOCTOR DASHBOARD ===== -->
+  <div class="screen" id="screen-doctor-dashboard">
+    <header class="top-bar glass doctor-topbar">
+      <div class="top-bar-left">
+        <div class="avatar-orb doctor-orb">
+          <span class="mat-icon fill">clinical_notes</span>
+        </div>
+        <div>
+          <h1 class="app-title">醫師工作台</h1>
+          <div class="status-row">
+            <span class="status-dot"></span>
+            <span class="status-label">病人管理</span>
+            <span class="divider-v"></span>
+            <span class="mode-label">AI 使用紀錄摘要</span>
+          </div>
+        </div>
+      </div>
+      <button class="icon-btn" type="button" aria-label="設定" onclick="showScreen('screen-settings')">
+        <span class="mat-icon">settings</span>
+      </button>
+    </header>
+
+    <main class="page-scroll doctor-dashboard-scroll">
+      <section class="doctor-hero">
+        <div>
+          <div class="section-label">DOCTOR CONSOLE V1</div>
+          <h2 class="doctor-hero-title">查看病人列表，不進入聊天流程</h2>
+          <p class="doctor-hero-sub">這一版先用 demo 病人資料展示醫師端邏輯：看 AI 摘要、送入病歷、暫存醫囑。</p>
+        </div>
+      </section>
+
+      <section class="doctor-stat-grid" aria-label="醫師工作台統計">
+        <div class="doctor-stat">
+          <span id="doctor-total-patients" class="doctor-stat-value">0</span>
+          <span class="doctor-stat-label">手上病人</span>
+        </div>
+        <div class="doctor-stat">
+          <span id="doctor-pending-records" class="doctor-stat-value">0</span>
+          <span class="doctor-stat-label">待送病歷</span>
+        </div>
+        <div class="doctor-stat">
+          <span id="doctor-pending-orders" class="doctor-stat-value">0</span>
+          <span class="doctor-stat-label">待填醫囑</span>
+        </div>
+      </section>
+
+      <section class="doctor-panel">
+        <div class="doctor-panel-head">
+          <div>
+            <div class="section-label">PATIENT LIST</div>
+            <h3 class="section-heading">我的病人</h3>
+          </div>
+          <button class="doctor-lite-btn" type="button" onclick="focusDoctorPendingTasks()">只看待處理</button>
+        </div>
+        <div id="doctor-patient-list" class="doctor-patient-list"></div>
+      </section>
+
+      <section id="doctor-patient-detail" class="doctor-detail"></section>
+    </main>
+
+    <nav class="bottom-nav glass doctor-nav">
+      <button class="nav-item active" onclick="showScreen('screen-doctor-dashboard')">
+        <span class="mat-icon fill">groups</span>
+        <span>病人</span>
+      </button>
+      <button class="nav-item" onclick="focusDoctorPendingTasks()">
+        <span class="mat-icon fill">assignment</span>
+        <span>待處理</span>
+      </button>
+      <button class="nav-item" onclick="showScreen('screen-settings')">
+        <span class="mat-icon">person_2</span>
+        <span>設定</span>
+      </button>
+    </nav>
+  </div>
+
   <!-- ===== SCREEN: CHAT ===== -->
   <div class="screen" id="screen-chat">
     <header class="top-bar glass">
@@ -746,7 +822,7 @@
   <!-- ===== SCREEN: SETTINGS ===== -->
   <div class="screen" id="screen-settings">
     <header class="top-bar glass" style="background:transparent;box-shadow:none">
-      <button class="icon-btn" onclick="showScreen('screen-chat')"><span class="mat-icon">arrow_back</span></button>
+      <button class="icon-btn" onclick="returnFromSettings()"><span class="mat-icon">arrow_back</span></button>
       <h1 class="page-title">設定</h1>
       <div style="width:40px"></div>
     </header>
@@ -855,8 +931,8 @@
     </main>
 
     <nav class="bottom-nav glass">
-      <button class="nav-item" onclick="showScreen('screen-chat')"><span class="mat-icon fill">chat_bubble</span><span>聊天</span></button>
-      <button class="nav-item" onclick="showScreen('screen-report')"><span class="mat-icon fill">analytics</span><span>報表</span></button>
+      <button class="nav-item" onclick="showRoleHome()"><span class="mat-icon fill">chat_bubble</span><span>首頁</span></button>
+      <button class="nav-item" onclick="showRoleReport()"><span class="mat-icon fill">analytics</span><span>報表</span></button>
       <button class="nav-item active" onclick="showScreen('screen-settings')"><span class="mat-icon fill">person_2</span><span>設定</span></button>
     </nav>
   </div>

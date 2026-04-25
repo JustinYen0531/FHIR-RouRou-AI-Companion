@@ -3086,6 +3086,277 @@ body {
   color: #294337;
 }
 
+.doctor-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.doctor-orb {
+  background: linear-gradient(135deg, #c6ebd5, #c8e7fb);
+}
+
+.doctor-dashboard-scroll {
+  padding-top: 16px;
+}
+
+.doctor-hero {
+  display: flex;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top right, rgba(200, 231, 251, 0.95), transparent 36%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(236, 245, 239, 0.96));
+  border: 1px solid rgba(68, 102, 85, 0.12);
+  box-shadow: var(--shadow-card);
+}
+
+.doctor-hero-title {
+  margin: 8px 0 6px;
+  font-size: 1.45rem;
+  line-height: 1.18;
+  color: #20343d;
+}
+
+.doctor-hero-sub {
+  color: #566a72;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.doctor-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.doctor-stat,
+.doctor-panel,
+.doctor-detail {
+  border: 1px solid rgba(168, 180, 187, 0.16);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: var(--shadow-card);
+}
+
+.doctor-stat {
+  border-radius: 22px;
+  padding: 14px 10px;
+  text-align: center;
+}
+
+.doctor-stat-value {
+  display: block;
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: var(--primary-dim);
+}
+
+.doctor-stat-label {
+  display: block;
+  margin-top: 2px;
+  color: #64757d;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.doctor-panel,
+.doctor-detail {
+  border-radius: 28px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.doctor-panel-head,
+.doctor-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.doctor-lite-btn {
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(68, 102, 85, 0.1);
+  color: var(--primary-dim);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.doctor-patient-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.doctor-patient-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(244, 248, 251, 0.88);
+  border: 1px solid rgba(168, 180, 187, 0.14);
+  text-align: left;
+}
+
+.doctor-patient-row.active {
+  background: rgba(198, 235, 213, 0.56);
+  border-color: rgba(68, 102, 85, 0.24);
+}
+
+.doctor-patient-main {
+  min-width: 0;
+}
+
+.doctor-patient-id,
+.doctor-summary-label,
+.doctor-action-kicker {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--secondary);
+  text-transform: uppercase;
+}
+
+.doctor-patient-name {
+  margin-top: 4px;
+  font-family: 'Manrope', sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #243740;
+}
+
+.doctor-patient-meta,
+.doctor-detail-meta {
+  margin-top: 4px;
+  color: #64757d;
+  font-size: 12px;
+}
+
+.doctor-patient-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.doctor-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #395a49;
+  background: rgba(68, 102, 85, 0.1);
+  white-space: nowrap;
+}
+
+.doctor-status-pill.complete {
+  color: #294337;
+  background: rgba(198, 235, 213, 0.9);
+}
+
+.doctor-status-pill.pending {
+  color: #7d4429;
+  background: rgba(253, 175, 140, 0.35);
+}
+
+.doctor-status-pill.draft {
+  color: #385566;
+  background: rgba(200, 231, 251, 0.65);
+}
+
+.doctor-detail-title {
+  margin-top: 6px;
+  font-size: 1.35rem;
+  line-height: 1.2;
+  color: #213039;
+}
+
+.doctor-summary-card {
+  padding: 14px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(246, 250, 254, 0.94), rgba(238, 246, 241, 0.94));
+  border: 1px solid rgba(168, 180, 187, 0.14);
+}
+
+.doctor-summary-card p {
+  margin-top: 8px;
+  color: #31434b;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.doctor-summary-note {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(168, 180, 187, 0.18);
+  color: #60717b;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.doctor-action-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.doctor-action-panel {
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(168, 180, 187, 0.14);
+}
+
+.doctor-action-panel h4 {
+  margin-top: 6px;
+  font-size: 1rem;
+  color: #25353d;
+}
+
+.doctor-action-panel p,
+.doctor-action-state {
+  margin-top: 6px;
+  color: #61727a;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.doctor-order-textarea {
+  width: 100%;
+  min-height: 118px;
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(168, 180, 187, 0.25);
+  background: #f8fbfd;
+  color: #29343a;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.doctor-action-btn {
+  margin-top: 12px;
+}
+
+.doctor-empty {
+  color: #60717b;
+  font-size: 13px;
+}
+
 .energy-headline,
 .display-greeting {
   font-family: 'Manrope', sans-serif;

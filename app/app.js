@@ -17,6 +17,7 @@ const REPORT_OUTPUT_CACHE_KEY = 'rourou.reportOutputsCache.v1';
 const PINNED_SESSION_STORAGE_KEY = 'rourou.pinnedSession.v1';
 const AUTH_TOKEN_STORAGE_KEY = 'rourou.authToken.v1';
 const AUTH_USER_STORAGE_KEY = 'rourou.authUser.v1';
+const DOCTOR_WORKSPACE_STORAGE_KEY = 'rourou.doctorWorkspace.v1';
 const PINNED_SESSION_EXAMPLE_PROMPTS = [
   '我現在很亂，先用樹洞模式接住我，不要急著給建議。',
   '幫我把這段對話整理成「可給醫師看的重點」條列版。',
@@ -918,6 +919,96 @@ ${recentAssessments.length ? `近期趨勢：${recentAssessments.join(' → ')}`
   }
 };
 
+function createDefaultDoctorPatients() {
+  return [
+    {
+      id: 'patient-demo-001',
+      patientNumber: 'P-2026-001',
+      name: '林小明',
+      latestAiRecordAt: '2026-04-24 21:10',
+      aiSummaryStatus: '已整理',
+      medicalRecordStatus: '待送入',
+      orderStatus: '未填寫',
+      riskLevel: '中',
+      aiSummary: '近三次互動以睡眠中斷、焦慮反芻與就診前緊張為主。PHQ-9 草稿顯示低落與疲倦分數偏高，建議下次回診先確認睡眠與日間功能。',
+      lastVisitNote: '病人已同意將摘要作為診前討論素材，但尚未送入正式病歷。',
+      orderDraft: ''
+    },
+    {
+      id: 'patient-demo-002',
+      patientNumber: 'P-2026-002',
+      name: '陳怡安',
+      latestAiRecordAt: '2026-04-23 08:35',
+      aiSummaryStatus: '需要補充',
+      medicalRecordStatus: '待送入',
+      orderStatus: '草稿中',
+      riskLevel: '低',
+      aiSummary: '近期主要在使用情緒標籤與呼吸練習，互動穩定，暫未出現明顯高風險訊號。仍建議補充藥物副作用與白天嗜睡狀況。',
+      lastVisitNote: '醫囑草稿尚未確認，適合展示「暫存後再處理」流程。',
+      orderDraft: '請持續記錄睡眠時間與白天精神狀態，下次回診帶回討論。'
+    },
+    {
+      id: 'patient-demo-003',
+      patientNumber: 'P-2026-003',
+      name: '吳柏辰',
+      latestAiRecordAt: '2026-04-20 19:42',
+      aiSummaryStatus: '已整理',
+      medicalRecordStatus: '已送入',
+      orderStatus: '已暫存',
+      riskLevel: '觀察',
+      aiSummary: '病人近期互動量下降，但最後一次對話提到工作壓力與社交退縮。建議醫師端先視為觀察個案，回診時確認是否有惡化。',
+      lastVisitNote: '病歷送入狀態已標示完成，作為 prototype 狀態切換示範。',
+      orderDraft: '回診時請先討論工作壓力來源，必要時安排下一次追蹤。'
+    }
+  ];
+}
+
+function normalizeDoctorPatient(patient = {}) {
+  return {
+    id: String(patient.id || `patient-${Date.now()}`),
+    patientNumber: String(patient.patientNumber || 'P-DEMO'),
+    name: String(patient.name || '未命名病人'),
+    latestAiRecordAt: String(patient.latestAiRecordAt || '尚無紀錄'),
+    aiSummaryStatus: String(patient.aiSummaryStatus || '尚未整理'),
+    medicalRecordStatus: String(patient.medicalRecordStatus || '待送入'),
+    orderStatus: String(patient.orderStatus || '未填寫'),
+    riskLevel: String(patient.riskLevel || '觀察'),
+    aiSummary: String(patient.aiSummary || '目前沒有可展示的 AI 使用紀錄摘要。'),
+    lastVisitNote: String(patient.lastVisitNote || '尚無補充紀錄。'),
+    orderDraft: String(patient.orderDraft || '')
+  };
+}
+
+function normalizeDoctorWorkspace(workspace = {}) {
+  const fallbackPatients = createDefaultDoctorPatients();
+  const patients = Array.isArray(workspace.patients) && workspace.patients.length
+    ? workspace.patients.map(normalizeDoctorPatient)
+    : fallbackPatients.map(normalizeDoctorPatient);
+  const selectedPatientId = patients.some((patient) => patient.id === workspace.selectedPatientId)
+    ? workspace.selectedPatientId
+    : patients[0]?.id || '';
+  return {
+    patients,
+    selectedPatientId
+  };
+}
+
+function loadDoctorWorkspace() {
+  try {
+    return normalizeDoctorWorkspace(JSON.parse(localStorage.getItem(DOCTOR_WORKSPACE_STORAGE_KEY) || 'null') || {});
+  } catch {
+    return normalizeDoctorWorkspace({});
+  }
+}
+
+function saveDoctorWorkspace() {
+  try {
+    localStorage.setItem(DOCTOR_WORKSPACE_STORAGE_KEY, JSON.stringify(APP_STATE.doctorWorkspace));
+  } catch {
+    // Local demo state is best-effort only.
+  }
+}
+
 const APP_STATE = {
   currentScreen: 'screen-chat',
   conversationId: '',
@@ -926,6 +1017,7 @@ const APP_STATE = {
   authForm: {
     role: localStorage.getItem('rourou.authRoleDraft') || 'patient'
   },
+  doctorWorkspace: loadDoctorWorkspace(),
   selectedMode: localStorage.getItem('rourou.selectedMode') || 'natural',
   runtimeMode: '',
   syncedMode: '',
@@ -1007,6 +1099,26 @@ function getCurrentAuthUser() {
   return APP_STATE.auth?.user || null;
 }
 
+function isDoctorUser() {
+  return getCurrentAuthUser()?.role === 'doctor';
+}
+
+function getRoleDefaultScreen() {
+  return isDoctorUser() ? 'screen-doctor-dashboard' : 'screen-home';
+}
+
+function showRoleHome() {
+  showScreen(getRoleDefaultScreen());
+}
+
+function showRoleReport() {
+  showScreen(isDoctorUser() ? 'screen-doctor-dashboard' : 'screen-report');
+}
+
+function returnFromSettings() {
+  showScreen(isDoctorUser() ? 'screen-doctor-dashboard' : 'screen-chat');
+}
+
 function isAuthenticated() {
   return Boolean(getCurrentAuthUser() && APP_STATE.auth?.token);
 }
@@ -1052,11 +1164,15 @@ function updateAuthUI() {
   });
 
   if (homeHeadline) {
-    homeHeadline.textContent = isLoggedIn ? `歡迎回來，${user.display_name}` : '先登入，再開始對話';
+    homeHeadline.textContent = isLoggedIn
+      ? (user.role === 'doctor' ? `醫師您好，${user.display_name}` : `歡迎回來，${user.display_name}`)
+      : '先登入，再開始對話';
   }
   if (homeSub) {
     homeSub.textContent = isLoggedIn
-      ? `目前身份：${getAuthRoleLabel(user.role)}・帳號已辨識完成`
+      ? (user.role === 'doctor'
+        ? '醫師端會進入病人管理工作台，不使用聊天頁作為主入口'
+        : `目前身份：${getAuthRoleLabel(user.role)}・帳號已辨識完成`)
       : '這一版先支援病人與醫師雙角色登入';
   }
   if (homeEntryButton) {
@@ -1065,7 +1181,7 @@ function updateAuthUI() {
   }
   if (homeEntryPlaceholder) {
     homeEntryPlaceholder.textContent = isLoggedIn
-      ? (user.role === 'doctor' ? '以醫師身份進入系統...' : '跟 Rou Rou 說說心事...')
+      ? (user.role === 'doctor' ? '前往病人管理工作台' : '跟 Rou Rou 說說心事...')
       : '請先登入病人或醫師帳號';
   }
   if (authGuest) {
@@ -1107,7 +1223,9 @@ function updateAuthUI() {
   }
   const homeSessionList = document.getElementById('home-session-list');
   if (homeSessionList) {
-    if (isLoggedIn) {
+    if (isLoggedIn && user.role === 'doctor') {
+      homeSessionList.innerHTML = `<div class="home-session-empty">醫師端不顯示聊天紀錄，請進入病人管理工作台查看 AI 使用摘要。</div>`;
+    } else if (isLoggedIn) {
       renderRecentSessions();
     } else {
       homeSessionList.innerHTML = `<div class="home-session-empty">登入後，首頁才會顯示屬於這個帳號的對話紀錄。</div>`;
@@ -1187,6 +1305,10 @@ function setAuthenticatedSession(token = '', user = null) {
   APP_STATE.recentSessions = getRecentSessionSummaries();
   updateAuthUI();
   closeAuthModal();
+  if (user?.role === 'doctor') {
+    renderDoctorDashboard();
+    showScreen('screen-doctor-dashboard');
+  }
 }
 
 function clearAuthenticatedSession(options = {}) {
@@ -1210,6 +1332,14 @@ function ensureAuthenticated(actionLabel = '使用這個功能') {
   appendSystemNotice(`請先登入病人或醫師帳號，才能${actionLabel}。`);
   openAuthModal(true);
   showScreen('screen-home');
+  return false;
+}
+
+function ensurePatientUser(actionLabel = '使用病人功能') {
+  if (!ensureAuthenticated(actionLabel)) return false;
+  if (!isDoctorUser()) return true;
+  appendSystemNotice('醫師端目前使用病人管理工作台，不進入病人聊天、PHQ-9 或報表流程。');
+  showScreen('screen-doctor-dashboard');
   return false;
 }
 
@@ -1288,7 +1418,7 @@ async function submitAuth(action = 'login') {
       status.textContent = finalAction === 'register' ? '帳號建立成功，已自動登入。' : '登入成功。';
     }
     appendSystemNotice(finalAction === 'register' ? '帳號建立完成，現在系統知道你是誰了。' : '登入成功，身份系統已啟用。');
-    showScreen('screen-home');
+    showRoleHome();
   } catch (error) {
     if (status) {
       status.textContent = error.message || '登入失敗。';
@@ -3322,7 +3452,146 @@ function storeOutputResult(payload) {
   saveReportOutputsToCache();
 }
 
+function getSelectedDoctorPatient() {
+  const workspace = APP_STATE.doctorWorkspace || normalizeDoctorWorkspace({});
+  return workspace.patients.find((patient) => patient.id === workspace.selectedPatientId) || workspace.patients[0] || null;
+}
+
+function getDoctorStatusClass(status = '') {
+  if (String(status).includes('已')) return 'complete';
+  if (String(status).includes('待') || String(status).includes('未')) return 'pending';
+  return 'draft';
+}
+
+function renderDoctorDashboard() {
+  if (!document.getElementById('screen-doctor-dashboard')) return;
+  APP_STATE.doctorWorkspace = normalizeDoctorWorkspace(APP_STATE.doctorWorkspace);
+  const { patients } = APP_STATE.doctorWorkspace;
+  const totalPatients = document.getElementById('doctor-total-patients');
+  const pendingRecords = document.getElementById('doctor-pending-records');
+  const pendingOrders = document.getElementById('doctor-pending-orders');
+  const list = document.getElementById('doctor-patient-list');
+
+  if (totalPatients) totalPatients.textContent = String(patients.length);
+  if (pendingRecords) {
+    pendingRecords.textContent = String(patients.filter((patient) => patient.medicalRecordStatus !== '已送入').length);
+  }
+  if (pendingOrders) {
+    pendingOrders.textContent = String(patients.filter((patient) => patient.orderStatus !== '已暫存').length);
+  }
+
+  if (list) {
+    list.innerHTML = patients.map((patient) => {
+      const active = patient.id === APP_STATE.doctorWorkspace.selectedPatientId;
+      return `
+        <button class="doctor-patient-row ${active ? 'active' : ''}" type="button" data-patient-id="${escapeHtml(patient.id)}" onclick="selectDoctorPatient(this.dataset.patientId)">
+          <div class="doctor-patient-main">
+            <div class="doctor-patient-id">${escapeHtml(patient.patientNumber)}</div>
+            <div class="doctor-patient-name">${escapeHtml(patient.name)}</div>
+            <div class="doctor-patient-meta">最近 AI 記錄：${escapeHtml(patient.latestAiRecordAt)}</div>
+          </div>
+          <div class="doctor-patient-badges">
+            <span class="doctor-status-pill ${getDoctorStatusClass(patient.aiSummaryStatus)}">${escapeHtml(patient.aiSummaryStatus)}</span>
+            <span class="doctor-status-pill ${getDoctorStatusClass(patient.medicalRecordStatus)}">${escapeHtml(patient.medicalRecordStatus)}</span>
+            <span class="doctor-status-pill ${getDoctorStatusClass(patient.orderStatus)}">${escapeHtml(patient.orderStatus)}</span>
+          </div>
+        </button>
+      `;
+    }).join('');
+  }
+
+  renderDoctorPatientDetail();
+}
+
+function selectDoctorPatient(patientId) {
+  const exists = APP_STATE.doctorWorkspace.patients.some((patient) => patient.id === patientId);
+  if (!exists) return;
+  APP_STATE.doctorWorkspace.selectedPatientId = patientId;
+  saveDoctorWorkspace();
+  renderDoctorDashboard();
+}
+
+function renderDoctorPatientDetail() {
+  const detail = document.getElementById('doctor-patient-detail');
+  if (!detail) return;
+  const patient = getSelectedDoctorPatient();
+  if (!patient) {
+    detail.innerHTML = '<div class="doctor-empty">目前沒有可顯示的病人。</div>';
+    return;
+  }
+
+  detail.innerHTML = `
+    <div class="doctor-detail-head">
+      <div>
+        <div class="section-label">PATIENT DETAIL</div>
+        <h3 class="doctor-detail-title">${escapeHtml(patient.name)}</h3>
+        <div class="doctor-detail-meta">${escapeHtml(patient.patientNumber)} ・ 風險觀察：${escapeHtml(patient.riskLevel)}</div>
+      </div>
+      <span class="doctor-status-pill ${getDoctorStatusClass(patient.aiSummaryStatus)}">${escapeHtml(patient.aiSummaryStatus)}</span>
+    </div>
+
+    <div class="doctor-summary-card">
+      <div class="doctor-summary-label">AI 使用紀錄摘要</div>
+      <p>${escapeHtml(patient.aiSummary)}</p>
+      <div class="doctor-summary-note">${escapeHtml(patient.lastVisitNote)}</div>
+    </div>
+
+    <div class="doctor-action-grid">
+      <section class="doctor-action-panel">
+        <div class="doctor-action-kicker">病歷送入</div>
+        <h4>送入病歷展示入口</h4>
+        <p>目前只切換 prototype 狀態，不寫入 HIS / EMR / FHIR。</p>
+        <div class="doctor-action-state">目前狀態：${escapeHtml(patient.medicalRecordStatus)}</div>
+        <button class="primary-btn doctor-action-btn" type="button" onclick="markMedicalRecordSent()">標示為已送入</button>
+      </section>
+
+      <section class="doctor-action-panel">
+        <div class="doctor-action-kicker">醫囑草稿</div>
+        <h4>填寫醫囑</h4>
+        <textarea id="doctor-order-draft" class="doctor-order-textarea" placeholder="例如：請病人持續記錄睡眠、下次回診帶回討論。">${escapeHtml(patient.orderDraft)}</textarea>
+        <button class="primary-btn doctor-action-btn" type="button" onclick="saveDoctorOrderDraft()">暫存醫囑</button>
+      </section>
+    </div>
+  `;
+}
+
+function saveDoctorOrderDraft() {
+  const patient = getSelectedDoctorPatient();
+  if (!patient) return;
+  const draft = String(document.getElementById('doctor-order-draft')?.value || '').trim();
+  patient.orderDraft = draft;
+  patient.orderStatus = draft ? '已暫存' : '未填寫';
+  saveDoctorWorkspace();
+  renderDoctorDashboard();
+  appendSystemNotice(draft ? '醫囑草稿已暫存於醫師工作台。' : '醫囑草稿已清空。');
+}
+
+function markMedicalRecordSent() {
+  const patient = getSelectedDoctorPatient();
+  if (!patient) return;
+  patient.medicalRecordStatus = '已送入';
+  saveDoctorWorkspace();
+  renderDoctorDashboard();
+  appendSystemNotice('已把此病人標示為「病歷已送入」。這是 prototype 狀態，不會寫入正式醫院系統。');
+}
+
+function focusDoctorPendingTasks() {
+  const pendingPatient = APP_STATE.doctorWorkspace.patients.find((patient) => (
+    patient.medicalRecordStatus !== '已送入' || patient.orderStatus !== '已暫存'
+  ));
+  if (pendingPatient) {
+    APP_STATE.doctorWorkspace.selectedPatientId = pendingPatient.id;
+    saveDoctorWorkspace();
+  }
+  showScreen('screen-doctor-dashboard');
+  appendSystemNotice(pendingPatient ? '已切到第一位待處理病人。' : '目前沒有待處理病人。');
+}
+
 function showScreen(screenId) {
+  if (isDoctorUser() && ['screen-chat', 'screen-phq9', 'screen-report', 'screen-energy'].includes(screenId)) {
+    screenId = 'screen-doctor-dashboard';
+  }
+
   document.querySelectorAll('.screen').forEach((screen) => {
     screen.classList.toggle('active', screen.id === screenId);
   });
@@ -3361,6 +3630,10 @@ function showScreen(screenId) {
 
   if (screenId === 'screen-home') {
     loadRecentSessions();
+  }
+
+  if (screenId === 'screen-doctor-dashboard') {
+    renderDoctorDashboard();
   }
 
   updateScrollSafeArea();
@@ -3671,6 +3944,7 @@ function renderPhq9ReportSummary() {
 }
 
 function openPhq9Assessment() {
+  if (!ensurePatientUser('填寫 PHQ-9')) return;
   showScreen('screen-phq9');
   renderPhq9Screen();
   const firstInput = document.getElementById('phq9-note-0');
@@ -3822,7 +4096,7 @@ function toggleModeExplainer() {
 }
 
 function startChat() {
-  if (!ensureAuthenticated('開始聊天')) return;
+  if (!ensurePatientUser('開始聊天')) return;
   showScreen('screen-chat');
   appendSystemNotice(`已切換為 ${MODE_DEFINITIONS[APP_STATE.selectedMode]?.display || '自然聊天'}。`);
 }
@@ -5430,6 +5704,10 @@ async function maybeSaveCurrentSessionBefore(actionLabel = '離開目前這段�
 }
 
 async function navigateHome() {
+  if (isDoctorUser()) {
+    showScreen('screen-doctor-dashboard');
+    return;
+  }
   if (APP_STATE.currentScreen !== 'screen-home') {
     await maybeSaveCurrentSessionBefore('回首頁');
   }
@@ -6788,7 +7066,7 @@ async function ensureModeSynced() {
 }
 
 async function sendMessage() {
-  if (!ensureAuthenticated('開始對話')) return;
+  if (!ensurePatientUser('開始對話')) return;
   const input = document.getElementById('chat-input');
   if (!input || APP_STATE.isSending) return;
 
@@ -7073,7 +7351,7 @@ function saveUserPrompt(textarea) {
 
 
 async function requestOutput(outputType, options = {}) {
-  if (!ensureAuthenticated('產生報表')) return;
+  if (!ensurePatientUser('產生報表')) return;
   if (APP_STATE.isSending) return;
   const definition = OUTPUT_DEFINITIONS[outputType] || { label: outputType, instruction: outputType };
   const countdownConfig = OUTPUT_COUNTDOWN_CONFIG[outputType] || null;
@@ -7174,7 +7452,7 @@ async function requestOutput(outputType, options = {}) {
 }
 
 async function authorizeAndSendReport() {
-  if (!ensureAuthenticated('送出報告')) return;
+  if (!ensurePatientUser('送出報告')) return;
   if (APP_STATE.isSending) return;
   if (!APP_STATE.pendingConsent.sessionExport) {
     await openConsentPreview();
@@ -7695,6 +7973,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 window.showScreen = showScreen;
+window.showRoleHome = showRoleHome;
+window.showRoleReport = showRoleReport;
+window.returnFromSettings = returnFromSettings;
+window.selectDoctorPatient = selectDoctorPatient;
+window.saveDoctorOrderDraft = saveDoctorOrderDraft;
+window.markMedicalRecordSent = markMedicalRecordSent;
+window.focusDoctorPendingTasks = focusDoctorPendingTasks;
 window.switchReportTab = switchReportTab;
 window.toggleMoodTag = toggleMoodTag;
 window.setPHQ = setPHQ;
