@@ -19,6 +19,7 @@ const PINNED_SESSION_STORAGE_KEY = 'rourou.pinnedSession.v1';
 const AUTH_TOKEN_STORAGE_KEY = 'rourou.authToken.v1';
 const AUTH_USER_STORAGE_KEY = 'rourou.authUser.v1';
 const DOCTOR_WORKSPACE_STORAGE_KEY = 'rourou.doctorWorkspace.v1';
+const PATIENT_ASSIGNMENT_STORAGE_KEY = 'rourou.patientAssignments.v1';
 const PINNED_SESSION_EXAMPLE_PROMPTS = [
   '我現在很亂，先用樹洞模式接住我，不要急著給建議。',
   '幫我把這段對話整理成「可給醫師看的重點」條列版。',
@@ -1088,6 +1089,49 @@ function saveDoctorWorkspace() {
   } catch {
     // Local demo state is best-effort only.
   }
+}
+
+function loadPatientAssignments() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PATIENT_ASSIGNMENT_STORAGE_KEY) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePatientAssignments(assignments) {
+  try {
+    localStorage.setItem(PATIENT_ASSIGNMENT_STORAGE_KEY, JSON.stringify(assignments || {}));
+  } catch {
+    // Local demo state is best-effort only.
+  }
+}
+
+function syncDoctorAssignmentInbox(patient = null) {
+  if (!patient?.id) return;
+  const assignments = loadPatientAssignments();
+  const currentUser = getCurrentAuthUser();
+  assignments[patient.id] = {
+    patientId: patient.id,
+    patientName: patient.name || '',
+    patientNumber: patient.patientNumber || '',
+    doctorId: currentUser?.id || '',
+    doctorName: currentUser?.display_name || currentUser?.login_identifier || '醫師',
+    medicalRecordStatus: patient.medicalRecordStatus || '待送入',
+    orderStatus: patient.orderStatus || '未填寫',
+    medicalRecord: normalizeMedicalRecord(patient.medicalRecord),
+    orderDraft: String(patient.orderDraft || ''),
+    syncedAt: new Date().toISOString()
+  };
+  savePatientAssignments(assignments);
+}
+
+function getCurrentPatientAssignment() {
+  const user = getCurrentAuthUser();
+  if (!user || user.role !== 'patient') return null;
+  const assignments = loadPatientAssignments();
+  return assignments[user.id] || null;
 }
 
 const APP_STATE = {
@@ -2647,6 +2691,104 @@ function renderPatientAnalysisMarkdown(analysis) {
   return `<div class="markdown-body report-markdown">${renderMessageMarkdown(markdown)}</div>`;
 }
 
+function buildDoctorAssignmentBlocks(entry = {}) {
+  if (entry.medicalRecordStatus !== '已送入') {
+    return [];
+  }
+  const record = normalizeMedicalRecord(entry.medicalRecord);
+  const blocks = [];
+  const summaryItems = [
+    record.composition.chiefComplaint && `主訴：${record.composition.chiefComplaint}`,
+    record.composition.symptomSummary && `症狀摘要：${record.composition.symptomSummary}`,
+    record.composition.riskAlert && `風險提醒：${record.composition.riskAlert}`,
+    record.composition.followupSuggestion && `追蹤建議：${record.composition.followupSuggestion}`
+  ].filter(Boolean);
+  const observationItems = record.observations
+    .map((item) => [item.display || item.code, item.value, item.interpretation].filter(Boolean).join('｜'))
+    .filter(Boolean)
+    .slice(0, 4);
+  const conditionItems = record.conditions
+    .map((item) => [item.code, item.clinicalStatus, item.verificationStatus].filter(Boolean).join('｜'))
+    .filter(Boolean)
+    .slice(0, 4);
+  const medicationItems = record.medications
+    .map((item) => [item.name, item.dosage].filter(Boolean).join('｜'))
+    .filter(Boolean)
+    .slice(0, 4);
+  const documentItems = record.documents
+    .map((item) => [item.type, item.filename].filter(Boolean).join('｜'))
+    .filter(Boolean)
+    .slice(0, 4);
+
+  if (summaryItems.length) blocks.push({ title: '病歷重點', items: summaryItems });
+  if (observationItems.length) blocks.push({ title: '觀察紀錄', items: observationItems });
+  if (conditionItems.length) blocks.push({ title: '診斷 / 狀態', items: conditionItems });
+  if (medicationItems.length) blocks.push({ title: '用藥資訊', items: medicationItems });
+  if (documentItems.length) blocks.push({ title: '附件文件', items: documentItems });
+
+  if (!blocks.length && entry.medicalRecordStatus === '已送入') {
+    blocks.push({ title: '病歷重點', items: ['醫師已送出病歷，目前尚未附帶可閱讀摘要。'] });
+  }
+
+  return blocks;
+}
+
+function renderDoctorAssignmentCard(entry = null) {
+  if (!entry) {
+    return `
+      <div class="doctor-assignment-empty">
+        <span class="mat-icon">assignment_ind</span>
+        <p>目前還沒有新的醫生指派<br>等醫師送出病歷或醫囑後，這裡就會更新。</p>
+      </div>
+    `;
+  }
+
+  const hasOrder = entry.orderStatus === '已暫存' && Boolean(String(entry.orderDraft || '').trim());
+  const blocks = buildDoctorAssignmentBlocks(entry);
+  const syncedLabel = entry.syncedAt
+    ? new Date(entry.syncedAt).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '剛剛';
+
+  return `
+    <div class="doctor-assignment-head">
+      <div>
+        <div class="doctor-assignment-title">來自 ${escapeHtml(entry.doctorName || '醫師')} 的指派</div>
+        <div class="doctor-assignment-meta">${escapeHtml(entry.patientNumber || entry.patientName || '')} ・ 更新時間 ${escapeHtml(syncedLabel)}</div>
+      </div>
+      <div class="doctor-assignment-status-group">
+        <span class="doctor-status-pill ${getDoctorStatusClass(entry.medicalRecordStatus)}">${escapeHtml(entry.medicalRecordStatus || '待送入')}</span>
+        <span class="doctor-status-pill ${getDoctorStatusClass(entry.orderStatus)}">${escapeHtml(entry.orderStatus || '未填寫')}</span>
+      </div>
+    </div>
+    <div class="doctor-assignment-grid">
+      <section class="doctor-assignment-block">
+        <div class="doctor-assignment-block-title">病歷</div>
+        ${blocks.length ? blocks.map((block) => `
+          <div class="doctor-assignment-subblock">
+            <div class="doctor-assignment-subtitle">${escapeHtml(block.title)}</div>
+            ${block.items.map((item) => `
+              <div class="doctor-assignment-item">
+                <span class="mat-icon">description</span>
+                <div>${escapeHtml(item)}</div>
+              </div>
+            `).join('')}
+          </div>
+        `).join('') : `
+          <div class="doctor-assignment-empty-inline">醫師尚未送出病歷內容。</div>
+        `}
+      </section>
+      <section class="doctor-assignment-block">
+        <div class="doctor-assignment-block-title">醫囑</div>
+        ${hasOrder ? `
+          <div class="doctor-assignment-order markdown-body">${renderMessageMarkdown(escapeHtml(String(entry.orderDraft || '')).replace(/\n/g, '  \n'))}</div>
+        ` : `
+          <div class="doctor-assignment-empty-inline">目前還沒有新的醫囑內容。</div>
+        `}
+      </section>
+    </div>
+  `;
+}
+
 function normalizeFhirBaseUrl(baseUrl) {
   const normalized = String(baseUrl || '').trim();
   return normalized ? normalized.replace(/\/+$/, '') : '';
@@ -3210,6 +3352,7 @@ function renderReportOutputs() {
   const hamd = getHamdSummary(clinician, hamdProgress, hamdFormalAssessment);
   const hamdFormalStats = buildHamdFormalStats(hamdFormalAssessment);
   const doctorSummaryState = renderDoctorSummary(clinician);
+  const doctorAssignment = getCurrentPatientAssignment();
 
   const intro = document.getElementById('report-auto-intro');
   const heading = document.getElementById('report-hamd-heading');
@@ -3229,6 +3372,7 @@ function renderReportOutputs() {
   const patientAnalysisMeta = document.getElementById('report-patient-analysis-meta');
   const doctorSummary = document.getElementById('report-doctor-summary');
   const doctorSummaryMeta = document.getElementById('report-doctor-summary-meta');
+  const doctorAssignmentCard = document.getElementById('report-doctor-assignment-card');
   const phq9Summary = document.getElementById('report-phq9-summary');
   const symptomSummary = document.getElementById('report-symptom-summary');
   const classificationLogic = document.getElementById('report-classification-logic');
@@ -3293,6 +3437,10 @@ function renderReportOutputs() {
 
   if (doctorSummaryMeta) {
     doctorSummaryMeta.textContent = doctorSummaryState.meta;
+  }
+
+  if (doctorAssignmentCard) {
+    doctorAssignmentCard.innerHTML = renderDoctorAssignmentCard(doctorAssignment);
   }
 
   if (symptomSummary) {
@@ -4076,6 +4224,7 @@ function saveDoctorOrderDraft() {
   patient.orderDraft = draft;
   patient.orderStatus = draft ? '已暫存' : '未填寫';
   saveDoctorWorkspace();
+  syncDoctorAssignmentInbox(patient);
   renderDoctorDashboard();
   renderDoctorAssignScreen();
   appendSystemNotice(draft ? '醫囑草稿已暫存於醫師工作台。' : '醫囑草稿已清空。');
@@ -4086,6 +4235,7 @@ function markMedicalRecordSent() {
   if (!patient) return;
   patient.medicalRecordStatus = '已送入';
   saveDoctorWorkspace();
+  syncDoctorAssignmentInbox(patient);
   renderDoctorDashboard();
   renderDoctorAssignScreen();
   appendSystemNotice('已把此病人標示為「病歷已送入」。這是 prototype 狀態，不會寫入正式醫院系統。');
@@ -4169,6 +4319,7 @@ function saveMedicalRecordForm() {
   }
   patient.medicalRecord = record;
   saveDoctorWorkspace();
+  syncDoctorAssignmentInbox(patient);
   renderDoctorDashboard();
   renderDoctorAssignScreen();
   appendSystemNotice('病歷欄位已儲存於醫師工作台（本地 prototype，不會寫入 HIS / EMR / 正式 FHIR）。');

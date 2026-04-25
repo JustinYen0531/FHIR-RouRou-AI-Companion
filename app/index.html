@@ -490,9 +490,9 @@
             自主情緒追蹤
           </button>
         
-          <button class="report-tab" onclick="switchReportTab('know')">
-            <span class="mat-icon">psychology</span>
-            認識你
+          <button class="report-tab" onclick="switchReportTab('doctor-assignment')">
+            <span class="mat-icon">assignment_ind</span>
+            醫生指派
           </button>
         </div>
       </section>
@@ -518,6 +518,17 @@
             <div class="note-card">
               <div id="report-patient-analysis-markdown" class="note-text markdown-body report-markdown"></div>
               <div class="note-footer" id="report-patient-analysis-meta">目前狀態：尚未生成</div>
+            </div>
+          </section>
+
+          <section class="section">
+            <h3 class="section-heading">Rou Rou 認識你</h3>
+            <p class="greeting-sub report-inline-section-intro">這裡會接著顯示 Rou Rou 從對話裡慢慢整理出的認識，讓你看完分析後也能直接看到被記住的事。</p>
+            <div id="report-know-you-card" class="know-you-card">
+              <div class="know-you-empty">
+                <span class="mat-icon">psychology</span>
+                <p>還沒有足夠的對話資料<br>開始聊天後，這裡會出現 Rou Rou 對你的認識</p>
+              </div>
             </div>
           </section>
         </div>
@@ -726,16 +737,16 @@
         </section>
       </div>
 
-      <!-- TAB: KNOW YOU -->
-      <div id="report-tab-know" class="report-tab-content">
+      <!-- TAB: DOCTOR ASSIGNMENT -->
+      <div id="report-tab-doctor-assignment" class="report-tab-content">
         <section class="card-section" style="padding-bottom: 24px">
-          <div class="section-label">THERAPEUTIC MEMORY</div>
-          <h3 class="section-heading">Rou Rou 認識你</h3>
-          <p class="greeting-sub">這是 Rou Rou 從對話中累積的心理畫像，越聊越準確。</p>
-          <div id="report-know-you-card" class="know-you-card">
-            <div class="know-you-empty">
-              <span class="mat-icon">psychology</span>
-              <p>還沒有足夠的對話資料<br>開始聊天後，這裡會出現 Rou Rou 對你的認識</p>
+          <div class="section-label">DOCTOR ASSIGNMENT</div>
+          <h3 class="section-heading">醫生指派</h3>
+          <p class="greeting-sub">醫師送出的病歷摘要與醫囑，會在這裡集中顯示給你。</p>
+          <div id="report-doctor-assignment-card" class="doctor-assignment-card">
+            <div class="doctor-assignment-empty">
+              <span class="mat-icon">assignment_ind</span>
+              <p>目前還沒有新的醫生指派<br>等醫師送出病歷或醫囑後，這裡就會更新。</p>
             </div>
           </div>
         </section>
@@ -1221,4 +1232,3 @@
 <script src="app.js"></script>
 </body>
 </html>
-

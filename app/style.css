@@ -3902,6 +3902,10 @@ body {
   display: block;
 }
 
+.report-inline-section-intro {
+  margin: 0 0 16px;
+}
+
 .interactive-mood-chart {
   position: relative;
   padding: 20px 0;
@@ -5809,6 +5813,131 @@ body.micro-detail-open {
   width: 100%; justify-content: center;
 }
 .know-you-edit-btn:hover { background: rgba(168,56,54,0.06); }
+
+.doctor-assignment-card {
+  background: var(--surface-container-lowest);
+  border-radius: 20px;
+  border: 1px solid rgba(68,102,85,0.1);
+  padding: 20px;
+  box-shadow: var(--shadow-card);
+}
+
+.doctor-assignment-empty,
+.doctor-assignment-empty-inline {
+  color: var(--on-surface-variant);
+}
+
+.doctor-assignment-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 0;
+  opacity: 0.68;
+  text-align: center;
+}
+
+.doctor-assignment-empty .mat-icon {
+  font-size: 40px;
+  opacity: 0.35;
+}
+
+.doctor-assignment-empty p,
+.doctor-assignment-empty-inline {
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.doctor-assignment-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.doctor-assignment-title {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: var(--on-surface);
+}
+
+.doctor-assignment-meta {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--on-surface-variant);
+}
+
+.doctor-assignment-status-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.doctor-assignment-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.doctor-assignment-block {
+  background: rgba(168, 180, 187, 0.08);
+  border: 1px solid rgba(168, 180, 187, 0.12);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.doctor-assignment-block-title,
+.doctor-assignment-subtitle {
+  font-weight: 800;
+  color: var(--on-surface);
+}
+
+.doctor-assignment-block-title {
+  margin-bottom: 12px;
+  font-size: 0.96rem;
+}
+
+.doctor-assignment-subblock + .doctor-assignment-subblock {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(168, 180, 187, 0.12);
+}
+
+.doctor-assignment-subtitle {
+  margin-bottom: 8px;
+  font-size: 0.82rem;
+}
+
+.doctor-assignment-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  color: var(--on-surface);
+}
+
+.doctor-assignment-item .mat-icon {
+  font-size: 18px;
+  color: var(--primary);
+  margin-top: 1px;
+}
+
+.doctor-assignment-item div,
+.doctor-assignment-order {
+  line-height: 1.65;
+}
+
+.doctor-assignment-order {
+  color: var(--on-surface);
+}
+
+@media (min-width: 720px) {
+  .doctor-assignment-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 
 /* Report tabs 三欄自適應 */
 .report-tabs { display: flex; gap: 4px; }
