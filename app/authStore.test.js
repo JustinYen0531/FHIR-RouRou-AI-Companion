@@ -52,6 +52,26 @@ function testRejectDuplicateLoginIdentifier() {
   }, /already exists/);
 }
 
+function testStableUserIdSurvivesRecreatedStore() {
+  const firstStore = createAuthStore({ filePath: createTempStorePath() });
+  const secondStore = createAuthStore({ filePath: createTempStorePath() });
+  const first = firstStore.registerUser({
+    role: 'patient',
+    display_name: '星澄',
+    login_identifier: 'Justin',
+    password: 'pass1234'
+  });
+  const second = secondStore.registerUser({
+    role: 'patient',
+    display_name: '星澄',
+    login_identifier: 'justin',
+    password: 'pass1234'
+  });
+
+  assert.strictEqual(first.id, second.id);
+  assert.ok(first.id.startsWith('patient_'));
+}
+
 function testRevokeSession() {
   const store = createAuthStore({ filePath: createTempStorePath() });
   store.registerUser({
@@ -130,6 +150,7 @@ function testPortableTokenRestoresUserAcrossStoreInstances() {
 function run() {
   testRegisterAndLogin();
   testRejectDuplicateLoginIdentifier();
+  testStableUserIdSurvivesRecreatedStore();
   testRevokeSession();
   testFindUserByIdReturnsSafeUser();
   testLoginSeesUsersRegisteredByAnotherStoreInstance();

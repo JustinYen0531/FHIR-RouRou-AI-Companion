@@ -19,6 +19,7 @@ const PINNED_SESSION_STORAGE_KEY = 'rourou.pinnedSession.v1';
 const AUTH_TOKEN_STORAGE_KEY = 'rourou.authToken.v1';
 const AUTH_USER_STORAGE_KEY = 'rourou.authUser.v1';
 const DOCTOR_WORKSPACE_STORAGE_KEY = 'rourou.doctorWorkspace.v1';
+const DOCTOR_ASSIGNMENT_STORAGE_KEY = 'rourou.doctorAssignments.v1';
 const PINNED_SESSION_EXAMPLE_PROMPTS = [
   '我現在很亂，先用樹洞模式接住我，不要急著給建議。',
   '幫我把這段對話整理成「可給醫師看的重點」條列版。',
@@ -1214,19 +1215,47 @@ function buildDoctorAssignmentPayload(patient = null) {
   };
 }
 
+function loadLocalDoctorAssignments() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DOCTOR_ASSIGNMENT_STORAGE_KEY) || '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveLocalDoctorAssignment(entry = null) {
+  if (!entry?.patientId) return;
+  const assignments = loadLocalDoctorAssignments();
+  assignments[entry.patientId] = entry;
+  localStorage.setItem(DOCTOR_ASSIGNMENT_STORAGE_KEY, JSON.stringify(assignments));
+}
+
+function getLocalDoctorAssignment(patientId = '') {
+  const assignments = loadLocalDoctorAssignments();
+  return assignments[String(patientId || '').trim()] || null;
+}
+
 async function syncDoctorAssignmentInbox(patient = null) {
   const payload = buildDoctorAssignmentPayload(patient);
   if (!payload) return null;
-  const response = await fetch(`/api/assignments?patient_id=${encodeURIComponent(payload.patientId)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-  const result = await readJsonResponseSafe(response);
-  if (!response.ok) {
-    throw new Error(result.error || '醫師指派同步失敗。');
+  saveLocalDoctorAssignment(payload);
+  let response;
+  let result = {};
+  try {
+    response = await fetch(`/api/assignments?patient_id=${encodeURIComponent(payload.patientId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    result = await readJsonResponseSafe(response);
+  } catch {
+    return payload;
   }
-  return result.assignment || null;
+  if (!response.ok) return payload;
+  const assignment = result.assignment || payload;
+  saveLocalDoctorAssignment(assignment);
+  return assignment;
 }
 
 function shouldDisplayPatientAssignment(entry = null) {
@@ -1248,21 +1277,29 @@ async function fetchCurrentPatientAssignment(options = {}) {
     if (!response.ok) {
       throw new Error(result.error || '讀取醫生指派失敗。');
     }
-    const entry = shouldDisplayPatientAssignment(result.assignment) ? result.assignment : null;
+    const fallback = getLocalDoctorAssignment(user.id);
+    const entry = shouldDisplayPatientAssignment(result.assignment)
+      ? result.assignment
+      : shouldDisplayPatientAssignment(fallback)
+        ? fallback
+        : null;
     APP_STATE.patientAssignment = entry;
     if (options.render !== false) {
       renderReportOutputs();
     }
     return entry;
   } catch (error) {
-    APP_STATE.patientAssignment = null;
+    const fallback = getLocalDoctorAssignment(user.id);
+    APP_STATE.patientAssignment = shouldDisplayPatientAssignment(fallback) ? fallback : null;
     if (options.silent !== true) {
-      appendSystemNotice(error.message || '讀取醫生指派失敗。');
+      appendSystemNotice(APP_STATE.patientAssignment
+        ? '後端暫時讀不到醫生指派，已先使用這台瀏覽器保存的最新資料。'
+        : (error.message || '讀取醫生指派失敗。'));
     }
     if (options.render !== false) {
       renderReportOutputs();
     }
-    return null;
+    return APP_STATE.patientAssignment;
   }
 }
 

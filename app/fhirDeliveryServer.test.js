@@ -17,6 +17,11 @@ function createTempAuthStore() {
   return createAuthStore({ filePath: path.join(dir, 'auth.json') });
 }
 
+function createTempAssignmentStorePath() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rourou-assignments-server-'));
+  return path.join(dir, 'assignments.json');
+}
+
 function requestJson(port, pathname, options = {}) {
   return new Promise((resolve, reject) => {
     const req = http.request(`http://127.0.0.1:${port}${pathname}`, {
@@ -667,6 +672,61 @@ async function testDoctorCanAddPatientIdWithoutSharedUserCache() {
   assert.strictEqual(lookup.body.user.id, 'patient_500145aa3ab7');
 }
 
+async function testDoctorAssignmentVisibleToPatient() {
+  const authStore = createTempAuthStore();
+  const server = createServer({ authStore, assignmentStorePath: createTempAssignmentStorePath() });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const patientLogin = await requestJson(port, '/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: {
+      role: 'patient',
+      display_name: 'Justin',
+      login_identifier: 'justin',
+      password: 'pass1234'
+    }
+  });
+  const doctorLogin = await requestJson(port, '/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: {
+      role: 'doctor',
+      display_name: '王醫師',
+      login_identifier: 'doctor_wang',
+      password: 'secure123'
+    }
+  });
+  const patientId = patientLogin.body.user.id;
+
+  const patch = await requestJson(port, `/api/assignments?patient_id=${encodeURIComponent(patientId)}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${doctorLogin.body.token}`
+    },
+    body: {
+      patientId,
+      patientName: 'Justin',
+      medicalRecordStatus: '已送入',
+      orderDraft: {
+        content: '回診前請補充最近一週睡眠狀況。',
+        status: '已送出'
+      }
+    }
+  });
+  const get = await requestJson(port, `/api/assignments?patient_id=${encodeURIComponent(patientId)}`, {
+    headers: { Authorization: `Bearer ${patientLogin.body.token}` }
+  });
+
+  server.close();
+  assert.strictEqual(patch.statusCode, 200);
+  assert.strictEqual(get.statusCode, 200);
+  assert.strictEqual(get.body.assignment.medicalRecordStatus, '已送入');
+  assert.strictEqual(get.body.assignment.orderDraft.content, '回診前請補充最近一週睡眠狀況。');
+}
+
 async function testAuthProtectsForeignSession() {
   const authStore = createTempAuthStore();
   const user = authStore.registerUser({
@@ -745,6 +805,7 @@ async function run() {
   await testAuthRegisterAndMeEndpoint();
   await testAuthLoginCreatesUnknownAccount();
   await testDoctorCanAddPatientIdWithoutSharedUserCache();
+  await testDoctorAssignmentVisibleToPatient();
   await testAuthProtectsForeignSession();
   console.log('FHIR delivery server tests passed.');
 }

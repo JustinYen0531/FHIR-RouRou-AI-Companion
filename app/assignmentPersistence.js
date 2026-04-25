@@ -106,9 +106,19 @@ function createAssignmentPersistence(options = {}) {
   const filePath = options.filePath || DEFAULT_ASSIGNMENT_STORE_PATH;
   const assignments = loadAssignmentsFromFile(filePath);
   let persistenceAvailable = true;
+  function refresh() {
+    if (!persistenceAvailable) return assignments;
+    const latest = loadAssignmentsFromFile(filePath);
+    assignments.clear();
+    for (const [key, value] of latest.entries()) {
+      assignments.set(key, value);
+    }
+    return assignments;
+  }
   return {
     filePath,
     assignments,
+    refresh,
     save(nextAssignments = assignments) {
       if (!persistenceAvailable) return;
       try {

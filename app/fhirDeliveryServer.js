@@ -979,6 +979,7 @@ function createServer(options = {}) {
         sendJson(res, 401, { error: 'Unauthorized', code: 'unauthorized' });
         return;
       }
+      assignmentPersistence.refresh?.();
       const requestedPatientId = String(parsedUrl.searchParams.get('patient_id') || '').trim();
       const patientId = authUser.role === 'patient' ? authUser.id : requestedPatientId;
       if (!patientId) {
@@ -1136,6 +1137,7 @@ function createServer(options = {}) {
           sendJson(res, 403, { error: 'Forbidden', code: 'forbidden' });
           return;
         }
+        assignmentPersistence.refresh?.();
         const patientId = String(parsedUrl.searchParams.get('patient_id') || payload.patientId || '').trim();
         const assignment = normalizeAssignmentRecord(Object.assign({}, payload, {
           patientId,

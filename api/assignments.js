@@ -27,6 +27,7 @@ module.exports = async function handler(req, res) {
   }
 
   const store = getSharedAssignmentStore();
+  store.refresh?.();
 
   if (req.method === 'GET') {
     if (currentUser.role === 'patient' && patientId !== currentUser.id) {

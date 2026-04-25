@@ -50,6 +50,15 @@ function generateId(prefix) {
   return `${prefix}_${crypto.randomBytes(6).toString('hex')}`;
 }
 
+function generateStableUserId(role, loginIdentifier) {
+  const hash = crypto
+    .createHash('sha256')
+    .update(`${role}:${normalizeLoginIdentifier(loginIdentifier)}`)
+    .digest('hex')
+    .slice(0, 12);
+  return `${role}_${hash}`;
+}
+
 function base64UrlEncode(value) {
   return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
 }
@@ -267,7 +276,7 @@ function createAuthStore(options = {}) {
 
     const timestamp = new Date().toISOString();
     const record = {
-      id: generateId(role),
+      id: generateStableUserId(role, loginIdentifier),
       role,
       display_name: displayName,
       login_identifier: loginIdentifier,
