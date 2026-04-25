@@ -617,7 +617,7 @@ async function testAuthRegisterAndMeEndpoint() {
   assert.strictEqual(me.body.user.login_identifier, 'patient_lin');
 }
 
-async function testAuthLoginRejectsUnknownAccount() {
+async function testAuthLoginCreatesUnknownAccount() {
   const authStore = createTempAuthStore();
   const server = createServer({ authStore });
   await new Promise((resolve) => server.listen(0, resolve));
@@ -635,8 +635,36 @@ async function testAuthLoginRejectsUnknownAccount() {
   });
 
   server.close();
-  assert.strictEqual(login.statusCode, 401);
-  assert.strictEqual(login.body.code, 'account_not_found');
+  assert.strictEqual(login.statusCode, 201);
+  assert.strictEqual(login.body.created, true);
+  assert.ok(login.body.token);
+  assert.strictEqual(login.body.user.login_identifier, 'justin');
+}
+
+async function testDoctorCanAddPatientIdWithoutSharedUserCache() {
+  const authStore = createTempAuthStore();
+  const server = createServer({ authStore });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const doctorLogin = await requestJson(port, '/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: {
+      role: 'doctor',
+      display_name: '王醫師',
+      login_identifier: 'doctor_wang',
+      password: 'secure123'
+    }
+  });
+  const lookup = await requestJson(port, '/api/auth/users?id=patient_500145aa3ab7', {
+    headers: { Authorization: `Bearer ${doctorLogin.body.token}` }
+  });
+
+  server.close();
+  assert.strictEqual(lookup.statusCode, 200);
+  assert.strictEqual(lookup.body.user.role, 'patient');
+  assert.strictEqual(lookup.body.user.id, 'patient_500145aa3ab7');
 }
 
 async function testAuthProtectsForeignSession() {
@@ -715,7 +743,8 @@ async function run() {
   await testQuickCheckEndpoint();
   await testPatientRefreshEndpoint();
   await testAuthRegisterAndMeEndpoint();
-  await testAuthLoginRejectsUnknownAccount();
+  await testAuthLoginCreatesUnknownAccount();
+  await testDoctorCanAddPatientIdWithoutSharedUserCache();
   await testAuthProtectsForeignSession();
   console.log('FHIR delivery server tests passed.');
 }

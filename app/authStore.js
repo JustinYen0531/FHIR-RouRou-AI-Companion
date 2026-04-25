@@ -12,6 +12,7 @@ const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const PASSWORD_ITERATIONS = 120000;
 const PASSWORD_KEYLEN = 64;
 const PASSWORD_DIGEST = 'sha512';
+const AUTH_TOKEN_SECRET = process.env.AI_COMPANION_AUTH_TOKEN_SECRET || 'rourou-demo-auth-token-secret-v1';
 
 function createAuthError(message, code) {
   const error = new Error(message);
@@ -47,6 +48,63 @@ function normalizeDisplayName(value, fallback = '') {
 
 function generateId(prefix) {
   return `${prefix}_${crypto.randomBytes(6).toString('hex')}`;
+}
+
+function base64UrlEncode(value) {
+  return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
+}
+
+function base64UrlDecode(value) {
+  return JSON.parse(Buffer.from(String(value || ''), 'base64url').toString('utf8'));
+}
+
+function signTokenPayload(encodedPayload) {
+  return crypto
+    .createHmac('sha256', AUTH_TOKEN_SECRET)
+    .update(String(encodedPayload || ''))
+    .digest('base64url');
+}
+
+function createPortableToken(user, session) {
+  const payload = base64UrlEncode({
+    version: 1,
+    user: sanitizeUser(user),
+    session,
+    expires_at: session.expires_at
+  });
+  return `rourou_v1.${payload}.${signTokenPayload(payload)}`;
+}
+
+function verifyPortableToken(token = '') {
+  const parts = String(token || '').split('.');
+  if (parts.length !== 3 || parts[0] !== 'rourou_v1') return null;
+  const [, encodedPayload, signature] = parts;
+  const expectedSignature = signTokenPayload(encodedPayload);
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+  try {
+    const payload = base64UrlDecode(encodedPayload);
+    const expiresAt = Date.parse(payload?.expires_at || payload?.session?.expires_at);
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) return null;
+    const user = sanitizeUser(payload.user || {});
+    const rawSession = payload.session || {};
+    const session = {
+      id: String(rawSession.id || '').trim(),
+      token_hash: String(rawSession.token_hash || 'portable').trim(),
+      user_id: String(rawSession.user_id || user.id || '').trim(),
+      created_at: String(rawSession.created_at || '').trim() || new Date().toISOString(),
+      expires_at: String(rawSession.expires_at || payload.expires_at || '').trim()
+    };
+    if (!user.id || !user.role || !session.id || !session.user_id || !session.expires_at) return null;
+    return { session, user };
+  } catch {
+    return null;
+  }
 }
 
 function createPasswordHash(password) {
@@ -141,6 +199,7 @@ function hashToken(token) {
 function createAuthStore(options = {}) {
   const filePath = options.filePath || DEFAULT_AUTH_STORE_PATH;
   const state = loadAuthData(filePath);
+  const revokedTokenHashes = new Set();
   let persistenceAvailable = true;
 
   function refreshFromDisk() {
@@ -228,18 +287,19 @@ function createAuthStore(options = {}) {
     if (!user) {
       throw new Error('user not found');
     }
-    const rawToken = crypto.randomBytes(24).toString('hex');
     const session = {
       id: generateId('auth'),
-      token_hash: hashToken(rawToken),
+      token_hash: '',
       user_id: user.id,
       created_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + SESSION_TTL_MS).toISOString()
     };
+    const portableToken = createPortableToken(user, session);
+    session.token_hash = hashToken(portableToken);
     state.sessions.push(session);
     persist();
     return {
-      token: rawToken,
+      token: portableToken,
       session
     };
   }
@@ -271,8 +331,9 @@ function createAuthStore(options = {}) {
     refreshFromDisk();
     removeExpiredSessions();
     const tokenHash = hashToken(token);
+    if (revokedTokenHashes.has(tokenHash)) return null;
     const session = state.sessions.find((item) => item.token_hash === tokenHash);
-    if (!session) return null;
+    if (!session) return verifyPortableToken(token);
     const user = findUserById(session.user_id);
     if (!user || user.status !== 'active') return null;
     return {
@@ -284,8 +345,13 @@ function createAuthStore(options = {}) {
   function revokeSession(token = '') {
     refreshFromDisk();
     const tokenHash = hashToken(token);
+    revokedTokenHashes.add(tokenHash);
+    const portable = verifyPortableToken(token);
     const before = state.sessions.length;
-    state.sessions = state.sessions.filter((item) => item.token_hash !== tokenHash);
+    state.sessions = state.sessions.filter((item) => {
+      if (item.token_hash === tokenHash) return false;
+      return !portable?.session?.id || item.id !== portable.session.id;
+    });
     if (state.sessions.length !== before) {
       persist();
       return true;

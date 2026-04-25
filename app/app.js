@@ -1645,16 +1645,11 @@ async function submitAuth(action = 'login') {
     if (status) status.textContent = '請先輸入帳號與密碼。';
     return;
   }
-  if (action === 'register' && !displayName) {
-    if (status) status.textContent = '註冊時請補上顯示名稱。';
-    return;
-  }
-
   if (submitButton) {
     submitButton.disabled = true;
   }
   if (status) {
-    status.textContent = action === 'register' ? '正在建立帳號...' : '正在登入...';
+    status.textContent = '正在確認帳號...';
   }
 
   try {
@@ -1665,7 +1660,6 @@ async function submitAuth(action = 'login') {
       password
     };
     const result = await requestAuthAction(action, authBody);
-    const finalAction = action;
 
     if (!result.ok) {
       throw new Error(formatAuthErrorMessage(result.payload, action));
@@ -1673,9 +1667,9 @@ async function submitAuth(action = 'login') {
     const payload = result.payload;
     setAuthenticatedSession(payload.token || '', payload.user || null);
     if (status) {
-      status.textContent = finalAction === 'register' ? '帳號建立成功，已自動登入。' : '登入成功。';
+      status.textContent = payload.created ? '帳號建立成功，已自動登入。' : '登入成功。';
     }
-    appendSystemNotice(finalAction === 'register' ? '帳號建立完成，現在系統知道你是誰了。' : '登入成功，身份系統已啟用。');
+    appendSystemNotice(payload.created ? '帳號建立完成，現在系統知道你是誰了。' : '登入成功，身份系統已啟用。');
     showRoleHome();
   } catch (error) {
     if (status) {

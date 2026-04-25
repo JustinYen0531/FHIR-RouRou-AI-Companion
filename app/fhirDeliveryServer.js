@@ -914,6 +914,43 @@ function createServer(options = {}) {
       return;
     }
 
+    if (req.method === 'GET' && parsedUrl.pathname === '/api/auth/users') {
+      if (!authUser) {
+        sendJson(res, 401, { error: 'Unauthorized' });
+        return;
+      }
+      const userId = String(parsedUrl.searchParams.get('id') || '').trim();
+      if (!userId) {
+        sendJson(res, 400, { error: 'id is required', code: 'missing_user_id' });
+        return;
+      }
+      const canLookup = authUser.role === 'doctor' || authUser.id === userId;
+      if (!canLookup) {
+        sendJson(res, 403, { error: 'Forbidden', code: 'forbidden' });
+        return;
+      }
+      const user = authStore.findUserById(userId);
+      if (!user) {
+        if (authUser.role === 'doctor' && /^patient_[a-z0-9]+$/i.test(userId)) {
+          sendJson(res, 200, {
+            ok: true,
+            user: {
+              id: userId,
+              role: 'patient',
+              display_name: `病人 ${userId.slice(-6)}`,
+              login_identifier: '',
+              status: 'active'
+            }
+          });
+          return;
+        }
+        sendJson(res, 404, { error: 'user not found', code: 'user_not_found' });
+        return;
+      }
+      sendJson(res, 200, { ok: true, user });
+      return;
+    }
+
     if (req.method === 'POST' && (parsedUrl.pathname === '/auth/logout' || parsedUrl.pathname === '/api/auth/logout')) {
       if (bearerToken) {
         authStore.revokeSession(bearerToken);
@@ -1042,6 +1079,19 @@ function createServer(options = {}) {
             user
           }));
         } catch (error) {
+          if (error.message === 'login_identifier already exists') {
+            try {
+              const loginResult = authStore.login(payload);
+              sendJson(res, 200, buildLoginResponsePayload(loginResult));
+              return;
+            } catch (loginError) {
+              sendJson(res, 400, {
+                error: loginError.message || 'Unable to login existing user.',
+                code: loginError.code || 'account_exists'
+              });
+              return;
+            }
+          }
           sendJson(res, 400, {
             error: error.message || 'Unable to register user.',
             code: error.message === 'login_identifier already exists' ? 'account_exists' : (error.code || 'register_failed')
@@ -1055,6 +1105,20 @@ function createServer(options = {}) {
           const loginResult = authStore.login(payload);
           sendJson(res, 200, buildLoginResponsePayload(loginResult));
         } catch (error) {
+          if (error.code === 'account_not_found') {
+            try {
+              authStore.registerUser(payload);
+              const loginResult = authStore.login(payload);
+              sendJson(res, 201, buildLoginResponsePayload(loginResult, true));
+              return;
+            } catch (registerError) {
+              sendJson(res, 401, {
+                error: registerError.message || 'Unable to create and login.',
+                code: registerError.code || 'login_failed'
+              });
+              return;
+            }
+          }
           sendJson(res, 401, {
             error: error.message || 'Unable to login.',
             code: error.code || 'login_failed'

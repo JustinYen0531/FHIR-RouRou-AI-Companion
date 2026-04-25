@@ -107,12 +107,33 @@ function testLoginSeesUsersRegisteredByAnotherStoreInstance() {
   assert.strictEqual(login.user.id, user.id);
 }
 
+function testPortableTokenRestoresUserAcrossStoreInstances() {
+  const issuingStore = createAuthStore({ filePath: createTempStorePath() });
+  issuingStore.registerUser({
+    role: 'doctor',
+    display_name: '王醫師',
+    login_identifier: 'doctor_wang',
+    password: 'secure123'
+  });
+  const login = issuingStore.login({
+    login_identifier: 'doctor_wang',
+    password: 'secure123'
+  });
+
+  const verifyingStore = createAuthStore({ filePath: createTempStorePath() });
+  const restored = verifyingStore.getSessionByToken(login.token);
+
+  assert.strictEqual(restored.user.role, 'doctor');
+  assert.strictEqual(restored.user.login_identifier, 'doctor_wang');
+}
+
 function run() {
   testRegisterAndLogin();
   testRejectDuplicateLoginIdentifier();
   testRevokeSession();
   testFindUserByIdReturnsSafeUser();
   testLoginSeesUsersRegisteredByAnotherStoreInstance();
+  testPortableTokenRestoresUserAcrossStoreInstances();
   console.log('Auth store tests passed.');
 }
 

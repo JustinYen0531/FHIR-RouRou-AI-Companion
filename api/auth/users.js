@@ -33,6 +33,19 @@ module.exports = function handler(req, res) {
   const authStore = getSharedAuthStore();
   const user = authStore.findUserById(userId);
   if (!user) {
+    if (currentUser.role === 'doctor' && /^patient_[a-z0-9]+$/i.test(userId)) {
+      sendJson(res, 200, {
+        ok: true,
+        user: {
+          id: userId,
+          role: 'patient',
+          display_name: `病人 ${userId.slice(-6)}`,
+          login_identifier: '',
+          status: 'active'
+        }
+      });
+      return;
+    }
     sendJson(res, 404, { error: 'user not found', code: 'user_not_found' });
     return;
   }
