@@ -106,6 +106,13 @@ function buildSafeAuthPayload(authResult) {
   };
 }
 
+function buildLoginResponsePayload(loginResult, created = false) {
+  return Object.assign(buildSafeAuthPayload(loginResult), {
+    created,
+    token: loginResult.token
+  });
+}
+
 function sessionBelongsToUser(session, authUser) {
   if (!authUser) return true;
   return String(session?.user || '').trim() === String(authUser.id || '').trim();
@@ -1014,10 +1021,23 @@ function createServer(options = {}) {
       if (req.method === 'POST' && (parsedUrl.pathname === '/auth/login' || parsedUrl.pathname === '/api/auth/login')) {
         try {
           const loginResult = authStore.login(payload);
-          sendJson(res, 200, Object.assign(buildSafeAuthPayload(loginResult), {
-            token: loginResult.token
-          }));
+          sendJson(res, 200, buildLoginResponsePayload(loginResult));
         } catch (error) {
+          const canCreateOnFirstLogin = error.code === 'account_not_found' && String(payload.display_name || '').trim();
+          if (canCreateOnFirstLogin) {
+            try {
+              authStore.registerUser(payload);
+              const loginResult = authStore.login(payload);
+              sendJson(res, 201, buildLoginResponsePayload(loginResult, true));
+              return;
+            } catch (registerError) {
+              sendJson(res, 400, {
+                error: registerError.message || 'Unable to create account.',
+                code: registerError.message === 'login_identifier already exists' ? 'account_exists' : (registerError.code || 'register_failed')
+              });
+              return;
+            }
+          }
           sendJson(res, 401, {
             error: error.message || 'Unable to login.',
             code: error.code || 'login_failed'

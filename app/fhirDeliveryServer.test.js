@@ -617,6 +617,32 @@ async function testAuthRegisterAndMeEndpoint() {
   assert.strictEqual(me.body.user.login_identifier, 'patient_lin');
 }
 
+async function testAuthLoginCreatesFirstTimeAccount() {
+  const authStore = createTempAuthStore();
+  const server = createServer({ authStore });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const login = await requestJson(port, '/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: {
+      role: 'doctor',
+      display_name: 'Justin',
+      login_identifier: 'Justin',
+      password: '1234'
+    }
+  });
+
+  server.close();
+  assert.strictEqual(login.statusCode, 201);
+  assert.strictEqual(login.body.ok, true);
+  assert.strictEqual(login.body.created, true);
+  assert.strictEqual(login.body.user.role, 'doctor');
+  assert.strictEqual(login.body.user.login_identifier, 'justin');
+  assert.ok(login.body.token);
+}
+
 async function testAuthProtectsForeignSession() {
   const authStore = createTempAuthStore();
   const user = authStore.registerUser({
@@ -693,6 +719,7 @@ async function run() {
   await testQuickCheckEndpoint();
   await testPatientRefreshEndpoint();
   await testAuthRegisterAndMeEndpoint();
+  await testAuthLoginCreatesFirstTimeAccount();
   await testAuthProtectsForeignSession();
   console.log('FHIR delivery server tests passed.');
 }
