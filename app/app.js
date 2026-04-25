@@ -6122,40 +6122,47 @@ function renderMessageMarkdown(text) {
     return '';
   }
 
-  const blocks = normalized.split(/\n{2,}/);
-  const html = blocks.map((block) => {
-    const lines = block.split('\n').filter(Boolean);
+  const lines = normalized.split('\n');
+  const html = [];
+  let listType = null;
+  let listItems = [];
 
-    if (lines.length > 0 && lines.every((line) => /^###\s+/.test(line))) {
-      return lines.map((line) => `<h3>${renderInlineMarkdown(line.replace(/^###\s+/, ''))}</h3>`).join('');
+  const flushList = () => {
+    if (!listItems.length) return;
+    html.push(`<${listType}>${listItems.join('')}</${listType}>`);
+    listItems = [];
+    listType = null;
+  };
+
+  for (const line of lines) {
+    if (/^###\s+/.test(line)) {
+      flushList();
+      html.push(`<h3>${renderInlineMarkdown(line.replace(/^###\s+/, ''))}</h3>`);
+    } else if (/^##\s+/.test(line)) {
+      flushList();
+      html.push(`<h2>${renderInlineMarkdown(line.replace(/^##\s+/, ''))}</h2>`);
+    } else if (/^#\s+/.test(line)) {
+      flushList();
+      html.push(`<h1>${renderInlineMarkdown(line.replace(/^#\s+/, ''))}</h1>`);
+    } else if (/^>\s?/.test(line)) {
+      flushList();
+      html.push(`<blockquote>${renderInlineMarkdown(line.replace(/^>\s?/, ''))}</blockquote>`);
+    } else if (/^[-*]\s+/.test(line)) {
+      if (listType !== 'ul') { flushList(); listType = 'ul'; }
+      listItems.push(`<li>${renderInlineMarkdown(line.replace(/^[-*]\s+/, ''))}</li>`);
+    } else if (/^\d+\.\s+/.test(line)) {
+      if (listType !== 'ol') { flushList(); listType = 'ol'; }
+      listItems.push(`<li>${renderInlineMarkdown(line.replace(/^\d+\.\s+/, ''))}</li>`);
+    } else if (line.trim() === '') {
+      flushList();
+    } else {
+      flushList();
+      html.push(`<p>${renderInlineMarkdown(line)}</p>`);
     }
+  }
+  flushList();
 
-    if (lines.length > 0 && lines.every((line) => /^##\s+/.test(line))) {
-      return lines.map((line) => `<h2>${renderInlineMarkdown(line.replace(/^##\s+/, ''))}</h2>`).join('');
-    }
-
-    if (lines.length > 0 && lines.every((line) => /^>\s?/.test(line))) {
-      return `<blockquote>${lines.map((line) => renderInlineMarkdown(line.replace(/^>\s?/, ''))).join('<br/>')}</blockquote>`;
-    }
-
-    if (lines.length > 0 && lines.every((line) => /^[-*]\s+/.test(line))) {
-      const items = lines
-        .map((line) => `<li>${renderInlineMarkdown(line.replace(/^[-*]\s+/, ''))}</li>`)
-        .join('');
-      return `<ul>${items}</ul>`;
-    }
-
-    if (lines.length > 0 && lines.every((line) => /^\d+\.\s+/.test(line))) {
-      const items = lines
-        .map((line) => `<li>${renderInlineMarkdown(line.replace(/^\d+\.\s+/, ''))}</li>`)
-        .join('');
-      return `<ol>${items}</ol>`;
-    }
-
-    return `<p>${renderInlineMarkdown(lines.join('<br/>'))}</p>`;
-  }).join('');
-
-  return html;
+  return html.join('');
 }
 
 function renderHomeGuidePages() {

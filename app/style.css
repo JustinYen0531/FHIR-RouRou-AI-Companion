@@ -6126,9 +6126,9 @@ body.micro-detail-open {
 
 .doctor-assignment-status-group {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
 }
 
 .doctor-assignment-grid {
