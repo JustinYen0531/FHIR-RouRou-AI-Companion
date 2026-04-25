@@ -1,8 +1,11 @@
 const crypto = require('crypto');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
-const DEFAULT_AUTH_STORE_PATH = path.join(__dirname, '..', '.data', 'ai-companion-auth.json');
+const DEFAULT_AUTH_STORE_PATH = process.env.VERCEL
+  ? path.join(os.tmpdir(), 'ai-companion-auth.json')
+  : path.join(__dirname, '..', '.data', 'ai-companion-auth.json');
 const ROLE_SET = new Set(['patient', 'doctor']);
 const STATUS_SET = new Set(['active', 'disabled']);
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
@@ -138,9 +141,19 @@ function hashToken(token) {
 function createAuthStore(options = {}) {
   const filePath = options.filePath || DEFAULT_AUTH_STORE_PATH;
   const state = loadAuthData(filePath);
+  let persistenceAvailable = true;
 
   function persist() {
-    saveAuthData(state, filePath);
+    if (!persistenceAvailable) return;
+    try {
+      saveAuthData(state, filePath);
+    } catch (error) {
+      if (error && ['EROFS', 'EACCES', 'EPERM'].includes(error.code)) {
+        persistenceAvailable = false;
+        return;
+      }
+      throw error;
+    }
   }
 
   function removeExpiredSessions() {

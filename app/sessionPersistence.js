@@ -1,7 +1,10 @@
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
-const DEFAULT_SESSION_STORE_PATH = path.join(__dirname, '..', '.data', 'ai-companion-sessions.json');
+const DEFAULT_SESSION_STORE_PATH = process.env.VERCEL
+  ? path.join(os.tmpdir(), 'ai-companion-sessions.json')
+  : path.join(__dirname, '..', '.data', 'ai-companion-sessions.json');
 
 function ensureParentDir(filePath) {
   const dir = path.dirname(filePath);
@@ -86,11 +89,21 @@ function saveSessionsToFile(sessions, filePath = DEFAULT_SESSION_STORE_PATH) {
 function createSessionPersistence(options = {}) {
   const filePath = options.filePath || DEFAULT_SESSION_STORE_PATH;
   const sessions = loadSessionsFromFile(filePath);
+  let persistenceAvailable = true;
   return {
     filePath,
     sessions,
     save(nextSessions = sessions) {
-      saveSessionsToFile(nextSessions, filePath);
+      if (!persistenceAvailable) return;
+      try {
+        saveSessionsToFile(nextSessions, filePath);
+      } catch (error) {
+        if (error && ['EROFS', 'EACCES', 'EPERM'].includes(error.code)) {
+          persistenceAvailable = false;
+          return;
+        }
+        throw error;
+      }
     }
   };
 }
