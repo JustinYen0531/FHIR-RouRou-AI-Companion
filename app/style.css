@@ -3375,6 +3375,131 @@ body {
   border: 1px solid rgba(168, 180, 187, 0.14);
 }
 
+.doctor-self-report-card {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(244, 248, 251, 0.86);
+  border: 1px solid rgba(168, 180, 187, 0.14);
+}
+
+.doctor-self-report-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.doctor-self-report-block {
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(168, 180, 187, 0.12);
+}
+
+.doctor-self-report-title {
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.doctor-self-report-main {
+  margin-top: 6px;
+  color: var(--on-surface);
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.doctor-self-report-main span {
+  font-size: 0.78rem;
+  color: var(--on-surface-variant);
+}
+
+.doctor-self-report-meta,
+.doctor-self-report-preview,
+.doctor-self-report-empty,
+.doctor-self-report-note {
+  margin-top: 6px;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.doctor-self-report-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.doctor-self-report-tags span {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(68, 102, 85, 0.08);
+  color: var(--primary-dim);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.doctor-self-report-safety {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--on-surface);
+}
+
+.doctor-self-report-safety .mat-icon {
+  color: var(--primary);
+  font-size: 18px;
+}
+
+.doctor-self-report-safety b,
+.doctor-self-report-safety small {
+  display: block;
+}
+
+.doctor-self-report-safety small {
+  color: var(--on-surface-variant);
+  font-size: 11px;
+}
+
+.doctor-phq9-mini-list {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.doctor-phq9-mini-row {
+  display: grid;
+  grid-template-columns: 28px 22px 1fr;
+  gap: 6px;
+  align-items: center;
+  color: var(--on-surface-variant);
+  font-size: 11px;
+}
+
+.doctor-phq9-mini-row span,
+.doctor-phq9-mini-row b {
+  color: var(--primary-dim);
+  font-style: normal;
+  font-weight: 800;
+}
+
+.doctor-phq9-mini-row em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: normal;
+}
+
+@media (min-width: 720px) {
+  .doctor-self-report-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .doctor-summary-card p {
   margin-top: 8px;
   color: #31434b;

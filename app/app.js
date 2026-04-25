@@ -20,6 +20,7 @@ const AUTH_TOKEN_STORAGE_KEY = 'rourou.authToken.v1';
 const AUTH_USER_STORAGE_KEY = 'rourou.authUser.v1';
 const DOCTOR_WORKSPACE_STORAGE_KEY = 'rourou.doctorWorkspace.v1';
 const DOCTOR_ASSIGNMENT_STORAGE_KEY = 'rourou.doctorAssignments.v1';
+const DOCTOR_VISIBLE_PATIENT_SUMMARY_KEY = 'rourou.doctorVisiblePatientSummary.v1';
 const PINNED_SESSION_EXAMPLE_PROMPTS = [
   '我現在很亂，先用樹洞模式接住我，不要急著給建議。',
   '幫我把這段對話整理成「可給醫師看的重點」條列版。',
@@ -1236,6 +1237,45 @@ function getLocalDoctorAssignment(patientId = '') {
   return assignments[String(patientId || '').trim()] || null;
 }
 
+function loadDoctorVisiblePatientSummaries() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DOCTOR_VISIBLE_PATIENT_SUMMARY_KEY) || '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveDoctorVisiblePatientSummary(patientId = '', summary = {}) {
+  const id = String(patientId || '').trim();
+  if (!id) return null;
+  const summaries = loadDoctorVisiblePatientSummaries();
+  const current = summaries[id] && typeof summaries[id] === 'object' ? summaries[id] : {};
+  const next = Object.assign({}, current, summary, {
+    patientId: id,
+    updatedAt: new Date().toISOString()
+  });
+  summaries[id] = next;
+  localStorage.setItem(DOCTOR_VISIBLE_PATIENT_SUMMARY_KEY, JSON.stringify(summaries));
+  return next;
+}
+
+function getDoctorVisiblePatientSummary(patientId = '') {
+  const summaries = loadDoctorVisiblePatientSummaries();
+  return summaries[String(patientId || '').trim()] || null;
+}
+
+function getCurrentPatientIdForDoctorSummary() {
+  const user = getCurrentAuthUser();
+  return user?.role === 'patient' ? user.id : '';
+}
+
+function publishDoctorVisiblePatientSummary(partial = {}) {
+  const patientId = getCurrentPatientIdForDoctorSummary();
+  if (!patientId) return null;
+  return saveDoctorVisiblePatientSummary(patientId, partial);
+}
+
 function getLatestLocalDoctorAssignment() {
   const assignments = Object.values(loadLocalDoctorAssignments()).filter(shouldDisplayPatientAssignment);
   assignments.sort((a, b) => String(b.syncedAt || '').localeCompare(String(a.syncedAt || '')));
@@ -1286,6 +1326,125 @@ function getAttendingDoctorInfo() {
     hasMedicalRecord: entry.medicalRecordStatus === '已送入',
     hasOrder: hasPublishedDoctorOrder(entry.orderDraft)
   };
+}
+
+function buildMoodSummaryForDoctor() {
+  const points = (APP_STATE.moodPoints || []).map((value) => Number(value) || 0);
+  const average = points.length
+    ? Math.round(points.reduce((sum, value) => sum + value, 0) / points.length)
+    : 0;
+  return {
+    updatedAt: new Date().toISOString(),
+    average,
+    currentLabel: getMoodLabel(points[points.length - 1] || average || 100),
+    tags: (APP_STATE.selectedMoodTags || []).slice(0, 8),
+    points
+  };
+}
+
+function publishMoodSummaryForDoctor() {
+  return publishDoctorVisiblePatientSummary({
+    mood: buildMoodSummaryForDoctor()
+  });
+}
+
+function publishPhq9SummaryForDoctor(assessment = null) {
+  const latest = assessment || PHQ9Tracker.getLatestAssessment();
+  if (!latest) return null;
+  const severity = buildPhq9SeverityBand(latest.totalScore);
+  return publishDoctorVisiblePatientSummary({
+    phq9: {
+      updatedAt: latest.completedAt || latest.updatedAt || new Date().toISOString(),
+      totalScore: latest.totalScore,
+      severity: severity.zhLabel,
+      summary: latest.summary || `PHQ-9 ${latest.totalScore}/27（${severity.zhLabel}）`,
+      note: latest.note || '',
+      answers: (latest.answers || []).map((answer) => ({
+        label: answer.label,
+        score: answer.score,
+        narrative: answer.narrative
+      }))
+    }
+  });
+}
+
+function publishSafetyAccessForDoctor(reason = '安全模式') {
+  const previous = publishDoctorVisiblePatientSummary({}) || {};
+  const existing = Array.isArray(previous.safetyEvents) ? previous.safetyEvents : [];
+  const nextEvents = [
+    { reason, enteredAt: new Date().toISOString() },
+    ...existing
+  ].slice(0, 5);
+  return publishDoctorVisiblePatientSummary({
+    safetyEvents: nextEvents
+  });
+}
+
+function formatDoctorSummaryTime(value = '') {
+  if (!value) return '尚未更新';
+  return new Date(value).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function renderDoctorVisiblePatientSummary(patient = {}) {
+  const summary = getDoctorVisiblePatientSummary(patient.id);
+  if (!summary) {
+    return `
+      <div class="doctor-self-report-card">
+        <div class="doctor-summary-label">病人自評與安全摘要</div>
+        <div class="doctor-self-report-empty">病人尚未產生可提供給醫師的自評資料。聊天內容仍保留為病人隱私。</div>
+      </div>
+    `;
+  }
+  const mood = summary.mood || null;
+  const phq9 = summary.phq9 || null;
+  const safetyEvents = Array.isArray(summary.safetyEvents) ? summary.safetyEvents : [];
+  return `
+    <div class="doctor-self-report-card">
+      <div class="doctor-summary-label">病人自評與安全摘要</div>
+      <div class="doctor-self-report-grid">
+        <section class="doctor-self-report-block">
+          <div class="doctor-self-report-title">情緒自評</div>
+          ${mood ? `
+            <div class="doctor-self-report-main">${escapeHtml(mood.currentLabel || '未標記')}</div>
+            <div class="doctor-self-report-meta">平均 ${escapeHtml(String(mood.average ?? '-'))}/100 ・ ${escapeHtml(formatDoctorSummaryTime(mood.updatedAt))}</div>
+            <div class="doctor-self-report-tags">
+              ${(mood.tags || []).length ? mood.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join('') : '<span>尚未選擇情緒標籤</span>'}
+            </div>
+          ` : '<div class="doctor-self-report-empty">尚未有情緒自評。</div>'}
+        </section>
+        <section class="doctor-self-report-block">
+          <div class="doctor-self-report-title">PHQ-9 九題量表</div>
+          ${phq9 ? `
+            <div class="doctor-self-report-main">${escapeHtml(String(phq9.totalScore))}<span>/27</span></div>
+            <div class="doctor-self-report-meta">${escapeHtml(phq9.severity || '')} ・ ${escapeHtml(formatDoctorSummaryTime(phq9.updatedAt))}</div>
+            <div class="doctor-self-report-preview">${escapeHtml(phq9.note || phq9.summary || '病人已完成 PHQ-9。')}</div>
+            <div class="doctor-phq9-mini-list">
+              ${(phq9.answers || []).slice(0, 9).map((answer, index) => `
+                <div class="doctor-phq9-mini-row">
+                  <span>Q${index + 1}</span>
+                  <b>${escapeHtml(String(answer.score ?? 0))}</b>
+                  <em>${escapeHtml(answer.label || '')}</em>
+                </div>
+              `).join('')}
+            </div>
+          ` : '<div class="doctor-self-report-empty">尚未完成 PHQ-9。</div>'}
+        </section>
+        <section class="doctor-self-report-block">
+          <div class="doctor-self-report-title">安全模式紀錄</div>
+          ${safetyEvents.length ? safetyEvents.map((event) => `
+            <div class="doctor-self-report-safety">
+              <span class="mat-icon">health_and_safety</span>
+              <div>
+                <b>${escapeHtml(event.reason || '安全模式')}</b>
+                <small>${escapeHtml(formatDoctorSummaryTime(event.enteredAt))}</small>
+              </div>
+            </div>
+          `).join('') : '<div class="doctor-self-report-empty">尚未進入安全模式。</div>'}
+        </section>
+      </div>
+      <div class="doctor-self-report-note">僅顯示病人自評、PHQ-9 與安全模式時間；聊天內容不會在醫師端顯示。</div>
+    </div>
+  `;
 }
 
 function shouldDisplayPatientAssignment(entry = null) {
@@ -4123,6 +4282,8 @@ function renderDoctorPatientDetail() {
       </div>
     </div>
 
+    ${renderDoctorVisiblePatientSummary(patient)}
+
     <div style="margin-top:1rem;text-align:center;">
       <button class="primary-btn" type="button" onclick="showScreen('screen-doctor-assign')">前往指派 / 輸入病歷醫囑</button>
     </div>
@@ -5349,6 +5510,7 @@ function renderMoodChart() {
       APP_STATE.moodPoints[index] = newY;
       renderMoodChart();
       updateMoodDisplay(newY);
+      publishMoodSummaryForDoctor();
     };
     
     const upHandler = () => {
@@ -5370,6 +5532,7 @@ function toggleMoodTag(el, tag) {
   const index = APP_STATE.selectedMoodTags.indexOf(tag);
   if (index === -1) APP_STATE.selectedMoodTags.push(tag);
   else APP_STATE.selectedMoodTags.splice(index, 1);
+  publishMoodSummaryForDoctor();
 }
 
 function setPHQ(questionIndex, score) {
@@ -5526,6 +5689,7 @@ function closePhq9Assessment() {
 function submitPhq9Assessment() {
   const assessment = PHQ9Tracker.commitDraft();
   syncPhq9SessionState();
+  publishPhq9SummaryForDoctor(assessment);
   renderPhq9Screen();
   renderPhq9ReportSummary();
   appendSystemNotice(`已把 PHQ-9 最新版本帶入對話背景，總分 ${assessment.totalScore} 分。`);
@@ -6406,6 +6570,9 @@ function evaluateMicroIntervention(payload = {}, options = {}) {
 
   if (decision.suppressed || !decision.card) {
     if (decision.reason === 'safety_route' || decision.reason === 'risk_flag' || options.fromOutput) {
+      if (decision.reason === 'safety_route' || decision.reason === 'risk_flag') {
+        publishSafetyAccessForDoctor(decision.reason === 'risk_flag' ? '高風險標記' : '安全模式');
+      }
       clearMicroInterventionCard();
       closeMicroInterventionDetail();
       microState.currentCardId = '';
@@ -6414,6 +6581,9 @@ function evaluateMicroIntervention(payload = {}, options = {}) {
   }
 
   microState.currentCardId = decision.card.id;
+  if (decision.reason === 'safety_route' || decision.reason === 'risk_flag') {
+    publishSafetyAccessForDoctor(decision.reason === 'risk_flag' ? '高風險標記' : '安全模式');
+  }
   microState.lastPresentedCardId = decision.card.id;
   microState.cardHistory.unshift({ id: decision.card.id, shownAt: Date.now() });
   microState.cardHistory = microState.cardHistory.slice(0, 12);
@@ -8713,6 +8883,9 @@ async function sendMessage() {
     APP_STATE.lastChatMetadata = payload.metadata || null;
     APP_STATE.reportOutputs.session_export = payload.session_export || APP_STATE.reportOutputs.session_export;
     APP_STATE.runtimeMode = payload.metadata?.active_mode || APP_STATE.runtimeMode;
+    if (payload.metadata?.active_mode === 'safety' || payload.metadata?.risk_flag === 'true' || payload.session_export?.risk_flag === 'true') {
+      publishSafetyAccessForDoctor(payload.metadata?.risk_flag === 'true' || payload.session_export?.risk_flag === 'true' ? '高風險標記' : '安全模式');
+    }
     syncReportOutputsFromSessionExport(APP_STATE.reportOutputs.session_export);
     syncTherapeuticMemoryFromSessionExport(APP_STATE.reportOutputs.session_export);
     APP_STATE.turnCount++;
