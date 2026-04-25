@@ -934,7 +934,7 @@ function createDefaultDoctorPatients() {
       riskLevel: '中',
       aiSummary: '近三次互動以睡眠中斷、焦慮反芻與就診前緊張為主。PHQ-9 草稿顯示低落與疲倦分數偏高，建議下次回診先確認睡眠與日間功能。',
       lastVisitNote: '病人已同意將摘要作為診前討論素材，但尚未送入正式病歷。',
-      orderDraft: ''
+      orderDraft: createEmptyDoctorOrder()
     },
     {
       id: 'patient-demo-002',
@@ -943,11 +943,28 @@ function createDefaultDoctorPatients() {
       latestAiRecordAt: '2026-04-23 08:35',
       aiSummaryStatus: '需要補充',
       medicalRecordStatus: '待送入',
-      orderStatus: '草稿中',
+      orderStatus: '草稿',
       riskLevel: '低',
       aiSummary: '近期主要在使用情緒標籤與呼吸練習，互動穩定，暫未出現明顯高風險訊號。仍建議補充藥物副作用與白天嗜睡狀況。',
       lastVisitNote: '醫囑草稿尚未確認，適合展示「暫存後再處理」流程。',
-      orderDraft: '請持續記錄睡眠時間與白天精神狀態，下次回診帶回討論。'
+      orderDraft: {
+        type: '追蹤觀察',
+        content: '請持續記錄睡眠時間與白天精神狀態，下次回診帶回討論。',
+        assignee: '病人',
+        duePreset: '回診前',
+        dueDate: '',
+        priority: '重要',
+        replyRequirement: '需填寫資料',
+        taskRef: '睡眠紀錄',
+        note: '若白天嗜睡加重，也請一併記錄發生時段。',
+        status: '草稿',
+        createdBy: '王醫師',
+        createdAt: '2026-04-23 08:35',
+        patientRef: 'P-2026-002',
+        encounterRef: '',
+        summaryRef: 'AI 睡眠觀察摘要',
+        observationRef: 'sleep-observation'
+      }
     },
     {
       id: 'patient-demo-003',
@@ -956,13 +973,101 @@ function createDefaultDoctorPatients() {
       latestAiRecordAt: '2026-04-20 19:42',
       aiSummaryStatus: '已整理',
       medicalRecordStatus: '已送入',
-      orderStatus: '已暫存',
+      orderStatus: '已送出',
       riskLevel: '觀察',
       aiSummary: '病人近期互動量下降，但最後一次對話提到工作壓力與社交退縮。建議醫師端先視為觀察個案，回診時確認是否有惡化。',
       lastVisitNote: '病歷送入狀態已標示完成，作為 prototype 狀態切換示範。',
-      orderDraft: '回診時請先討論工作壓力來源，必要時安排下一次追蹤。'
+      orderDraft: {
+        type: '回診前補充資料',
+        content: '回診前請先整理最近一週工作壓力來源與情緒波動。',
+        assignee: '病人',
+        duePreset: '回診前',
+        dueDate: '',
+        priority: '一般',
+        replyRequirement: '需回傳狀況',
+        taskRef: '回診前摘要確認',
+        note: '若出現明顯惡化，請提前回診或聯絡醫療單位。',
+        status: '已送出',
+        createdBy: '王醫師',
+        createdAt: '2026-04-20 19:42',
+        patientRef: 'P-2026-003',
+        encounterRef: 'ENC-2026-003',
+        summaryRef: '診前追蹤摘要',
+        observationRef: 'mood-observation'
+      }
     }
   ];
+}
+
+function createEmptyDoctorOrder() {
+  return {
+    type: '',
+    content: '',
+    assignee: '病人',
+    duePreset: '回診前',
+    dueDate: '',
+    priority: '一般',
+    replyRequirement: '不需回覆',
+    taskRef: '',
+    note: '',
+    status: '草稿',
+    createdBy: '',
+    createdAt: '',
+    patientRef: '',
+    encounterRef: '',
+    summaryRef: '',
+    observationRef: ''
+  };
+}
+
+function normalizeDoctorOrder(order, fallbackStatus = '未填寫', patient = {}) {
+  const base = createEmptyDoctorOrder();
+  if (typeof order === 'string') {
+    const legacy = order.trim();
+    return {
+      ...base,
+      content: legacy,
+      status: legacy ? (fallbackStatus === '未填寫' ? '草稿' : fallbackStatus) : '草稿',
+      patientRef: patient.patientNumber || '',
+      createdBy: '',
+      createdAt: ''
+    };
+  }
+  const source = order && typeof order === 'object' ? order : {};
+  const normalizedStatus = String(source.status || fallbackStatus || '草稿').trim() || '草稿';
+  return {
+    ...base,
+    type: String(source.type || '').trim(),
+    content: String(source.content || '').trim(),
+    assignee: String(source.assignee || base.assignee).trim() || base.assignee,
+    duePreset: String(source.duePreset || base.duePreset).trim() || base.duePreset,
+    dueDate: String(source.dueDate || '').trim(),
+    priority: String(source.priority || base.priority).trim() || base.priority,
+    replyRequirement: String(source.replyRequirement || base.replyRequirement).trim() || base.replyRequirement,
+    taskRef: String(source.taskRef || '').trim(),
+    note: String(source.note || '').trim(),
+    status: normalizedStatus,
+    createdBy: String(source.createdBy || '').trim(),
+    createdAt: String(source.createdAt || '').trim(),
+    patientRef: String(source.patientRef || patient.patientNumber || '').trim(),
+    encounterRef: String(source.encounterRef || '').trim(),
+    summaryRef: String(source.summaryRef || '').trim(),
+    observationRef: String(source.observationRef || '').trim()
+  };
+}
+
+function deriveDoctorOrderStatus(order = null) {
+  const normalized = normalizeDoctorOrder(order);
+  if (!normalized.content) return '未填寫';
+  return normalized.status || '草稿';
+}
+
+function hasPublishedDoctorOrder(order = null) {
+  const normalized = normalizeDoctorOrder(order);
+  return Boolean(
+    normalized.content &&
+    ['已送出', '病人已讀', '病人已完成', '醫師已複核', '已關閉'].includes(normalized.status)
+  );
 }
 
 function createEmptyMedicalRecord() {
@@ -1037,6 +1142,7 @@ function normalizeMedicalRecord(record) {
 }
 
 function normalizeDoctorPatient(patient = {}) {
+  const normalizedOrder = normalizeDoctorOrder(patient.orderDraft, patient.orderStatus, patient);
   return {
     id: String(patient.id || `patient-${Date.now()}`),
     patientNumber: String(patient.patientNumber || 'P-DEMO'),
@@ -1046,11 +1152,11 @@ function normalizeDoctorPatient(patient = {}) {
     latestAiRecordAt: String(patient.latestAiRecordAt || '尚無紀錄'),
     aiSummaryStatus: String(patient.aiSummaryStatus || '尚未整理'),
     medicalRecordStatus: String(patient.medicalRecordStatus || '待送入'),
-    orderStatus: String(patient.orderStatus || '未填寫'),
+    orderStatus: deriveDoctorOrderStatus(normalizedOrder),
     riskLevel: String(patient.riskLevel || '觀察'),
     aiSummary: String(patient.aiSummary || '目前沒有可展示的 AI 使用紀錄摘要。'),
     lastVisitNote: String(patient.lastVisitNote || '尚無補充紀錄。'),
-    orderDraft: String(patient.orderDraft || ''),
+    orderDraft: normalizedOrder,
     medicalRecord: normalizeMedicalRecord(patient.medicalRecord)
   };
 }
@@ -1112,6 +1218,7 @@ function syncDoctorAssignmentInbox(patient = null) {
   if (!patient?.id) return;
   const assignments = loadPatientAssignments();
   const currentUser = getCurrentAuthUser();
+  const normalizedOrder = normalizeDoctorOrder(patient.orderDraft, patient.orderStatus, patient);
   assignments[patient.id] = {
     patientId: patient.id,
     patientName: patient.name || '',
@@ -1119,9 +1226,9 @@ function syncDoctorAssignmentInbox(patient = null) {
     doctorId: currentUser?.id || '',
     doctorName: currentUser?.display_name || currentUser?.login_identifier || '醫師',
     medicalRecordStatus: patient.medicalRecordStatus || '待送入',
-    orderStatus: patient.orderStatus || '未填寫',
+    orderStatus: deriveDoctorOrderStatus(normalizedOrder),
     medicalRecord: normalizeMedicalRecord(patient.medicalRecord),
-    orderDraft: String(patient.orderDraft || ''),
+    orderDraft: normalizedOrder,
     syncedAt: new Date().toISOString()
   };
   savePatientAssignments(assignments);
@@ -1131,7 +1238,11 @@ function getCurrentPatientAssignment() {
   const user = getCurrentAuthUser();
   if (!user || user.role !== 'patient') return null;
   const assignments = loadPatientAssignments();
-  return assignments[user.id] || null;
+  const entry = assignments[user.id] || null;
+  if (!entry) return null;
+  const hasRecord = entry.medicalRecordStatus === '已送入';
+  const hasOrder = hasPublishedDoctorOrder(entry.orderDraft);
+  return hasRecord || hasOrder ? entry : null;
 }
 
 const APP_STATE = {
@@ -2743,7 +2854,8 @@ function renderDoctorAssignmentCard(entry = null) {
     `;
   }
 
-  const hasOrder = entry.orderStatus === '已暫存' && Boolean(String(entry.orderDraft || '').trim());
+  const order = normalizeDoctorOrder(entry.orderDraft, entry.orderStatus, entry);
+  const hasOrder = hasPublishedDoctorOrder(order);
   const blocks = buildDoctorAssignmentBlocks(entry);
   const syncedLabel = entry.syncedAt
     ? new Date(entry.syncedAt).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -2780,7 +2892,23 @@ function renderDoctorAssignmentCard(entry = null) {
       <section class="doctor-assignment-block">
         <div class="doctor-assignment-block-title">醫囑</div>
         ${hasOrder ? `
-          <div class="doctor-assignment-order markdown-body">${renderMessageMarkdown(escapeHtml(String(entry.orderDraft || '')).replace(/\n/g, '  \n'))}</div>
+          <div class="doctor-assignment-order-card">
+            <div class="doctor-assignment-order-line"><b>類型</b><span>${escapeHtml(order.type || '未分類')}</span></div>
+            <div class="doctor-assignment-order-line"><b>內容</b><span>${escapeHtml(order.content)}</span></div>
+            <div class="doctor-assignment-order-line"><b>執行對象</b><span>${escapeHtml(order.assignee || '病人')}</span></div>
+            <div class="doctor-assignment-order-line"><b>期限</b><span>${escapeHtml(order.duePreset === '指定日期' && order.dueDate ? order.dueDate : (order.duePreset || '未指定'))}</span></div>
+            <div class="doctor-assignment-order-line"><b>優先程度</b><span>${escapeHtml(order.priority || '一般')}</span></div>
+            <div class="doctor-assignment-order-line"><b>回覆需求</b><span>${escapeHtml(order.replyRequirement || '不需回覆')}</span></div>
+            <div class="doctor-assignment-order-line"><b>對應任務</b><span>${escapeHtml(order.taskRef || '未指定')}</span></div>
+            ${order.note ? `<div class="doctor-assignment-order-note">${escapeHtml(order.note)}</div>` : ''}
+            <div class="doctor-assignment-trace">
+              ${order.createdBy ? `<span>建立者：${escapeHtml(order.createdBy)}</span>` : ''}
+              ${order.createdAt ? `<span>建立時間：${escapeHtml(order.createdAt)}</span>` : ''}
+              ${order.encounterRef ? `<span>Encounter：${escapeHtml(order.encounterRef)}</span>` : ''}
+              ${order.summaryRef ? `<span>Summary：${escapeHtml(order.summaryRef)}</span>` : ''}
+              ${order.observationRef ? `<span>Observation：${escapeHtml(order.observationRef)}</span>` : ''}
+            </div>
+          </div>
         ` : `
           <div class="doctor-assignment-empty-inline">目前還沒有新的醫囑內容。</div>
         `}
@@ -3714,7 +3842,7 @@ function buildDoctorPatientFromUser(user = {}) {
     riskLevel: '待評估',
     aiSummary: '此病人是由醫師輸入病人 ID 加入。AI 使用紀錄摘要尚未接上 CareLink / 正式資料同步。',
     lastVisitNote: '目前只建立醫師工作台清單項目，尚未完成病人端授權確認。',
-    orderDraft: ''
+    orderDraft: createEmptyDoctorOrder()
   });
 }
 
@@ -3826,7 +3954,7 @@ function renderDoctorDashboard() {
     pendingRecords.textContent = String(patients.filter((patient) => patient.medicalRecordStatus !== '已送入').length);
   }
   if (pendingOrders) {
-    pendingOrders.textContent = String(patients.filter((patient) => patient.orderStatus !== '已暫存').length);
+    pendingOrders.textContent = String(patients.filter((patient) => !hasPublishedDoctorOrder(patient.orderDraft)).length);
   }
 
   if (list) {
@@ -3902,6 +4030,116 @@ function renderDoctorPatientDetail() {
   `;
 }
 
+const DOCTOR_ORDER_TYPE_OPTIONS = ['追蹤觀察', '填寫量表', '回診前補充資料', '生活作息建議', '用藥相關提醒', '轉介 / 進一步評估'];
+const DOCTOR_ORDER_ASSIGNEE_OPTIONS = ['病人', '家屬 / 照顧者', '護理師', '系統自動提醒'];
+const DOCTOR_ORDER_DUE_OPTIONS = ['今日', '三天內', '回診前', '指定日期'];
+const DOCTOR_ORDER_PRIORITY_OPTIONS = ['一般', '重要', '需盡快處理'];
+const DOCTOR_ORDER_REPLY_OPTIONS = ['不需回覆', '需確認已讀', '需填寫資料', '需回傳狀況'];
+const DOCTOR_ORDER_TASK_OPTIONS = ['PHQ-9', 'GAD-7', '睡眠紀錄', '情緒日記', '副作用回報', '回診前摘要確認'];
+const DOCTOR_ORDER_STATUS_OPTIONS = ['草稿', '已送出', '病人已讀', '病人已完成', '醫師已複核', '已關閉'];
+
+function buildDoctorOrderOptionMarkup(options = [], currentValue = '', placeholder = '請選擇') {
+  const head = [`<option value="">${escapeHtml(placeholder)}</option>`];
+  const tail = options.map((value) => `<option value="${escapeHtml(value)}" ${value === currentValue ? 'selected' : ''}>${escapeHtml(value)}</option>`);
+  return [...head, ...tail].join('');
+}
+
+function renderDoctorOrderForm(patient) {
+  const order = normalizeDoctorOrder(patient.orderDraft, patient.orderStatus, patient);
+  const orderMetaHint = order.createdAt
+    ? `最近更新：${escapeHtml(order.createdAt)}`
+    : '尚未建立醫囑。';
+  return `
+    <section class="doctor-action-panel doctor-order-panel">
+      <div class="doctor-action-kicker">ORDERS / TASKS</div>
+      <div class="doctor-order-head">
+        <div>
+          <h4>醫囑設計</h4>
+          <p>${orderMetaHint}</p>
+        </div>
+        <div class="doctor-status-pill ${getDoctorStatusClass(order.status)}">${escapeHtml(order.status || '草稿')}</div>
+      </div>
+
+      <div class="doctor-order-form-grid">
+        <label class="doctor-order-field">
+          <span>醫囑類型</span>
+          <select id="doctor-order-type">${buildDoctorOrderOptionMarkup(DOCTOR_ORDER_TYPE_OPTIONS, order.type)}</select>
+        </label>
+        <label class="doctor-order-field">
+          <span>執行對象</span>
+          <select id="doctor-order-assignee">${buildDoctorOrderOptionMarkup(DOCTOR_ORDER_ASSIGNEE_OPTIONS, order.assignee)}</select>
+        </label>
+        <label class="doctor-order-field">
+          <span>執行期限</span>
+          <select id="doctor-order-due-preset">${buildDoctorOrderOptionMarkup(DOCTOR_ORDER_DUE_OPTIONS, order.duePreset)}</select>
+        </label>
+        <label class="doctor-order-field">
+          <span>指定日期</span>
+          <input id="doctor-order-due-date" type="date" value="${escapeHtml(order.dueDate)}" />
+        </label>
+        <label class="doctor-order-field">
+          <span>優先程度</span>
+          <select id="doctor-order-priority">${buildDoctorOrderOptionMarkup(DOCTOR_ORDER_PRIORITY_OPTIONS, order.priority)}</select>
+        </label>
+        <label class="doctor-order-field">
+          <span>是否需要病人回覆</span>
+          <select id="doctor-order-reply">${buildDoctorOrderOptionMarkup(DOCTOR_ORDER_REPLY_OPTIONS, order.replyRequirement)}</select>
+        </label>
+        <label class="doctor-order-field">
+          <span>對應任務</span>
+          <select id="doctor-order-task">${buildDoctorOrderOptionMarkup(DOCTOR_ORDER_TASK_OPTIONS, order.taskRef)}</select>
+        </label>
+        <label class="doctor-order-field">
+          <span>醫囑狀態</span>
+          <select id="doctor-order-status">${buildDoctorOrderOptionMarkup(DOCTOR_ORDER_STATUS_OPTIONS, order.status, '請選擇狀態')}</select>
+        </label>
+      </div>
+
+      <label class="doctor-order-field doctor-order-field-full">
+        <span>醫囑內容</span>
+        <textarea id="doctor-order-content" class="doctor-order-textarea" placeholder="例如：請於下次回診前完成 PHQ-9 與睡眠紀錄。" rows="4">${escapeHtml(order.content)}</textarea>
+      </label>
+
+      <label class="doctor-order-field doctor-order-field-full">
+        <span>醫師補充備註</span>
+        <textarea id="doctor-order-note" class="doctor-order-note" placeholder="例如：若出現明顯惡化，請提前回診或聯絡醫療單位。" rows="2">${escapeHtml(order.note)}</textarea>
+      </label>
+
+      <div class="doctor-order-trace-grid">
+        <label class="doctor-order-field">
+          <span>建立者</span>
+          <input id="doctor-order-created-by" type="text" value="${escapeHtml(order.createdBy)}" placeholder="王醫師" />
+        </label>
+        <label class="doctor-order-field">
+          <span>建立時間</span>
+          <input id="doctor-order-created-at" type="datetime-local" value="${escapeHtml(order.createdAt ? order.createdAt.replace(' ', 'T') : '')}" />
+        </label>
+        <label class="doctor-order-field">
+          <span>對應病人</span>
+          <input id="doctor-order-patient-ref" type="text" value="${escapeHtml(order.patientRef || patient.patientNumber)}" placeholder="P-2026-001" />
+        </label>
+        <label class="doctor-order-field">
+          <span>對應 Encounter</span>
+          <input id="doctor-order-encounter-ref" type="text" value="${escapeHtml(order.encounterRef)}" placeholder="Encounter / 就診編號" />
+        </label>
+        <label class="doctor-order-field">
+          <span>對應 Summary</span>
+          <input id="doctor-order-summary-ref" type="text" value="${escapeHtml(order.summaryRef)}" placeholder="診前摘要 / AI summary" />
+        </label>
+        <label class="doctor-order-field">
+          <span>對應 Observation</span>
+          <input id="doctor-order-observation-ref" type="text" value="${escapeHtml(order.observationRef)}" placeholder="Observation code / id" />
+        </label>
+      </div>
+
+      <div class="doctor-order-actions">
+        <button class="ghost-btn doctor-action-btn" type="button" onclick="saveDoctorOrderDraft()">儲存醫囑欄位</button>
+        <button class="primary-btn doctor-action-btn" type="button" onclick="publishDoctorOrder()">送出醫囑</button>
+      </div>
+    </section>
+  `;
+}
+
 function renderDoctorAssignScreen() {
   const content = document.getElementById('doctor-assign-content');
   if (!content) return;
@@ -3929,15 +4167,9 @@ function renderDoctorAssignScreen() {
         <div class="doctor-action-state">目前狀態：${escapeHtml(patient.medicalRecordStatus)}</div>
         <button class="primary-btn doctor-action-btn" type="button" onclick="markMedicalRecordSent()">標示為已送入</button>
       </section>
-
-      <section class="doctor-action-panel">
-        <div class="doctor-action-kicker">醫囑草稿</div>
-        <h4>填寫醫囑</h4>
-        <textarea id="doctor-order-draft" class="doctor-order-textarea" placeholder="例如：請病人持續記錄睡眠、下次回診帶回討論。">${escapeHtml(patient.orderDraft)}</textarea>
-        <button class="primary-btn doctor-action-btn" type="button" onclick="saveDoctorOrderDraft()">暫存醫囑</button>
-      </section>
     </div>
 
+    ${renderDoctorOrderForm(patient)}
     ${renderMedicalRecordForm(patient)}
   `;
 }
@@ -4217,17 +4449,58 @@ function renderMrSectionProvenance(p) {
     </fieldset>`;
 }
 
+function readDoctorOrderForm(patient = null, forcedStatus = '') {
+  const currentUser = getCurrentAuthUser();
+  const currentOrder = normalizeDoctorOrder(patient?.orderDraft, patient?.orderStatus, patient || {});
+  const createdAtInput = String(document.getElementById('doctor-order-created-at')?.value || '').trim();
+  return normalizeDoctorOrder({
+    type: document.getElementById('doctor-order-type')?.value || '',
+    content: document.getElementById('doctor-order-content')?.value || '',
+    assignee: document.getElementById('doctor-order-assignee')?.value || '病人',
+    duePreset: document.getElementById('doctor-order-due-preset')?.value || '回診前',
+    dueDate: document.getElementById('doctor-order-due-date')?.value || '',
+    priority: document.getElementById('doctor-order-priority')?.value || '一般',
+    replyRequirement: document.getElementById('doctor-order-reply')?.value || '不需回覆',
+    taskRef: document.getElementById('doctor-order-task')?.value || '',
+    note: document.getElementById('doctor-order-note')?.value || '',
+    status: forcedStatus || document.getElementById('doctor-order-status')?.value || currentOrder.status || '草稿',
+    createdBy: document.getElementById('doctor-order-created-by')?.value || currentOrder.createdBy || currentUser?.display_name || currentUser?.login_identifier || '醫師',
+    createdAt: createdAtInput ? createdAtInput.replace('T', ' ') : (currentOrder.createdAt || new Date().toISOString().replace('T', ' ').slice(0, 16)),
+    patientRef: document.getElementById('doctor-order-patient-ref')?.value || patient?.patientNumber || '',
+    encounterRef: document.getElementById('doctor-order-encounter-ref')?.value || '',
+    summaryRef: document.getElementById('doctor-order-summary-ref')?.value || '',
+    observationRef: document.getElementById('doctor-order-observation-ref')?.value || ''
+  }, forcedStatus || currentOrder.status, patient || {});
+}
+
 function saveDoctorOrderDraft() {
   const patient = getSelectedDoctorPatient();
   if (!patient) return;
-  const draft = String(document.getElementById('doctor-order-draft')?.value || '').trim();
+  const draft = readDoctorOrderForm(patient);
   patient.orderDraft = draft;
-  patient.orderStatus = draft ? '已暫存' : '未填寫';
+  patient.orderStatus = draft.content ? (draft.status || '草稿') : '未填寫';
   saveDoctorWorkspace();
   syncDoctorAssignmentInbox(patient);
   renderDoctorDashboard();
   renderDoctorAssignScreen();
-  appendSystemNotice(draft ? '醫囑草稿已暫存於醫師工作台。' : '醫囑草稿已清空。');
+  appendSystemNotice(draft.content ? `醫囑欄位已儲存，目前狀態為「${patient.orderStatus}」。` : '醫囑內容已清空。');
+}
+
+function publishDoctorOrder() {
+  const patient = getSelectedDoctorPatient();
+  if (!patient) return;
+  const order = readDoctorOrderForm(patient, '已送出');
+  if (!order.content) {
+    appendSystemNotice('請先填寫醫囑內容，再送出給病人。');
+    return;
+  }
+  patient.orderDraft = order;
+  patient.orderStatus = '已送出';
+  saveDoctorWorkspace();
+  syncDoctorAssignmentInbox(patient);
+  renderDoctorDashboard();
+  renderDoctorAssignScreen();
+  appendSystemNotice('醫囑已送出，病人端現在可以在「醫生指派」查看。');
 }
 
 function markMedicalRecordSent() {
@@ -4542,7 +4815,7 @@ async function copyMedicalRecordPreview() {
 
 function focusDoctorPendingTasks() {
   const pendingPatient = APP_STATE.doctorWorkspace.patients.find((patient) => (
-    patient.medicalRecordStatus !== '已送入' || patient.orderStatus !== '已暫存'
+    patient.medicalRecordStatus !== '已送入' || !hasPublishedDoctorOrder(patient.orderDraft)
   ));
   if (pendingPatient) {
     APP_STATE.doctorWorkspace.selectedPatientId = pendingPatient.id;
@@ -8945,6 +9218,7 @@ window.showRoleReport = showRoleReport;
 window.returnFromSettings = returnFromSettings;
 window.selectDoctorPatient = selectDoctorPatient;
 window.saveDoctorOrderDraft = saveDoctorOrderDraft;
+window.publishDoctorOrder = publishDoctorOrder;
 window.markMedicalRecordSent = markMedicalRecordSent;
 window.addMedicalRecordItem = addMedicalRecordItem;
 window.removeMedicalRecordItem = removeMedicalRecordItem;

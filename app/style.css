@@ -3367,6 +3367,69 @@ body {
   resize: vertical;
 }
 
+.doctor-order-panel {
+  margin-top: 16px;
+}
+
+.doctor-order-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.doctor-order-form-grid,
+.doctor-order-trace-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.doctor-order-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.doctor-order-field span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #53636c;
+}
+
+.doctor-order-field input,
+.doctor-order-field select,
+.doctor-order-note {
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(168, 180, 187, 0.28);
+  background: #f8fbfd;
+  color: #29343a;
+  font-size: 13px;
+}
+
+.doctor-order-field-full {
+  margin-top: 14px;
+}
+
+.doctor-order-note {
+  min-height: 72px;
+  margin-top: 10px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.doctor-order-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
 .doctor-action-btn {
   margin-top: 12px;
 }
@@ -5933,9 +5996,59 @@ body.micro-detail-open {
   color: var(--on-surface);
 }
 
+.doctor-assignment-order-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.doctor-assignment-order-line {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 10px;
+  align-items: start;
+  color: var(--on-surface);
+}
+
+.doctor-assignment-order-line b {
+  color: var(--on-surface-variant);
+  font-size: 12px;
+}
+
+.doctor-assignment-order-note {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(68, 102, 85, 0.07);
+  color: var(--on-surface);
+  line-height: 1.6;
+}
+
+.doctor-assignment-trace {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+.doctor-assignment-trace span {
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(168, 180, 187, 0.14);
+  color: var(--on-surface-variant);
+  font-size: 11px;
+}
+
 @media (min-width: 720px) {
   .doctor-assignment-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .doctor-order-form-grid,
+  .doctor-order-trace-grid,
+  .doctor-assignment-order-line {
+    grid-template-columns: 1fr;
   }
 }
 
