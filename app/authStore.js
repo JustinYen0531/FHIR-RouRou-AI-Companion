@@ -143,6 +143,13 @@ function createAuthStore(options = {}) {
   const state = loadAuthData(filePath);
   let persistenceAvailable = true;
 
+  function refreshFromDisk() {
+    if (!persistenceAvailable) return;
+    const latest = loadAuthData(filePath);
+    state.users = latest.users;
+    state.sessions = latest.sessions;
+  }
+
   function persist() {
     if (!persistenceAvailable) return;
     try {
@@ -175,10 +182,12 @@ function createAuthStore(options = {}) {
   }
 
   function listSafeUsers() {
+    refreshFromDisk();
     return state.users.map((user) => sanitizeUser(user));
   }
 
   function registerUser(input = {}) {
+    refreshFromDisk();
     const role = normalizeRole(input.role);
     const loginIdentifier = normalizeLoginIdentifier(input.login_identifier);
     const displayName = normalizeDisplayName(input.display_name, loginIdentifier || '未命名使用者');
@@ -236,6 +245,7 @@ function createAuthStore(options = {}) {
   }
 
   function login(input = {}) {
+    refreshFromDisk();
     removeExpiredSessions();
     const loginIdentifier = normalizeLoginIdentifier(input.login_identifier);
     const password = String(input.password || '');
@@ -258,6 +268,7 @@ function createAuthStore(options = {}) {
   }
 
   function getSessionByToken(token = '') {
+    refreshFromDisk();
     removeExpiredSessions();
     const tokenHash = hashToken(token);
     const session = state.sessions.find((item) => item.token_hash === tokenHash);
@@ -271,6 +282,7 @@ function createAuthStore(options = {}) {
   }
 
   function revokeSession(token = '') {
+    refreshFromDisk();
     const tokenHash = hashToken(token);
     const before = state.sessions.length;
     state.sessions = state.sessions.filter((item) => item.token_hash !== tokenHash);
@@ -288,6 +300,7 @@ function createAuthStore(options = {}) {
     getSessionByToken,
     revokeSession,
     findUserById: (userId) => {
+      refreshFromDisk();
       const user = findUserById(userId);
       return user ? sanitizeUser(user) : null;
     },
