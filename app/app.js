@@ -7009,7 +7009,7 @@ function renderClinicalTraceButton(group, traceData) {
   btn.type = 'button';
   btn.setAttribute('aria-label', '查看 AI 決策紀錄');
   btn.title = '查看 AI 決策紀錄';
-  btn.innerHTML = '<span class="mat-icon" style="font-size:16px">psychology</span>';
+  btn.innerHTML = '<span class="mat-icon" style="font-size:16px">psychology</span> 決策紀錄';
 
   const panel = document.createElement('div');
   panel.className = 'clinical-trace-panel';
