@@ -4185,7 +4185,7 @@ class AICompanionEngine {
       });
     }
 
-    const finalAnswer = appendBreakpointNote(answer);
+    const finalAnswer = maybeAppendCompletionNote(answer);
     state.hamd_just_locked = [];
     return finalAnswer;
   }
