@@ -747,7 +747,8 @@ function createDefaultFormalAssessment() {
       rating_rationale: '',
       confidence: 'low',
       review_required: item.preferred_evidence === 'indirect_observation',
-      probe_count: 0
+      probe_count: 0,
+      completion_announced: false
     })),
     ai_total_score: 0,
     clinician_total_score: null,
@@ -954,6 +955,19 @@ const RISK_PROBE = {
   probe_question: '我想確認一件重要的事：當這種「沒有意義」「不想繼續」的感覺出現時，你有沒有想過傷害自己，或是不想繼續活下去？',
   reason: 'risk_signal_priority'
 };
+
+function userFacingEvidenceSummary(item) {
+  const evidence = normalizeArray(item && item.evidence_summary);
+  if (!evidence.length) return '';
+  return evidence
+    .slice(0, 2)
+    .map((e) => String(e || '')
+      .replace(/^病人(描述|提到|表達|表示|反映|呈現|有時|常常)?/, '')
+      .replace(/[，,。]?\s*$/, '')
+      .trim())
+    .filter(Boolean)
+    .join('；');
+}
 
 function stripComfortPhrases(text) {
   let out = String(text || '');
@@ -3996,11 +4010,35 @@ class AICompanionEngine {
       shouldAsk: probeActive
     });
 
-    // 評分完成中斷點：純附註（不動探針流程）
+    // 評分完成中斷點（四道閘門：觸發條件 / 一次性 / 冷卻 / 內容回扣）
+    state.hamd_turn_count = Number(state.hamd_turn_count || 0) + 1;
+    const currentTurn = state.hamd_turn_count;
     const justLockedCodes = normalizeArray(state.hamd_just_locked);
-    const appendBreakpointNote = (text) => {
+    const maybeAppendCompletionNote = (text) => {
       if (!justLockedCodes.length || atmosphereProtected) return text;
-      const note = '（剛剛聊到的部分我大概已經了解了，可以幫你做評估。要繼續看其他部分，還是先停在這裡都可以。）';
+      // 冷卻：距離上次提示需 ≥ 2 輪
+      const lastAnnounceTurn = Number(state.hamd_last_announce_turn || -10);
+      if (currentTurn - lastAnnounceTurn < 2) return text;
+
+      const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
+      // 觸發條件 + 一次性：
+      //   ① completion_announced !== true
+      //   ② evidence_summary 至少 1 條
+      const eligible = justLockedCodes
+        .map((code) => assessment.items.find((i) => i.item_code === code))
+        .filter((it) => it && !it.completion_announced && normalizeArray(it.evidence_summary).length >= 1);
+      if (!eligible.length) return text;
+
+      // 內容回扣：使用該題的具體 evidence
+      const target = eligible[0];
+      const evidenceText = userFacingEvidenceSummary(target);
+      if (!evidenceText) return text;
+      const note = `（你剛剛提到的${evidenceText}，這部分我大概可以幫你做一個初步評估了。我們可以繼續看看其他影響你的部分，或者你想先停在這裡也可以。）`;
+
+      // 標記已宣告，更新冷卻計時器
+      eligible.forEach((it) => { it.completion_announced = true; });
+      state.hamd_formal_assessment = assessment;
+      state.hamd_last_announce_turn = currentTurn;
       return `${text.trim()}\n\n${note}`;
     };
 
@@ -4024,7 +4062,7 @@ class AICompanionEngine {
         consecutive_probes: Number(flowState.consecutive_probes || 0)
       });
 
-      const finalAnswer = appendBreakpointNote(answer);
+      const finalAnswer = maybeAppendCompletionNote(answer);
       state.hamd_just_locked = [];
       return finalAnswer;
     }
