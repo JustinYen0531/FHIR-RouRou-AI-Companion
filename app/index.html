@@ -189,31 +189,35 @@
 
   <!-- ===== SCREEN: CHAT ===== -->
   <div class="screen" id="screen-chat">
-    <header class="top-bar glass">
-      <div class="top-bar-left">
-        <div class="avatar-orb" onclick="navigateHome()" style="cursor:pointer">
-          <span class="mat-icon fill">auto_awesome</span>
-        </div>
-        <div>
-          <h1 class="app-title">Rou Rou</h1>
-          <div class="status-row">
-            <span class="status-dot"></span>
-            <span class="status-label">陪伴中</span>
-            <span class="divider-v"></span>
-            <span class="mode-label" id="chat-mode-label">模式：自然聊天</span>
+    <header class="top-bar glass chat-top-bar">
+      <div class="top-bar-main-row">
+        <div class="top-bar-left">
+          <div class="avatar-orb" onclick="navigateHome()" style="cursor:pointer">
+            <span class="mat-icon fill">auto_awesome</span>
+          </div>
+          <div>
+            <h1 class="app-title">Rou Rou</h1>
+            <div class="status-row">
+              <span class="status-dot"></span>
+              <span class="status-label">陪伴中</span>
+              <span class="divider-v"></span>
+              <span class="mode-label" id="chat-mode-label">模式：自然聊天</span>
+            </div>
           </div>
         </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button id="chat-pin-session" class="icon-btn" type="button" aria-label="釘選這段對話到首頁最上方" title="釘選這段對話到首頁最上方">
+            <span class="mat-icon">push_pin</span>
+          </button>
+          <button class="icon-btn" type="button" aria-label="手動切換模式" onclick="showScreen('screen-energy')">
+            <span class="mat-icon">settings_heart</span>
+          </button>
+        </div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px">
+      <div class="top-bar-badge-row">
         <button id="memory-badge-wrap" class="memory-badge-btn" onclick="toggleMemoryDrawer()" style="display:none">
           <span class="mat-icon fill" style="font-size:16px">psychology</span>
           <span id="memory-badge-count">0</span> 件記憶
-        </button>
-        <button id="chat-pin-session" class="icon-btn" type="button" aria-label="釘選這段對話到首頁最上方" title="釘選這段對話到首頁最上方">
-          <span class="mat-icon">push_pin</span>
-        </button>
-        <button class="icon-btn" type="button" aria-label="手動切換模式" onclick="showScreen('screen-energy')">
-          <span class="mat-icon">settings_heart</span>
         </button>
       </div>
     </header>

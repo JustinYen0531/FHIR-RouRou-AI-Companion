@@ -5052,6 +5052,23 @@ body {
    THERAPEUTIC MEMORY UI
    ══════════════════════════════════════════════ */
 
+.chat-top-bar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding-bottom: 12px;
+}
+.top-bar-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+.top-bar-badge-row {
+  display: flex;
+  padding-left: 52px;
+  padding-top: 6px;
+}
 .memory-badge-btn {
   display: flex;
   align-items: center;
