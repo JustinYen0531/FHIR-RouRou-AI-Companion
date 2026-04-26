@@ -3843,13 +3843,9 @@ class AICompanionEngine {
       }
     }
     // Recompute completion locks after evidence/score update
-    const prevLockedCodes = getLockedItemCodes(state);
     const progressItems = normalizeObjectState(state, 'hamd_progress_state', {}).items || [];
     const updatedAssessment = hydrateFormalAssessment(state.hamd_formal_assessment);
     state.hamd_item_lock_state = computeHamdItemLockState(progressItems, updatedAssessment.items);
-    // 評分完成中斷點（Scoring Breakpoint）：偵測本輪新被鎖定的題項
-    const newLockedCodes = getLockedItemCodes(state);
-    state.hamd_just_locked = newLockedCodes.filter((c) => !prevLockedCodes.includes(c));
   }
 
   async buildNaturalResponse(session, message) {
@@ -3858,18 +3854,10 @@ class AICompanionEngine {
 
     // 氣氛保護：情緒承載模式時不插入正式探針
     const atmosphereProtected = Boolean(flowState.atmosphere_protection);
-    let canProbeHamd = Boolean(flowState.can_probe_hamd) && !atmosphereProtected;
+    const canProbeHamd = Boolean(flowState.can_probe_hamd) && !atmosphereProtected;
 
     // 結束鎖：取得目前已鎖定的題項
     const lockedItemCodes = getLockedItemCodes(state);
-
-    // ── 評分完成中斷點（Scoring Breakpoint）─────────────────────────────────
-    // 本輪剛有題項被鎖定 → 不再追問，附上提示讓使用者自選下一步
-    const justLockedCodes = normalizeArray(state.hamd_just_locked);
-    const breakpointTriggered = justLockedCodes.length > 0 && !atmosphereProtected;
-    if (breakpointTriggered) {
-      canProbeHamd = false; // 本輪不插入任何探針
-    }
 
     let formalProbe = buildFormalAssessmentProbeFallback(state);
     if (canProbeHamd) {
@@ -3930,23 +3918,6 @@ class AICompanionEngine {
       probeQuestion: normalizedProbeQuestion,
       shouldAsk: probeActive
     });
-
-    // 評分完成中斷點：本輪有題項剛被鎖定 → 砍掉任何結尾問句，附上中斷點提示
-    if (breakpointTriggered) {
-      const lastQ = extractLastQuestion(answer);
-      if (lastQ) answer = lastQ.before || answer;
-      const breakpointMsg = '這一部分我大概已經了解了，已經可以幫你做一個評估。\n我們可以繼續看看其他影響你的部分，或者你想先停在這裡聊聊現在的感覺也可以。';
-      answer = `${answer.trim()}\n\n${breakpointMsg}`;
-      // 清除 just_locked 旗標避免重複觸發
-      state.hamd_just_locked = [];
-      // 重置 flow_state.consecutive_probes，讓使用者重新主導
-      this.updateFlowState(state, {
-        mode: flowState.mode,
-        can_probe_hamd: false,
-        consecutive_probes: 0
-      });
-      return answer;
-    }
 
     if (probeActive && formalProbe.item_code) {
       const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
