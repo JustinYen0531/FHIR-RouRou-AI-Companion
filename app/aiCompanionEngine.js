@@ -746,7 +746,8 @@ function createDefaultFormalAssessment() {
       evidence_summary: [],
       rating_rationale: '',
       confidence: 'low',
-      review_required: item.preferred_evidence === 'indirect_observation'
+      review_required: item.preferred_evidence === 'indirect_observation',
+      probe_count: 0
     })),
     ai_total_score: 0,
     clinician_total_score: null,
@@ -822,9 +823,35 @@ function inferDirectAnswerValue(text, scaleRange) {
   return null;
 }
 
+function computeHamdItemLockState(progressItems, formalItems) {
+  const lockState = {};
+  // Rule 1: progress tracker marks item as complete
+  normalizeArray(progressItems).forEach((item) => {
+    const code = String(item.item || item.item_code || '').trim();
+    if (!code) return;
+    if (item.status === 'complete') lockState[code] = 'locked';
+  });
+  // Rule 2: formal assessment has evidence + score; Rule 3: probed >= 2 times
+  normalizeArray(formalItems).forEach((item) => {
+    const code = String(item.item_code || '').trim();
+    if (!code || lockState[code] === 'locked') return;
+    const hasEvidence = normalizeArray(item.evidence_summary).length > 0;
+    const hasScore = item.ai_suggested_score != null;
+    if (hasEvidence && hasScore) lockState[code] = 'locked';
+    if ((item.probe_count || 0) >= 2) lockState[code] = 'locked';
+  });
+  return lockState;
+}
+
+function getLockedItemCodes(state) {
+  const lockState = normalizeObjectState(state, 'hamd_item_lock_state', {});
+  return Object.keys(lockState).filter((code) => lockState[code] === 'locked');
+}
+
 function buildFormalAssessmentProbeFallback(state) {
   const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
-  if (assessment.pending_probe_item_code) {
+  const lockedCodes = getLockedItemCodes(state);
+  if (assessment.pending_probe_item_code && !lockedCodes.includes(assessment.pending_probe_item_code)) {
     return {
       should_ask: 'no',
       item_code: '',
@@ -835,6 +862,7 @@ function buildFormalAssessmentProbeFallback(state) {
   }
   const nextDimension = normalizeObjectState(state, 'hamd_progress_state', {}).next_recommended_dimension || 'depressed_mood';
   const candidateCode = (HAMD_DIMENSION_TO_ITEM_CODES[nextDimension] || []).find((itemCode) => {
+    if (lockedCodes.includes(itemCode)) return false;
     const item = assessment.items.find((entry) => entry.item_code === itemCode);
     return item && (!item.evidence_summary.length || item.review_required);
   });
@@ -1109,7 +1137,12 @@ function mergeFormalAssessmentUpdates(assessment, evidenceResult, scoreResult) {
 
 function getFormalTargetItems(state, limit = 2) {
   const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
-  if (assessment.pending_probe_item_code && HAMD_FORMAL_ITEM_MAP[assessment.pending_probe_item_code]) {
+  const lockedCodes = getLockedItemCodes(state);
+  if (
+    assessment.pending_probe_item_code &&
+    HAMD_FORMAL_ITEM_MAP[assessment.pending_probe_item_code] &&
+    !lockedCodes.includes(assessment.pending_probe_item_code)
+  ) {
     return [HAMD_FORMAL_ITEM_MAP[assessment.pending_probe_item_code]];
   }
   const progress = normalizeObjectState(state, 'hamd_progress_state', {});
@@ -1123,6 +1156,7 @@ function getFormalTargetItems(state, limit = 2) {
   dimensions.forEach((dimension) => {
     (HAMD_DIMENSION_TO_ITEM_CODES[dimension] || []).forEach((itemCode) => {
       if (targetCodes.length >= limit) return;
+      if (lockedCodes.includes(itemCode)) return;
       const current = assessment.items.find((item) => item.item_code === itemCode);
       if (!current) return;
       if (!current.evidence_summary.length || current.review_required) {
@@ -3657,6 +3691,10 @@ class AICompanionEngine {
         state.hamd_formal_assessment.pending_probe_question = '';
       }
     }
+    // Recompute completion locks after evidence/score update
+    const progressItems = normalizeObjectState(state, 'hamd_progress_state', {}).items || [];
+    const updatedAssessment = hydrateFormalAssessment(state.hamd_formal_assessment);
+    state.hamd_item_lock_state = computeHamdItemLockState(progressItems, updatedAssessment.items);
   }
 
   async buildNaturalResponse(session, message) {
@@ -3667,12 +3705,16 @@ class AICompanionEngine {
     const atmosphereProtected = Boolean(flowState.atmosphere_protection);
     const canProbeHamd = Boolean(flowState.can_probe_hamd) && !atmosphereProtected;
 
+    // 結束鎖：取得目前已鎖定的題項
+    const lockedItemCodes = getLockedItemCodes(state);
+
     let formalProbe = buildFormalAssessmentProbeFallback(state);
     if (canProbeHamd) {
       formalProbe = await this.runJsonTask('hamdFormalProbeSelector', session, message, {
         extraContext: {
           formal_probe: {
-            items: getFormalTargetItems(state, 4)
+            items: getFormalTargetItems(state, 4),
+            locked_items: lockedItemCodes
           }
         },
         fallback: formalProbe
@@ -3682,20 +3724,33 @@ class AICompanionEngine {
       formalProbe = { ...formalProbe, should_ask: 'no' };
     }
 
+    // 若探針選到已鎖定題項，強制取消
+    if (formalProbe.should_ask === 'yes' && lockedItemCodes.includes(formalProbe.item_code)) {
+      formalProbe = { ...formalProbe, should_ask: 'no', reason: 'item_locked' };
+    }
+
     const answer = await this.runTextTask('smartHunter', session, message, {
       extraContext: {
         formal_probe: formalProbe,
-        flow_state: flowState
+        flow_state: flowState,
+        locked_items: lockedItemCodes,
+        next_item: formalProbe.should_ask === 'yes' ? formalProbe.item_code : ''
       }
     });
 
     const normalizedProbeQuestion = String(formalProbe.probe_question || '').trim();
     if (canProbeHamd && formalProbe.should_ask === 'yes' && formalProbe.item_code && normalizedProbeQuestion) {
       const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
+      // 累積該題項的探針次數（結束鎖 probe_count）
+      const probeItem = assessment.items.find((i) => i.item_code === formalProbe.item_code);
+      if (probeItem) probeItem.probe_count = (probeItem.probe_count || 0) + 1;
       assessment.pending_probe_item_code = formalProbe.item_code;
       assessment.pending_probe_question = normalizedProbeQuestion;
       assessment.assessment_mode = 'smart_hunter_probe';
       state.hamd_formal_assessment = assessment;
+      // 重新計算鎖定狀態（probe_count 可能剛達到 2）
+      const progressItems2 = normalizeObjectState(state, 'hamd_progress_state', {}).items || [];
+      state.hamd_item_lock_state = computeHamdItemLockState(progressItems2, assessment.items);
 
       // 遞增 consecutive_probes
       this.updateFlowState(state, {
