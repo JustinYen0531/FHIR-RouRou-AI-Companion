@@ -1392,6 +1392,56 @@ function publishPhq9SummaryForDoctor(assessment = null) {
   });
 }
 
+function publishHamdSummaryForDoctor(sessionExport = null) {
+  const source = sessionExport || APP_STATE.reportOutputs?.session_export || null;
+  const formal = source?.hamd_formal_assessment || null;
+  const progress = source?.hamd_progress_state || null;
+  if (!formal && !progress) return null;
+
+  const items = Array.isArray(formal?.items) ? formal.items : [];
+  const scoredItems = items.filter((item) => {
+    if (!item || typeof item !== 'object') return false;
+    const score = item.clinician_final_score ?? item.ai_suggested_score ?? item.direct_answer_value;
+    return Number.isFinite(Number(score));
+  });
+
+  const totalScore = Number.isFinite(Number(formal?.clinician_total_score))
+    ? Number(formal.clinician_total_score)
+    : (Number.isFinite(Number(formal?.ai_total_score)) ? Number(formal.ai_total_score) : null);
+
+  const coveredDimensions = Array.isArray(progress?.covered_dimensions) ? progress.covered_dimensions.filter(Boolean) : [];
+  const recentEvidence = Array.isArray(progress?.recent_evidence) ? progress.recent_evidence.filter(Boolean) : [];
+
+  if (!scoredItems.length && totalScore === null && !coveredDimensions.length && !recentEvidence.length) {
+    return null;
+  }
+
+  return publishDoctorVisiblePatientSummary({
+    hamd: {
+      updatedAt: new Date().toISOString(),
+      scaleVersion: formal?.scale_version || 'HAM-D17',
+      status: formal?.status || '',
+      assessmentMode: formal?.assessment_mode || '',
+      totalScore,
+      severityBand: formal?.severity_band || '',
+      coveredDimensions: coveredDimensions.slice(0, 12),
+      recentEvidence: recentEvidence.slice(0, 5),
+      items: scoredItems.slice(0, 17).map((item) => ({
+        code: item.item_code || '',
+        label: item.item_label || item.item_code || '',
+        score: Number.isFinite(Number(item.clinician_final_score))
+          ? Number(item.clinician_final_score)
+          : (Number.isFinite(Number(item.ai_suggested_score))
+              ? Number(item.ai_suggested_score)
+              : (Number.isFinite(Number(item.direct_answer_value)) ? Number(item.direct_answer_value) : null)),
+        evidenceType: item.evidence_type || '',
+        reviewRequired: Boolean(item.review_required),
+        evidence: Array.isArray(item.evidence_summary) ? item.evidence_summary.slice(0, 2) : []
+      }))
+    }
+  });
+}
+
 function publishSafetyAccessForDoctor(reason = '安全模式') {
   const previous = publishDoctorVisiblePatientSummary({}) || {};
   const existing = Array.isArray(previous.safetyEvents) ? previous.safetyEvents : [];
@@ -1421,6 +1471,7 @@ function renderDoctorVisiblePatientSummary(patient = {}) {
   }
   const mood = summary.mood || null;
   const phq9 = summary.phq9 || null;
+  const hamd = summary.hamd || null;
   const safetyEvents = Array.isArray(summary.safetyEvents) ? summary.safetyEvents : [];
   return `
     <div class="doctor-self-report-card">
@@ -1452,6 +1503,32 @@ function renderDoctorVisiblePatientSummary(patient = {}) {
               `).join('')}
             </div>
           ` : '<div class="doctor-self-report-empty">尚未完成 PHQ-9。</div>'}
+        </section>
+        <section class="doctor-self-report-block">
+          <div class="doctor-self-report-title">HAM-D 量表追蹤</div>
+          ${hamd ? `
+            <div class="doctor-self-report-main">${hamd.totalScore !== null && hamd.totalScore !== undefined ? escapeHtml(String(hamd.totalScore)) : '-'}<span>/52</span></div>
+            <div class="doctor-self-report-meta">${escapeHtml(hamd.scaleVersion || 'HAM-D17')} ・ ${escapeHtml(hamd.severityBand || '')} ・ ${escapeHtml(formatDoctorSummaryTime(hamd.updatedAt))}</div>
+            ${hamd.coveredDimensions && hamd.coveredDimensions.length ? `
+              <div class="doctor-self-report-tags">
+                ${hamd.coveredDimensions.map((dim) => `<span>${escapeHtml(dim)}</span>`).join('')}
+              </div>
+            ` : ''}
+            ${hamd.items && hamd.items.length ? `
+              <div class="doctor-phq9-mini-list">
+                ${hamd.items.map((item) => `
+                  <div class="doctor-phq9-mini-row">
+                    <span>${escapeHtml(item.code || '')}</span>
+                    <b>${escapeHtml(String(item.score ?? '-'))}</b>
+                    <em>${escapeHtml(item.label || '')}${item.reviewRequired ? ' ⚠' : ''}</em>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+            ${hamd.recentEvidence && hamd.recentEvidence.length ? `
+              <div class="doctor-self-report-preview">${escapeHtml(hamd.recentEvidence.join('；'))}</div>
+            ` : ''}
+          ` : '<div class="doctor-self-report-empty">尚未開始 HAM-D 量表評估。</div>'}
         </section>
         <section class="doctor-self-report-block">
           <div class="doctor-self-report-title">安全模式紀錄</div>
@@ -3730,6 +3807,7 @@ function syncReportOutputsFromSessionExport(sessionExport = {}) {
     APP_STATE.reportOutputs.fhir_delivery = JSON.parse(JSON.stringify(normalizedSessionExport.fhir_delivery_draft));
   }
   PHQ9Tracker.importFromSessionExport(normalizedSessionExport);
+  publishHamdSummaryForDoctor(normalizedSessionExport);
 }
 
 function syncTherapeuticMemoryFromSessionExport(sessionExport = {}) {
