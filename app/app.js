@@ -1725,9 +1725,10 @@ function persistAuthState(token = '', user = null) {
 }
 
 function syncAuthStateToApp() {
-  const userId = APP_STATE.auth?.user?.id || PROTOTYPE_SHARED_CHAT_USER_ID;
-  APP_STATE.userId = userId;
-  localStorage.setItem('rourou.userId', userId);
+  // 對話 namespace 共用 PROTOTYPE_SHARED_CHAT_USER_ID，避免 user 切換導致對話紀錄消失。
+  // 真實認證身份仍可從 APP_STATE.auth.user.id 取得。
+  APP_STATE.userId = PROTOTYPE_SHARED_CHAT_USER_ID;
+  localStorage.setItem('rourou.userId', PROTOTYPE_SHARED_CHAT_USER_ID);
 }
 
 function updateAuthUI() {
@@ -7498,16 +7499,8 @@ function getRecentSessionSummaries(limit = MAX_LOCAL_SESSION_ARCHIVE_RECORDS) {
   if (currentAuthId) {
     migrateGuestSessionsToAuthUser(currentAuthId);
   }
-  const currentUserId = APP_STATE?.userId || '';
+  // 完全不過濾 user，本機所有 session 都列出（避免 userId 變化導致歷史紀錄消失）
   return loadLocalSessionArchiveRecords()
-    .filter((session) => {
-      // 不過濾條件：若沒登入或 session 屬於當前帳號或是 guest session，都顯示
-      if (!currentUserId) return true;
-      if (session.user === currentUserId) return true;
-      if (session.user === DEFAULT_USER_ID) return true;
-      // 已登入時，舊 session.user 是其他真實帳號 ID 的才排除
-      return false;
-    })
     .map((session) => summarizeSessionRecord(session))
     .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
     .slice(0, Math.max(1, Number(limit) || MAX_LOCAL_SESSION_ARCHIVE_RECORDS));
