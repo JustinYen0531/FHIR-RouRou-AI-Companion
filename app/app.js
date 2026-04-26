@@ -7493,8 +7493,21 @@ function removeLocalSessionArchive(sessionId) {
 }
 
 function getRecentSessionSummaries(limit = MAX_LOCAL_SESSION_ARCHIVE_RECORDS) {
+  // 每次取資料時順手把舊的 'web-demo-user' session 遷移到當前認證帳號
+  const currentAuthId = APP_STATE.auth?.user?.id || '';
+  if (currentAuthId) {
+    migrateGuestSessionsToAuthUser(currentAuthId);
+  }
+  const currentUserId = APP_STATE?.userId || '';
   return loadLocalSessionArchiveRecords()
-    .filter((session) => !APP_STATE?.userId || session.user === APP_STATE.userId)
+    .filter((session) => {
+      // 不過濾條件：若沒登入或 session 屬於當前帳號或是 guest session，都顯示
+      if (!currentUserId) return true;
+      if (session.user === currentUserId) return true;
+      if (session.user === DEFAULT_USER_ID) return true;
+      // 已登入時，舊 session.user 是其他真實帳號 ID 的才排除
+      return false;
+    })
     .map((session) => summarizeSessionRecord(session))
     .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
     .slice(0, Math.max(1, Number(limit) || MAX_LOCAL_SESSION_ARCHIVE_RECORDS));
