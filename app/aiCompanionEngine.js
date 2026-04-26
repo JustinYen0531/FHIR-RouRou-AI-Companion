@@ -97,6 +97,21 @@ const HAMD_DIMENSION_LABELS_ZH = {
   insomnia: '睡眠困擾'
 };
 
+// ── Deterministic completion detectors（系統判定題項是否可評分，不靠 AI）──
+// 只要使用者訊息對「上一輪詢問的題項」給出頻率/程度/功能任一信號，立刻鎖為 complete
+const HAMD_FREQUENCY_RX = /(幾乎)?每天|天天|大部分時間|大部分時候|一週\s*[一二兩三四五六七八九十\d]+\s*[次天]|每週\s*[一二兩三四五六七八九十\d]+|每週\s*\d+|偶爾|常常|經常|有時候?|很少|從來沒|從未|不曾|時不時|三不五時|一直都|大多數時間|每次/;
+const HAMD_SEVERITY_RX = /很嚴重|嚴重|輕微|輕|很明顯|明顯|撐得住|撐不住|很難繼續|還好|還可以|挺嚴重|滿嚴重|有點|不太|難以承受|難受到|快受不了|快崩潰|快撐不下去|超痛苦|很痛苦/;
+const HAMD_FUNCTIONAL_RX = /影響.{0,10}(工作|生活|睡眠|人際|社交|學習|上班|上課|家事|做事)|沒辦法.{0,8}(做|完成|工作|去|睡|吃|出門)|做不了|無法.{0,8}(完成|工作|做|專注|集中)|拖延|效率(下降|變差|不好|降低)|完不成|沒法|沒力氣|提不起勁去|動不了|起不來/;
+
+function detectHamdSignalsInMessage(message) {
+  const text = String(message || '');
+  return {
+    frequency: HAMD_FREQUENCY_RX.test(text),
+    severity: HAMD_SEVERITY_RX.test(text),
+    functional: HAMD_FUNCTIONAL_RX.test(text)
+  };
+}
+
 const FHIR_RESOURCE_DEFINITIONS = {
   Patient: { resource_type: 'Patient', resourceType: 'Patient', display: 'Patient / Subject Of Care', status: 'preliminary', purpose: 'subject_identity' },
   Encounter: { resource_type: 'Encounter', resourceType: 'Encounter', display: 'Encounter / Conversation Session', status: 'preliminary', purpose: 'session_context' },
@@ -3435,6 +3450,47 @@ class AICompanionEngine {
       status_summary: 'Signal-based HAM-D state.'
     };
     state.hamd_progress_state = enrichHamdProgressState(hamdSeed, buildLongitudinalEvidence(session, currentBridge));
+
+    // ── 結束鎖（Completion Lock）：使用者對「上一輪題目」給出任一信號 → 立刻 complete ──
+    // 系統不靠 AI 判定夠不夠，而是直接根據使用者回應內容鎖題。
+    const prevFlow = normalizeObjectState(state, 'flow_state', {});
+    const lastAsked = prevFlow.last_asked_dimension;
+    if (lastAsked && HAMD_PROGRESS_DIMENSIONS.includes(lastAsked)) {
+      const signals = detectHamdSignalsInMessage(message);
+      const hasAnySignal = signals.frequency || signals.severity || signals.functional;
+      if (hasAnySignal) {
+        const progress = state.hamd_progress_state;
+        const items = Array.isArray(progress.items) ? progress.items : [];
+        let item = items.find((i) => i.item === lastAsked);
+        if (!item) {
+          item = {
+            item: lastAsked,
+            label: HAMD_DIMENSION_LABELS_ZH[lastAsked] || lastAsked,
+            status: 'missing',
+            evidence: [],
+            missing: []
+          };
+          items.push(item);
+        }
+        // 升級為 complete（不允許降級）
+        if (item.status !== 'complete') {
+          item.status = 'complete';
+        }
+        const evidenceList = Array.isArray(item.evidence) ? item.evidence : [];
+        const snippet = String(message).slice(0, 60);
+        if (snippet && !evidenceList.includes(snippet)) {
+          evidenceList.push(snippet);
+        }
+        item.evidence = evidenceList.slice(-5);
+        progress.items = items;
+        // 從 missing_dimensions 移除
+        if (Array.isArray(progress.missing_dimensions)) {
+          progress.missing_dimensions = progress.missing_dimensions.filter((d) => d !== lastAsked);
+        }
+        state.hamd_progress_state = progress;
+      }
+    }
+
     await this.updateFormalAssessment(session, message);
   }
 
@@ -3676,12 +3732,17 @@ class AICompanionEngine {
     }
 
     // 同步 hamd_progress_state 的 items 清單（給 gap indicator 用）
+    // 重要：engine 已用使用者回應信號鎖定的 complete 維度，不允許 AI 降級
+    const STATUS_RANK = { missing: 0, partial: 1, complete: 2 };
     const progress = normalizeObjectState(state, 'hamd_progress_state', {});
     const progressItems = Array.isArray(progress.items) ? progress.items : [];
     Object.entries(itemsMap).forEach(([dimension, status]) => {
       const existing = progressItems.find((i) => i.item === dimension);
       if (existing) {
-        existing.status = status;
+        // 不允許降級：engine 已鎖定 complete 的維度，AI 寫 partial/missing 都忽略
+        if (STATUS_RANK[status] >= STATUS_RANK[existing.status]) {
+          existing.status = status;
+        }
       } else {
         progressItems.push({
           item: dimension,
@@ -3791,7 +3852,10 @@ class AICompanionEngine {
     // ask_required：若仍有 next_item 且氣氛保護沒鎖，必須問
     const askRequired = Boolean(systemNextItem) && !atmosphereProtected;
 
+    // 記下本輪詢問的維度，下一輪用來自動鎖題
     const freshFlowState = normalizeObjectState(state, 'flow_state', {});
+    freshFlowState.last_asked_dimension = systemNextItem;
+    state.flow_state = { ...freshFlowState, updatedAt: new Date().toISOString() };
     const rawAnswer = await this.runTextTask(promptKey, session, message, {
       extraContext: {
         formal_probe: formalProbe,
