@@ -3334,19 +3334,20 @@ class AICompanionEngine {
     state.active_mode = activeMode;
 
     let answer = '';
-    if (activeMode === 'mode_1_void') {
-      answer = await this.runTextTask('voidBox', session, message);
-    } else if (activeMode === 'mode_2_soulmate') {
-      answer = await this.runTextTask('soulMate', session, message);
-    } else if (activeMode === 'mode_3_mission') {
-      answer = await this.handleMission(session, message);
-    } else if (activeMode === 'mode_4_option') {
-      answer = await this.handleOption(session, message);
-    } else if (activeMode === 'mode_6_clarify') {
+    if (activeMode === 'mode_6_clarify') {
       answer = await this.handleClarify(session, message);
     } else {
-      state.active_mode = 'mode_5_natural';
-      answer = await this.buildNaturalResponse(session, message);
+      // 所有自然聊天模式（樹洞 / 靈魂 / 任務 / 選項 / 自然）都走 Smart Hunter，
+      // 由 Smart Hunter 內部依 sub_mode 切換語氣。HAM-D 任務軌不可被模式中斷。
+      const ACTIVE_MODE_TO_SUB_MODE = {
+        mode_1_void: 'void_box',
+        mode_2_soulmate: 'soul_companion',
+        mode_3_mission: 'clinical_probing',
+        mode_4_option: 'choice_prompting',
+        mode_5_natural: 'clinical_probing'
+      };
+      const subMode = ACTIVE_MODE_TO_SUB_MODE[activeMode] || 'clinical_probing';
+      answer = await this.buildNaturalResponse(session, message, { subMode });
     }
 
     session.history.push({ role: 'assistant', content: answer, kind: 'chat' });
@@ -3778,9 +3779,15 @@ class AICompanionEngine {
     }
   }
 
-  async buildNaturalResponse(session, message) {
+  async buildNaturalResponse(session, message, options = {}) {
     const state = session.state;
     const flowState = normalizeObjectState(state, 'flow_state', {});
+
+    // 將外部傳入的 sub_mode（由 active_mode 映射）寫入 flow_state，讓 Smart Hunter 能讀到
+    if (options.subMode) {
+      flowState.sub_mode = options.subMode;
+      state.flow_state = { ...flowState, updatedAt: new Date().toISOString() };
+    }
 
     // 氣氛保護：情緒承載模式時不插入正式探針
     const atmosphereProtected = Boolean(flowState.atmosphere_protection);
