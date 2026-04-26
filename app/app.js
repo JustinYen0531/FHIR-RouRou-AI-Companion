@@ -2078,11 +2078,8 @@ function normalizePinnedSessionRecord(record = {}) {
 function loadPinnedSession() {
   try {
     const parsed = JSON.parse(localStorage.getItem(PINNED_SESSION_STORAGE_KEY) || 'null');
-    const normalized = normalizePinnedSessionRecord(parsed);
-    if (normalized && APP_STATE?.userId && normalized.user !== APP_STATE.userId) {
-      return null;
-    }
-    return normalized;
+    // 不依 userId 過濾，避免帳號切換或登出後釘選對話消失
+    return normalizePinnedSessionRecord(parsed);
   } catch {
     return null;
   }
@@ -6211,6 +6208,12 @@ function pickReadableSessionText(candidates = [], fallback = '') {
   return readable || fallback;
 }
 
+// 截取對話預覽前 N 字，讓清單更整潔
+function truncatePreview(text, maxLen = 22) {
+  const str = String(text || '').trim();
+  return str.length > maxLen ? str.slice(0, maxLen) + '…' : str;
+}
+
 function renderInlineMarkdown(text) {
   return text
     .replace(/`([^`]+)`/g, '<code>$1</code>')
@@ -7827,15 +7830,16 @@ function renderRecentSessions() {
     return;
   }
 
+  // ── 釘選區塊 ──────────────────────────────────────────────
   const pinnedHtml = pinned ? (() => {
-    const summary = pickReadableSessionText(
+    const summary = truncatePreview(pickReadableSessionText(
       [pinned.pinned_summary, pinned.last_user_message, pinned.last_assistant_message, pinned.latest_tag_summary],
       '這段釘選對話目前還沒有可讀摘要。'
-    );
-    const sub = pickReadableSessionText(
+    ), 28);
+    const sub = truncatePreview(pickReadableSessionText(
       [pinned.pinned_sub, pinned.last_assistant_message, pinned.last_user_message, pinned.latest_tag_summary],
       '點進去可以直接展示這段對話。'
-    );
+    ), 28);
     const flags = [
       pinned.risk_flag === 'true' ? '<span class="home-session-flag risk">高風險標記</span>' : '',
       pinned.has_clinician_summary ? '<span class="home-session-flag">有醫師摘要</span>' : '',
@@ -7867,16 +7871,21 @@ function renderRecentSessions() {
     `;
   })() : '';
 
-  const sessionListHtml = sessions.map((session) => {
-    const isPinnedSession = Boolean(pinned && pinned.id && session.id === pinned.id);
-    const summary = pickReadableSessionText(
+  // ── 非釘選清單（排除已釘選的那筆，按時間排序後預設收合）───────
+  const pinnedId = pinned?.id || '';
+  const otherSessions = sessions
+    .filter((s) => s.id !== pinnedId)
+    .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+
+  const sessionListHtml = otherSessions.map((session) => {
+    const summary = truncatePreview(pickReadableSessionText(
       [session.latest_tag_summary, session.last_user_message, session.last_assistant_message],
       '這段對話目前還沒有可讀摘要。'
-    );
-    const sub = pickReadableSessionText(
+    ));
+    const sub = truncatePreview(pickReadableSessionText(
       [session.last_assistant_message, session.last_user_message],
       '點進去可以繼續這段對話。'
-    );
+    ));
     const flags = [
       session.risk_flag === 'true' ? '<span class="home-session-flag risk">高風險標記</span>' : '',
       session.has_clinician_summary ? '<span class="home-session-flag">有醫師摘要</span>' : '',
@@ -7887,28 +7896,34 @@ function renderRecentSessions() {
     return `
       <div class="home-session-item">
         <div class="home-session-card" role="button" tabindex="0" data-session-open="${escapeHtml(session.id)}" aria-label="打開這段對話">
-        <div class="home-session-top">
-          <div class="home-session-time">${escapeHtml(formatSessionTimestamp(session.updatedAt))}</div>
-          <div class="home-session-actions">
-            <div class="home-session-mode">${escapeHtml(formatModeLabel(session.active_mode))}</div>
-            ${isPinnedSession
-    ? '<span class="home-session-delete is-disabled" role="note" aria-label="這筆對話已釘選，無法刪除">已釘選</span>'
-    : `<span class="home-session-delete" role="button" tabindex="0" aria-label="刪除這筆對話" data-session-delete="${escapeHtml(session.id)}">刪除</span>`}
+          <div class="home-session-top">
+            <div class="home-session-time">${escapeHtml(formatSessionTimestamp(session.updatedAt))}</div>
+            <div class="home-session-actions">
+              <div class="home-session-mode">${escapeHtml(formatModeLabel(session.active_mode))}</div>
+              <span class="home-session-delete" role="button" tabindex="0" aria-label="刪除這筆對話" data-session-delete="${escapeHtml(session.id)}">刪除</span>
+            </div>
           </div>
-        </div>
-        <div class="home-session-summary">${escapeHtml(summary)}</div>
-        <div class="home-session-sub">${escapeHtml(sub)}</div>
-        ${flags ? `<div class="home-session-flags">${flags}</div>` : ''}
+          <div class="home-session-summary">${escapeHtml(summary)}</div>
+          <div class="home-session-sub">${escapeHtml(sub)}</div>
+          ${flags ? `<div class="home-session-flags">${flags}</div>` : ''}
         </div>
       </div>
     `;
   }).join('');
 
-  const emptySecondary = !sessions.length && pinned
-    ? '<div class="home-session-empty">目前沒有其他已保存對話，先展示上面的釘選對話即可。</div>'
-    : '';
+  // 收合區塊：有其他對話才顯示，預設關閉
+  const historySection = otherSessions.length > 0
+    ? `<details class="home-session-history">
+        <summary class="home-session-history-toggle">
+          <span class="mat-icon">history</span>
+          其他對話紀錄（${otherSessions.length} 則）
+          <span class="home-session-history-chevron mat-icon">expand_more</span>
+        </summary>
+        <div class="home-session-history-body">${sessionListHtml}</div>
+      </details>`
+    : (pinned ? '<div class="home-session-empty">目前沒有其他已保存對話，先展示上面的釘選對話即可。</div>' : '');
 
-  container.innerHTML = `${pinnedHtml}${sessionListHtml}${emptySecondary}`;
+  container.innerHTML = `${pinnedHtml}${historySection}`;
 }
 
 async function deleteRecentSession(sessionId) {

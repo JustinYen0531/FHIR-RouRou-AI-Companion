@@ -5467,6 +5467,56 @@ body.micro-detail-open {
  color: #355245;
  line-height: 1.55;
 }
+
+/* ── 對話紀錄收合區塊 ─────────────────────────────── */
+.home-session-history {
+  margin-top: 4px;
+}
+
+.home-session-history[open] .home-session-history-chevron {
+  transform: rotate(180deg);
+}
+
+.home-session-history-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  cursor: pointer;
+  padding: 9px 4px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #5a7565;
+  user-select: none;
+  border-radius: 10px;
+  transition: background 0.15s;
+}
+
+.home-session-history-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.home-session-history-toggle:hover {
+  background: rgba(90, 117, 101, 0.07);
+}
+
+.home-session-history-toggle .mat-icon {
+  font-size: 16px;
+  color: #7fa090;
+}
+
+.home-session-history-chevron {
+  margin-left: auto;
+  transition: transform 0.2s ease;
+}
+
+.home-session-history-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 6px;
+}
+
 .shortcut-composer-overlay {
   position: fixed;
   inset: 0;
