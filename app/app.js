@@ -14,7 +14,13 @@ const RUNTIME_CONFIG_SOURCE_KEY = 'rourou.aiConfigSource';
 const LEGACY_LOCAL_SESSION_ARCHIVE_KEY = 'rourou.localSessionArchive';
 const LOCAL_SESSION_ARCHIVE_KEY = 'rourou.singleSessionArchive.v2';
 const MAX_LOCAL_SESSION_ARCHIVE_RECORDS = 20;
-const REPORT_OUTPUT_CACHE_KEY = 'rourou.reportOutputsCache.v1';
+const REPORT_OUTPUT_CACHE_KEY = 'rourou.reportOutputsCache.v1'; // legacy（用於遷移舊資料）
+const REPORT_OUTPUT_CACHE_PREFIX = 'rourou.reportOutputs.';     // per-conversation key prefix
+
+function getReportCacheKey(conversationId) {
+  const id = String(conversationId || '').trim();
+  return id ? `${REPORT_OUTPUT_CACHE_PREFIX}${id}` : REPORT_OUTPUT_CACHE_KEY;
+}
 const PINNED_SESSION_STORAGE_KEY = 'rourou.pinnedSession.v1';
 const AUTH_TOKEN_STORAGE_KEY = 'rourou.authToken.v1';
 const AUTH_USER_STORAGE_KEY = 'rourou.authUser.v1';
@@ -2668,9 +2674,11 @@ function saveReportOutputsToCache(options = {}) {
     if (!options.allowEmpty && !hasMeaningfulReportOutputs(reportOutputs)) {
       return;
     }
-    localStorage.setItem(REPORT_OUTPUT_CACHE_KEY, JSON.stringify({
+    const conversationId = APP_STATE.conversationId || '';
+    const key = getReportCacheKey(conversationId);
+    localStorage.setItem(key, JSON.stringify({
       reportOutputs,
-      conversationId: APP_STATE.conversationId || '',
+      conversationId,
       savedAt: new Date().toISOString()
     }));
   } catch (error) {
@@ -2678,27 +2686,47 @@ function saveReportOutputsToCache(options = {}) {
   }
 }
 
-function restoreReportOutputsFromCache() {
+// 為指定的 conversationId 還原報表（per-conversation）
+function restoreReportOutputsForSession(conversationId) {
   try {
-    const parsed = JSON.parse(localStorage.getItem(REPORT_OUTPUT_CACHE_KEY) || 'null');
-    if (!parsed || typeof parsed !== 'object') return;
+    const key = getReportCacheKey(conversationId);
+    let parsed = JSON.parse(localStorage.getItem(key) || 'null');
+
+    // 遷移：若新 key 無資料，嘗試從舊的全域 key 讀（且 conversationId 相符）
+    if (!parsed) {
+      const legacy = JSON.parse(localStorage.getItem(REPORT_OUTPUT_CACHE_KEY) || 'null');
+      if (legacy && legacy.conversationId === conversationId) {
+        parsed = legacy;
+        // 遷移到新 key，刪舊 key
+        localStorage.setItem(key, JSON.stringify(parsed));
+        localStorage.removeItem(REPORT_OUTPUT_CACHE_KEY);
+      }
+    }
+
+    if (!parsed || typeof parsed !== 'object') {
+      // 此對話無報表快取，清空報表讓它從 session_export 重建
+      APP_STATE.reportOutputs = createEmptyReportOutputs();
+      return;
+    }
+
     APP_STATE.reportOutputs = normalizeCachedReportOutputs(parsed);
-  if (APP_STATE.reportOutputs.session_export && typeof APP_STATE.reportOutputs.session_export === 'object') {
-    APP_STATE.reportOutputs.session_export = PatientProfile.applyToSessionExport(APP_STATE.reportOutputs.session_export);
-    syncReportOutputsFromSessionExport(APP_STATE.reportOutputs.session_export);
-    syncTherapeuticMemoryFromSessionExport(APP_STATE.reportOutputs.session_export);
-    syncPhq9SessionState();
-  }
+    if (APP_STATE.reportOutputs.session_export && typeof APP_STATE.reportOutputs.session_export === 'object') {
+      APP_STATE.reportOutputs.session_export = PatientProfile.applyToSessionExport(APP_STATE.reportOutputs.session_export);
+      syncReportOutputsFromSessionExport(APP_STATE.reportOutputs.session_export);
+      syncTherapeuticMemoryFromSessionExport(APP_STATE.reportOutputs.session_export);
+      syncPhq9SessionState();
+    }
     if (isValidFhirDraftOutput(APP_STATE.reportOutputs.fhir_delivery)) {
-      APP_STATE.reportFhirDraft = {
-        isLoading: false,
-        error: '',
-        emptyReason: ''
-      };
+      APP_STATE.reportFhirDraft = { isLoading: false, error: '', emptyReason: '' };
     }
   } catch (error) {
-    console.warn('Unable to restore report outputs cache:', error);
+    console.warn('Unable to restore report outputs for session:', error);
   }
+}
+
+// 向後相容的包裝（頁面初始化時使用當前 conversationId）
+function restoreReportOutputsFromCache() {
+  restoreReportOutputsForSession(APP_STATE.conversationId || '');
 }
 
 const OUTPUT_COMMANDS = [

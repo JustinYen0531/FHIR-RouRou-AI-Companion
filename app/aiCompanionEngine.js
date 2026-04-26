@@ -1163,6 +1163,213 @@ function enforceScoreableQuestion(draft, userText, state, formalProbe) {
   return lastQ.before ? `${lastQ.before}\n\n${probe}` : probe;
 }
 
+// ── 題項症狀關鍵詞映射（用於 isCorrectItem 判斷）──────────────────────────
+const ITEM_SYMPTOM_KEYWORDS = {
+  depressed_mood: ['低落', '提不起勁', '沮喪', '難過', '沒動力', '空虛', '心情不好', '鬱悶', '沒精神'],
+  guilt: ['自責', '內疚', '罪惡感', '怪自己', '都是我的錯', '覺得對不起', '後悔'],
+  suicide: ['不想活', '想死', '消失', '沒意義', '活著', '結束', '死', '想消失', '撐不下去'],
+  insomnia_early: ['睡不著', '難入睡', '躺很久', '失眠', '睡前', '入睡'],
+  insomnia_middle: ['半夜醒', '睡一睡', '中途醒', '容易醒', '睡眠中斷'],
+  insomnia_late: ['早醒', '太早醒', '睡不回去', '天沒亮'],
+  work_activities: ['做事', '動力', '工作', '上班', '上課', '提不起來', '不想做', '效率'],
+  retardation: ['變慢', '思考', '回話', '拖住', '遲鈍', '反應慢', '做事慢'],
+  agitation: ['坐不住', '煩躁', '靜不下來', '一直動', '不安', '焦躁'],
+  psychic_anxiety: ['緊張', '焦慮', '不安', '擔心', '壓著', '害怕'],
+  somatic_anxiety: ['緊繃', '心悸', '頭痛', '胸悶', '身體', '肌肉緊'],
+  gastrointestinal_somatic: ['食慾', '腸胃', '胃口', '吃不下', '吃東西', '噁心'],
+  general_somatic: ['疲累', '痠痛', '沒力', '很累', '身體疲倦'],
+  genital_symptoms: ['性慾', '生理功能', '性功能'],
+  hypochondriasis: ['擔心身體', '哪裡出問題', '放不下', '健康焦慮'],
+  weight_loss: ['食量', '體重', '變瘦', '吃少'],
+  insight: ['看待', '壓力反應', '情緒困擾', '覺得自己', '病識感']
+};
+
+// 具體情境關鍵字（問句必須含至少一個才算「有具體情境」）
+const SPECIFIC_CONTEXT_KEYWORDS = [
+  // 頻率情境
+  '一週', '每天', '幾天', '偶爾', '常常', '幾乎', '幾次',
+  // 時間情境
+  '多久', '持續', '幾個月', '幾週', '最近',
+  // 程度情境
+  '輕微', '明顯', '嚴重', '比以前', '差不多',
+  // 功能情境
+  '影響', '工作', '上班', '上課', '讀書', '睡眠', '吃飯',
+  '食慾', '社交', '出門', '完成', '事情', '日常'
+];
+
+/**
+ * 判斷問句是否命中指定的 HAM-D 題項
+ * @param {string} question - 問句文字
+ * @param {string} targetItemCode - 目標題項代碼
+ * @returns {boolean}
+ */
+function isCorrectItem(question, targetItemCode) {
+  const q = String(question || '');
+  if (!q.trim() || !targetItemCode) return false;
+  const keywords = ITEM_SYMPTOM_KEYWORDS[targetItemCode];
+  if (!keywords || !keywords.length) return false;
+  // 必須命中該 item 至少一個症狀關鍵詞
+  const hitSymptom = keywords.some((kw) => q.includes(kw));
+  if (!hitSymptom) return false;
+  // 必須包含至少一個「具體情境」關鍵字
+  const hitContext = SPECIFIC_CONTEXT_KEYWORDS.some((kw) => q.includes(kw));
+  return hitContext;
+}
+
+/**
+ * 判斷是否需要介入
+ * shouldIntervene = 沒有問句 OR 問句不可評分 OR 問錯 item OR 問句為禁止類型
+ */
+function shouldIntervene(draft, targetItemCode) {
+  const lastQ = extractLastQuestion(draft);
+  // 沒有問句 → 需要介入（補一題）
+  if (!lastQ) return { intervene: true, reason: 'no_question' };
+  const q = lastQ.question;
+  // 禁止類型檢查（coping、開放反思、安慰邀請）
+  if (BAD_QUESTION_PATTERNS.some((pattern) => pattern.test(q))) {
+    return { intervene: true, reason: 'banned_question_type' };
+  }
+  // 不可評分
+  if (!isScoreableQuestion(q)) {
+    return { intervene: true, reason: 'not_scoreable' };
+  }
+  // 問錯 item（有 target 但沒命中）
+  if (targetItemCode && !isCorrectItem(q, targetItemCode)) {
+    return { intervene: true, reason: 'wrong_item' };
+  }
+  // 太空泛的 functional_impact
+  if (isVagueFunctionalImpact(q)) {
+    return { intervene: true, reason: 'vague_functional' };
+  }
+  // 所有條件都通過 → 不介入
+  return { intervene: false, reason: 'pass' };
+}
+
+/**
+ * 確保回答中只有一個問句（永遠只保留最後一個）
+ * 多問句時只保留最後一個，前面的問號句全部移除
+ */
+function enforceSingleQuestion(text) {
+  const t = String(text || '').trim();
+  if (!t) return t;
+  // 切割所有句子
+  const segments = t.split(/((?<=[。！？?！\n])|(?=[？?]))/).map((s) => s.trim()).filter(Boolean);
+  // 找出所有問句的 index
+  const questionIndices = [];
+  for (let i = 0; i < segments.length; i++) {
+    if (/[？?]/.test(segments[i])) questionIndices.push(i);
+  }
+  // 0 或 1 個問句 → 不用處理
+  if (questionIndices.length <= 1) return t;
+  // 多個問句 → 移除前面的，只留最後一個
+  const lastQIdx = questionIndices[questionIndices.length - 1];
+  const result = [];
+  for (let i = 0; i < segments.length; i++) {
+    if (questionIndices.includes(i) && i !== lastQIdx) {
+      // 把多餘的問句轉成陳述句（移除問號）
+      continue;
+    }
+    result.push(segments[i]);
+  }
+  return result.join('').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/**
+ * 統一臨床後處理器（Clinical Post-Processor）
+ *
+ * 架構：LLM（自由生成）→ 後處理器（唯一控制點）→ 最終輸出
+ *
+ * 規則優先順序：
+ * 1. 風險訊號 → 強制安全確認問題
+ * 2. 系統閉嘴條件 → 三條件同時成立就不介入
+ * 3. shouldIntervene → 判斷是否需要介入
+ * 4. 介入策略 → 替換（不是追加）
+ * 5. 單問句規則 → 最終確保只有一個問句
+ * 6. 防 crash → 任何錯誤一律 fallback
+ */
+function clinicalPostProcessor(draft, {
+  userText = '',
+  state = {},
+  formalProbe = null,
+  atmosphereProtected = false
+} = {}) {
+  try {
+    let text = String(draft || '').trim();
+    if (!text) return text;
+
+    // ── 第 0 層：移除中段安慰／正常化句 ──
+    text = stripComfortPhrases(text);
+
+    // ── 氣氛保護：情緒承載模式不介入 ──
+    if (atmosphereProtected) {
+      return enforceSingleQuestion(text);
+    }
+
+    // ── 第 1 層：風險訊號最高優先 ──
+    const lockedCodes = getLockedItemCodes(state);
+    if (detectRiskSignal(userText) && !lockedCodes.includes('suicide')) {
+      const lastQ = extractLastQuestion(text);
+      const riskQ = RISK_PROBE.probe_question;
+      if (lastQ) {
+        text = lastQ.before ? `${lastQ.before}\n\n${riskQ}` : riskQ;
+      } else {
+        text = `${text}\n\n${riskQ}`;
+      }
+      return enforceSingleQuestion(text);
+    }
+
+    // ── 第 2 層：取得 next_item（下一個未完成的 HAM-D 題項）──
+    const nextItemCode = pickNextUnlockedItemCode(state);
+    const targetItemCode = nextItemCode || (formalProbe && formalProbe.item_code) || '';
+
+    // ── 第 3 層：系統閉嘴條件檢查 ──
+    // 若同時成立：問句可評分 + 問題正確 + 有具體情境 → 完全不介入
+    const decision = shouldIntervene(text, targetItemCode);
+    if (!decision.intervene) {
+      // LLM 問對了 → 系統完全不介入，只確保單問句
+      return enforceSingleQuestion(text);
+    }
+
+    // ── 第 4 層：需要介入 → 替換策略（不是追加）──
+    const lastQ = extractLastQuestion(text);
+    const probe = pickScoreableProbe(userText, text, formalProbe, state);
+
+    if (!probe) {
+      // 完全沒有可用的 probe → 保留原文
+      return enforceSingleQuestion(text);
+    }
+
+    if (decision.reason === 'no_question') {
+      // LLM 沒問問題 → 補一題
+      text = `${text}\n\n${probe}`;
+    } else {
+      // LLM 問錯 / 不可評分 / 禁止類型 → 替換最後一句問句
+      if (lastQ && lastQ.before) {
+        text = `${lastQ.before}\n\n${probe}`;
+      } else {
+        text = probe;
+      }
+    }
+
+    // ── 第 5 層：最終確保單問句 ──
+    return enforceSingleQuestion(text);
+
+  } catch (error) {
+    // ── 防 crash：任何後處理錯誤 → 強制 fallback probe ──
+    const fallbackProbe = pickScoreableProbe(userText, draft, formalProbe, state);
+    if (fallbackProbe) {
+      const safeDraft = stripComfortPhrases(String(draft || ''));
+      const safeLastQ = extractLastQuestion(safeDraft);
+      if (safeLastQ && safeLastQ.before) {
+        return `${safeLastQ.before}\n\n${fallbackProbe}`;
+      }
+      return safeDraft ? `${safeDraft}\n\n${fallbackProbe}` : fallbackProbe;
+    }
+    // 最終 fallback
+    return String(draft || '').trim() || '最近這種狀態是幾乎每天都有，還是偶爾才會出現？';
+  }
+}
+
 function enforceQuestionSafety(draft, { probeQuestion, shouldAsk }) {
   const text = String(draft || '').trim();
   const probe = String(probeQuestion || '').trim();
@@ -4088,35 +4295,40 @@ class AICompanionEngine {
       }
     });
 
-    // 第 1 層：先把中段安慰／正常化句移除（保留其他段落）
-    answer = stripComfortPhrases(answer);
+    // ── 統一後處理器（取代散落三層）────────────────────────────────────────────
+    answer = clinicalPostProcessor(answer, {
+      userText: message,
+      state,
+      formalProbe: (canProbeHamd && formalProbe.should_ask === 'yes') ? formalProbe : null,
+      atmosphereProtected
+    });
 
-    // ── 回答後處理器（安全網）────────────────────────────────────────────────
+    // 後處理完成後：重建 probeActive 狀態（供後續 probe_count 追蹤用）
     let normalizedProbeQuestion = String(formalProbe.probe_question || '').trim();
     let probeActive = canProbeHamd && formalProbe.should_ask === 'yes' && Boolean(normalizedProbeQuestion);
 
-    // 緊急攔截：無排定探針但 AI 自己問了非法問句 → 強制塞入緊急 probe
-    if (!probeActive && !atmosphereProtected && isInvalidQuestionEnding(answer)) {
-      const emergency = pickEmergencyProbe(state);
-      if (emergency) {
-        formalProbe = { ...formalProbe, ...emergency, should_ask: 'yes' };
-        normalizedProbeQuestion = emergency.probe_question;
-        probeActive = true;
-      } else {
-        // 所有題都鎖定：直接砍掉非法問句，留下溫度文字
-        const lastQ = extractLastQuestion(answer);
-        if (lastQ && lastQ.before) answer = lastQ.before;
+    // 若統一後處理器替換了問句，且非氣氛保護模式，視為 probe active
+    if (!probeActive && !atmosphereProtected) {
+      const postLastQ = extractLastQuestion(answer);
+      if (postLastQ && isScoreableQuestion(postLastQ.question)) {
+        // 找到後處理器注入的可評分問題 → 自動關聯到 next_item
+        const nextCode = pickNextUnlockedItemCode(state);
+        if (nextCode) {
+          const def = HAMD_FORMAL_ITEM_MAP[nextCode];
+          if (def) {
+            formalProbe = {
+              should_ask: 'yes',
+              item_code: nextCode,
+              item_label: def.item_label,
+              question_type: 'frequency',
+              probe_question: postLastQ.question,
+              reason: 'post_processor_injected'
+            };
+            normalizedProbeQuestion = postLastQ.question;
+            probeActive = true;
+          }
+        }
       }
-    }
-
-    answer = enforceQuestionSafety(answer, {
-      probeQuestion: normalizedProbeQuestion,
-      shouldAsk: probeActive
-    });
-
-    // 正向可評分檢查（最後一道）：最後一句必須含 HAM-D 可用訊號 + 落在 next_item
-    if (!atmosphereProtected) {
-      answer = enforceScoreableQuestion(answer, message, state, probeActive ? formalProbe : null);
     }
 
     // 評分完成中斷點（四道閘門：觸發條件 / 一次性 / 冷卻 / 內容回扣）
