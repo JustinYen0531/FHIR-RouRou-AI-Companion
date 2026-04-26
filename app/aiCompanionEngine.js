@@ -3843,9 +3843,13 @@ class AICompanionEngine {
       }
     }
     // Recompute completion locks after evidence/score update
+    const prevLockedCodes = getLockedItemCodes(state);
     const progressItems = normalizeObjectState(state, 'hamd_progress_state', {}).items || [];
     const updatedAssessment = hydrateFormalAssessment(state.hamd_formal_assessment);
     state.hamd_item_lock_state = computeHamdItemLockState(progressItems, updatedAssessment.items);
+    // 評分完成中斷點偵測：本輪新被鎖定的題項（純偵測，不影響探針流程）
+    const newLockedCodes = getLockedItemCodes(state);
+    state.hamd_just_locked = newLockedCodes.filter((c) => !prevLockedCodes.includes(c));
   }
 
   async buildNaturalResponse(session, message) {
@@ -3914,6 +3918,14 @@ class AICompanionEngine {
       shouldAsk: probeActive
     });
 
+    // 評分完成中斷點：純附註（不動探針流程）
+    const justLockedCodes = normalizeArray(state.hamd_just_locked);
+    const appendBreakpointNote = (text) => {
+      if (!justLockedCodes.length || atmosphereProtected) return text;
+      const note = '（剛剛聊到的部分我大概已經了解了，可以幫你做評估。要繼續看其他部分，還是先停在這裡都可以。）';
+      return `${text.trim()}\n\n${note}`;
+    };
+
     if (probeActive && formalProbe.item_code) {
       const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
       // 累積該題項的探針次數（結束鎖 probe_count）
@@ -3934,7 +3946,9 @@ class AICompanionEngine {
         consecutive_probes: Number(flowState.consecutive_probes || 0)
       });
 
-      return answer;
+      const finalAnswer = appendBreakpointNote(answer);
+      state.hamd_just_locked = [];
+      return finalAnswer;
     }
 
     // 沒有插入探針：重置連續追問計數
@@ -3946,7 +3960,9 @@ class AICompanionEngine {
       });
     }
 
-    return answer;
+    const finalAnswer = appendBreakpointNote(answer);
+    state.hamd_just_locked = [];
+    return finalAnswer;
   }
 
   async updateSummaryChain(session, message, options = {}) {
