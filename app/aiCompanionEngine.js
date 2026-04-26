@@ -3445,21 +3445,30 @@ class AICompanionEngine {
 
   async resolveActiveMode(session, message) {
     const state = session.state;
+
+    // 手動覆寫模式（使用者明確切換）
     if (state.routing_mode_override && state.routing_mode_override !== 'auto') {
       return state.routing_mode_override;
     }
 
-    const burden = normalizeObjectState(state, 'burden_level_state', {});
-    if (burden.response_style === 'option_first' || burden.burden_level === 'high') {
-      const lowEnergy = await this.runClassifier('lowEnergyDetector', session, message, [
-        'degrade_option',
-        'degrade_soulmate',
-        'continue_auto'
-      ], 'continue_auto');
-      if (lowEnergy === 'degrade_option') return 'mode_4_option';
-      if (lowEnergy === 'degrade_soulmate') return 'mode_2_soulmate';
+    // ── 1. 低能量/情緒偵測器：永遠先跑（不等 burden high 才觸發）
+    // 捕捉情緒傾倒（→ soulmate）和卡住狀態（→ option）
+    const lowEnergy = await this.runClassifier('lowEnergyDetector', session, message, [
+      'degrade_option',
+      'degrade_soulmate',
+      'continue_auto'
+    ], 'continue_auto');
+
+    if (lowEnergy === 'degrade_soulmate') {
+      this.updateFlowState(state, { mode: 'emotional_holding', can_probe_hamd: false });
+      return 'mode_2_soulmate';
+    }
+    if (lowEnergy === 'degrade_option') {
+      this.updateFlowState(state, { mode: 'choice_prompting', can_probe_hamd: false });
+      return 'mode_4_option';
     }
 
+    // ── 2. 意圖分類（更精細的信號導向分流）
     const intent = await this.runClassifier('intentClassifier', session, message, [
       'mode_1_void',
       'mode_2_soulmate',
@@ -3468,7 +3477,52 @@ class AICompanionEngine {
       'mode_5_natural',
       'mode_6_clarify'
     ], 'mode_5_natural');
+
+    // ── 3. 更新 flow_state（給 Smart Hunter 使用）
+    const hamd = normalizeObjectState(state, 'hamd_progress_state', {});
+    const burden = normalizeObjectState(state, 'burden_level_state', {});
+    const isHighBurden = burden.burden_level === 'high';
+    const prevFlow = normalizeObjectState(state, 'flow_state', {});
+    const consecutiveProbes = Number(prevFlow.consecutive_probes || 0);
+
+    const canProbeHamd = !isHighBurden
+      && intent !== 'mode_1_void'
+      && consecutiveProbes < 2           // 不連續追問超過 2 次
+      && hamd.needs_clarification !== 'no';
+
+    const flowMode = {
+      'mode_2_soulmate': 'emotional_holding',
+      'mode_3_mission': 'clinical_probing',
+      'mode_4_option': 'choice_prompting',
+      'mode_5_natural': consecutiveProbes >= 1 ? 'flow_conversation' : 'clinical_probing',
+      'mode_6_clarify': 'flow_conversation'
+    }[intent] || 'flow_conversation';
+
+    this.updateFlowState(state, {
+      mode: flowMode,
+      can_probe_hamd: canProbeHamd,
+      consecutive_probes: consecutiveProbes
+    });
+
     return intent;
+  }
+
+  updateFlowState(state, updates = {}) {
+    const prev = normalizeObjectState(state, 'flow_state', {});
+    const prevProbes = Number(prev.consecutive_probes || 0);
+
+    // 追蹤連續追問次數（每次 can_probe_hamd=true 就遞增，否則重置）
+    const newProbes = updates.can_probe_hamd
+      ? Math.min(prevProbes + 1, 3)
+      : 0;
+
+    state.flow_state = {
+      mode: updates.mode || prev.mode || 'flow_conversation',
+      can_probe_hamd: Boolean(updates.can_probe_hamd),
+      consecutive_probes: updates.consecutive_probes !== undefined ? updates.consecutive_probes : newProbes,
+      atmosphere_protection: updates.mode === 'emotional_holding',
+      updatedAt: new Date().toISOString()
+    };
   }
 
   async handleMission(session, message) {
@@ -3605,31 +3659,64 @@ class AICompanionEngine {
 
   async buildNaturalResponse(session, message) {
     const state = session.state;
-    const formalProbe = await this.runJsonTask('hamdFormalProbeSelector', session, message, {
-      extraContext: {
-        formal_probe: {
-          items: getFormalTargetItems(state, 4)
-        }
-      },
-      fallback: buildFormalAssessmentProbeFallback(state)
-    });
+    const flowState = normalizeObjectState(state, 'flow_state', {});
+
+    // 氣氛保護：情緒承載模式時不插入正式探針
+    const atmosphereProtected = Boolean(flowState.atmosphere_protection);
+    const canProbeHamd = Boolean(flowState.can_probe_hamd) && !atmosphereProtected;
+
+    let formalProbe = buildFormalAssessmentProbeFallback(state);
+    if (canProbeHamd) {
+      formalProbe = await this.runJsonTask('hamdFormalProbeSelector', session, message, {
+        extraContext: {
+          formal_probe: {
+            items: getFormalTargetItems(state, 4)
+          }
+        },
+        fallback: formalProbe
+      });
+    } else {
+      // 氣氛保護：強制關閉探針
+      formalProbe = { ...formalProbe, should_ask: 'no' };
+    }
+
     const answer = await this.runTextTask('smartHunter', session, message, {
       extraContext: {
-        formal_probe: formalProbe
+        formal_probe: formalProbe,
+        flow_state: flowState
       }
     });
+
     const normalizedProbeQuestion = String(formalProbe.probe_question || '').trim();
-    if (formalProbe.should_ask === 'yes' && formalProbe.item_code && normalizedProbeQuestion) {
+    if (canProbeHamd && formalProbe.should_ask === 'yes' && formalProbe.item_code && normalizedProbeQuestion) {
       const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
       assessment.pending_probe_item_code = formalProbe.item_code;
       assessment.pending_probe_question = normalizedProbeQuestion;
       assessment.assessment_mode = 'smart_hunter_probe';
       state.hamd_formal_assessment = assessment;
+
+      // 遞增 consecutive_probes
+      this.updateFlowState(state, {
+        mode: flowState.mode,
+        can_probe_hamd: true,
+        consecutive_probes: Number(flowState.consecutive_probes || 0)
+      });
+
       if (answer.includes(normalizedProbeQuestion)) {
         return answer;
       }
       return `${answer}\n\n${normalizedProbeQuestion}`;
     }
+
+    // 沒有插入探針：重置連續追問計數
+    if (!atmosphereProtected) {
+      this.updateFlowState(state, {
+        mode: flowState.mode,
+        can_probe_hamd: false,
+        consecutive_probes: 0
+      });
+    }
+
     return answer;
   }
 
