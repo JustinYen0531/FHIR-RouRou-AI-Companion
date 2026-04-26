@@ -3864,9 +3864,7 @@ class AICompanionEngine {
       formalProbe = await this.runJsonTask('hamdFormalProbeSelector', session, message, {
         extraContext: {
           formal_probe: {
-            items: getFormalTargetItems(state, 4),
-            locked_items: lockedItemCodes,
-            allowed_question_types: ALLOWED_QUESTION_TYPES
+            items: getFormalTargetItems(state, 4)
           }
         },
         fallback: formalProbe
@@ -3889,10 +3887,7 @@ class AICompanionEngine {
     let answer = await this.runTextTask('smartHunter', session, message, {
       extraContext: {
         formal_probe: formalProbe,
-        flow_state: flowState,
-        locked_items: lockedItemCodes,
-        next_item: formalProbe.should_ask === 'yes' ? formalProbe.item_code : '',
-        allowed_question_types: ALLOWED_QUESTION_TYPES
+        flow_state: flowState
       }
     });
 
