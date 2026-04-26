@@ -848,6 +848,36 @@ function getLockedItemCodes(state) {
   return Object.keys(lockState).filter((code) => lockState[code] === 'locked');
 }
 
+// ── 問題類型鎖（Question Type Lock） ──────────────────────────────────────
+const ALLOWED_QUESTION_TYPES = ['frequency', 'severity', 'functional_impact'];
+
+const INVALID_QUESTION_PATTERNS = [
+  /怎麼處理/,
+  /怎麼應對/,
+  /有試著做/,
+  /試著做(些)?什麼/,
+  /你可以試試/,
+  /要不要試試/,
+  /打算怎麼做/,
+  /你怎麼看/,
+  /覺得原因是什麼/,
+  /原因是什麼/,
+  /感覺如何[？?]?\s*$/,
+  /還好嗎[？?]?\s*$/,
+  /有沒有什麼方法/,
+  /你有想過怎麼/,
+  /建議你/,
+  /可以嘗試/
+];
+
+function isInvalidQuestionEnding(text) {
+  const trimmed = String(text || '').trim();
+  if (!trimmed) return false;
+  // 只檢查最後兩句（AI 結尾問句區域）
+  const tail = trimmed.split(/[。\n]/).filter(Boolean).slice(-3).join('');
+  return INVALID_QUESTION_PATTERNS.some((pattern) => pattern.test(tail));
+}
+
 function buildFormalAssessmentProbeFallback(state) {
   const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
   const lockedCodes = getLockedItemCodes(state);
@@ -876,10 +906,14 @@ function buildFormalAssessmentProbeFallback(state) {
     };
   }
   const definition = HAMD_FORMAL_ITEM_MAP[candidateCode];
+  const candidateItem = assessment.items.find((i) => i.item_code === candidateCode);
+  const probeCount = candidateItem ? (candidateItem.probe_count || 0) : 0;
+  const questionType = ALLOWED_QUESTION_TYPES[probeCount % ALLOWED_QUESTION_TYPES.length];
   return {
     should_ask: 'yes',
     item_code: definition.item_code,
     item_label: definition.item_label,
+    question_type: questionType,
     probe_question: definition.probe_question,
     reason: `gap_in_${nextDimension}`
   };
@@ -3714,7 +3748,8 @@ class AICompanionEngine {
         extraContext: {
           formal_probe: {
             items: getFormalTargetItems(state, 4),
-            locked_items: lockedItemCodes
+            locked_items: lockedItemCodes,
+            allowed_question_types: ALLOWED_QUESTION_TYPES
           }
         },
         fallback: formalProbe
@@ -3729,16 +3764,28 @@ class AICompanionEngine {
       formalProbe = { ...formalProbe, should_ask: 'no', reason: 'item_locked' };
     }
 
-    const answer = await this.runTextTask('smartHunter', session, message, {
+    // 確保 question_type 在允許清單內
+    if (formalProbe.should_ask === 'yes' && !ALLOWED_QUESTION_TYPES.includes(formalProbe.question_type)) {
+      formalProbe = { ...formalProbe, question_type: 'frequency' };
+    }
+
+    let answer = await this.runTextTask('smartHunter', session, message, {
       extraContext: {
         formal_probe: formalProbe,
         flow_state: flowState,
         locked_items: lockedItemCodes,
-        next_item: formalProbe.should_ask === 'yes' ? formalProbe.item_code : ''
+        next_item: formalProbe.should_ask === 'yes' ? formalProbe.item_code : '',
+        allowed_question_types: ALLOWED_QUESTION_TYPES
       }
     });
 
+    // 問題類型後檢查：若 AI 產生非法問句，強制替換為指定探針問句
     const normalizedProbeQuestion = String(formalProbe.probe_question || '').trim();
+    if (canProbeHamd && formalProbe.should_ask === 'yes' && normalizedProbeQuestion && isInvalidQuestionEnding(answer)) {
+      answer = answer.replace(/[？?。][^？?。]*[？?]\s*$/, '').trim();
+      answer = `${answer}\n\n${normalizedProbeQuestion}`;
+    }
+
     if (canProbeHamd && formalProbe.should_ask === 'yes' && formalProbe.item_code && normalizedProbeQuestion) {
       const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
       // 累積該題項的探針次數（結束鎖 probe_count）
