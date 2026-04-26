@@ -154,6 +154,67 @@ function extractLastQuestion(text) {
   };
 }
 
+// 找到所有問句的位置 [{ start, end }]
+function findAllQuestions(text) {
+  const str = String(text || '');
+  const result = [];
+  let sentStart = 0;
+  for (let i = 0; i < str.length; i++) {
+    const c = str[i];
+    if (c === '。' || c === '！' || c === '\n') {
+      sentStart = i + 1;
+    } else if (c === '？' || c === '?') {
+      // 跳過開頭空白
+      let realStart = sentStart;
+      while (realStart < i && /[\s\r\n]/.test(str[realStart])) realStart++;
+      result.push({ start: realStart, end: i + 1 });
+      sentStart = i + 1;
+    }
+  }
+  return result;
+}
+
+// 移除除最後一個之外的所有問句（避免一輪內出現多個問題）
+// 擴展刪除範圍：?後若還有沒終結的子句（如「或者...呢」），一併吃到下一個強邊界
+function removeAllQuestionsExceptLast(text) {
+  const str = String(text || '');
+  const qs = findAllQuestions(str);
+  if (qs.length <= 1) return str;
+  const toRemove = qs.slice(0, -1);
+  let result = '';
+  let cursor = 0;
+  for (const q of toRemove) {
+    result += str.slice(cursor, q.start);
+    // 把 ? 後沒終結的尾巴一併吃掉，直到 \n / 。 / ！ / 下一個問句起點
+    let extEnd = q.end;
+    while (extEnd < str.length) {
+      const c = str[extEnd];
+      if (c === '\n' || c === '。' || c === '！') break;
+      if (c === '？' || c === '?') break; // 留給下一輪迴圈處理
+      extEnd++;
+    }
+    cursor = extEnd;
+  }
+  result += str.slice(cursor);
+  // 收尾整理：多餘的換行收斂
+  return result.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// 移除尾端的 meta 括號註解（系統狀態、評估進度等不該出現在對話）
+function stripTrailingMetaBlocks(text) {
+  let str = String(text || '');
+  // 反覆剝除文末的 (...) 或 （...） 區塊（含內容只要看起來像 meta）
+  const META_HINT = /(剛剛提到|初步評估|可以繼續|想先停|系統|評估|這部分|已影響|讓我們|繼續看看|HAM-?D|score|status)/i;
+  while (true) {
+    const m = str.match(/[\s\n]*[（(]([\s\S]+?)[）)]\s*$/);
+    if (!m) break;
+    const inner = m[1];
+    if (!META_HINT.test(inner)) break;
+    str = str.slice(0, str.length - m[0].length);
+  }
+  return str.trim();
+}
+
 // 判斷一個問句是否「可評分」：含頻率/程度/功能信號之一
 function isScoreableQuestion(question) {
   const q = String(question || '');
@@ -3741,12 +3802,19 @@ class AICompanionEngine {
   // 回傳 { cleanAnswer, applied } — cleanAnswer 是移除 JSON 行後的對話文字
   // ── Post-processor：永遠只保留一個問句，且只有在 AI 問錯/沒問時才介入 ──
   enforceSingleQuestion(draft, opts = {}) {
-    const text = String(draft || '').trim();
+    let text = String(draft || '').trim();
     if (!text) return text;
 
     const { systemNextItem, askRequired, formalProbe } = opts;
 
-    // ① 系統判定本輪不需要問 → 完全不介入
+    // 預清理 1：剝除尾端 meta 括號（系統狀態註解、評估進度等）
+    text = stripTrailingMetaBlocks(text);
+
+    // 預清理 2：若文中有多個問句，先收斂為「只留最後一個」
+    //   AI 常一次寫出多個問題，這裡硬性合併到最後那個。
+    text = removeAllQuestionsExceptLast(text);
+
+    // ① 系統判定本輪不需要問 → 不再追加，但前面的清理仍生效
     if (!askRequired) return text;
 
     const { before, question } = extractLastQuestion(text);
