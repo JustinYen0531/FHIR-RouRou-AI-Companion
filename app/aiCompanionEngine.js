@@ -1059,6 +1059,71 @@ function pickEmergencyProbe(state) {
   return null;
 }
 
+// ── 正向可評分檢查（Scoreable Question Enforcement）─────────────────────────
+// 不是抓錯，而是檢查最後一句「有沒有真的包含 HAM-D 可用訊號」
+const SCOREABLE_PATTERNS = [
+  // 頻率
+  /一週.{0,6}幾天/,
+  /幾乎每天/,
+  /偶爾/,
+  /每天/,
+  /每週/,
+  /幾天/,
+  /幾次/,
+  // 持續時間
+  /持續.{0,6}多久/,
+  /多久了/,
+  /幾(週|個月|個禮拜|星期)/,
+  // 程度
+  /輕微/,
+  /明顯/,
+  /嚴重/,
+  /撐得?住/,
+  /撐不住/,
+  /很(難受|不舒服|累)/,
+  /比.{0,4}以前(差|嚴重)/,
+  // 功能影響（必須含具體領域字）
+  /影響.{0,10}(工作|上班|上課|上學|讀書|念書|睡眠|睡覺|入睡|吃飯|食慾|胃口|社交|朋友|家人|同事|同學|出門|完成|任務|事情)/
+];
+
+const SYMPTOM_TO_PROBE = [
+  { pattern: /(睡不好|難以?入睡|躺很久|睡著.{0,4}醒|半夜醒|早醒|失眠)/, probe: '最近這種睡不好的情況，大概一週會有幾天？' },
+  { pattern: /(疲倦|沒力氣|提不起勁|無力|很累|沒精神|累得.{0,4})/, probe: '最近這種疲倦或提不起勁的感覺，大概一週會有幾天？' },
+  { pattern: /(空虛|空掉|低落|沒有意義|沒意義|沮喪|難過)/, probe: '最近這種空掉或低落的感覺，是幾乎每天都有，還是偶爾才會出現？' },
+  { pattern: /(食慾|吃不下|胃口|沒胃口|體重.{0,4}下降)/, probe: '最近食慾變化是輕微，還是已經明顯影響到平常吃東西？' },
+  { pattern: /(自責|內疚|罪惡感|怪自己|都是我的錯)/, probe: '這種自責的感覺，大概一週會出現幾天？' },
+  { pattern: /(緊張|焦慮|不安|擔心|心悸|胸悶)/, probe: '這種緊張或焦慮的感覺，是偶爾，還是幾乎每天都會有？' },
+  { pattern: /(注意力|專心|分心|恍神|做事變慢)/, probe: '注意力或做事的速度，大概一週會有幾天明顯變差？' },
+  { pattern: /(坐不住|煩躁|靜不下來|一直動)/, probe: '這種坐不住或煩躁的感覺，是偶爾，還是幾乎每天都有？' }
+];
+
+function isScoreableQuestion(question) {
+  const q = String(question || '');
+  if (!q.trim()) return false;
+  return SCOREABLE_PATTERNS.some((p) => p.test(q));
+}
+
+function pickScoreableProbe(userText, draft, formalProbe) {
+  const formalQ = String((formalProbe && formalProbe.probe_question) || '').trim();
+  if (formalQ) return formalQ;
+  const source = `${String(userText || '')}\n${String(draft || '')}`;
+  for (const rule of SYMPTOM_TO_PROBE) {
+    if (rule.pattern.test(source)) return rule.probe;
+  }
+  return '最近這種狀態是幾乎每天都有，還是偶爾才會出現？';
+}
+
+function enforceScoreableQuestion(draft, userText, formalProbe) {
+  const text = String(draft || '').trim();
+  if (!text) return text;
+  const lastQ = extractLastQuestion(text);
+  if (lastQ && isScoreableQuestion(lastQ.question)) return text;
+  const probe = pickScoreableProbe(userText, text, formalProbe);
+  if (!probe) return text;
+  if (!lastQ) return `${text}\n\n${probe}`;
+  return lastQ.before ? `${lastQ.before}\n\n${probe}` : probe;
+}
+
 function enforceQuestionSafety(draft, { probeQuestion, shouldAsk }) {
   const text = String(draft || '').trim();
   const probe = String(probeQuestion || '').trim();
@@ -4009,6 +4074,11 @@ class AICompanionEngine {
       probeQuestion: normalizedProbeQuestion,
       shouldAsk: probeActive
     });
+
+    // 正向可評分檢查（最後一道）：最後一句必須含 HAM-D 可用訊號，否則替換
+    if (!atmosphereProtected) {
+      answer = enforceScoreableQuestion(answer, message, probeActive ? formalProbe : null);
+    }
 
     // 評分完成中斷點（四道閘門：觸發條件 / 一次性 / 冷卻 / 內容回扣）
     state.hamd_turn_count = Number(state.hamd_turn_count || 0) + 1;
