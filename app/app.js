@@ -6968,41 +6968,7 @@ async function animateAiMessage(bubble, text) {
 }
 
 function renderClinicalTraceButton(group, traceData) {
-  if (!group || !traceData) return;
-
-  const HAMD_ITEM_LABELS = {
-    depressed_mood: '憂鬱情緒', guilt: '罪惡感', suicide: '自殺意念',
-    insomnia_early: '早段失眠', insomnia_middle: '中段失眠', insomnia_late: '晚段失眠',
-    work_and_activities: '工作與活動', retardation: '遲滯', agitation: '激動',
-    anxiety_psychic: '精神性焦慮', anxiety_somatic: '身體性焦慮',
-    somatic_gastrointestinal: '腸胃症狀', somatic_general: '一般身體症狀',
-    genital: '性功能', hypochondriasis: '疑病症', weight_loss: '體重減輕',
-    insight: '病識感'
-  };
-
-  const t = traceData;
-  const actionMap = {
-    none_llm_correct: '✅ 不用（AI 問得很好）',
-    append_question: '➕ 補了一題',
-    replace_question: '🔄 換掉問題',
-    no_probe_available: '⚠️ 沒有替代題',
-    crash_fallback: '💥 出錯，用備用題',
-    crash_last_resort: '💥 嚴重錯誤'
-  };
-  const reasonMap = {
-    pass: '通過（AI 表現好）',
-    no_question: 'AI 沒有提問',
-    banned_question_type: '問了禁止類型',
-    not_scoreable: '問句無法量化',
-    wrong_item: '問錯重點',
-    vague_functional: '太籠統'
-  };
-
-  const itemLabel = HAMD_ITEM_LABELS[t.target_item] || t.target_item || '無';
-  const actionLabel = actionMap[t.intervention_action] || t.intervention_action || '未知';
-  const reasonLabel = reasonMap[t.intervention_reason] || t.intervention_reason || '未知';
-
-  const traceId = 'trace-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+  if (!group) return;
 
   const btn = document.createElement('button');
   btn.className = 'clinical-trace-toggle';
@@ -7013,32 +6979,71 @@ function renderClinicalTraceButton(group, traceData) {
 
   const panel = document.createElement('div');
   panel.className = 'clinical-trace-panel';
-  panel.id = traceId;
   panel.style.display = 'none';
 
-  const interveneIcon = t.should_intervene ? '👉 需要' : '🤫 不用';
-  const correctIcon = t.is_correct_item === null ? '⬜' : t.is_correct_item ? '✅' : '❌';
-  const scoreIcon = t.is_scoreable ? '✅' : '❌';
-  const riskIcon = t.risk_detected ? '🔴' : '🟢';
+  if (!traceData) {
+    // 沒有 trace → 顯示「此訊息無決策紀錄」
+    panel.innerHTML = `
+      <div class="trace-header">🧠 臨床分析官 決策紀要</div>
+      <div class="trace-row"><span class="trace-label">⚪ 狀態</span><span class="trace-value">此訊息沒有經過臨床後處理器（可能不是智慧獵手模式）</span></div>
+    `;
+  } else {
+    const HAMD_ITEM_LABELS = {
+      depressed_mood: '憂鬱情緒', guilt: '罪惡感', suicide: '自殺意念',
+      insomnia_early: '早段失眠', insomnia_middle: '中段失眠', insomnia_late: '晚段失眠',
+      work_and_activities: '工作與活動', retardation: '遲滯', agitation: '激動',
+      anxiety_psychic: '精神性焦慮', anxiety_somatic: '身體性焦慮',
+      somatic_gastrointestinal: '腸胃症狀', somatic_general: '一般身體症狀',
+      genital: '性功能', hypochondriasis: '疑病症', weight_loss: '體重減輕',
+      insight: '病識感'
+    };
 
-  panel.innerHTML = `
-    <div class="trace-header">🧠 臨床分析官 決策紀要</div>
-    <div class="trace-row"><span class="trace-label">📝 AI 原本說</span><span class="trace-value">「${escapeHtml((t.raw_output || '').substring(0, 50))}…」</span></div>
-    <div class="trace-row"><span class="trace-label">❓ 抓到的問句</span><span class="trace-value">「${escapeHtml(t.extracted_question || '沒問問題')}」</span></div>
-    <div class="trace-divider"></div>
-    <div class="trace-row"><span class="trace-label">🎯 當前該問</span><span class="trace-value">${escapeHtml(itemLabel)}</span></div>
-    <div class="trace-row"><span class="trace-label">📊 可評分嗎</span><span class="trace-value">${scoreIcon}</span></div>
-    <div class="trace-row"><span class="trace-label">🎯 問對了嗎</span><span class="trace-value">${correctIcon}</span></div>
-    <div class="trace-row"><span class="trace-label">🚨 風險訊號</span><span class="trace-value">${riskIcon}</span></div>
-    <div class="trace-divider"></div>
-    <div class="trace-row"><span class="trace-label">🤔 系統介入</span><span class="trace-value">${escapeHtml(interveneIcon)}</span></div>
-    <div class="trace-row"><span class="trace-label">💬 原因</span><span class="trace-value">${escapeHtml(reasonLabel)}</span></div>
-    <div class="trace-row"><span class="trace-label">🔧 動作</span><span class="trace-value">${escapeHtml(actionLabel)}</span></div>
-    ${t.replacement_probe ? `<div class="trace-row"><span class="trace-label">🔁 換成</span><span class="trace-value">「${escapeHtml(t.replacement_probe.substring(0, 40))}…」</span></div>` : ''}
-    <div class="trace-divider"></div>
-    <div class="trace-row trace-final"><span class="trace-label">✨ 最終問句</span><span class="trace-value">「${escapeHtml(t.final_question || '沒有問句')}」</span></div>
-    ${t.error ? `<div class="trace-row trace-error"><span class="trace-label">⚠️ 錯誤</span><span class="trace-value">${escapeHtml(t.error)}</span></div>` : ''}
-  `;
+    const t = traceData;
+    const actionMap = {
+      none_llm_correct: '✅ 不用（AI 問得很好）',
+      append_question: '➕ 補了一題',
+      replace_question: '🔄 換掉問題',
+      no_probe_available: '⚠️ 沒有替代題',
+      crash_fallback: '💥 出錯，用備用題',
+      crash_last_resort: '💥 嚴重錯誤'
+    };
+    const reasonMap = {
+      pass: '通過（AI 表現好）',
+      no_question: 'AI 沒有提問',
+      banned_question_type: '問了禁止類型',
+      not_scoreable: '問句無法量化',
+      wrong_item: '問錯重點',
+      vague_functional: '太籠統'
+    };
+
+    const itemLabel = HAMD_ITEM_LABELS[t.target_item] || t.target_item || '無';
+    const actionLabel = actionMap[t.intervention_action] || t.intervention_action || '未知';
+    const reasonLabel = reasonMap[t.intervention_reason] || t.intervention_reason || '未知';
+
+    const interveneIcon = t.should_intervene ? '👉 需要' : '🤫 不用';
+    const correctIcon = t.is_correct_item === null ? '⬜' : t.is_correct_item ? '✅' : '❌';
+    const scoreIcon = t.is_scoreable ? '✅' : '❌';
+    const riskIcon = t.risk_detected ? '🔴' : '🟢';
+
+    panel.innerHTML = `
+      <div class="trace-header">🧠 臨床分析官 決策紀要</div>
+      <div class="trace-row"><span class="trace-label">📝 AI 原本說</span><span class="trace-value">「${escapeHtml((t.raw_output || '').substring(0, 50))}…」</span></div>
+      <div class="trace-row"><span class="trace-label">❓ 抓到的問句</span><span class="trace-value">「${escapeHtml(t.extracted_question || '沒問問題')}」</span></div>
+      <div class="trace-divider"></div>
+      <div class="trace-row"><span class="trace-label">🎯 當前該問</span><span class="trace-value">${escapeHtml(itemLabel)}</span></div>
+      <div class="trace-row"><span class="trace-label">📊 可評分嗎</span><span class="trace-value">${scoreIcon}</span></div>
+      <div class="trace-row"><span class="trace-label">🎯 問對了嗎</span><span class="trace-value">${correctIcon}</span></div>
+      <div class="trace-row"><span class="trace-label">🚨 風險訊號</span><span class="trace-value">${riskIcon}</span></div>
+      <div class="trace-divider"></div>
+      <div class="trace-row"><span class="trace-label">🤔 系統介入</span><span class="trace-value">${escapeHtml(interveneIcon)}</span></div>
+      <div class="trace-row"><span class="trace-label">💬 原因</span><span class="trace-value">${escapeHtml(reasonLabel)}</span></div>
+      <div class="trace-row"><span class="trace-label">🔧 動作</span><span class="trace-value">${escapeHtml(actionLabel)}</span></div>
+      ${t.replacement_probe ? `<div class="trace-row"><span class="trace-label">🔁 換成</span><span class="trace-value">「${escapeHtml(t.replacement_probe.substring(0, 40))}…」</span></div>` : ''}
+      <div class="trace-divider"></div>
+      <div class="trace-row trace-final"><span class="trace-label">✨ 最終問句</span><span class="trace-value">「${escapeHtml(t.final_question || '沒有問句')}」</span></div>
+      ${t.error ? `<div class="trace-row trace-error"><span class="trace-label">⚠️ 錯誤</span><span class="trace-value">${escapeHtml(t.error)}</span></div>` : ''}
+    `;
+  }
 
   btn.addEventListener('click', () => {
     const isVisible = panel.style.display !== 'none';
@@ -7157,13 +7162,13 @@ async function appendMessage(role, text, options = {}) {
 
   if (role === 'ai' && options.animate) {
     await animateAiMessage(bubble, text);
-    if (options.traceData) renderClinicalTraceButton(group, options.traceData);
+    renderClinicalTraceButton(group, options.traceData || null);
     return;
   }
 
   if (role === 'ai') {
     bubble.innerHTML = renderMessageMarkdown(text);
-    if (options.traceData) renderClinicalTraceButton(group, options.traceData);
+    renderClinicalTraceButton(group, options.traceData || null);
   } else {
     bubble.textContent = text;
   }
@@ -9351,6 +9356,7 @@ async function sendMessage() {
     renderReportOutputs();
     saveReportOutputsToCache();
     setTyping(false);
+    console.log('[DEBUG] clinical_trace 收到了嗎？', payload.metadata?.clinical_trace ? '✅ 有' : '❌ 沒有', payload.metadata);
     await appendMessage('ai', payload.answer || '我有收到你的訊息，但這次沒有拿到完整回覆。', { animate: true, traceData: payload.metadata?.clinical_trace || null });
 
     // 每次 AI 回覆後自動存檔，確保對話不因刷新/跳頁而消失
