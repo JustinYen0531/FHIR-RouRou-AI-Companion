@@ -7013,7 +7013,9 @@ function renderClinicalTraceButton(group, traceData) {
       banned_question_type: '問了禁止類型',
       not_scoreable: '問句無法量化',
       wrong_item: '問錯重點',
-      vague_functional: '太籠統'
+      vague_functional: '太籠統',
+      risk_override: '🚨 風險最高優先 → 強制安全確認',
+      risk_detected_but_locked: '🚨 偵測到風險（但已問過 suicide）'
     };
 
     const itemLabel = HAMD_ITEM_LABELS[t.target_item] || t.target_item || '無';

@@ -1347,7 +1347,10 @@ function clinicalPostProcessor(draft, {
     debugTrace.risk_detected = detectRiskSignal(userText);
     if (debugTrace.risk_detected && !lockedCodes.includes('suicide')) {
       debugTrace.risk_action = 'force_safety_question';
-      debugTrace.decision_path.push('risk_signal → force RISK_PROBE');
+      debugTrace.should_intervene = true;
+      debugTrace.intervention_reason = 'risk_override';
+      debugTrace.intervention_action = 'replace_question';
+      debugTrace.decision_path.push('risk_signal → force RISK_PROBE（最高優先）');
       const lastQ = extractLastQuestion(text);
       debugTrace.extracted_question = lastQ ? lastQ.question : null;
       const riskQ = RISK_PROBE.probe_question;
@@ -1364,8 +1367,11 @@ function clinicalPostProcessor(draft, {
       return { text, debugTrace };
     }
     if (debugTrace.risk_detected && lockedCodes.includes('suicide')) {
+      // suicide 已鎖定（已評分），但仍偵測到風險 → 記錄但不重複問
       debugTrace.risk_action = 'suicide_already_locked';
-      debugTrace.decision_path.push('risk_signal → suicide_locked → skip');
+      debugTrace.should_intervene = true;
+      debugTrace.intervention_reason = 'risk_detected_but_locked';
+      debugTrace.decision_path.push('risk_signal → suicide_locked → 已問過，不重複');
     }
 
     // ── 第 2 層：取得 next_item ──
