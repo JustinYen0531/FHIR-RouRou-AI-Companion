@@ -3337,17 +3337,9 @@ class AICompanionEngine {
     if (activeMode === 'mode_6_clarify') {
       answer = await this.handleClarify(session, message);
     } else {
-      // 所有自然聊天模式（樹洞 / 靈魂 / 任務 / 選項 / 自然）都走 Smart Hunter，
-      // 由 Smart Hunter 內部依 sub_mode 切換語氣。HAM-D 任務軌不可被模式中斷。
-      const ACTIVE_MODE_TO_SUB_MODE = {
-        mode_1_void: 'void_box',
-        mode_2_soulmate: 'soul_companion',
-        mode_3_mission: 'clinical_probing',
-        mode_4_option: 'choice_prompting',
-        mode_5_natural: 'clinical_probing'
-      };
-      const subMode = ACTIVE_MODE_TO_SUB_MODE[activeMode] || 'clinical_probing';
-      answer = await this.buildNaturalResponse(session, message, { subMode });
+      // 所有自然聊天統一走 Smart Hunter，子模式由 Smart Hunter 內部分流
+      state.active_mode = 'mode_5_natural';
+      answer = await this.buildNaturalResponse(session, message);
     }
 
     session.history.push({ role: 'assistant', content: answer, kind: 'chat' });
@@ -3390,120 +3382,74 @@ class AICompanionEngine {
 
   async updateSharedState(session, message) {
     const state = session.state;
-    const tags = await this.runJsonTask('tagStructurer', session, message, {
-      fallback: {
-        route_type: 'normal',
-        source_mode: state.active_mode,
-        followup_status: state.followup_status,
-        sentiment_tags: [],
-        behavioral_tags: [],
-        cognitive_tags: [],
-        warning_tags: [],
-        summary: message
-      }
-    });
-    state.latest_tag_payload = tags;
     const currentBridge = normalizeObjectState(state, 'symptom_bridge_state', {});
 
-    const burden = await this.runJsonTask('burdenLevelBuilder', session, message, {
-      fallback: {
-        burden_level: message.length < 12 ? 'high' : 'medium',
-        response_style: message.length < 12 ? 'option_first' : 'natural',
-        followup_budget: message.length < 12 ? '0' : '1',
-        burden_note: 'Fallback burden estimate.'
-      }
-    });
-    state.burden_level_state = burden;
+    // ── 全部用 deterministic fallback，不再呼叫 tagStructurer / burdenLevelBuilder /
+    //    hamdProgressTracker 三個 LLM。Smart Hunter 內部分流 + 信號式進度追蹤已足夠。
+    state.latest_tag_payload = {
+      route_type: 'normal',
+      source_mode: state.active_mode || 'mode_5_natural',
+      followup_status: state.followup_status,
+      sentiment_tags: [],
+      behavioral_tags: [],
+      cognitive_tags: [],
+      warning_tags: [],
+      summary: message
+    };
 
-    const hamd = await this.runJsonTask('hamdProgressTracker', session, message, {
-      fallback: {
-        progress_stage: 'initial',
-        current_focus: 'depressed_mood',
-        items: [],
-        supported_dimensions: [],
-        covered_dimensions: [],
-        missing_dimensions: [
-          'depressed_mood', 'guilt', 'suicide',
-          'insomnia_early', 'insomnia_middle', 'insomnia_late',
-          'work_activities', 'retardation', 'agitation',
-          'somatic_anxiety', 'appetite_weight'
-        ],
-        next_recommended_dimension: 'depressed_mood',
-        next_question_hint: '',
-        completion: 0,
-        recent_evidence: [message],
-        needs_clarification: 'yes',
-        status_summary: 'Fallback HAM-D state.'
-      }
-    });
-    state.hamd_progress_state = enrichHamdProgressState(hamd, buildLongitudinalEvidence(session, currentBridge));
+    state.burden_level_state = {
+      burden_level: message.length < 12 ? 'high' : 'medium',
+      response_style: message.length < 12 ? 'option_first' : 'natural',
+      followup_budget: message.length < 12 ? '0' : '1',
+      burden_note: 'Deterministic length-based estimate.'
+    };
+
+    // HAM-D 進度：只用信號式追蹤（regex + Smart Hunter 的 HAMD_JSON 輸出）
+    const hamdSeed = {
+      progress_stage: 'initial',
+      current_focus: 'depressed_mood',
+      items: [],
+      supported_dimensions: [],
+      covered_dimensions: [],
+      missing_dimensions: [
+        'depressed_mood', 'guilt', 'work_interest',
+        'retardation', 'agitation', 'somatic_anxiety', 'insomnia'
+      ],
+      next_recommended_dimension: 'depressed_mood',
+      next_question_hint: '',
+      completion: 0,
+      recent_evidence: [message],
+      needs_clarification: 'yes',
+      status_summary: 'Signal-based HAM-D state.'
+    };
+    state.hamd_progress_state = enrichHamdProgressState(hamdSeed, buildLongitudinalEvidence(session, currentBridge));
     await this.updateFormalAssessment(session, message);
   }
 
   async resolveActiveMode(session, message) {
     const state = session.state;
 
-    // ── A. 使用者明確手動覆寫模式（mission/void/soulmate/option 指令）
-    //    這是使用者主動切換，保留原有獨立 handler 行為
+    // ── A. 使用者明確手動覆寫（mission/void/soulmate/option 指令）才走獨立 handler
     if (state.routing_mode_override && state.routing_mode_override !== 'auto') {
       return state.routing_mode_override;
     }
 
-    // ── B. Auto 模式：所有分流都在 Smart Hunter 內部處理
-    //    分類器只用來建構 flow_state，不做外部路由跳轉
-
-    // B-1. 低能量/情緒偵測 → 決定 Smart Hunter 的子模式
-    const lowEnergy = await this.runClassifier('lowEnergyDetector', session, message, [
-      'degrade_option',
-      'degrade_soulmate',
-      'continue_auto'
-    ], 'continue_auto');
-
-    // B-2. 意圖分類 → 決定 Smart Hunter 的子模式（不路由離開）
-    const intent = await this.runClassifier('intentClassifier', session, message, [
-      'mode_1_void',
-      'mode_2_soulmate',
-      'mode_3_mission',
-      'mode_4_option',
-      'mode_5_natural',
-      'mode_6_clarify'
-    ], 'mode_5_natural');
-
-    // B-3. 合成 flow_state（供 Smart Hunter 內部使用）
-    const hamd = normalizeObjectState(state, 'hamd_progress_state', {});
-    const burden = normalizeObjectState(state, 'burden_level_state', {});
+    // ── B. 自動模式：永遠走 Smart Hunter，子模式由 Smart Hunter 內部依使用者語句自行分流
+    //    引擎不再呼叫 intentClassifier / lowEnergyDetector / overrideRouter
     const prevFlow = normalizeObjectState(state, 'flow_state', {});
     const consecutiveProbes = Number(prevFlow.consecutive_probes || 0);
-    const isHighBurden = burden.burden_level === 'high';
+    const hamd = normalizeObjectState(state, 'hamd_progress_state', {});
 
-    // 子模式判斷（優先低能量偵測器的結果）
-    let subMode = 'flow_conversation';
-    if (lowEnergy === 'degrade_soulmate' || intent === 'mode_2_soulmate') {
-      subMode = 'emotional_holding';
-    } else if (lowEnergy === 'degrade_option' || intent === 'mode_4_option') {
-      subMode = 'choice_prompting';
-    } else if (intent === 'mode_3_mission') {
-      subMode = 'clinical_probing';
-    } else if (intent === 'mode_5_natural' || intent === 'mode_6_clarify') {
-      subMode = consecutiveProbes >= 2 ? 'flow_conversation' : 'clinical_probing';
-    }
-
-    // 能否插入 HAM-D 追問
-    const canProbeHamd = !isHighBurden
-      && subMode !== 'emotional_holding'
-      && subMode !== 'choice_prompting'
-      && consecutiveProbes < 2
-      && hamd.needs_clarification !== 'no';
+    // can_probe_hamd 仍由引擎決定（避免 AI 漂走）：連續 < 2 輪、且還有 missing 題即可插入
+    const canProbeHamd = consecutiveProbes < 2 && hamd.needs_clarification !== 'no';
 
     this.updateFlowState(state, {
-      sub_mode: subMode,
+      // sub_mode 不在引擎決定，留空讓 Smart Hunter 依使用者輸入內部分流
+      sub_mode: prevFlow.sub_mode || 'clinical_probing',
       can_probe_hamd: canProbeHamd,
       consecutive_probes: consecutiveProbes
     });
 
-    // ── C. 永遠路由到 Smart Hunter（mode_5_natural）
-    //    唯一例外：真正空白/無效輸入（mode_1_void）
-    if (intent === 'mode_1_void') return 'mode_1_void';
     return 'mode_5_natural';
   }
 
