@@ -3767,15 +3767,29 @@ class AICompanionEngine {
       formalProbe = { ...formalProbe, should_ask: 'no' };
     }
 
-    // ── 選題控制（系統決定，不讓 AI 自己選）──
+    // ── 題項狀態鎖（State Lock）──
+    // engine 是唯一真相，AI 不得自行判定題項是否完成。
     const progressState = normalizeObjectState(state, 'hamd_progress_state', {});
-    const missingDims = Array.isArray(progressState.missing_dimensions) ? progressState.missing_dimensions : [];
-    const partialDims = Array.isArray(progressState.items)
-      ? progressState.items.filter((i) => i.status === 'partial').map((i) => i.item)
+    const items = Array.isArray(progressState.items) ? progressState.items : [];
+
+    // 已完成 = 鎖定（絕對禁止再問）
+    const lockedDims = items.filter((i) => i.status === 'complete').map((i) => i.item);
+    const lockedDimsLabel = lockedDims.map((d) => HAMD_DIMENSION_LABELS_ZH[d] || d);
+
+    // 部分完成 = 可補強
+    const partialDims = items.filter((i) => i.status === 'partial').map((i) => i.item);
+
+    // 未蒐集 = 主要目標
+    const missingDims = Array.isArray(progressState.missing_dimensions)
+      ? progressState.missing_dimensions.filter((d) => !lockedDims.includes(d))
       : [];
-    // 優先 missing → 再 partial，都沒有才自由
+
+    // 系統決定下一題：missing → partial → null（全部蒐集完）
     const systemNextItem = missingDims[0] || partialDims[0] || null;
     const systemNextItemLabel = systemNextItem ? (HAMD_DIMENSION_LABELS_ZH[systemNextItem] || systemNextItem) : null;
+
+    // ask_required：若仍有 next_item 且氣氛保護沒鎖，必須問
+    const askRequired = Boolean(systemNextItem) && !atmosphereProtected;
 
     const freshFlowState = normalizeObjectState(state, 'flow_state', {});
     const rawAnswer = await this.runTextTask(promptKey, session, message, {
@@ -3784,7 +3798,12 @@ class AICompanionEngine {
         flow_state: freshFlowState,
         // 系統指派的下一題，AI 只負責問句生成
         next_item: systemNextItem,
-        next_item_label: systemNextItemLabel
+        next_item_label: systemNextItemLabel,
+        // 已完成題項（硬鎖：絕對禁止再問）
+        locked_topics: lockedDims,
+        locked_topics_label: lockedDimsLabel,
+        // 系統決定本輪是否必須提問
+        ask_required: askRequired
       }
     });
 
