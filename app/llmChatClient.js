@@ -179,7 +179,10 @@ async function completeWithOpenRouter(payload, options = {}) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`
+        Authorization: `Bearer ${apiKey}`,
+        // OpenRouter 要求附上 referer/title，否則部分模型（含 DeepSeek 路由）會被拒絕
+        'HTTP-Referer': options.referer || 'https://github.com/JustinYen0531/FHIR-RouRou-AI-Companion',
+        'X-Title': options.appTitle || 'RouRou AI Companion'
       },
       body: JSON.stringify({
         model: options.model || DEFAULT_OPENROUTER_MODEL,
@@ -213,6 +216,14 @@ async function completeWithOpenRouter(payload, options = {}) {
       parsed?.message ||
       parsed?.raw ||
       `OpenRouter request failed with status ${response.status}.`;
+    // 印出完整原始回應，方便診斷模型不存在 / 沒有額度 / 隱私設定等問題
+    try {
+      console.error('[OpenRouter error]', {
+        status: response.status,
+        model: options.model || DEFAULT_OPENROUTER_MODEL,
+        body: text?.slice?.(0, 1000) || text
+      });
+    } catch (_) { /* noop */ }
     const responseError = new Error(errorMessage);
     responseError.code = parsed?.error?.code || parsed?.code || 'openrouter_error';
     responseError.status = response.status;
