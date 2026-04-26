@@ -215,10 +215,20 @@ function stripTrailingMetaBlocks(text) {
   return str.trim();
 }
 
-// 判斷一個問句是否「可評分」：含頻率/程度/功能信號之一
+// 建議型 / 開放大哉問 / 諮商化問題 — 一律不合格，強制替換
+const HAMD_ADVICE_QUESTION_RX = /試試|試著|可以.{0,8}(放鬆|休息|聊聊|找|嘗試|試試|做|考慮)|要不要.{0,8}(試|找|聊|放鬆|休息)|找.{0,4}(信任|朋友|家人).{0,5}聊|不妨|建議你|你可以|或許.{0,6}(幫|讓你)|有沒有.{0,8}(辦法|方法).{0,6}(放鬆|處理|面對)|你打算|你怎麼看|你怎麼想|你怎麼.{0,4}調適|感覺如何|還好嗎|怎麼.{0,4}(處理|面對|解決)/;
+
+function isAdviceQuestion(question) {
+  const q = String(question || '');
+  if (!q) return false;
+  return HAMD_ADVICE_QUESTION_RX.test(q);
+}
+
+// 判斷一個問句是否「可評分」：含頻率/程度/功能信號之一，且非建議型
 function isScoreableQuestion(question) {
   const q = String(question || '');
   if (!q) return false;
+  if (isAdviceQuestion(q)) return false;
   return HAMD_FREQUENCY_RX.test(q) || HAMD_SEVERITY_RX.test(q) || HAMD_FUNCTIONAL_RX.test(q);
 }
 
@@ -3811,37 +3821,43 @@ class AICompanionEngine {
     text = stripTrailingMetaBlocks(text);
 
     // 預清理 2：若文中有多個問句，先收斂為「只留最後一個」
-    //   AI 常一次寫出多個問題，這裡硬性合併到最後那個。
     text = removeAllQuestionsExceptLast(text);
 
-    // ① 系統判定本輪不需要問 → 不再追加，但前面的清理仍生效
-    if (!askRequired) return text;
+    // 預清理 3：建議型問題一律砍掉（不管 askRequired），因為這種問題本身就違規
+    {
+      const { before: b, question: q } = extractLastQuestion(text);
+      if (q && isAdviceQuestion(q)) {
+        const cleanedBefore = b.replace(/[\s\n]+$/, '');
+        text = cleanedBefore;
+      }
+    }
+
+    const probeFromSystem = (formalProbe && formalProbe.probe_question)
+      || HAMD_DEFAULT_PROBES[systemNextItem]
+      || null;
+
+    // ① askRequired=false 且 systemNextItem 也為空 → 系統徹底閉嘴
+    if (!askRequired && !systemNextItem) return text.trim();
 
     const { before, question } = extractLastQuestion(text);
 
-    // ② AI 完全沒問問題 → append 系統 probe
+    // ② 沒問題 → 用系統 probe 補上
     if (!question) {
-      const probe = (formalProbe && formalProbe.probe_question)
-        || HAMD_DEFAULT_PROBES[systemNextItem]
-        || null;
-      if (!probe) return text;
-      return `${text}\n\n${probe}`;
+      if (!probeFromSystem) return text.trim();
+      return `${text.trim()}\n\n${probeFromSystem}`;
     }
 
-    // ③ AI 已經問了正確、可評分的問題 → 系統閉嘴，原樣輸出
+    // ③ AI 問了正確、可評分（且非建議型）的問題 → 系統閉嘴
     const scoreable = isScoreableQuestion(question);
     const correct = isCorrectItem(question, systemNextItem);
     if (scoreable && correct) {
       return text;
     }
 
-    // ④ AI 問錯題或不可評分 → 只替換最後一句，不疊加
-    const probe = (formalProbe && formalProbe.probe_question)
-      || HAMD_DEFAULT_PROBES[systemNextItem]
-      || null;
-    if (!probe) return text; // 沒有可替換的 → 保留原樣
+    // ④ AI 問錯題 / 不可評分 / 建議型 → 替換最後一句
+    if (!probeFromSystem) return text;
     const cleanedBefore = before.replace(/[\s\n]+$/, '');
-    return cleanedBefore ? `${cleanedBefore}\n\n${probe}` : probe;
+    return cleanedBefore ? `${cleanedBefore}\n\n${probeFromSystem}` : probeFromSystem;
   }
 
   extractAndApplyHamdJson(state, rawAnswer) {
