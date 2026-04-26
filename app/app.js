@@ -3027,37 +3027,79 @@ function formatHamdEvidenceType(type = '') {
   return labels[key] || key || '尚無證據';
 }
 
-function renderHamdFormalDetail(formalAssessment = {}) {
+function renderHamdFormalDetail(formalAssessment = {}, progressPerItemStatus = []) {
   const stats = buildHamdFormalStats(formalAssessment);
-  if (!stats.items.length) {
+
+  // 正式題項存在時走原本完整路徑
+  if (stats.items.length) {
+    const rows = stats.items.map((item) => {
+      const score = getHamdItemScore(item);
+      const maxScore = getHamdScaleMax(item?.scale_range);
+      const evidenceSummary = getMeaningfulItems(item?.evidence_summary);
+      const rationale = cleanClinicalDisplayText(item?.rating_rationale);
+      const reviewRequired = item?.review_required ? '需人工覆核' : '可作為草稿參考';
+      const scoreText = Number.isFinite(score.value) ? `${score.value}/${maxScore}` : `未評分/${maxScore}`;
+
+      return `
+        <div class="hamd-detail-row">
+          <div class="hamd-detail-score">
+            <strong>${escapeHtml(scoreText)}</strong>
+            <span>${escapeHtml(score.source)}</span>
+          </div>
+          <div class="hamd-detail-body">
+            <div class="hamd-detail-title">${escapeHtml(item?.item_label || item?.item_code || '未命名題項')}</div>
+            <div class="hamd-detail-meta">
+              <span>${escapeHtml(formatHamdEvidenceType(item?.evidence_type))}</span>
+              <span>${escapeHtml(reviewRequired)}</span>
+              <span>信心：${escapeHtml(item?.confidence || '未標記')}</span>
+            </div>
+            <p>${escapeHtml(rationale || '尚未形成可查證的評分理由。')}</p>
+            ${evidenceSummary.length
+              ? `<ul>${evidenceSummary.map((evidence) => `<li>${escapeHtml(evidence)}</li>`).join('')}</ul>`
+              : '<p class="hamd-detail-empty">尚無逐題證據摘要。</p>'}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="hamd-detail-summary">
+        <span>${escapeHtml(stats.totalSource)}：${stats.displayedTotal}/${stats.maxTotal || 52}</span>
+        <span>已有分數題項：${stats.scoredItems.length}/${stats.items.length}</span>
+        <span>嚴重度草稿：${escapeHtml(stats.severityBand || 'unrated')}</span>
+      </div>
+      <div class="hamd-detail-list">${rows}</div>
+    `;
+  }
+
+  // fallback：用 progress perItemStatus 中已有 evidence 的題目顯示收集到的內容
+  const visibleItems = progressPerItemStatus.filter(
+    (i) => i.status === 'complete' || (i.status === 'partial' && i.evidence?.length)
+  );
+  if (!visibleItems.length) {
     return '<p class="report-empty-copy">目前還沒有可顯示的 HAM-D 題項明細。</p>';
   }
 
-  const rows = stats.items.map((item) => {
-    const score = getHamdItemScore(item);
-    const maxScore = getHamdScaleMax(item?.scale_range);
-    const evidenceSummary = getMeaningfulItems(item?.evidence_summary);
-    const rationale = cleanClinicalDisplayText(item?.rating_rationale);
-    const reviewRequired = item?.review_required ? '需人工覆核' : '可作為草稿參考';
-    const scoreText = Number.isFinite(score.value) ? `${score.value}/${maxScore}` : `未評分/${maxScore}`;
-
+  const statusLabel = { complete: '✓ 已蒐集', partial: '◑ 部分蒐集' };
+  const rows = visibleItems.map((item) => {
+    const evidenceList = getMeaningfulItems(item.evidence || []);
+    const missingList = getMeaningfulItems(item.missing || []);
+    const badge = statusLabel[item.status] || item.status;
     return `
       <div class="hamd-detail-row">
         <div class="hamd-detail-score">
-          <strong>${escapeHtml(scoreText)}</strong>
-          <span>${escapeHtml(score.source)}</span>
+          <strong>—</strong>
+          <span>${escapeHtml(badge)}</span>
         </div>
         <div class="hamd-detail-body">
-          <div class="hamd-detail-title">${escapeHtml(item?.item_label || item?.item_code || '未命名題項')}</div>
+          <div class="hamd-detail-title">${escapeHtml(item.label || item.item || '未命名題項')}</div>
           <div class="hamd-detail-meta">
-            <span>${escapeHtml(formatHamdEvidenceType(item?.evidence_type))}</span>
-            <span>${escapeHtml(reviewRequired)}</span>
-            <span>信心：${escapeHtml(item?.confidence || '未標記')}</span>
+            <span>對話線索蒐集中</span>
+            ${missingList.length ? `<span>尚缺：${escapeHtml(missingList.join('、'))}</span>` : ''}
           </div>
-          <p>${escapeHtml(rationale || '尚未形成可查證的評分理由。')}</p>
-          ${evidenceSummary.length
-            ? `<ul>${evidenceSummary.map((evidence) => `<li>${escapeHtml(evidence)}</li>`).join('')}</ul>`
-            : '<p class="hamd-detail-empty">尚無逐題證據摘要。</p>'}
+          ${evidenceList.length
+            ? `<ul>${evidenceList.map((e) => `<li>${escapeHtml(e)}</li>`).join('')}</ul>`
+            : '<p class="hamd-detail-empty">尚無具體引述。</p>'}
         </div>
       </div>
     `;
@@ -3065,9 +3107,8 @@ function renderHamdFormalDetail(formalAssessment = {}) {
 
   return `
     <div class="hamd-detail-summary">
-      <span>${escapeHtml(stats.totalSource)}：${stats.displayedTotal}/${stats.maxTotal || 52}</span>
-      <span>已有分數題項：${stats.scoredItems.length}/${stats.items.length}</span>
-      <span>嚴重度草稿：${escapeHtml(stats.severityBand || 'unrated')}</span>
+      <span>進度草稿（尚無正式評分）</span>
+      <span>已有線索題項：${visibleItems.length} 題</span>
     </div>
     <div class="hamd-detail-list">${rows}</div>
   `;
@@ -4067,9 +4108,11 @@ function renderReportOutputs() {
     hamdGapPanel.innerHTML = renderHamdGapIndicator(hamd);
   }
 
-  if (hamdDetailPanel) hamdDetailPanel.innerHTML = renderHamdFormalDetail(hamdFormalAssessment);
+  if (hamdDetailPanel) hamdDetailPanel.innerHTML = renderHamdFormalDetail(hamdFormalAssessment, hamd.perItemStatus || []);
   if (hamdDetailToggle) {
-    hamdDetailToggle.hidden = !hamdFormalStats.items.length;
+    const hasAnyDetail = hamdFormalStats.items.length > 0
+      || (hamd.perItemStatus || []).some((i) => i.status === 'complete' || (i.status === 'partial' && i.evidence?.length));
+    hamdDetailToggle.hidden = !hasAnyDetail;
   }
   if (insights) insights.innerHTML = renderClinicalInsights(clinician);
 
