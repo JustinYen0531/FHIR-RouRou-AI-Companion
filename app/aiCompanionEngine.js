@@ -1001,8 +1001,14 @@ function isInvalidQuestionEnding(text) {
 
 // ── 回答後處理器（Answer Post-Processor）────────────────────────────────────
 function extractLastQuestion(text) {
-  // 依中文句尾標點切句，保留分隔符
-  const segments = text.split(/(?<=[。！？?！\n])|(?=[？?])/).map((s) => s.trim()).filter(Boolean);
+  const t = String(text || '').trim();
+  if (!t) return null;
+  // 用句尾標點（。！？）切句，但保留標點在句尾
+  const segments = t
+    .split(/(?<=[。！？?！\n])/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  // 從後往前找第一個含問號的完整句段
   for (let i = segments.length - 1; i >= 0; i--) {
     if (/[？?]/.test(segments[i])) {
       return {
@@ -1252,8 +1258,8 @@ function shouldIntervene(draft, targetItemCode) {
 function enforceSingleQuestion(text) {
   const t = String(text || '').trim();
   if (!t) return t;
-  // 切割所有句子
-  const segments = t.split(/((?<=[。！？?！\n])|(?=[？?]))/).map((s) => s.trim()).filter(Boolean);
+  // 切割所有句子（標點保留在句尾）
+  const segments = t.split(/(?<=[。！？?！\n])/).map((s) => s.trim()).filter(Boolean);
   // 找出所有問句的 index
   const questionIndices = [];
   for (let i = 0; i < segments.length; i++) {
@@ -1266,7 +1272,7 @@ function enforceSingleQuestion(text) {
   const result = [];
   for (let i = 0; i < segments.length; i++) {
     if (questionIndices.includes(i) && i !== lastQIdx) {
-      // 把多餘的問句轉成陳述句（移除問號）
+      // 把多餘的問句整句移除
       continue;
     }
     result.push(segments[i]);
@@ -1354,10 +1360,14 @@ function clinicalPostProcessor(draft, {
       const lastQ = extractLastQuestion(text);
       debugTrace.extracted_question = lastQ ? lastQ.question : null;
       const riskQ = RISK_PROBE.probe_question;
-      if (lastQ) {
-        text = lastQ.before ? `${lastQ.before}\n\n${riskQ}` : riskQ;
+      const transition = '我想先確認一件比較重要的事：';
+      const riskWithTransition = `${transition}\n${riskQ}`;
+      if (lastQ && lastQ.before) {
+        // 保留情緒段，刪掉原始問句，加轉彎 + 風險問句
+        text = `${lastQ.before}\n\n${riskWithTransition}`;
       } else {
-        text = `${text}\n\n${riskQ}`;
+        // 沒有前文或沒有問句 → 直接用轉彎 + 風險問句
+        text = riskWithTransition;
       }
       text = enforceSingleQuestion(text);
       debugTrace.replacement_probe = riskQ;
