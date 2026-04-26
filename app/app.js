@@ -6342,6 +6342,14 @@ function truncatePreview(text, maxLen = 22) {
   return str.length > maxLen ? str.slice(0, maxLen) + '…' : str;
 }
 
+// 擷取第一個完整句子（以句號、問號、驚嘆號結尾），超過 maxLen 才截斷
+function extractFirstSentence(text, maxLen = 60) {
+  const str = String(text || '').trim();
+  const match = str.match(/^.+?[。！？!?.]+/);
+  if (match && match[0].length <= maxLen) return match[0];
+  return str.length > maxLen ? str.slice(0, maxLen) + '…' : str;
+}
+
 function renderInlineMarkdown(text) {
   return text
     .replace(/`([^`]+)`/g, '<code>$1</code>')
@@ -7993,14 +8001,14 @@ function renderRecentSessions() {
     .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
 
   const sessionListHtml = otherSessions.map((session) => {
-    const summary = truncatePreview(pickReadableSessionText(
+    const summary = extractFirstSentence(pickReadableSessionText(
       [session.latest_tag_summary, session.last_user_message, session.last_assistant_message],
       '這段對話目前還沒有可讀摘要。'
     ));
     const sub = truncatePreview(pickReadableSessionText(
       [session.last_assistant_message, session.last_user_message],
       '點進去可以繼續這段對話。'
-    ));
+    ), 42);
     const flags = [
       session.risk_flag === 'true' ? '<span class="home-session-flag risk">高風險標記</span>' : '',
       session.has_clinician_summary ? '<span class="home-session-flag">有醫師摘要</span>' : '',
