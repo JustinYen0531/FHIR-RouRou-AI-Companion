@@ -852,22 +852,43 @@ function getLockedItemCodes(state) {
 const ALLOWED_QUESTION_TYPES = ['frequency', 'severity', 'functional_impact'];
 
 const INVALID_QUESTION_PATTERNS = [
+  // 應對 / coping
   /怎麼處理/,
   /怎麼應對/,
   /有試著做/,
   /試著做(些)?什麼/,
+  /有沒有.*試/,
+  /有沒有試/,
+  // 建議 / advice
   /你可以試試/,
   /要不要試試/,
   /打算怎麼做/,
+  /你有想過怎麼/,
+  /建議你/,
+  /可以嘗試/,
+  /可以做.{0,6}什麼/,
+  // 開放反思
   /你怎麼看/,
   /覺得原因是什麼/,
   /原因是什麼/,
+  /你覺得.{0,8}原因/,
+  // 情緒泛問
   /感覺如何[？?]?\s*$/,
   /還好嗎[？?]?\s*$/,
+  // 「什麼方法/什麼事情/什麼小方法」這類含糊問句
   /有沒有什麼方法/,
-  /你有想過怎麼/,
-  /建議你/,
-  /可以嘗試/
+  /有什麼.{0,4}方法/,
+  /什麼.{0,4}小?方法/,
+  /有沒有什麼事情.*讓你/,
+  /有什麼.*讓你.{0,4}(好|舒服|輕鬆)/,
+  /讓你(稍微)?(感到|覺得).{0,4}(好|舒服|輕鬆)/,
+  /什麼.{0,6}能讓你/,
+  /什麼.{0,6}可以讓你/,
+  /幫助你(減輕|緩解|放鬆|舒緩)/,
+  /幫你(減輕|緩解|放鬆|舒緩)/,
+  /讓自己(好|舒服|放鬆|輕鬆)/,
+  /可以.{0,6}減輕/,
+  /可以.{0,6}緩解/
 ];
 
 function isInvalidQuestionEnding(text) {
@@ -887,6 +908,51 @@ function extractLastQuestion(text) {
       return {
         before: segments.slice(0, i).join('').trim(),
         question: segments[i].trim()
+      };
+    }
+  }
+  return null;
+}
+
+function pickEmergencyProbe(state) {
+  const lockedCodes = getLockedItemCodes(state);
+  const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
+  const progress = normalizeObjectState(state, 'hamd_progress_state', {});
+  const dimOrder = [];
+  if (progress.next_recommended_dimension) dimOrder.push(progress.next_recommended_dimension);
+  HAMD_PROGRESS_DIMENSIONS.forEach((d) => { if (!dimOrder.includes(d)) dimOrder.push(d); });
+  for (const dim of dimOrder) {
+    const codes = HAMD_DIMENSION_TO_ITEM_CODES[dim] || [];
+    for (const code of codes) {
+      if (lockedCodes.includes(code)) continue;
+      const item = assessment.items.find((i) => i.item_code === code);
+      const def = HAMD_FORMAL_ITEM_MAP[code];
+      if (!item || !def) continue;
+      // 優先挑無 evidence 的；若都被 review，挑第一個未鎖
+      if (!item.evidence_summary.length || item.review_required) {
+        return {
+          item_code: code,
+          item_label: def.item_label,
+          question_type: 'frequency',
+          probe_question: def.probe_question,
+          reason: 'emergency_fallback'
+        };
+      }
+    }
+  }
+  // 退而求其次：所有未鎖題都有 evidence，仍挑一個
+  for (const dim of dimOrder) {
+    const codes = HAMD_DIMENSION_TO_ITEM_CODES[dim] || [];
+    for (const code of codes) {
+      if (lockedCodes.includes(code)) continue;
+      const def = HAMD_FORMAL_ITEM_MAP[code];
+      if (!def) continue;
+      return {
+        item_code: code,
+        item_label: def.item_label,
+        question_type: 'severity',
+        probe_question: def.probe_question,
+        reason: 'emergency_fallback_all_partial'
       };
     }
   }
@@ -3814,8 +3880,23 @@ class AICompanionEngine {
     });
 
     // ── 回答後處理器（安全網）────────────────────────────────────────────────
-    const normalizedProbeQuestion = String(formalProbe.probe_question || '').trim();
-    const probeActive = canProbeHamd && formalProbe.should_ask === 'yes' && Boolean(normalizedProbeQuestion);
+    let normalizedProbeQuestion = String(formalProbe.probe_question || '').trim();
+    let probeActive = canProbeHamd && formalProbe.should_ask === 'yes' && Boolean(normalizedProbeQuestion);
+
+    // 緊急攔截：無排定探針但 AI 自己問了非法問句 → 強制塞入緊急 probe
+    if (!probeActive && !atmosphereProtected && isInvalidQuestionEnding(answer)) {
+      const emergency = pickEmergencyProbe(state);
+      if (emergency) {
+        formalProbe = { ...formalProbe, ...emergency, should_ask: 'yes' };
+        normalizedProbeQuestion = emergency.probe_question;
+        probeActive = true;
+      } else {
+        // 所有題都鎖定：直接砍掉非法問句，留下溫度文字
+        const lastQ = extractLastQuestion(answer);
+        if (lastQ && lastQ.before) answer = lastQ.before;
+      }
+    }
+
     answer = enforceQuestionSafety(answer, {
       probeQuestion: normalizedProbeQuestion,
       shouldAsk: probeActive
