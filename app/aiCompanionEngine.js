@@ -1946,13 +1946,9 @@ function enrichHamdProgressState(progress, longitudinal) {
   } else {
     next.progress_stage = next.progress_stage || 'initial';
   }
-  if (coveredDimensions.includes('somatic_anxiety') && !coveredDimensions.includes('guilt')) {
-    next.next_recommended_dimension = 'guilt';
-  } else if (coveredDimensions.includes('insomnia') && !coveredDimensions.includes('work_interest')) {
-    next.next_recommended_dimension = 'work_interest';
-  } else {
-    next.next_recommended_dimension = coveredDimensions[1] || coveredDimensions[0] || next.next_recommended_dimension || 'depressed_mood';
-  }
+  // 永遠從「尚未蒐集」的維度中選下一題，避免 AI 在已知題項上繞圈
+  const missingDimensions = HAMD_PROGRESS_DIMENSIONS.filter((d) => !coveredDimensions.includes(d));
+  next.next_recommended_dimension = missingDimensions[0] || null;
   if (!String(next.status_summary || '').trim()) {
     if (!coveredDimensions.length) {
       next.status_summary = '尚未收斂出足夠的 HAM-D 維度線索。';
@@ -3518,11 +3514,20 @@ class AICompanionEngine {
       ? Math.min(prevProbes + 1, 3)
       : 0;
 
+    // 從 missing_dimensions 取下一題目標，傳給 Smart Hunter 做題項調度
+    const progress = normalizeObjectState(state, 'hamd_progress_state', {});
+    const missingDimensions = Array.isArray(progress.missing_dimensions) ? progress.missing_dimensions : [];
+    const nextTarget = missingDimensions[0] || null;
+    const nextTargetLabel = nextTarget ? (HAMD_DIMENSION_LABELS_ZH[nextTarget] || nextTarget) : null;
+
     state.flow_state = {
       sub_mode: updates.sub_mode || prev.sub_mode || 'flow_conversation',
       can_probe_hamd: Boolean(updates.can_probe_hamd),
       consecutive_probes: updates.consecutive_probes !== undefined ? updates.consecutive_probes : newProbes,
       atmosphere_protection: updates.sub_mode === 'emotional_holding',
+      next_target: nextTarget,
+      next_target_label: nextTargetLabel,
+      last_probe_dimension: updates.last_probe_dimension || prev.last_probe_dimension || null,
       updatedAt: new Date().toISOString()
     };
   }
@@ -3659,6 +3664,45 @@ class AICompanionEngine {
     }
   }
 
+  // 每輪對話後，把 hamdSignals 輕量同步到 hamd_formal_assessment.items
+  // 目的：讓 UI 明細有資料，即使尚未正式評分也能顯示 partial evidence
+  syncSignalsToFormalItems(state, longitudinal) {
+    const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
+    const coveredDimensions = Array.isArray(longitudinal.hamdSignals) ? longitudinal.hamdSignals : [];
+    const observations = Array.isArray(longitudinal.symptomObservations) ? longitudinal.symptomObservations : [];
+    let changed = false;
+
+    coveredDimensions.forEach((dimension) => {
+      const itemCodes = HAMD_DIMENSION_TO_ITEM_CODES[dimension] || [];
+      itemCodes.forEach((itemCode) => {
+        const item = assessment.items.find((i) => i.item_code === itemCode);
+        if (!item) return;
+        // 若已有正式評分，不覆蓋
+        if (item.ai_suggested_score != null || item.clinician_final_score != null) return;
+
+        const relevantEvidence = observations
+          .filter((obs) => obs && obs.length > 4)
+          .slice(0, 3);
+        if (!relevantEvidence.length) return;
+
+        item.evidence_type = item.evidence_type || 'indirect_observation';
+        item.review_required = true;
+        // 合併新 evidence，不重複
+        const existing = Array.isArray(item.evidence_summary) ? item.evidence_summary : [];
+        relevantEvidence.forEach((ev) => {
+          if (!existing.includes(ev)) existing.push(ev);
+        });
+        item.evidence_summary = existing.slice(0, 5);
+        item.confidence = item.confidence || 'low';
+        changed = true;
+      });
+    });
+
+    if (changed) {
+      state.hamd_formal_assessment = assessment;
+    }
+  }
+
   async buildNaturalResponse(session, message) {
     const state = session.state;
     const flowState = normalizeObjectState(state, 'flow_state', {});
@@ -3682,10 +3726,12 @@ class AICompanionEngine {
       formalProbe = { ...formalProbe, should_ask: 'no' };
     }
 
+    // 把 next_target 傳給 Smart Hunter，讓它強制詢問 missing 維度
+    const freshFlowState = normalizeObjectState(state, 'flow_state', {});
     const answer = await this.runTextTask('smartHunter', session, message, {
       extraContext: {
         formal_probe: formalProbe,
-        flow_state: flowState
+        flow_state: freshFlowState
       }
     });
 
@@ -3704,6 +3750,19 @@ class AICompanionEngine {
         consecutive_probes: Number(flowState.consecutive_probes || 0)
       });
 
+      // 記錄本輪探問的維度，防止下輪連問同一題
+      const probedDimension = Object.entries(HAMD_DIMENSION_TO_ITEM_CODES)
+        .find(([, codes]) => codes.includes(formalProbe.item_code))?.[0] || null;
+      this.updateFlowState(state, {
+        ...normalizeObjectState(state, 'flow_state', {}),
+        last_probe_dimension: probedDimension,
+        can_probe_hamd: true,
+        consecutive_probes: Number(flowState.consecutive_probes || 0)
+      });
+
+      const longitudinal = buildLongitudinalEvidence(session);
+      this.syncSignalsToFormalItems(state, longitudinal);
+
       if (answer.includes(normalizedProbeQuestion)) {
         return answer;
       }
@@ -3718,6 +3777,10 @@ class AICompanionEngine {
         consecutive_probes: 0
       });
     }
+
+    // 每輪結束：把對話中偵測到的信號同步進 formal assessment items
+    const longitudinal = buildLongitudinalEvidence(session);
+    this.syncSignalsToFormalItems(state, longitudinal);
 
     return answer;
   }
