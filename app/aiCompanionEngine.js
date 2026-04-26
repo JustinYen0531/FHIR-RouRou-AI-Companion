@@ -1293,57 +1293,139 @@ function clinicalPostProcessor(draft, {
   formalProbe = null,
   atmosphereProtected = false
 } = {}) {
+  // ── Debug Trace Object：每一步決策都記錄 ──
+  const debugTrace = {
+    timestamp: new Date().toISOString(),
+    raw_output: String(draft || '').trim(),
+    comfort_stripped: null,
+    atmosphere_protected: atmosphereProtected,
+    risk_detected: false,
+    risk_action: null,
+    target_item: null,
+    target_item_source: null,
+    extracted_question: null,
+    is_scoreable: null,
+    is_correct_item: null,
+    has_specific_context: null,
+    should_intervene: null,
+    intervention_reason: null,
+    intervention_action: null,
+    replacement_probe: null,
+    final_question: null,
+    final_output: null,
+    decision_path: [],
+    error: null
+  };
+
   try {
     let text = String(draft || '').trim();
-    if (!text) return text;
+    if (!text) {
+      debugTrace.final_output = text;
+      debugTrace.decision_path.push('empty_input → skip');
+      return { text, debugTrace };
+    }
 
     // ── 第 0 層：移除中段安慰／正常化句 ──
     text = stripComfortPhrases(text);
+    debugTrace.comfort_stripped = text !== debugTrace.raw_output ? text : null;
+    if (debugTrace.comfort_stripped !== null) {
+      debugTrace.decision_path.push('comfort_phrases_stripped');
+    }
 
     // ── 氣氛保護：情緒承載模式不介入 ──
     if (atmosphereProtected) {
-      return enforceSingleQuestion(text);
+      text = enforceSingleQuestion(text);
+      debugTrace.final_output = text;
+      const finalQ = extractLastQuestion(text);
+      debugTrace.final_question = finalQ ? finalQ.question : null;
+      debugTrace.decision_path.push('atmosphere_protected → no_intervention');
+      return { text, debugTrace };
     }
 
     // ── 第 1 層：風險訊號最高優先 ──
     const lockedCodes = getLockedItemCodes(state);
-    if (detectRiskSignal(userText) && !lockedCodes.includes('suicide')) {
+    debugTrace.risk_detected = detectRiskSignal(userText);
+    if (debugTrace.risk_detected && !lockedCodes.includes('suicide')) {
+      debugTrace.risk_action = 'force_safety_question';
+      debugTrace.decision_path.push('risk_signal → force RISK_PROBE');
       const lastQ = extractLastQuestion(text);
+      debugTrace.extracted_question = lastQ ? lastQ.question : null;
       const riskQ = RISK_PROBE.probe_question;
       if (lastQ) {
         text = lastQ.before ? `${lastQ.before}\n\n${riskQ}` : riskQ;
       } else {
         text = `${text}\n\n${riskQ}`;
       }
-      return enforceSingleQuestion(text);
+      text = enforceSingleQuestion(text);
+      debugTrace.replacement_probe = riskQ;
+      debugTrace.final_output = text;
+      const finalQ2 = extractLastQuestion(text);
+      debugTrace.final_question = finalQ2 ? finalQ2.question : riskQ;
+      return { text, debugTrace };
+    }
+    if (debugTrace.risk_detected && lockedCodes.includes('suicide')) {
+      debugTrace.risk_action = 'suicide_already_locked';
+      debugTrace.decision_path.push('risk_signal → suicide_locked → skip');
     }
 
-    // ── 第 2 層：取得 next_item（下一個未完成的 HAM-D 題項）──
+    // ── 第 2 層：取得 next_item ──
     const nextItemCode = pickNextUnlockedItemCode(state);
     const targetItemCode = nextItemCode || (formalProbe && formalProbe.item_code) || '';
+    debugTrace.target_item = targetItemCode || null;
+    debugTrace.target_item_source = nextItemCode ? 'next_unlocked' : (formalProbe && formalProbe.item_code) ? 'formal_probe' : 'none';
+    debugTrace.decision_path.push(`target_item = ${targetItemCode || 'none'} (${debugTrace.target_item_source})`);
 
-    // ── 第 3 層：系統閉嘴條件檢查 ──
-    // 若同時成立：問句可評分 + 問題正確 + 有具體情境 → 完全不介入
-    const decision = shouldIntervene(text, targetItemCode);
-    if (!decision.intervene) {
-      // LLM 問對了 → 系統完全不介入，只確保單問句
-      return enforceSingleQuestion(text);
+    // ── 第 3 層：判斷介入 ──
+    const lastQ = extractLastQuestion(text);
+    debugTrace.extracted_question = lastQ ? lastQ.question : null;
+
+    if (lastQ) {
+      debugTrace.is_scoreable = isScoreableQuestion(lastQ.question);
+      debugTrace.is_correct_item = targetItemCode ? isCorrectItem(lastQ.question, targetItemCode) : null;
+      debugTrace.has_specific_context = SPECIFIC_CONTEXT_KEYWORDS.some((kw) => lastQ.question.includes(kw));
+    } else {
+      debugTrace.is_scoreable = false;
+      debugTrace.is_correct_item = false;
+      debugTrace.has_specific_context = false;
     }
 
-    // ── 第 4 層：需要介入 → 替換策略（不是追加）──
-    const lastQ = extractLastQuestion(text);
+    const decision = shouldIntervene(text, targetItemCode);
+    debugTrace.should_intervene = decision.intervene;
+    debugTrace.intervention_reason = decision.reason;
+
+    if (!decision.intervene) {
+      // LLM 問對了 → 系統完全不介入
+      debugTrace.intervention_action = 'none_llm_correct';
+      debugTrace.decision_path.push('shouldIntervene=false → LLM 問對了 → 閉嘴');
+      text = enforceSingleQuestion(text);
+      debugTrace.final_output = text;
+      const fq = extractLastQuestion(text);
+      debugTrace.final_question = fq ? fq.question : null;
+      return { text, debugTrace };
+    }
+
+    // ── 第 4 層：介入 → 替換 ──
+    debugTrace.decision_path.push(`shouldIntervene=true → reason=${decision.reason}`);
     const probe = pickScoreableProbe(userText, text, formalProbe, state);
+    debugTrace.replacement_probe = probe || null;
 
     if (!probe) {
-      // 完全沒有可用的 probe → 保留原文
-      return enforceSingleQuestion(text);
+      debugTrace.intervention_action = 'no_probe_available';
+      debugTrace.decision_path.push('no_probe_available → keep_original');
+      text = enforceSingleQuestion(text);
+      debugTrace.final_output = text;
+      const fq2 = extractLastQuestion(text);
+      debugTrace.final_question = fq2 ? fq2.question : null;
+      return { text, debugTrace };
     }
 
     if (decision.reason === 'no_question') {
-      // LLM 沒問問題 → 補一題
+      debugTrace.intervention_action = 'append_question';
+      debugTrace.decision_path.push(`append_probe: "${probe.substring(0, 30)}..."`);
       text = `${text}\n\n${probe}`;
     } else {
-      // LLM 問錯 / 不可評分 / 禁止類型 → 替換最後一句問句
+      debugTrace.intervention_action = 'replace_question';
+      debugTrace.decision_path.push(`replace: "${(debugTrace.extracted_question || '').substring(0, 20)}..." → "${probe.substring(0, 30)}..."`);
       if (lastQ && lastQ.before) {
         text = `${lastQ.before}\n\n${probe}`;
       } else {
@@ -1351,22 +1433,37 @@ function clinicalPostProcessor(draft, {
       }
     }
 
-    // ── 第 5 層：最終確保單問句 ──
-    return enforceSingleQuestion(text);
+    // ── 第 5 層：單問句 ──
+    text = enforceSingleQuestion(text);
+    debugTrace.final_output = text;
+    const fq3 = extractLastQuestion(text);
+    debugTrace.final_question = fq3 ? fq3.question : null;
+    debugTrace.decision_path.push('enforce_single_question → done');
+    return { text, debugTrace };
 
   } catch (error) {
-    // ── 防 crash：任何後處理錯誤 → 強制 fallback probe ──
+    // ── 防 crash ──
+    debugTrace.error = error.message || 'unknown_error';
+    debugTrace.decision_path.push(`CRASH: ${debugTrace.error} → fallback`);
     const fallbackProbe = pickScoreableProbe(userText, draft, formalProbe, state);
     if (fallbackProbe) {
       const safeDraft = stripComfortPhrases(String(draft || ''));
       const safeLastQ = extractLastQuestion(safeDraft);
+      let fallbackText;
       if (safeLastQ && safeLastQ.before) {
-        return `${safeLastQ.before}\n\n${fallbackProbe}`;
+        fallbackText = `${safeLastQ.before}\n\n${fallbackProbe}`;
+      } else {
+        fallbackText = safeDraft ? `${safeDraft}\n\n${fallbackProbe}` : fallbackProbe;
       }
-      return safeDraft ? `${safeDraft}\n\n${fallbackProbe}` : fallbackProbe;
+      debugTrace.replacement_probe = fallbackProbe;
+      debugTrace.intervention_action = 'crash_fallback';
+      debugTrace.final_output = fallbackText;
+      return { text: fallbackText, debugTrace };
     }
-    // 最終 fallback
-    return String(draft || '').trim() || '最近這種狀態是幾乎每天都有，還是偶爾才會出現？';
+    const finalFallback = String(draft || '').trim() || '最近這種狀態是幾乎每天都有，還是偶爾才會出現？';
+    debugTrace.final_output = finalFallback;
+    debugTrace.intervention_action = 'crash_last_resort';
+    return { text: finalFallback, debugTrace };
   }
 }
 
@@ -3934,6 +4031,9 @@ class AICompanionEngine {
 
     session.history.push({ role: 'assistant', content: answer, kind: 'chat' });
     this.updateMemorySnapshot(session, answer);
+    // 暫存 trace 給 API 回傳用，然後清掉避免持久化
+    const _traceSnapshot = state._clinical_trace || null;
+    delete state._clinical_trace;
     this.persistSessions();
 
     return {
@@ -3946,7 +4046,8 @@ class AICompanionEngine {
         route: MODE_LABELS[state.active_mode] || state.active_mode,
         risk_flag: state.risk_flag,
         latest_tag_payload: normalizeObjectState(state, 'latest_tag_payload', {}),
-        burden_level_state: normalizeObjectState(state, 'burden_level_state', {})
+        burden_level_state: normalizeObjectState(state, 'burden_level_state', {}),
+        clinical_trace: _traceSnapshot
       }
     };
   }
@@ -4296,12 +4397,34 @@ class AICompanionEngine {
     });
 
     // ── 統一後處理器（取代散落三層）────────────────────────────────────────────
-    answer = clinicalPostProcessor(answer, {
+    const postProcessResult = clinicalPostProcessor(answer, {
       userText: message,
       state,
       formalProbe: (canProbeHamd && formalProbe.should_ask === 'yes') ? formalProbe : null,
       atmosphereProtected
     });
+    answer = postProcessResult.text;
+    const clinicalTrace = postProcessResult.debugTrace;
+
+    // ── 存 debug trace 到 state（API 可讀）──
+    state._clinical_trace = clinicalTrace;
+
+    // ── Console debug 輸出 ──
+    if (process.env.DEBUG_CLINICAL === 'true') {
+      console.log('\n=== CLINICAL POST-PROCESSOR TRACE ===');
+      console.log(`  LLM raw:        ${(clinicalTrace.raw_output || '').substring(0, 60)}...`);
+      console.log(`  extracted_q:    ${clinicalTrace.extracted_question || '(none)'}`);
+      console.log(`  target_item:    ${clinicalTrace.target_item || '(none)'} [${clinicalTrace.target_item_source}]`);
+      console.log(`  is_scoreable:   ${clinicalTrace.is_scoreable}`);
+      console.log(`  is_correct:     ${clinicalTrace.is_correct_item}`);
+      console.log(`  risk_detected:  ${clinicalTrace.risk_detected}`);
+      console.log(`  intervene:      ${clinicalTrace.should_intervene} → ${clinicalTrace.intervention_reason}`);
+      console.log(`  action:         ${clinicalTrace.intervention_action}`);
+      console.log(`  final_q:        ${clinicalTrace.final_question || '(none)'}`);
+      console.log(`  path:           ${clinicalTrace.decision_path.join(' → ')}`);
+      if (clinicalTrace.error) console.log(`  ⚠ ERROR:       ${clinicalTrace.error}`);
+      console.log('=== END TRACE ===\n');
+    }
 
     // 後處理完成後：重建 probeActive 狀態（供後續 probe_count 追蹤用）
     let normalizedProbeQuestion = String(formalProbe.probe_question || '').trim();
