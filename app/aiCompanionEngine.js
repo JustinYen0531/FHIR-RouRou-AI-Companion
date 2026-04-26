@@ -101,7 +101,7 @@ const HAMD_DIMENSION_LABELS_ZH = {
 // 只要使用者訊息對「上一輪詢問的題項」給出頻率/程度/功能任一信號，立刻鎖為 complete
 const HAMD_FREQUENCY_RX = /(幾乎)?每天|天天|大部分時間|大部分時候|一週\s*[一二兩三四五六七八九十\d]+\s*[次天]|每週\s*[一二兩三四五六七八九十\d]+|每週\s*\d+|偶爾|常常|經常|有時候?|很少|從來沒|從未|不曾|時不時|三不五時|一直都|大多數時間|每次/;
 const HAMD_SEVERITY_RX = /很嚴重|嚴重|輕微|輕|很明顯|明顯|撐得住|撐不住|很難繼續|還好|還可以|挺嚴重|滿嚴重|有點|不太|難以承受|難受到|快受不了|快崩潰|快撐不下去|超痛苦|很痛苦/;
-const HAMD_FUNCTIONAL_RX = /影響.{0,10}(工作|生活|睡眠|人際|社交|學習|上班|上課|家事|做事)|沒辦法.{0,8}(做|完成|工作|去|睡|吃|出門)|做不了|無法.{0,8}(完成|工作|做|專注|集中)|拖延|效率(下降|變差|不好|降低)|完不成|沒法|沒力氣|提不起勁去|動不了|起不來/;
+const HAMD_FUNCTIONAL_RX = /影響.{0,12}(工作|生活|日常|睡眠|人際|社交|學習|上班|上課|家事|做事|事情|活動|功能)|對.{0,12}(工作|生活|日常|人際|社交|學習)的?影響|沒辦法.{0,8}(做|完成|工作|去|睡|吃|出門)|做不了|無法.{0,8}(完成|工作|做|專注|集中)|拖延|效率(下降|變差|不好|降低)|完不成|沒法|沒力氣|提不起勁去|動不了|起不來|衝擊|妨礙/;
 
 function detectHamdSignalsInMessage(message) {
   const text = String(message || '');
@@ -110,6 +110,64 @@ function detectHamdSignalsInMessage(message) {
     severity: HAMD_SEVERITY_RX.test(text),
     functional: HAMD_FUNCTIONAL_RX.test(text)
   };
+}
+
+// ── 題項關鍵字（用來判斷 AI 的問句是否真的指向 next_item）──
+const HAMD_DIMENSION_KEYWORDS = {
+  depressed_mood: ['情緒', '低落', '心情', '提不起勁', '空', '難過', '憂鬱', '沮喪', '心裡', '高興不起來'],
+  guilt: ['自責', '罪惡', '怪自己', '內疚', '對不起', '錯', '不夠好', '不應該'],
+  work_interest: ['工作', '興趣', '動力', '事情', '活動', '功能', '做事', '效率', '原本', '完成', '提不起勁去', '日常', '生活', '上班', '上課'],
+  retardation: ['變慢', '思考', '反應', '遲鈍', '腦袋', '動作', '說話速度'],
+  agitation: ['坐不住', '煩躁', '不安', '靜不下', '坐立難安', '焦躁'],
+  somatic_anxiety: ['緊繃', '心悸', '頭痛', '胃', '焦慮', '緊張', '身體', '呼吸', '冒汗'],
+  insomnia: ['睡眠', '睡不', '入睡', '失眠', '半夜', '早醒', '睡覺', '躺著', '醒來', '睡著']
+};
+
+// 系統 fallback 問句（當 AI 漏問或問錯題時，用這個替換）
+const HAMD_DEFAULT_PROBES = {
+  depressed_mood: '想了解一下，這種低落或提不起勁的感覺，最近是幾乎每天都有，還是偶爾才會出現？',
+  guilt: '想多了解一下，這種自責或對自己不滿的感覺，最近大概多常出現？是常常想起，還是偶爾才有？',
+  work_interest: '想確認一下，這種狀態有沒有影響到你原本能完成的事情或想做的活動？',
+  retardation: '最近做事或思考有沒有變得比以前慢，像是反應、回話、做事都拖住了？',
+  agitation: '最近會不會覺得身體靜不下來，很難放鬆，想一直動來動去？',
+  somatic_anxiety: '最近身體有沒有出現像心悸、胃不舒服、頭痛或緊繃這類反應？',
+  insomnia: '最近的睡眠比較常是難入睡、半夜醒來，還是太早醒？'
+};
+
+// 切出最後一個問句，回傳 { before, question }
+function extractLastQuestion(text) {
+  const str = String(text || '');
+  const lastQ = Math.max(str.lastIndexOf('？'), str.lastIndexOf('?'));
+  if (lastQ === -1) return { before: str.trim(), question: '' };
+  // 往前找句子起點：上一個 。/！/?/？/換行
+  let startIdx = 0;
+  for (let i = lastQ - 1; i >= 0; i--) {
+    const c = str[i];
+    if (c === '。' || c === '！' || c === '?' || c === '？' || c === '\n') {
+      startIdx = i + 1;
+      break;
+    }
+  }
+  return {
+    before: str.slice(0, startIdx).trim(),
+    question: str.slice(startIdx, lastQ + 1).trim()
+  };
+}
+
+// 判斷一個問句是否「可評分」：含頻率/程度/功能信號之一
+function isScoreableQuestion(question) {
+  const q = String(question || '');
+  if (!q) return false;
+  return HAMD_FREQUENCY_RX.test(q) || HAMD_SEVERITY_RX.test(q) || HAMD_FUNCTIONAL_RX.test(q);
+}
+
+// 判斷一個問句是否真的指向 target dimension
+function isCorrectItem(question, targetDimension) {
+  if (!targetDimension) return true;
+  const q = String(question || '');
+  const kws = HAMD_DIMENSION_KEYWORDS[targetDimension] || [];
+  if (!kws.length) return true;
+  return kws.some((kw) => q.includes(kw));
 }
 
 const FHIR_RESOURCE_DEFINITIONS = {
@@ -3681,6 +3739,43 @@ class AICompanionEngine {
 
   // 解析 Smart Hunter 回應中的 HAMD_JSON 行，更新 formal assessment
   // 回傳 { cleanAnswer, applied } — cleanAnswer 是移除 JSON 行後的對話文字
+  // ── Post-processor：永遠只保留一個問句，且只有在 AI 問錯/沒問時才介入 ──
+  enforceSingleQuestion(draft, opts = {}) {
+    const text = String(draft || '').trim();
+    if (!text) return text;
+
+    const { systemNextItem, askRequired, formalProbe } = opts;
+
+    // ① 系統判定本輪不需要問 → 完全不介入
+    if (!askRequired) return text;
+
+    const { before, question } = extractLastQuestion(text);
+
+    // ② AI 完全沒問問題 → append 系統 probe
+    if (!question) {
+      const probe = (formalProbe && formalProbe.probe_question)
+        || HAMD_DEFAULT_PROBES[systemNextItem]
+        || null;
+      if (!probe) return text;
+      return `${text}\n\n${probe}`;
+    }
+
+    // ③ AI 已經問了正確、可評分的問題 → 系統閉嘴，原樣輸出
+    const scoreable = isScoreableQuestion(question);
+    const correct = isCorrectItem(question, systemNextItem);
+    if (scoreable && correct) {
+      return text;
+    }
+
+    // ④ AI 問錯題或不可評分 → 只替換最後一句，不疊加
+    const probe = (formalProbe && formalProbe.probe_question)
+      || HAMD_DEFAULT_PROBES[systemNextItem]
+      || null;
+    if (!probe) return text; // 沒有可替換的 → 保留原樣
+    const cleanedBefore = before.replace(/[\s\n]+$/, '');
+    return cleanedBefore ? `${cleanedBefore}\n\n${probe}` : probe;
+  }
+
   extractAndApplyHamdJson(state, rawAnswer) {
     const jsonLineMatch = rawAnswer.match(/\nHAMD_JSON:\s*(\{[\s\S]*?\})\s*$/);
     if (!jsonLineMatch) return { cleanAnswer: rawAnswer, applied: false };
@@ -3879,7 +3974,15 @@ class AICompanionEngine {
       this.syncSignalsToFormalItems(state, longitudinal);
     }
 
-    const answer = cleanAnswer;
+    // ── 後處理：永遠只保留一個問句，僅在 AI 問錯/沒問時系統才介入 ──
+    // 不再無條件 append formalProbe.probe_question（那是舊的兩問句根源）
+    const answer = this.enforceSingleQuestion(cleanAnswer, {
+      systemNextItem,
+      askRequired,
+      formalProbe
+    });
+
+    // 記錄正式探針狀態（給 UI 與下輪用）
     const normalizedProbeQuestion = String(formalProbe.probe_question || '').trim();
     if (canProbeHamd && formalProbe.should_ask === 'yes' && formalProbe.item_code && normalizedProbeQuestion) {
       const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
@@ -3888,7 +3991,6 @@ class AICompanionEngine {
       assessment.assessment_mode = 'smart_hunter_probe';
       state.hamd_formal_assessment = assessment;
 
-      // 記錄本輪探問的維度，防止下輪連問同一題
       const probedDimension = Object.entries(HAMD_DIMENSION_TO_ITEM_CODES)
         .find(([, codes]) => codes.includes(formalProbe.item_code))?.[0] || null;
       this.updateFlowState(state, {
@@ -3897,15 +3999,8 @@ class AICompanionEngine {
         can_probe_hamd: true,
         consecutive_probes: Number(flowState.consecutive_probes || 0)
       });
-
-      if (answer.includes(normalizedProbeQuestion)) {
-        return answer;
-      }
-      return `${answer}\n\n${normalizedProbeQuestion}`;
-    }
-
-    // 沒有插入探針：重置連續追問計數
-    if (!atmosphereProtected) {
+    } else if (!atmosphereProtected) {
+      // 沒有插入探針：重置連續追問計數
       this.updateFlowState(state, {
         mode: flowState.mode,
         can_probe_hamd: false,
