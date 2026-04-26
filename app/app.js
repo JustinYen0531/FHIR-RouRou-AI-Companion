@@ -7741,28 +7741,15 @@ function saveCurrentSessionToLocalArchive() {
 }
 
 async function maybeSaveCurrentSessionBefore(actionLabel = '離開目前這段對話') {
+  // 每次 AI 回覆後已自動存檔，這裡只需補抓「尚未存過」的邊緣情況
+  // （例如：使用者送出問題但 AI 還沒回覆就立刻離開）
   const record = buildCurrentSessionRecord();
-  if (!record || !record.id || !shouldPromptToSaveCurrentSession()) {
+  if (!record || !record.id || !hasMeaningfulSessionContent(record)) {
     return { proceeded: true, saved: false };
   }
-
-  const summary = pickReadableSessionText(
-    [
-      summarizeSessionRecord(record).latest_tag_summary,
-      summarizeSessionRecord(record).last_user_message,
-      summarizeSessionRecord(record).last_assistant_message
-    ],
-    '這段對話目前還沒有可讀摘要。'
-  );
-  const shouldSave = window.confirm(
-    `要先儲存目前這段對話，再${actionLabel}嗎？\n\n按「確定」會儲存；按「取消」則不儲存直接繼續。\n\n摘要：${summary}`
-  );
-  if (shouldSave) {
-    saveSessionRecordToLocalArchive(record);
-    appendSystemNotice('已儲存這段對話，首頁會保留這筆與先前的舊對話。');
-    return { proceeded: true, saved: true };
-  }
-  return { proceeded: true, saved: false };
+  // 靜默自動儲存，不再彈出確認框打斷使用者
+  saveSessionRecordToLocalArchive(record);
+  return { proceeded: true, saved: true };
 }
 
 async function navigateHome() {
@@ -9252,6 +9239,10 @@ async function sendMessage() {
     saveReportOutputsToCache();
     setTyping(false);
     await appendMessage('ai', payload.answer || '我有收到你的訊息，但這次沒有拿到完整回覆。', { animate: true });
+
+    // 每次 AI 回覆後自動存檔，確保對話不因刷新/跳頁而消失
+    saveCurrentSessionToLocalArchive();
+
     evaluateMicroIntervention(payload, { lastUserMessage: message });
 
     // 每 3 輪觸發自動萃取
