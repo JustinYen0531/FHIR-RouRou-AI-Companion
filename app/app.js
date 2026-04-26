@@ -8844,7 +8844,30 @@ async function openConsentPreview() {
 }
 
 function initializeRuntimeConfig() {
-  localStorage.removeItem(LEGACY_LOCAL_SESSION_ARCHIVE_KEY);
+  // 不直接刪除 legacy archive — 先把資料合併到主 key，避免歷史對話遺失
+  try {
+    const legacyRaw = localStorage.getItem(LEGACY_LOCAL_SESSION_ARCHIVE_KEY);
+    if (legacyRaw) {
+      const legacyParsed = JSON.parse(legacyRaw);
+      const legacyRecords = Array.isArray(legacyParsed) ? legacyParsed : [];
+      if (legacyRecords.length) {
+        const mainRecords = loadLocalSessionArchiveRecords();
+        const knownIds = new Set(mainRecords.map((r) => r.id));
+        const merged = [...mainRecords];
+        legacyRecords.forEach((rec) => {
+          const normalized = normalizeLocalSessionRecord(rec);
+          if (normalized.id && !knownIds.has(normalized.id)) {
+            merged.push(normalized);
+            knownIds.add(normalized.id);
+          }
+        });
+        saveLocalSessionArchiveRecords(merged);
+      }
+      localStorage.removeItem(LEGACY_LOCAL_SESSION_ARCHIVE_KEY);
+    }
+  } catch (error) {
+    console.warn('Unable to merge legacy session archive:', error);
+  }
   localStorage.setItem('rourou.userId', PROTOTYPE_SHARED_CHAT_USER_ID);
   syncAuthStateToApp();
 
