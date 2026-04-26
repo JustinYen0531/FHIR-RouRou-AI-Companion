@@ -3336,8 +3336,20 @@ class AICompanionEngine {
     let answer = '';
     if (activeMode === 'mode_6_clarify') {
       answer = await this.handleClarify(session, message);
+    } else if (activeMode === 'mode_1_void') {
+      // 樹洞獨立模式：100% 加權，但仍走 buildNaturalResponse 的 context 管線
+      answer = await this.buildNaturalResponse(session, message, { promptKey: 'voidBox', subMode: 'void_box' });
+    } else if (activeMode === 'mode_2_soulmate') {
+      // 靈魂陪伴獨立模式：100% 加權
+      answer = await this.buildNaturalResponse(session, message, { promptKey: 'soulMate', subMode: 'soul_companion' });
+    } else if (activeMode === 'mode_3_mission') {
+      // 任務引導獨立模式（保留 handleMission 的 retrieval 邏輯）
+      answer = await this.handleMission(session, message);
+    } else if (activeMode === 'mode_4_option') {
+      // 選項引導獨立模式（保留 handleOption 的選項生成邏輯）
+      answer = await this.handleOption(session, message);
     } else {
-      // 所有自然聊天統一走 Smart Hunter，子模式由 Smart Hunter 內部分流
+      // 自動模式：走 Smart Hunter，由內部依信號混合四種能力權重
       state.active_mode = 'mode_5_natural';
       answer = await this.buildNaturalResponse(session, message);
     }
@@ -3728,6 +3740,7 @@ class AICompanionEngine {
   async buildNaturalResponse(session, message, options = {}) {
     const state = session.state;
     const flowState = normalizeObjectState(state, 'flow_state', {});
+    const promptKey = options.promptKey || 'smartHunter';
 
     // 將外部傳入的 sub_mode（由 active_mode 映射）寫入 flow_state，讓 Smart Hunter 能讀到
     if (options.subMode) {
@@ -3765,7 +3778,7 @@ class AICompanionEngine {
     const systemNextItemLabel = systemNextItem ? (HAMD_DIMENSION_LABELS_ZH[systemNextItem] || systemNextItem) : null;
 
     const freshFlowState = normalizeObjectState(state, 'flow_state', {});
-    const rawAnswer = await this.runTextTask('smartHunter', session, message, {
+    const rawAnswer = await this.runTextTask(promptKey, session, message, {
       extraContext: {
         formal_probe: formalProbe,
         flow_state: freshFlowState,
