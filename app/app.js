@@ -7057,6 +7057,165 @@ function renderClinicalTraceButton(group, traceData) {
   group.appendChild(panel);
 }
 
+function renderAiTraceButton(group, aiTraceData) {
+  if (!group) return;
+
+  const btn = document.createElement('button');
+  btn.className = 'clinical-trace-toggle ai-trace-toggle';
+  btn.type = 'button';
+  btn.setAttribute('aria-label', '查看 AI 決策紀錄');
+  btn.title = '查看 AI 端各 LLM 任務的判斷過程';
+  btn.innerHTML = '<span class="mat-icon" style="font-size:16px">smart_toy</span> AI 決策';
+
+  const panel = document.createElement('div');
+  panel.className = 'clinical-trace-panel ai-trace-panel';
+  panel.style.display = 'none';
+
+  if (!aiTraceData) {
+    panel.innerHTML = `
+      <div class="trace-header">🤖 AI 決策紀錄</div>
+      <div class="trace-row"><span class="trace-label">⚪ 狀態</span><span class="trace-value">此訊息沒有 AI 決策紀錄</span></div>
+    `;
+  } else {
+    const HAMD_ITEM_LABELS = {
+      depressed_mood: '憂鬱情緒', guilt: '罪惡感', suicide: '自殺意念',
+      insomnia_early: '早段失眠', insomnia_middle: '中段失眠', insomnia_late: '晚段失眠',
+      work_activities: '工作與活動', retardation: '遲滯', agitation: '激動',
+      psychic_anxiety: '精神性焦慮', somatic_anxiety: '身體性焦慮',
+      gastrointestinal_somatic: '腸胃症狀', general_somatic: '一般身體症狀',
+      genital_symptoms: '性功能', hypochondriasis: '疑病症', weight_loss: '體重減輕',
+      insight: '病識感'
+    };
+    const SUB_MODE_LABELS = {
+      emotional_holding: '🟣 情緒承載',
+      clinical_probing: '🔵 隱性 HAM-D 蒐集',
+      choice_prompting: '🟡 選項支架',
+      flow_conversation: '🟢 自然 flow'
+    };
+    const a = aiTraceData;
+    const sections = [];
+
+    sections.push('<div class="trace-header">🤖 AI 決策紀錄</div>');
+
+    // 1. 負擔判定
+    if (a.burden) {
+      sections.push(`
+        <div class="trace-section-title">📊 負擔判定（burdenLevelBuilder）</div>
+        <div class="trace-row"><span class="trace-label">負擔等級</span><span class="trace-value">${escapeHtml(a.burden.burden_level || '—')}</span></div>
+        <div class="trace-row"><span class="trace-label">回應風格</span><span class="trace-value">${escapeHtml(a.burden.response_style || '—')}</span></div>
+        <div class="trace-row"><span class="trace-label">追問預算</span><span class="trace-value">${escapeHtml(a.burden.followup_budget || '—')}</span></div>
+        <div class="trace-divider"></div>
+      `);
+    }
+
+    // 2. HAM-D 進度
+    if (a.hamd_progress) {
+      const focusLabel = HAMD_ITEM_LABELS[a.hamd_progress.next_recommended_dimension] || a.hamd_progress.next_recommended_dimension || '—';
+      const completion = typeof a.hamd_progress.completion === 'number'
+        ? `${Math.round(a.hamd_progress.completion * 100)}%`
+        : '—';
+      const itemStatusEntries = Object.entries(a.hamd_progress.item_status || {});
+      const statusBadges = itemStatusEntries.length
+        ? itemStatusEntries.map(([code, status]) => {
+            const label = HAMD_ITEM_LABELS[code] || code;
+            const icon = status === 'complete' ? '✅' : status === 'partial' ? '🟡' : '⬜';
+            return `<span class="trace-badge">${icon} ${escapeHtml(label)}</span>`;
+          }).join(' ')
+        : '<span class="trace-value">（尚無資料）</span>';
+      sections.push(`
+        <div class="trace-section-title">🎯 HAM-D 進度（hamdProgressTracker）</div>
+        <div class="trace-row"><span class="trace-label">階段</span><span class="trace-value">${escapeHtml(a.hamd_progress.progress_stage || '—')}</span></div>
+        <div class="trace-row"><span class="trace-label">下一推薦維度</span><span class="trace-value">${escapeHtml(focusLabel)}</span></div>
+        <div class="trace-row"><span class="trace-label">完成度</span><span class="trace-value">${completion}</span></div>
+        <div class="trace-row"><span class="trace-label">摘要</span><span class="trace-value">${escapeHtml(a.hamd_progress.status_summary || '—')}</span></div>
+        <div class="trace-row trace-badges-row"><span class="trace-label">題項狀態</span><span class="trace-value">${statusBadges}</span></div>
+        <div class="trace-divider"></div>
+      `);
+    }
+
+    // 3. 模式分流
+    if (a.low_energy || a.intent || a.flow) {
+      const subModeLabel = SUB_MODE_LABELS[a.flow && a.flow.sub_mode] || (a.flow && a.flow.sub_mode) || '—';
+      sections.push(`
+        <div class="trace-section-title">🔀 模式分流（lowEnergy / intent / flow）</div>
+        ${a.low_energy ? `<div class="trace-row"><span class="trace-label">低能量偵測</span><span class="trace-value">${escapeHtml(a.low_energy)}</span></div>` : ''}
+        ${a.intent ? `<div class="trace-row"><span class="trace-label">意圖分類</span><span class="trace-value">${escapeHtml(a.intent)}</span></div>` : ''}
+        ${a.flow ? `
+          <div class="trace-row"><span class="trace-label">子模式</span><span class="trace-value">${escapeHtml(subModeLabel)}</span></div>
+          <div class="trace-row"><span class="trace-label">允許探針</span><span class="trace-value">${a.flow.can_probe_hamd ? '✅ 可' : '❌ 不可'}</span></div>
+          <div class="trace-row"><span class="trace-label">連續追問</span><span class="trace-value">${a.flow.consecutive_probes ?? 0}</span></div>
+          <div class="trace-row"><span class="trace-label">氣氛保護</span><span class="trace-value">${a.flow.atmosphere_protection ? '🛡️ 啟動' : '—'}</span></div>
+        ` : ''}
+        <div class="trace-divider"></div>
+      `);
+    }
+
+    // 4. 探針選擇
+    if (a.probe_selector) {
+      const psItem = HAMD_ITEM_LABELS[a.probe_selector.item_code] || a.probe_selector.item_code || '—';
+      sections.push(`
+        <div class="trace-section-title">🎣 探針選擇（hamdFormalProbeSelector）</div>
+        <div class="trace-row"><span class="trace-label">是否要問</span><span class="trace-value">${a.probe_selector.should_ask === 'yes' ? '✅ 是' : '❌ 否'}</span></div>
+        <div class="trace-row"><span class="trace-label">選定題項</span><span class="trace-value">${escapeHtml(psItem)}</span></div>
+        <div class="trace-row"><span class="trace-label">問題類型</span><span class="trace-value">${escapeHtml(a.probe_selector.question_type || '—')}</span></div>
+        <div class="trace-row"><span class="trace-label">原因</span><span class="trace-value">${escapeHtml(a.probe_selector.reason || '—')}</span></div>
+        ${a.probe_selector.probe_question ? `<div class="trace-row"><span class="trace-label">問句</span><span class="trace-value">「${escapeHtml(a.probe_selector.probe_question.substring(0, 60))}」</span></div>` : ''}
+        <div class="trace-divider"></div>
+      `);
+    }
+
+    // 5. 證據分類
+    if (a.evidence_classifier && Array.isArray(a.evidence_classifier.items) && a.evidence_classifier.items.length) {
+      const evidenceRows = a.evidence_classifier.items.map((it) => {
+        const label = HAMD_ITEM_LABELS[it.item_code] || it.item_code;
+        const evList = (it.evidence_summary || []).slice(0, 2).map((e) => escapeHtml(e)).join('；') || '（無）';
+        return `<div class="trace-row"><span class="trace-label">${escapeHtml(label)}</span><span class="trace-value">${escapeHtml(it.evidence_type || '—')} / ${escapeHtml(it.confidence || '—')}<br><small>${evList}</small></span></div>`;
+      }).join('');
+      sections.push(`
+        <div class="trace-section-title">🔍 證據分類（hamdEvidenceClassifier）</div>
+        ${evidenceRows}
+        <div class="trace-divider"></div>
+      `);
+    }
+
+    // 6. 評分器
+    if (a.scorer && Array.isArray(a.scorer.items) && a.scorer.items.length) {
+      const scoreRows = a.scorer.items.map((it) => {
+        const label = HAMD_ITEM_LABELS[it.item_code] || it.item_code;
+        const score = it.ai_suggested_score == null ? '—' : it.ai_suggested_score;
+        return `<div class="trace-row"><span class="trace-label">${escapeHtml(label)}</span><span class="trace-value">${score}<br><small>${escapeHtml((it.rating_rationale || '').substring(0, 80))}</small></span></div>`;
+      }).join('');
+      sections.push(`
+        <div class="trace-section-title">⚖️ 評分器（hamdFormalItemScorer）</div>
+        ${scoreRows}
+        <div class="trace-divider"></div>
+      `);
+    }
+
+    // 7. Smart Hunter
+    if (a.smart_hunter) {
+      const shSubMode = SUB_MODE_LABELS[a.smart_hunter.sub_mode] || a.smart_hunter.sub_mode || '—';
+      sections.push(`
+        <div class="trace-section-title">🦊 Smart Hunter（smartHunter）</div>
+        <div class="trace-row"><span class="trace-label">採用子模式</span><span class="trace-value">${escapeHtml(shSubMode)}</span></div>
+        <div class="trace-row"><span class="trace-label">收到探針</span><span class="trace-value">${a.smart_hunter.formal_probe_received && a.smart_hunter.formal_probe_received.should_ask === 'yes' ? '✅' : '—'} ${escapeHtml((a.smart_hunter.formal_probe_received && a.smart_hunter.formal_probe_received.item_code) || '')}</span></div>
+        <div class="trace-row trace-final"><span class="trace-label">原始輸出</span><span class="trace-value">「${escapeHtml((a.smart_hunter.raw_output || '').substring(0, 120))}…」</span></div>
+      `);
+    }
+
+    panel.innerHTML = sections.join('');
+  }
+
+  btn.addEventListener('click', () => {
+    const isVisible = panel.style.display !== 'none';
+    panel.style.display = isVisible ? 'none' : 'block';
+    btn.classList.toggle('active', !isVisible);
+  });
+
+  group.appendChild(btn);
+  group.appendChild(panel);
+}
+
 function handleInput(input, reason = 'input') {
   const isEmpty = input.value.trim().length === 0;
 
@@ -7165,12 +7324,14 @@ async function appendMessage(role, text, options = {}) {
   if (role === 'ai' && options.animate) {
     await animateAiMessage(bubble, text);
     renderClinicalTraceButton(group, options.traceData || null);
+    renderAiTraceButton(group, options.aiTraceData || null);
     return;
   }
 
   if (role === 'ai') {
     bubble.innerHTML = renderMessageMarkdown(text);
     renderClinicalTraceButton(group, options.traceData || null);
+    renderAiTraceButton(group, options.aiTraceData || null);
   } else {
     bubble.textContent = text;
   }
@@ -9358,8 +9519,8 @@ async function sendMessage() {
     renderReportOutputs();
     saveReportOutputsToCache();
     setTyping(false);
-    console.log('[DEBUG] clinical_trace 收到了嗎？', payload.metadata?.clinical_trace ? '✅ 有' : '❌ 沒有', payload.metadata);
-    await appendMessage('ai', payload.answer || '我有收到你的訊息，但這次沒有拿到完整回覆。', { animate: true, traceData: payload.metadata?.clinical_trace || null });
+    console.log('[DEBUG] clinical_trace 收到了嗎？', payload.metadata?.clinical_trace ? '✅ 有' : '❌ 沒有', '| ai_trace:', payload.metadata?.ai_trace ? '✅ 有' : '❌ 沒有');
+    await appendMessage('ai', payload.answer || '我有收到你的訊息，但這次沒有拿到完整回覆。', { animate: true, traceData: payload.metadata?.clinical_trace || null, aiTraceData: payload.metadata?.ai_trace || null });
 
     // 每次 AI 回覆後自動存檔，確保對話不因刷新/跳頁而消失
     saveCurrentSessionToLocalArchive();

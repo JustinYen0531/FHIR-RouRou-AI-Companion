@@ -7251,3 +7251,64 @@ body.micro-detail-open {
 .trace-error .trace-value {
   color: #ffb4a9;
 }
+
+/* AI Trace 專屬樣式 */
+.ai-trace-toggle {
+  background: linear-gradient(135deg, #5b8def 0%, #7c5cf0 100%);
+}
+.ai-trace-toggle:hover {
+  background: linear-gradient(135deg, #4a7ce0 0%, #6c4cd9 100%);
+}
+.ai-trace-toggle.active {
+  background: linear-gradient(135deg, #4a6ed0 0%, #6b3cc4 100%);
+  box-shadow: 0 4px 20px rgba(91, 141, 239, 0.45);
+}
+
+.ai-trace-panel {
+  background: rgba(28, 32, 56, 0.92);
+  border-color: rgba(124, 92, 240, 0.18);
+  max-width: 420px;
+}
+
+.ai-trace-panel .trace-header {
+  color: #c8d4ff;
+  border-bottom-color: rgba(124, 92, 240, 0.18);
+}
+
+.ai-trace-panel .trace-label {
+  color: rgba(200, 212, 255, 0.78);
+  min-width: 100px;
+}
+
+.trace-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #b9a9ff;
+  margin: 8px 0 6px;
+  padding-top: 4px;
+  letter-spacing: 0.02em;
+}
+
+.trace-badges-row .trace-value {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.trace-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(124, 92, 240, 0.18);
+  color: #d8d0ff;
+  border: 1px solid rgba(124, 92, 240, 0.28);
+}
+
+.ai-trace-panel .trace-row small {
+  color: rgba(200, 212, 255, 0.6);
+  font-size: 11px;
+  display: block;
+  margin-top: 2px;
+}

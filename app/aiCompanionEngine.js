@@ -1293,6 +1293,27 @@ function enforceSingleQuestion(text) {
  * 5. 單問句規則 → 最終確保只有一個問句
  * 6. 防 crash → 任何錯誤一律 fallback
  */
+// ── AI Decision Trace ─────────────────────────────────────────────────────
+// 收集所有 LLM 任務的決策過程供 debug 用，與 _clinical_trace（系統後處理）並行
+function ensureAiTrace(state) {
+  if (!state || typeof state !== 'object') return null;
+  if (!state._ai_trace) {
+    state._ai_trace = {
+      timestamp: new Date().toISOString(),
+      burden: null,
+      hamd_progress: null,
+      low_energy: null,
+      intent: null,
+      flow: null,
+      probe_selector: null,
+      evidence_classifier: null,
+      scorer: null,
+      smart_hunter: null
+    };
+  }
+  return state._ai_trace;
+}
+
 function clinicalPostProcessor(draft, {
   userText = '',
   state = {},
@@ -4056,6 +4077,8 @@ class AICompanionEngine {
       const answer = await this.handleFollowup(session, message);
       session.history.push({ role: 'assistant', content: answer, kind: 'chat' });
       this.updateMemorySnapshot(session, answer);
+      const _aiTraceFollowup = state._ai_trace || null;
+      delete state._ai_trace;
       return {
         conversation_id: session.id,
         answer,
@@ -4066,7 +4089,8 @@ class AICompanionEngine {
           route: 'followup',
           risk_flag: state.risk_flag,
           latest_tag_payload: normalizeObjectState(state, 'latest_tag_payload', {}),
-          burden_level_state: normalizeObjectState(state, 'burden_level_state', {})
+          burden_level_state: normalizeObjectState(state, 'burden_level_state', {}),
+          ai_trace: _aiTraceFollowup
         }
       };
     }
@@ -4094,7 +4118,9 @@ class AICompanionEngine {
     this.updateMemorySnapshot(session, answer);
     // 暫存 trace 給 API 回傳用，然後清掉避免持久化
     const _traceSnapshot = state._clinical_trace || null;
+    const _aiTraceSnapshot = state._ai_trace || null;
     delete state._clinical_trace;
+    delete state._ai_trace;
     this.persistSessions();
 
     return {
@@ -4108,7 +4134,8 @@ class AICompanionEngine {
         risk_flag: state.risk_flag,
         latest_tag_payload: normalizeObjectState(state, 'latest_tag_payload', {}),
         burden_level_state: normalizeObjectState(state, 'burden_level_state', {}),
-        clinical_trace: _traceSnapshot
+        clinical_trace: _traceSnapshot,
+        ai_trace: _aiTraceSnapshot
       }
     };
   }
@@ -4158,6 +4185,12 @@ class AICompanionEngine {
       }
     });
     state.burden_level_state = burden;
+    ensureAiTrace(state).burden = {
+      burden_level: burden.burden_level,
+      response_style: burden.response_style,
+      followup_budget: burden.followup_budget,
+      burden_note: burden.burden_note
+    };
 
     const hamd = await this.runJsonTask('hamdProgressTracker', session, message, {
       fallback: {
@@ -4181,6 +4214,23 @@ class AICompanionEngine {
       }
     });
     state.hamd_progress_state = enrichHamdProgressState(hamd, buildLongitudinalEvidence(session, currentBridge));
+    ensureAiTrace(state).hamd_progress = {
+      progress_stage: hamd.progress_stage,
+      current_focus: hamd.current_focus,
+      next_recommended_dimension: hamd.next_recommended_dimension,
+      next_question_hint: hamd.next_question_hint,
+      completion: hamd.completion,
+      status_summary: hamd.status_summary,
+      needs_clarification: hamd.needs_clarification,
+      item_status: Array.isArray(hamd.items)
+        ? hamd.items.reduce((acc, it) => {
+            if (it && it.item) acc[it.item] = it.status || 'missing';
+            return acc;
+          }, {})
+        : {},
+      covered_dimensions: Array.isArray(hamd.covered_dimensions) ? hamd.covered_dimensions : [],
+      missing_dimensions: Array.isArray(hamd.missing_dimensions) ? hamd.missing_dimensions : []
+    };
     await this.updateFormalAssessment(session, message);
   }
 
@@ -4202,6 +4252,7 @@ class AICompanionEngine {
       'degrade_soulmate',
       'continue_auto'
     ], 'continue_auto');
+    ensureAiTrace(state).low_energy = lowEnergy;
 
     // B-2. 意圖分類 → 決定 Smart Hunter 的子模式（不路由離開）
     const intent = await this.runClassifier('intentClassifier', session, message, [
@@ -4212,6 +4263,7 @@ class AICompanionEngine {
       'mode_5_natural',
       'mode_6_clarify'
     ], 'mode_5_natural');
+    ensureAiTrace(state).intent = intent;
 
     // B-3. 合成 flow_state（供 Smart Hunter 內部使用）
     const hamd = normalizeObjectState(state, 'hamd_progress_state', {});
@@ -4244,6 +4296,13 @@ class AICompanionEngine {
       can_probe_hamd: canProbeHamd,
       consecutive_probes: consecutiveProbes
     });
+    ensureAiTrace(state).flow = {
+      sub_mode: subMode,
+      can_probe_hamd: canProbeHamd,
+      consecutive_probes: consecutiveProbes,
+      is_high_burden: isHighBurden,
+      atmosphere_protection: subMode === 'emotional_holding'
+    };
 
     // ── C. 永遠路由到 Smart Hunter（mode_5_natural）
     //    唯一例外：真正空白/無效輸入（mode_1_void）
@@ -4377,6 +4436,17 @@ class AICompanionEngine {
       fallback: evidenceFallback
     });
     const evidenceResult = mergeEvidenceClassifierResultWithFallback(rawEvidenceResult, evidenceFallback, targetItems);
+    ensureAiTrace(state).evidence_classifier = {
+      assessment_mode: evidenceResult.assessment_mode,
+      items: Array.isArray(evidenceResult.items)
+        ? evidenceResult.items.map((it) => ({
+            item_code: it.item_code,
+            evidence_type: it.evidence_type,
+            confidence: it.confidence,
+            evidence_summary: normalizeArray(it.evidence_summary).slice(0, 3)
+          }))
+        : []
+    };
     const scoreFallback = buildFormalScoringFallback(targetItems, evidenceResult);
     const rawScoreResult = await this.runJsonTask('hamdFormalItemScorer', session, message, {
       extraContext: {
@@ -4388,6 +4458,15 @@ class AICompanionEngine {
       fallback: scoreFallback
     });
     const scoreResult = mergeFormalScoringResultWithFallback(rawScoreResult, scoreFallback, targetItems);
+    ensureAiTrace(state).scorer = {
+      items: Array.isArray(scoreResult.items)
+        ? scoreResult.items.map((it) => ({
+            item_code: it.item_code,
+            ai_suggested_score: it.ai_suggested_score,
+            rating_rationale: it.rating_rationale
+          }))
+        : []
+    };
     state.hamd_formal_assessment = mergeFormalAssessmentUpdates(assessment, evidenceResult, scoreResult);
     if (assessment.pending_probe_item_code) {
       const answeredPending = state.hamd_formal_assessment.items.find((item) =>
@@ -4433,6 +4512,14 @@ class AICompanionEngine {
       // 氣氛保護：強制關閉探針
       formalProbe = { ...formalProbe, should_ask: 'no' };
     }
+    ensureAiTrace(state).probe_selector = {
+      should_ask: formalProbe.should_ask,
+      item_code: formalProbe.item_code,
+      item_label: formalProbe.item_label,
+      question_type: formalProbe.question_type,
+      reason: formalProbe.reason,
+      probe_question: formalProbe.probe_question
+    };
 
     // 若探針選到已鎖定題項，強制取消
     if (formalProbe.should_ask === 'yes' && lockedItemCodes.includes(formalProbe.item_code)) {
@@ -4456,6 +4543,17 @@ class AICompanionEngine {
         flow_state: flowState
       }
     });
+    ensureAiTrace(state).smart_hunter = {
+      sub_mode: flowState.sub_mode,
+      can_probe_hamd: canProbeHamd,
+      formal_probe_received: {
+        should_ask: formalProbe.should_ask,
+        item_code: formalProbe.item_code,
+        question_type: formalProbe.question_type,
+        probe_question: formalProbe.probe_question
+      },
+      raw_output: String(answer || '').slice(0, 500)
+    };
 
     // ── 統一後處理器（取代散落三層）────────────────────────────────────────────
     const postProcessResult = clinicalPostProcessor(answer, {
