@@ -1103,9 +1103,46 @@ function isScoreableQuestion(question) {
   return SCOREABLE_PATTERNS.some((p) => p.test(q));
 }
 
-function pickScoreableProbe(userText, draft, formalProbe) {
+// HAM-D 17 題：每題一句可評分問句（優先用此推進量表）
+const ITEM_PROBE_TEXTS = {
+  depressed_mood: '最近這種低落或空掉的感覺，是幾乎每天都有，還是偶爾才會出現？',
+  guilt: '這種自責的感覺，大概一週會出現幾天？',
+  suicide: '這一週有沒有出現過不想活、想消失，或覺得活著沒有意義的念頭？',
+  insomnia_early: '最近睡前難入睡的情況，大概一週會有幾天？',
+  insomnia_middle: '最近半夜醒來的情況，大概一週會有幾天？',
+  insomnia_late: '最近早醒之後就睡不回去的情況，大概一週會有幾天？',
+  work_activities: '這一週做事的動力跟以前比起來，是差不多、明顯下降，還是幾乎提不起來？',
+  retardation: '最近覺得思考或做事變慢，大概一週會有幾天明顯感覺到？',
+  agitation: '這種坐不住或煩躁的感覺，是偶爾還是幾乎每天都有？',
+  psychic_anxiety: '這種緊張或焦慮的感覺，是偶爾，還是幾乎每天都會有？',
+  somatic_anxiety: '身體上的緊繃、心悸或頭痛這類反應，大概一週會出現幾天？',
+  gastrointestinal_somatic: '食慾或腸胃不適的情況，是輕微還是已經明顯影響到你吃飯？',
+  general_somatic: '身體整體的疲累或痠痛，大概一週會有幾天？',
+  genital_symptoms: '最近性慾或生理功能的變化，是輕微還是明顯？',
+  hypochondriasis: '對身體狀況的擔心，大概一週會有幾天讓你放不下？',
+  weight_loss: '最近食量或體重變化，是輕微還是明顯到你自己都感覺得到？',
+  insight: '對自己最近這些變化，你比較覺得是壓力反應、情緒困擾，還是其實沒什麼問題？'
+};
+
+function buildProbeFromItem(itemCode) {
+  return ITEM_PROBE_TEXTS[itemCode] || '最近這種狀態是幾乎每天都有，還是偶爾才會出現？';
+}
+
+function pickNextUnlockedItemCode(state) {
+  const probe = pickEmergencyProbe(state);
+  return probe ? probe.item_code : null;
+}
+
+function pickScoreableProbe(userText, draft, formalProbe, state) {
+  // ① formal_probe 已有問句 → 直接用
   const formalQ = String((formalProbe && formalProbe.probe_question) || '').trim();
   if (formalQ) return formalQ;
+  // ② next_item：問下一個未鎖定的 HAM-D 題（推進量表）
+  if (state) {
+    const nextCode = pickNextUnlockedItemCode(state);
+    if (nextCode) return buildProbeFromItem(nextCode);
+  }
+  // ③ 從症狀關鍵詞抓
   const source = `${String(userText || '')}\n${String(draft || '')}`;
   for (const rule of SYMPTOM_TO_PROBE) {
     if (rule.pattern.test(source)) return rule.probe;
@@ -1113,12 +1150,14 @@ function pickScoreableProbe(userText, draft, formalProbe) {
   return '最近這種狀態是幾乎每天都有，還是偶爾才會出現？';
 }
 
-function enforceScoreableQuestion(draft, userText, formalProbe) {
+function enforceScoreableQuestion(draft, userText, state, formalProbe) {
   const text = String(draft || '').trim();
   if (!text) return text;
   const lastQ = extractLastQuestion(text);
+  // 已可評分 → 保留（信任 LLM 寫得自然）
   if (lastQ && isScoreableQuestion(lastQ.question)) return text;
-  const probe = pickScoreableProbe(userText, text, formalProbe);
+  // 不可評分 → 替換最後一句，優先使用 next_item probe
+  const probe = pickScoreableProbe(userText, text, formalProbe, state);
   if (!probe) return text;
   if (!lastQ) return `${text}\n\n${probe}`;
   return lastQ.before ? `${lastQ.before}\n\n${probe}` : probe;
@@ -4075,9 +4114,9 @@ class AICompanionEngine {
       shouldAsk: probeActive
     });
 
-    // 正向可評分檢查（最後一道）：最後一句必須含 HAM-D 可用訊號，否則替換
+    // 正向可評分檢查（最後一道）：最後一句必須含 HAM-D 可用訊號 + 落在 next_item
     if (!atmosphereProtected) {
-      answer = enforceScoreableQuestion(answer, message, probeActive ? formalProbe : null);
+      answer = enforceScoreableQuestion(answer, message, state, probeActive ? formalProbe : null);
     }
 
     // 評分完成中斷點（四道閘門：觸發條件 / 一次性 / 冷卻 / 內容回扣）
