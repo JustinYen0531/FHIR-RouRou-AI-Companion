@@ -3991,6 +3991,51 @@ class AICompanionEngine {
     }
     await this.updateSharedState(session, message);
 
+    // ── Console debug 輸出（白話版）──
+    if (process.env.DEBUG_CLINICAL === 'true' && state._clinical_trace) {
+      const t = state._clinical_trace;
+      const actionLabel = {
+        none_llm_correct: '✅ 系統閉嘴（AI 已經精準問出重點了）',
+        append_question: '➕ 補了一題（AI 沒問到關鍵項目，系統幫忙補上）',
+        replace_question: '🔄 替換問句（AI 問的方向偏了，系統幫忙導正）',
+        no_probe_available: '⚠️ 沒有適合的追問選項',
+        crash_fallback: '💥 系統處理過程出現小插曲，改用安全備用題',
+        crash_last_resort: '💥💥 系統嚴重故障，硬塞保險題目確保對話繼續'
+      }[t.intervention_action] || t.intervention_action;
+
+      const reasonLabel = {
+        pass: '一切完美，AI 表現良好',
+        no_question: 'AI 剛才沒問任何問題',
+        banned_question_type: 'AI 問了禁止類型（如：過度解釋、安慰、反思）',
+        not_scoreable: 'AI 問句無法量化（缺少頻率、程度或功能影響）',
+        wrong_item: `AI 問錯重點（目前該關心「${t.target_item}」，但問了別的）`,
+        vague_functional: '問得太籠統（提到了影響，但不明確）'
+      }[t.intervention_reason] || t.intervention_reason;
+
+      const itemLabel = HAMD_FORMAL_ITEM_MAP[t.target_item]
+        ? `${HAMD_FORMAL_ITEM_MAP[t.target_item].item_label}（${t.target_item}）`
+        : t.target_item || '無';
+
+      console.log('\n┌──────────────────────────────────────────────┐');
+      console.log('│           🧠 臨床分析官 決策紀要            │');
+      console.log('├──────────────────────────────────────────────┤');
+      console.log(`│ 📝 AI 原說：「${(t.raw_output || '').substring(0, 30)}…」`);
+      console.log(`│ ❓ 原本問：「${t.extracted_question || '（沒問問題）'}」`);
+      console.log('│');
+      console.log(`│ 🎯 當前關注：${itemLabel}`);
+      console.log(`│ 🎯 問對重點嗎？ ${t.is_correct_item === null ? '⬜ 未檢測' : t.is_correct_item ? '✅ 問對了' : '❌ 問錯了'}`);
+      console.log('│');
+      console.log(`│ 🤔 是否需介入？ ${t.should_intervene ? '👉 需要' : '🤫 不用，維持原樣'}`);
+      console.log(`│ 💬 判定原因：${reasonLabel}`);
+      console.log(`│ 🔧 採取的動作：${actionLabel}`);
+      if (t.replacement_probe) {
+        console.log(`│ 🔁 修改為：「${t.replacement_probe.substring(0, 30)}…」`);
+      }
+      console.log('│');
+      console.log(`│ ✨ 最終送出：「${t.final_question || '（沒問句）'}」`);
+      console.log('└──────────────────────────────────────────────┘\n');
+    }
+
     if (state.pending_question !== 'none' && state.pending_question) {
       const answer = await this.handleFollowup(session, message);
       session.history.push({ role: 'assistant', content: answer, kind: 'chat' });
@@ -4409,22 +4454,6 @@ class AICompanionEngine {
     // ── 存 debug trace 到 state（API 可讀）──
     state._clinical_trace = clinicalTrace;
 
-    // ── Console debug 輸出 ──
-    if (process.env.DEBUG_CLINICAL === 'true') {
-      console.log('\n=== CLINICAL POST-PROCESSOR TRACE ===');
-      console.log(`  LLM raw:        ${(clinicalTrace.raw_output || '').substring(0, 60)}...`);
-      console.log(`  extracted_q:    ${clinicalTrace.extracted_question || '(none)'}`);
-      console.log(`  target_item:    ${clinicalTrace.target_item || '(none)'} [${clinicalTrace.target_item_source}]`);
-      console.log(`  is_scoreable:   ${clinicalTrace.is_scoreable}`);
-      console.log(`  is_correct:     ${clinicalTrace.is_correct_item}`);
-      console.log(`  risk_detected:  ${clinicalTrace.risk_detected}`);
-      console.log(`  intervene:      ${clinicalTrace.should_intervene} → ${clinicalTrace.intervention_reason}`);
-      console.log(`  action:         ${clinicalTrace.intervention_action}`);
-      console.log(`  final_q:        ${clinicalTrace.final_question || '(none)'}`);
-      console.log(`  path:           ${clinicalTrace.decision_path.join(' → ')}`);
-      if (clinicalTrace.error) console.log(`  ⚠ ERROR:       ${clinicalTrace.error}`);
-      console.log('=== END TRACE ===\n');
-    }
 
     // 後處理完成後：重建 probeActive 狀態（供後續 probe_count 追蹤用）
     let normalizedProbeQuestion = String(formalProbe.probe_question || '').trim();
