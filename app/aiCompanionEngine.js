@@ -3664,6 +3664,81 @@ class AICompanionEngine {
     }
   }
 
+  // 解析 Smart Hunter 回應中的 HAMD_JSON 行，更新 formal assessment
+  // 回傳 { cleanAnswer, applied } — cleanAnswer 是移除 JSON 行後的對話文字
+  extractAndApplyHamdJson(state, rawAnswer) {
+    const jsonLineMatch = rawAnswer.match(/\nHAMD_JSON:\s*(\{[\s\S]*?\})\s*$/);
+    if (!jsonLineMatch) return { cleanAnswer: rawAnswer, applied: false };
+
+    const cleanAnswer = rawAnswer.slice(0, rawAnswer.lastIndexOf('\nHAMD_JSON:')).trim();
+    let hamdJson;
+    try {
+      hamdJson = JSON.parse(jsonLineMatch[1]);
+    } catch {
+      return { cleanAnswer, applied: false };
+    }
+
+    // 把 AI 輸出的維度狀態寫進 hamd_formal_assessment.items
+    const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
+    const itemsMap = hamdJson.items && typeof hamdJson.items === 'object' ? hamdJson.items : {};
+    const evidenceMap = hamdJson.evidence && typeof hamdJson.evidence === 'object' ? hamdJson.evidence : {};
+
+    Object.entries(itemsMap).forEach(([dimension, status]) => {
+      const itemCodes = HAMD_DIMENSION_TO_ITEM_CODES[dimension] || [];
+      const dimEvidence = Array.isArray(evidenceMap[dimension]) ? evidenceMap[dimension] : [];
+      itemCodes.forEach((itemCode) => {
+        const item = assessment.items.find((i) => i.item_code === itemCode);
+        if (!item) return;
+        // 已有醫師確認分數，不覆蓋
+        if (item.clinician_final_score != null) return;
+
+        if (status === 'complete' || status === 'partial') {
+          item.evidence_type = item.evidence_type || 'indirect_observation';
+          item.review_required = true;
+          if (dimEvidence.length) {
+            const existing = Array.isArray(item.evidence_summary) ? item.evidence_summary : [];
+            dimEvidence.forEach((ev) => { if (!existing.includes(ev)) existing.push(ev); });
+            item.evidence_summary = existing.slice(0, 5);
+          }
+          if (!item.confidence) item.confidence = status === 'complete' ? 'medium' : 'low';
+        }
+      });
+    });
+    state.hamd_formal_assessment = assessment;
+
+    // 把 AI 決定的 next_target 更新進 flow_state
+    if (hamdJson.next_target) {
+      const fs = normalizeObjectState(state, 'flow_state', {});
+      state.flow_state = {
+        ...fs,
+        next_target: hamdJson.next_target,
+        next_target_label: HAMD_DIMENSION_LABELS_ZH[hamdJson.next_target] || hamdJson.next_target
+      };
+    }
+
+    // 同步 hamd_progress_state 的 items 清單（給 gap indicator 用）
+    const progress = normalizeObjectState(state, 'hamd_progress_state', {});
+    const progressItems = Array.isArray(progress.items) ? progress.items : [];
+    Object.entries(itemsMap).forEach(([dimension, status]) => {
+      const existing = progressItems.find((i) => i.item === dimension);
+      if (existing) {
+        existing.status = status;
+      } else {
+        progressItems.push({
+          item: dimension,
+          label: HAMD_DIMENSION_LABELS_ZH[dimension] || dimension,
+          status,
+          evidence: Array.isArray(evidenceMap[dimension]) ? evidenceMap[dimension] : [],
+          missing: []
+        });
+      }
+    });
+    progress.items = progressItems;
+    state.hamd_progress_state = progress;
+
+    return { cleanAnswer, applied: true };
+  }
+
   // 每輪對話後，把 hamdSignals 輕量同步到 hamd_formal_assessment.items
   // 目的：讓 UI 明細有資料，即使尚未正式評分也能顯示 partial evidence
   syncSignalsToFormalItems(state, longitudinal) {
@@ -3728,13 +3803,22 @@ class AICompanionEngine {
 
     // 把 next_target 傳給 Smart Hunter，讓它強制詢問 missing 維度
     const freshFlowState = normalizeObjectState(state, 'flow_state', {});
-    const answer = await this.runTextTask('smartHunter', session, message, {
+    const rawAnswer = await this.runTextTask('smartHunter', session, message, {
       extraContext: {
         formal_probe: formalProbe,
         flow_state: freshFlowState
       }
     });
 
+    // 解析 AI 輸出的 HAMD_JSON，更新 formal assessment + progress state
+    const { cleanAnswer, applied } = this.extractAndApplyHamdJson(state, rawAnswer);
+    // fallback：若 AI 未輸出 JSON，用信號同步補底
+    if (!applied) {
+      const longitudinal = buildLongitudinalEvidence(session);
+      this.syncSignalsToFormalItems(state, longitudinal);
+    }
+
+    const answer = cleanAnswer;
     const normalizedProbeQuestion = String(formalProbe.probe_question || '').trim();
     if (canProbeHamd && formalProbe.should_ask === 'yes' && formalProbe.item_code && normalizedProbeQuestion) {
       const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
@@ -3742,13 +3826,6 @@ class AICompanionEngine {
       assessment.pending_probe_question = normalizedProbeQuestion;
       assessment.assessment_mode = 'smart_hunter_probe';
       state.hamd_formal_assessment = assessment;
-
-      // 遞增 consecutive_probes
-      this.updateFlowState(state, {
-        mode: flowState.mode,
-        can_probe_hamd: true,
-        consecutive_probes: Number(flowState.consecutive_probes || 0)
-      });
 
       // 記錄本輪探問的維度，防止下輪連問同一題
       const probedDimension = Object.entries(HAMD_DIMENSION_TO_ITEM_CODES)
@@ -3759,9 +3836,6 @@ class AICompanionEngine {
         can_probe_hamd: true,
         consecutive_probes: Number(flowState.consecutive_probes || 0)
       });
-
-      const longitudinal = buildLongitudinalEvidence(session);
-      this.syncSignalsToFormalItems(state, longitudinal);
 
       if (answer.includes(normalizedProbeQuestion)) {
         return answer;
@@ -3777,10 +3851,6 @@ class AICompanionEngine {
         consecutive_probes: 0
       });
     }
-
-    // 每輪結束：把對話中偵測到的信號同步進 formal assessment items
-    const longitudinal = buildLongitudinalEvidence(session);
-    this.syncSignalsToFormalItems(state, longitudinal);
 
     return answer;
   }
