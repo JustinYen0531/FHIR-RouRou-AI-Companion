@@ -851,18 +851,35 @@ function getLockedItemCodes(state) {
 // ── 問題類型鎖（Question Type Lock） ──────────────────────────────────────
 const ALLOWED_QUESTION_TYPES = ['frequency', 'severity', 'functional_impact'];
 
-const INVALID_QUESTION_PATTERNS = [
-  // 應對 / coping
+// 第 1 層：中段安慰／正常化句型 → 命中只刪除該句，不重生整段
+const BAD_COMFORT_PATTERNS = [
+  /你並不孤單[^。\n]*。?/g,
+  /你的感受(是|都)?(很)?真實[^。\n]*。?/g,
+  /(這|你的感受)?並?不是(你)?(太)?誇張[^。\n]*。?/g,
+  /很多人(也)?會?有[^。\n]*。?/g,
+  /大家(可能)?(也)?都(差不多|一樣|有(這)?類似)[^。\n]*。?/g,
+  /每個人都有不同的掙扎[^。\n]*。?/g,
+  /每個人都會[^。\n]*?(難|累|低落|有這)[^。\n]*。?/g,
+  /這(是|也是)?很常見的?[^。\n]*。?/g,
+  /你不用擔心[^。\n]*。?/g,
+  /你已經很棒[^。\n]*。?/g,
+  /你願意[^。\n]{0,30}(就)?(已經)?很不容易[^。\n]*。?/g,
+  /(你的)?感受(是|都)?(很)?重要[^。\n]*。?/g
+];
+
+// 第 2 層：最後一句問句的非法句型 → 命中替換成 formal_probe / emergencyProbe
+const BAD_QUESTION_PATTERNS = [
+  // coping
   /怎麼處理/,
   /怎麼應對/,
+  /怎麼調適/,
   /有試著做/,
   /試著做(些)?什麼/,
   /有沒有.*試/,
-  /有沒有試/,
+  /打算怎麼做/,
   // 建議 / advice
   /你可以試試/,
   /要不要試試/,
-  /打算怎麼做/,
   /你有想過怎麼/,
   /建議你/,
   /可以嘗試/,
@@ -872,24 +889,6 @@ const INVALID_QUESTION_PATTERNS = [
   /覺得原因是什麼/,
   /原因是什麼/,
   /你覺得.{0,8}原因/,
-  // 情緒泛問
-  /感覺如何[？?]?\s*$/,
-  /還好嗎[？?]?\s*$/,
-  // 「什麼方法/什麼事情/什麼小方法」這類含糊問句
-  /有沒有什麼方法/,
-  /有什麼.{0,4}方法/,
-  /什麼.{0,4}小?方法/,
-  /有沒有什麼事情.*讓你/,
-  /有什麼.*讓你.{0,4}(好|舒服|輕鬆)/,
-  /讓你(稍微)?(感到|覺得).{0,4}(好|舒服|輕鬆)/,
-  /什麼.{0,6}能讓你/,
-  /什麼.{0,6}可以讓你/,
-  /幫助你(減輕|緩解|放鬆|舒緩)/,
-  /幫你(減輕|緩解|放鬆|舒緩)/,
-  /讓自己(好|舒服|放鬆|輕鬆)/,
-  /可以.{0,6}減輕/,
-  /可以.{0,6}緩解/,
-  // 開放邀請 / 開放反思（無量化維度）
   /想不想.{0,4}(分享|聊|說|談|講)/,
   /要不要.{0,4}(分享|聊|說|談|講)/,
   /願不願意.{0,4}(分享|聊|說)/,
@@ -905,15 +904,85 @@ const INVALID_QUESTION_PATTERNS = [
   /是什麼.{0,6}讓你/,
   /是不是.{0,8}(發生|觸發|讓你)/,
   /可以.{0,4}多說/,
-  /可以.{0,4}聊聊/
+  /可以.{0,4}聊聊/,
+  // 舒緩導向
+  /有沒有什麼方法/,
+  /有什麼.{0,4}方法/,
+  /什麼.{0,4}小?方法/,
+  /讓你(稍微)?(感到|覺得).{0,4}(好|舒服|輕鬆)/,
+  /讓你.{0,6}好一點/,
+  /幫(助)?你(減輕|緩解|放鬆|舒緩)/,
+  /讓自己(好|舒服|放鬆|輕鬆)/,
+  /可以.{0,6}(減輕|緩解)/,
+  /什麼.{0,6}(能|可以)讓你/,
+  // 泛問
+  /感覺如何[？?]?\s*$/,
+  /還好嗎[？?]?\s*$/
 ];
+
+// 太空泛的 functional_impact：問句含「影響」但沒指名具體領域
+const FUNCTIONAL_DOMAIN_KEYWORDS = [
+  '工作', '上班', '上課', '上學', '讀書', '念書',
+  '睡眠', '睡覺', '入睡',
+  '吃飯', '食慾', '胃口',
+  '社交', '朋友', '家人', '同事', '同學',
+  '出門',
+  '完成', '任務', '事情'
+];
+
+// 第 3 層：使用者輸入中的風險訊號 → 下一輪強制改走 risk probe
+const RISK_SIGNAL_PATTERNS = [
+  /沒(有)?意義/,
+  /不想活/,
+  /活著.{0,4}(累|沒.{0,2}意思|沒.{0,2}意義)/,
+  /撐不下去/,
+  /撐不住/,
+  /想消失/,
+  /消失就好/,
+  /不想醒來/,
+  /想死/,
+  /死掉/,
+  /結束(一切|生命)/,
+  /不如死/,
+  /活不下去/
+];
+
+const RISK_PROBE = {
+  item_code: 'suicide',
+  item_label: '自殺意念',
+  question_type: 'severity',
+  probe_question: '我想確認一件重要的事：當這種「沒有意義」「不想繼續」的感覺出現時，你有沒有想過傷害自己，或是不想繼續活下去？',
+  reason: 'risk_signal_priority'
+};
+
+function stripComfortPhrases(text) {
+  let out = String(text || '');
+  for (const pat of BAD_COMFORT_PATTERNS) {
+    out = out.replace(pat, '');
+  }
+  // 收斂多餘空白與斷行
+  return out.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function detectRiskSignal(text) {
+  return RISK_SIGNAL_PATTERNS.some((p) => p.test(String(text || '')));
+}
+
+function isVagueFunctionalImpact(question) {
+  const q = String(question || '');
+  if (!/影響/.test(q)) return false;
+  return !FUNCTIONAL_DOMAIN_KEYWORDS.some((kw) => q.includes(kw));
+}
 
 function isInvalidQuestionEnding(text) {
   const trimmed = String(text || '').trim();
   if (!trimmed) return false;
-  // 只檢查最後兩句（AI 結尾問句區域）
   const tail = trimmed.split(/[。\n]/).filter(Boolean).slice(-3).join('');
-  return INVALID_QUESTION_PATTERNS.some((pattern) => pattern.test(tail));
+  if (BAD_QUESTION_PATTERNS.some((pattern) => pattern.test(tail))) return true;
+  // 太空泛的 functional_impact 也視為非法
+  const lastQ = extractLastQuestion(trimmed);
+  if (lastQ && isVagueFunctionalImpact(lastQ.question)) return true;
+  return false;
 }
 
 // ── 回答後處理器（Answer Post-Processor）────────────────────────────────────
@@ -3858,7 +3927,7 @@ class AICompanionEngine {
 
     // 氣氛保護：情緒承載模式時不插入正式探針
     const atmosphereProtected = Boolean(flowState.atmosphere_protection);
-    const canProbeHamd = Boolean(flowState.can_probe_hamd) && !atmosphereProtected;
+    let canProbeHamd = Boolean(flowState.can_probe_hamd) && !atmosphereProtected;
 
     // 結束鎖：取得目前已鎖定的題項
     const lockedItemCodes = getLockedItemCodes(state);
@@ -3888,12 +3957,21 @@ class AICompanionEngine {
       formalProbe = { ...formalProbe, question_type: 'frequency' };
     }
 
+    // 風險訊號優先：使用者輸入命中 → 強制走 RISK_PROBE（除非 suicide 已鎖）
+    if (!atmosphereProtected && detectRiskSignal(message) && !lockedItemCodes.includes('suicide')) {
+      formalProbe = { ...formalProbe, ...RISK_PROBE, should_ask: 'yes' };
+      canProbeHamd = true;
+    }
+
     let answer = await this.runTextTask('smartHunter', session, message, {
       extraContext: {
         formal_probe: formalProbe,
         flow_state: flowState
       }
     });
+
+    // 第 1 層：先把中段安慰／正常化句移除（保留其他段落）
+    answer = stripComfortPhrases(answer);
 
     // ── 回答後處理器（安全網）────────────────────────────────────────────────
     let normalizedProbeQuestion = String(formalProbe.probe_question || '').trim();
