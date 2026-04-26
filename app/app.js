@@ -2974,6 +2974,21 @@ function getMeaningfulItems(items = []) {
     .filter((item, index, arr) => item && !isPlaceholderDraftText(item) && arr.indexOf(item) === index);
 }
 
+// 判斷是否為使用者原話（逐字引述），不應直接呈現於臨床報表
+function isVerbatimUserQuote(text) {
+  const str = String(text || '').trim();
+  // 以中文引號開頭的直接引述
+  if (/^[「『]/.test(str)) return true;
+  // 過長且含口語填充詞，通常是整段對話複製
+  if (str.length > 80 && /[「『]/.test(str)) return true;
+  return false;
+}
+
+// 取出臨床觀察項目，過濾掉使用者的逐字引述
+function getClinicalObservations(items = []) {
+  return getMeaningfulItems(items).filter((item) => !isVerbatimUserQuote(item));
+}
+
 function formatHamdSignalLabel(signal) {
   const key = String(signal || '').trim();
   return HAMD_SIGNAL_LABELS[key] || key.replace(/_/g, ' ');
@@ -3191,7 +3206,7 @@ function renderDoctorSummary(summary = {}) {
   const parts = [
     String(summary?.draft_summary || '').trim(),
     ...getMeaningfulItems(summary?.chief_concerns).slice(0, 2),
-    ...getMeaningfulItems(summary?.symptom_observations).slice(0, 2)
+    ...getClinicalObservations(summary?.symptom_observations).slice(0, 2)
   ].filter((item, index, arr) => item && arr.indexOf(item) === index);
 
   if (!parts.length) {
@@ -3209,7 +3224,7 @@ function renderDoctorSummary(summary = {}) {
 
 function renderClassificationLogic(summary = {}) {
   const concerns = getMeaningfulItems(summary?.chief_concerns);
-  const observations = getMeaningfulItems(summary?.symptom_observations);
+  const observations = getClinicalObservations(summary?.symptom_observations);
   const followups = getMeaningfulItems(summary?.followup_needs);
   const safetyFlags = getMeaningfulItems(summary?.safety_flags);
   const lines = [];
@@ -4144,7 +4159,7 @@ function renderReportOutputs() {
 
   if (symptomSummary) {
     symptomSummary.innerHTML = buildReadableListMarkup(
-      clinician?.symptom_observations,
+      getClinicalObservations(clinician?.symptom_observations),
       '尚未整理出可讀的症狀摘要。'
     );
   }
