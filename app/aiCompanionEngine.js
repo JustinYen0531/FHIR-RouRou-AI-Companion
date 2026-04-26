@@ -3446,29 +3446,23 @@ class AICompanionEngine {
   async resolveActiveMode(session, message) {
     const state = session.state;
 
-    // 手動覆寫模式（使用者明確切換）
+    // ── A. 使用者明確手動覆寫模式（mission/void/soulmate/option 指令）
+    //    這是使用者主動切換，保留原有獨立 handler 行為
     if (state.routing_mode_override && state.routing_mode_override !== 'auto') {
       return state.routing_mode_override;
     }
 
-    // ── 1. 低能量/情緒偵測器：永遠先跑（不等 burden high 才觸發）
-    // 捕捉情緒傾倒（→ soulmate）和卡住狀態（→ option）
+    // ── B. Auto 模式：所有分流都在 Smart Hunter 內部處理
+    //    分類器只用來建構 flow_state，不做外部路由跳轉
+
+    // B-1. 低能量/情緒偵測 → 決定 Smart Hunter 的子模式
     const lowEnergy = await this.runClassifier('lowEnergyDetector', session, message, [
       'degrade_option',
       'degrade_soulmate',
       'continue_auto'
     ], 'continue_auto');
 
-    if (lowEnergy === 'degrade_soulmate') {
-      this.updateFlowState(state, { mode: 'emotional_holding', can_probe_hamd: false });
-      return 'mode_2_soulmate';
-    }
-    if (lowEnergy === 'degrade_option') {
-      this.updateFlowState(state, { mode: 'choice_prompting', can_probe_hamd: false });
-      return 'mode_4_option';
-    }
-
-    // ── 2. 意圖分類（更精細的信號導向分流）
+    // B-2. 意圖分類 → 決定 Smart Hunter 的子模式（不路由離開）
     const intent = await this.runClassifier('intentClassifier', session, message, [
       'mode_1_void',
       'mode_2_soulmate',
@@ -3478,49 +3472,57 @@ class AICompanionEngine {
       'mode_6_clarify'
     ], 'mode_5_natural');
 
-    // ── 3. 更新 flow_state（給 Smart Hunter 使用）
+    // B-3. 合成 flow_state（供 Smart Hunter 內部使用）
     const hamd = normalizeObjectState(state, 'hamd_progress_state', {});
     const burden = normalizeObjectState(state, 'burden_level_state', {});
-    const isHighBurden = burden.burden_level === 'high';
     const prevFlow = normalizeObjectState(state, 'flow_state', {});
     const consecutiveProbes = Number(prevFlow.consecutive_probes || 0);
+    const isHighBurden = burden.burden_level === 'high';
 
+    // 子模式判斷（優先低能量偵測器的結果）
+    let subMode = 'flow_conversation';
+    if (lowEnergy === 'degrade_soulmate' || intent === 'mode_2_soulmate') {
+      subMode = 'emotional_holding';
+    } else if (lowEnergy === 'degrade_option' || intent === 'mode_4_option') {
+      subMode = 'choice_prompting';
+    } else if (intent === 'mode_3_mission') {
+      subMode = 'clinical_probing';
+    } else if (intent === 'mode_5_natural' || intent === 'mode_6_clarify') {
+      subMode = consecutiveProbes >= 2 ? 'flow_conversation' : 'clinical_probing';
+    }
+
+    // 能否插入 HAM-D 追問
     const canProbeHamd = !isHighBurden
-      && intent !== 'mode_1_void'
-      && consecutiveProbes < 2           // 不連續追問超過 2 次
+      && subMode !== 'emotional_holding'
+      && subMode !== 'choice_prompting'
+      && consecutiveProbes < 2
       && hamd.needs_clarification !== 'no';
 
-    const flowMode = {
-      'mode_2_soulmate': 'emotional_holding',
-      'mode_3_mission': 'clinical_probing',
-      'mode_4_option': 'choice_prompting',
-      'mode_5_natural': consecutiveProbes >= 1 ? 'flow_conversation' : 'clinical_probing',
-      'mode_6_clarify': 'flow_conversation'
-    }[intent] || 'flow_conversation';
-
     this.updateFlowState(state, {
-      mode: flowMode,
+      sub_mode: subMode,
       can_probe_hamd: canProbeHamd,
       consecutive_probes: consecutiveProbes
     });
 
-    return intent;
+    // ── C. 永遠路由到 Smart Hunter（mode_5_natural）
+    //    唯一例外：真正空白/無效輸入（mode_1_void）
+    if (intent === 'mode_1_void') return 'mode_1_void';
+    return 'mode_5_natural';
   }
 
   updateFlowState(state, updates = {}) {
     const prev = normalizeObjectState(state, 'flow_state', {});
     const prevProbes = Number(prev.consecutive_probes || 0);
 
-    // 追蹤連續追問次數（每次 can_probe_hamd=true 就遞增，否則重置）
     const newProbes = updates.can_probe_hamd
       ? Math.min(prevProbes + 1, 3)
       : 0;
 
     state.flow_state = {
-      mode: updates.mode || prev.mode || 'flow_conversation',
+      sub_mode: updates.sub_mode || prev.sub_mode || 'flow_conversation',
       can_probe_hamd: Boolean(updates.can_probe_hamd),
       consecutive_probes: updates.consecutive_probes !== undefined ? updates.consecutive_probes : newProbes,
-      atmosphere_protection: updates.mode === 'emotional_holding',
+      atmosphere_protection: updates.sub_mode === 'emotional_holding',
       updatedAt: new Date().toISOString()
     };
   }
