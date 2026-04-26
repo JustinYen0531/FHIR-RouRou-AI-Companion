@@ -878,6 +878,40 @@ function isInvalidQuestionEnding(text) {
   return INVALID_QUESTION_PATTERNS.some((pattern) => pattern.test(tail));
 }
 
+// ── 回答後處理器（Answer Post-Processor）────────────────────────────────────
+function extractLastQuestion(text) {
+  // 依中文句尾標點切句，保留分隔符
+  const segments = text.split(/(?<=[。！？?！\n])|(?=[？?])/).map((s) => s.trim()).filter(Boolean);
+  for (let i = segments.length - 1; i >= 0; i--) {
+    if (/[？?]/.test(segments[i])) {
+      return {
+        before: segments.slice(0, i).join('').trim(),
+        question: segments[i].trim()
+      };
+    }
+  }
+  return null;
+}
+
+function enforceQuestionSafety(draft, { probeQuestion, shouldAsk }) {
+  const text = String(draft || '').trim();
+  const probe = String(probeQuestion || '').trim();
+  // 沒有探針任務，或探針已存在於回覆中，直接返回
+  if (!shouldAsk || !probe) return text;
+  if (text.includes(probe)) return text;
+  const lastQ = extractLastQuestion(text);
+  if (!lastQ) {
+    // 沒有問句，直接附加探針
+    return `${text}\n\n${probe}`;
+  }
+  if (isInvalidQuestionEnding(lastQ.question)) {
+    // 最後問句非法，替換掉
+    return lastQ.before ? `${lastQ.before}\n\n${probe}` : probe;
+  }
+  // 最後問句合法，保留原文
+  return text;
+}
+
 function buildFormalAssessmentProbeFallback(state) {
   const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
   const lockedCodes = getLockedItemCodes(state);
@@ -3779,14 +3813,15 @@ class AICompanionEngine {
       }
     });
 
-    // 問題類型後檢查：若 AI 產生非法問句，強制替換為指定探針問句
+    // ── 回答後處理器（安全網）────────────────────────────────────────────────
     const normalizedProbeQuestion = String(formalProbe.probe_question || '').trim();
-    if (canProbeHamd && formalProbe.should_ask === 'yes' && normalizedProbeQuestion && isInvalidQuestionEnding(answer)) {
-      answer = answer.replace(/[？?。][^？?。]*[？?]\s*$/, '').trim();
-      answer = `${answer}\n\n${normalizedProbeQuestion}`;
-    }
+    const probeActive = canProbeHamd && formalProbe.should_ask === 'yes' && Boolean(normalizedProbeQuestion);
+    answer = enforceQuestionSafety(answer, {
+      probeQuestion: normalizedProbeQuestion,
+      shouldAsk: probeActive
+    });
 
-    if (canProbeHamd && formalProbe.should_ask === 'yes' && formalProbe.item_code && normalizedProbeQuestion) {
+    if (probeActive && formalProbe.item_code) {
       const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
       // 累積該題項的探針次數（結束鎖 probe_count）
       const probeItem = assessment.items.find((i) => i.item_code === formalProbe.item_code);
@@ -3806,10 +3841,7 @@ class AICompanionEngine {
         consecutive_probes: Number(flowState.consecutive_probes || 0)
       });
 
-      if (answer.includes(normalizedProbeQuestion)) {
-        return answer;
-      }
-      return `${answer}\n\n${normalizedProbeQuestion}`;
+      return answer;
     }
 
     // 沒有插入探針：重置連續追問計數
