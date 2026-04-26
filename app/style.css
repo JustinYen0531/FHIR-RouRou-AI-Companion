@@ -7148,5 +7148,108 @@ body.micro-detail-open {
   background: var(--primary);
 }
 
+/* ── Clinical Trace Debug Button & Panel ── */
+.clinical-trace-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(168, 180, 187, 0.2);
+  background: rgba(255, 255, 255, 0.6);
+  color: rgba(100, 120, 130, 0.6);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 4px;
+  opacity: 0.5;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
 
+.clinical-trace-toggle:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 2px 8px rgba(68, 102, 85, 0.15);
+}
 
+.clinical-trace-toggle.active {
+  opacity: 1;
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+  box-shadow: 0 2px 12px rgba(68, 102, 85, 0.25);
+}
+
+.clinical-trace-panel {
+  margin-top: 6px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(24, 36, 43, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  color: #e8f0f4;
+  font-size: 12px;
+  line-height: 1.5;
+  max-width: 360px;
+  animation: traceSlideIn 0.25s ease;
+}
+
+@keyframes traceSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.trace-header {
+  font-size: 13px;
+  font-weight: 700;
+  color: #b8dbc8;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.trace-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.trace-label {
+  flex: 0 0 auto;
+  min-width: 90px;
+  color: rgba(184, 219, 200, 0.8);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.trace-value {
+  color: #e8f0f4;
+  word-break: break-word;
+}
+
+.trace-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 6px 0;
+}
+
+.trace-final .trace-value {
+  color: #a8e6cf;
+  font-weight: 600;
+}
+
+.trace-error .trace-value {
+  color: #ffb4a9;
+}
