@@ -3422,10 +3422,18 @@ class AICompanionEngine {
       fallback: {
         progress_stage: 'initial',
         current_focus: 'depressed_mood',
+        items: [],
         supported_dimensions: [],
         covered_dimensions: [],
-        missing_dimensions: ['depressed_mood', 'guilt', 'work_interest', 'retardation', 'agitation', 'somatic_anxiety', 'insomnia'],
+        missing_dimensions: [
+          'depressed_mood', 'guilt', 'suicide',
+          'insomnia_early', 'insomnia_middle', 'insomnia_late',
+          'work_activities', 'retardation', 'agitation',
+          'somatic_anxiety', 'appetite_weight'
+        ],
         next_recommended_dimension: 'depressed_mood',
+        next_question_hint: '',
+        completion: 0,
         recent_evidence: [message],
         needs_clarification: 'yes',
         status_summary: 'Fallback HAM-D state.'
