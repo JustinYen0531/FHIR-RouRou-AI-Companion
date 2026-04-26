@@ -3801,12 +3801,24 @@ class AICompanionEngine {
       formalProbe = { ...formalProbe, should_ask: 'no' };
     }
 
-    // 把 next_target 傳給 Smart Hunter，讓它強制詢問 missing 維度
+    // ── 選題控制（系統決定，不讓 AI 自己選）──
+    const progressState = normalizeObjectState(state, 'hamd_progress_state', {});
+    const missingDims = Array.isArray(progressState.missing_dimensions) ? progressState.missing_dimensions : [];
+    const partialDims = Array.isArray(progressState.items)
+      ? progressState.items.filter((i) => i.status === 'partial').map((i) => i.item)
+      : [];
+    // 優先 missing → 再 partial，都沒有才自由
+    const systemNextItem = missingDims[0] || partialDims[0] || null;
+    const systemNextItemLabel = systemNextItem ? (HAMD_DIMENSION_LABELS_ZH[systemNextItem] || systemNextItem) : null;
+
     const freshFlowState = normalizeObjectState(state, 'flow_state', {});
     const rawAnswer = await this.runTextTask('smartHunter', session, message, {
       extraContext: {
         formal_probe: formalProbe,
-        flow_state: freshFlowState
+        flow_state: freshFlowState,
+        // 系統指派的下一題，AI 只負責問句生成
+        next_item: systemNextItem,
+        next_item_label: systemNextItemLabel
       }
     });
 
