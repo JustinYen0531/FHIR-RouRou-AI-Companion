@@ -932,20 +932,42 @@ const FUNCTIONAL_DOMAIN_KEYWORDS = [
 ];
 
 // 第 3 層：使用者輸入中的風險訊號 → 下一輪強制改走 risk probe
-const RISK_SIGNAL_PATTERNS = [
-  /沒(有)?意義/,
+// 分兩層：HARD（單獨命中即觸發）/ SOFT（要 2+ 命中或 1+ 低能量）
+// 注意：此處的 HARD_RISK_PATTERNS 與檔頭的 HIGH_RISK_PATTERNS（safety 路由用）獨立
+const HARD_RISK_PATTERNS = [
+  /想死/,
+  /想自殺/,
+  /自殺/,
   /不想活/,
-  /活著.{0,4}(累|沒.{0,2}意思|沒.{0,2}意義)/,
-  /撐不下去/,
-  /撐不住/,
+  /活不下去/,
+  /結束(自己|一切|生命)/,
+  /不如死/,
+  /傷害自己/,
+  /自殘/,
+  /了結(自己|生命)/
+];
+
+const SOFT_RISK_PATTERNS = [
+  /沒(有)?意義/,
   /想消失/,
   /消失就好/,
   /不想醒來/,
-  /想死/,
-  /死掉/,
-  /結束(一切|生命)/,
-  /不如死/,
-  /活不下去/
+  /撐不下去/,
+  /撐不住/,
+  /活著.{0,6}(累|沒.{0,2}意思)/,
+  /死掉/  // 「死掉」太模糊（如「想死掉算了」 vs「我家狗死掉」），歸 soft
+];
+
+// 具體可量化症狀關鍵詞：若使用者本輪也提到這些，soft risk 先讓位
+const CONCRETE_SYMPTOM_PATTERNS = [
+  /睡(不好|不著)/,
+  /失眠/,
+  /(早|半夜)醒/,
+  /躺.{0,4}很久/,
+  /疲倦|疲憊|很累|沒力氣|提不起勁/,
+  /(食慾|胃口|吃不下)/,
+  /(注意力|專心|分心|恍神)/,
+  /(體重|食量).{0,4}(下降|變少)/
 ];
 
 const RISK_PROBE = {
@@ -978,8 +1000,25 @@ function stripComfortPhrases(text) {
   return out.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-function detectRiskSignal(text) {
-  return RISK_SIGNAL_PATTERNS.some((p) => p.test(String(text || '')));
+function detectRiskSignal(text, state) {
+  const t = String(text || '');
+  if (!t) return false;
+  // 規則 0：HARD risk 單獨命中即觸發
+  if (HARD_RISK_PATTERNS.some((p) => p.test(t))) return true;
+  // 計算 SOFT risk 命中數
+  const softCount = SOFT_RISK_PATTERNS.filter((p) => p.test(t)).length;
+  if (softCount === 0) return false;
+  // 規則 A（更穩）：SOFT 命中 2+ 個 → 觸發
+  if (softCount >= 2) return true;
+  // 規則 B：SOFT 1 個 + 低能量（burden=high）→ 觸發
+  // 但若同句也有具體症狀，先讓位給具體症狀問題（冷靜機制）
+  if (state) {
+    const burden = normalizeObjectState(state, 'burden_level_state', {});
+    const isHighBurden = burden.burden_level === 'high';
+    const hasConcreteSymptom = CONCRETE_SYMPTOM_PATTERNS.some((p) => p.test(t));
+    if (isHighBurden && !hasConcreteSymptom) return true;
+  }
+  return false;
 }
 
 function isVagueFunctionalImpact(question) {
@@ -1371,7 +1410,7 @@ function clinicalPostProcessor(draft, {
 
     // ── 第 1 層：風險訊號最高優先 ──
     const lockedCodes = getLockedItemCodes(state);
-    debugTrace.risk_detected = detectRiskSignal(userText);
+    debugTrace.risk_detected = detectRiskSignal(userText, state);
     if (debugTrace.risk_detected && !lockedCodes.includes('suicide')) {
       debugTrace.risk_action = 'force_safety_question';
       debugTrace.should_intervene = true;
@@ -4497,7 +4536,7 @@ class AICompanionEngine {
 
     // ── 風險訊號最高優先：直接覆寫一切，跳過 probe selector / lock / question_type 檢查 ──
     const riskOverride = !atmosphereProtected
-      && detectRiskSignal(message)
+      && detectRiskSignal(message, state)
       && !lockedItemCodes.includes('suicide');
 
     let formalProbe;
