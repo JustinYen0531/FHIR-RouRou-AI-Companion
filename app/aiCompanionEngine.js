@@ -1380,15 +1380,12 @@ function clinicalPostProcessor(draft, {
       debugTrace.decision_path.push('risk_signal → force RISK_PROBE（最高優先）');
       const lastQ = extractLastQuestion(text);
       debugTrace.extracted_question = lastQ ? lastQ.question : null;
+      // RISK_PROBE.probe_question 已自帶「我想確認一件重要的事：」開頭，不再外加 transition
       const riskQ = RISK_PROBE.probe_question;
-      const transition = '我想先確認一件比較重要的事：';
-      const riskWithTransition = `${transition}\n${riskQ}`;
       if (lastQ && lastQ.before) {
-        // 保留情緒段，刪掉原始問句，加轉彎 + 風險問句
-        text = `${lastQ.before}\n\n${riskWithTransition}`;
+        text = `${lastQ.before}\n\n${riskQ}`;
       } else {
-        // 沒有前文或沒有問句 → 直接用轉彎 + 風險問句
-        text = riskWithTransition;
+        text = riskQ;
       }
       text = enforceSingleQuestion(text);
       debugTrace.replacement_probe = riskQ;
@@ -4498,43 +4495,56 @@ class AICompanionEngine {
     // 結束鎖：取得目前已鎖定的題項
     const lockedItemCodes = getLockedItemCodes(state);
 
-    let formalProbe = buildFormalAssessmentProbeFallback(state);
-    if (canProbeHamd) {
-      formalProbe = await this.runJsonTask('hamdFormalProbeSelector', session, message, {
-        extraContext: {
-          formal_probe: {
-            items: getFormalTargetItems(state, 4)
-          }
-        },
-        fallback: formalProbe
-      });
-    } else {
-      // 氣氛保護：強制關閉探針
-      formalProbe = { ...formalProbe, should_ask: 'no' };
-    }
-    ensureAiTrace(state).probe_selector = {
-      should_ask: formalProbe.should_ask,
-      item_code: formalProbe.item_code,
-      item_label: formalProbe.item_label,
-      question_type: formalProbe.question_type,
-      reason: formalProbe.reason,
-      probe_question: formalProbe.probe_question
-    };
+    // ── 風險訊號最高優先：直接覆寫一切，跳過 probe selector / lock / question_type 檢查 ──
+    const riskOverride = !atmosphereProtected
+      && detectRiskSignal(message)
+      && !lockedItemCodes.includes('suicide');
 
-    // 若探針選到已鎖定題項，強制取消
-    if (formalProbe.should_ask === 'yes' && lockedItemCodes.includes(formalProbe.item_code)) {
-      formalProbe = { ...formalProbe, should_ask: 'no', reason: 'item_locked' };
-    }
-
-    // 確保 question_type 在允許清單內
-    if (formalProbe.should_ask === 'yes' && !ALLOWED_QUESTION_TYPES.includes(formalProbe.question_type)) {
-      formalProbe = { ...formalProbe, question_type: 'frequency' };
-    }
-
-    // 風險訊號優先：使用者輸入命中 → 強制走 RISK_PROBE（除非 suicide 已鎖）
-    if (!atmosphereProtected && detectRiskSignal(message) && !lockedItemCodes.includes('suicide')) {
-      formalProbe = { ...formalProbe, ...RISK_PROBE, should_ask: 'yes' };
+    let formalProbe;
+    if (riskOverride) {
+      formalProbe = { ...RISK_PROBE, should_ask: 'yes' };
       canProbeHamd = true;
+      ensureAiTrace(state).probe_selector = {
+        should_ask: 'yes',
+        item_code: RISK_PROBE.item_code,
+        item_label: RISK_PROBE.item_label,
+        question_type: RISK_PROBE.question_type,
+        reason: 'risk_signal_override_skip_selector',
+        probe_question: RISK_PROBE.probe_question
+      };
+    } else {
+      formalProbe = buildFormalAssessmentProbeFallback(state);
+      if (canProbeHamd) {
+        formalProbe = await this.runJsonTask('hamdFormalProbeSelector', session, message, {
+          extraContext: {
+            formal_probe: {
+              items: getFormalTargetItems(state, 4)
+            }
+          },
+          fallback: formalProbe
+        });
+      } else {
+        // 氣氛保護：強制關閉探針
+        formalProbe = { ...formalProbe, should_ask: 'no' };
+      }
+      ensureAiTrace(state).probe_selector = {
+        should_ask: formalProbe.should_ask,
+        item_code: formalProbe.item_code,
+        item_label: formalProbe.item_label,
+        question_type: formalProbe.question_type,
+        reason: formalProbe.reason,
+        probe_question: formalProbe.probe_question
+      };
+
+      // 若探針選到已鎖定題項，強制取消
+      if (formalProbe.should_ask === 'yes' && lockedItemCodes.includes(formalProbe.item_code)) {
+        formalProbe = { ...formalProbe, should_ask: 'no', reason: 'item_locked' };
+      }
+
+      // 確保 question_type 在允許清單內
+      if (formalProbe.should_ask === 'yes' && !ALLOWED_QUESTION_TYPES.includes(formalProbe.question_type)) {
+        formalProbe = { ...formalProbe, question_type: 'frequency' };
+      }
     }
 
     let answer = await this.runTextTask('smartHunter', session, message, {
@@ -4597,37 +4607,10 @@ class AICompanionEngine {
       }
     }
 
-    // 評分完成中斷點（四道閘門：觸發條件 / 一次性 / 冷卻 / 內容回扣）
+    // 評分完成中斷點：已停用（meta block 不對使用者顯示）
+    // 仍保留 turn 計數 / hamd_just_locked 偵測邏輯以供 trace / 未來重啟用
     state.hamd_turn_count = Number(state.hamd_turn_count || 0) + 1;
-    const currentTurn = state.hamd_turn_count;
-    const justLockedCodes = normalizeArray(state.hamd_just_locked);
-    const maybeAppendCompletionNote = (text) => {
-      if (!justLockedCodes.length || atmosphereProtected) return text;
-      // 冷卻：距離上次提示需 ≥ 2 輪
-      const lastAnnounceTurn = Number(state.hamd_last_announce_turn || -10);
-      if (currentTurn - lastAnnounceTurn < 2) return text;
-
-      const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
-      // 觸發條件 + 一次性：
-      //   ① completion_announced !== true
-      //   ② evidence_summary 至少 1 條
-      const eligible = justLockedCodes
-        .map((code) => assessment.items.find((i) => i.item_code === code))
-        .filter((it) => it && !it.completion_announced && normalizeArray(it.evidence_summary).length >= 1);
-      if (!eligible.length) return text;
-
-      // 內容回扣：使用該題的具體 evidence
-      const target = eligible[0];
-      const evidenceText = userFacingEvidenceSummary(target);
-      if (!evidenceText) return text;
-      const note = `（你剛剛提到的${evidenceText}，這部分我大概可以幫你做一個初步評估了。我們可以繼續看看其他影響你的部分，或者你想先停在這裡也可以。）`;
-
-      // 標記已宣告，更新冷卻計時器
-      eligible.forEach((it) => { it.completion_announced = true; });
-      state.hamd_formal_assessment = assessment;
-      state.hamd_last_announce_turn = currentTurn;
-      return `${text.trim()}\n\n${note}`;
-    };
+    const maybeAppendCompletionNote = (text) => text;
 
     if (probeActive && formalProbe.item_code) {
       const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
