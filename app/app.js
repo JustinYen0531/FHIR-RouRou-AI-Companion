@@ -7028,73 +7028,120 @@ function renderClinicalTraceButton(group, btnRow, traceData) {
     };
 
     const actionMap = {
-      none_llm_correct: '✅ 不用（AI 問得很好）',
-      append_question: '➕ 補了一題',
-      replace_question: '🔄 換掉問題',
-      no_probe_available: '⚠️ 沒有替代題',
-      crash_fallback: '💥 出錯，用備用題',
-      crash_last_resort: '💥 嚴重錯誤'
+      none_llm_correct: '不需要改動，原本的問法可以用',
+      append_question: '在原本內容後面補一題',
+      replace_question: '把原本問題換成更合適的問法',
+      clarifying_probe: '先改問一個釐清感受的問題',
+      no_probe_available: '想介入，但目前沒有適合替代題',
+      crash_fallback: '系統出錯，改用備用問句',
+      crash_last_resort: '系統嚴重出錯，使用最後備援'
     };
     const reasonMap = {
-      pass: '通過（AI 表現好）',
-      no_question: 'AI 沒有提問',
-      banned_question_type: '問了禁止類型',
-      not_scoreable: '問句無法量化',
-      wrong_item: '問錯重點',
-      vague_functional: '太籠統',
-      risk_override: '🚨 風險最高優先 → 強制安全確認',
-      risk_detected_but_locked: '🚨 偵測到風險（但已問過 suicide）'
+      pass: '原本問法沒有明顯問題',
+      no_question: 'AI 這輪其實沒有真的問問題',
+      banned_question_type: 'AI 問到了不該直接問的類型',
+      not_scoreable: '這個問法太模糊，後面沒辦法判讀',
+      wrong_item: 'AI 問偏了，沒問到現在最該追的主題',
+      vague_functional: 'AI 問得太籠統，無法落到具體狀態',
+      risk_override: '因為偵測到風險訊號，系統優先改成安全確認',
+      risk_detected_but_locked: '雖然有風險訊號，但這題之前已問過，所以不重複追問'
+    };
+    const targetSourceMap = {
+      none: '目前還沒有明確主題',
+      next_unlocked: '依照流程，挑下一個還沒問完的主題',
+      inferred_from_user: '從使用者剛剛的內容推到這個主題',
+      matched_history: '根據前面對話延續同一個主題',
+      switching_override: '系統判斷該換題，所以直接切到新主題'
+    };
+    const conversationReasonMap = {
+      no_target_item: '目前還抓不到明確主題，所以先釐清',
+      unclear_feeling: '使用者的感受還不夠具體，所以先釐清',
+      ambiguous_topic: '內容有點散，先確認現在最貼近的感受',
+      continue_same_item: '主題已經明確，可以沿著同一題繼續問',
+      same_item_followup: '同一個主題還沒問完整，先補細節',
+      exhausted_current_item: '這一題差不多問完了，該換下一題',
+      loop_detected: '系統偵測到一直繞同個點，所以換個方向問'
+    };
+    const modeLabelMap = {
+      clarifying: '先釐清感受',
+      probing: '繼續追問同一題',
+      switching: '換到下一個主題'
+    };
+    const yesNoUnknown = (value, yesText, noText, unknownText = '目前看不出來') => (
+      value === null || typeof value === 'undefined' ? unknownText : (value ? yesText : noText)
+    );
+    const formatConversationReason = (reason) => conversationReasonMap[reason] || reason || '沒有提供原因';
+    const formatDecisionStep = (step) => {
+      if (!step) return '';
+      if (step === 'risk_signal → force RISK_PROBE（最高優先）') {
+        return '偵測到高風險訊號，所以先把問題改成安全確認。';
+      }
+      if (step === 'risk_signal → suicide_locked → 已問過，不重複') {
+        return '偵測到風險訊號，但自殺相關問題之前已問過，這次不重複。';
+      }
+      const targetMatch = step.match(/^target_item = ([^ ]+) \(([^)]+)\)$/);
+      if (targetMatch) {
+        const [, code, source] = targetMatch;
+        const label = HAMD_ITEM_LABELS[code] || code || '未指定';
+        return `系統目前最想追問的是「${label}」，原因是：${targetSourceMap[source] || source || '未說明'}。`;
+      }
+      const modeMatch = step.match(/^conversation_mode = ([^ ]+) \(([^)]+)\)$/);
+      if (modeMatch) {
+        const [, mode, reason] = modeMatch;
+        return `這一輪先採用「${modeLabelMap[mode] || mode}」，因為：${formatConversationReason(reason)}。`;
+      }
+      const clarifyingMatch = step.match(/^clarifying → "(.+)"$/);
+      if (clarifyingMatch) {
+        return `所以系統把問題改成先釐清感受：「${clarifyingMatch[1]}」`;
+      }
+      const switchingMatch = step.match(/^switching → 強制換題: "(.+)"$/);
+      if (switchingMatch) {
+        const code = switchingMatch[1];
+        const label = HAMD_ITEM_LABELS[code] || code;
+        return `因為目前不適合繼續原本那題，所以系統改追問「${label}」。`;
+      }
+      return step;
     };
 
-    const itemLabel = HAMD_ITEM_LABELS[t.target_item] || t.target_item || '無';
-    const actionLabel = actionMap[t.intervention_action] || t.intervention_action || '未知';
-    const reasonLabel = reasonMap[t.intervention_reason] || t.intervention_reason || '未知';
-
-    const interveneIcon = t.should_intervene ? '👉 需要' : '🤫 不用';
-    const correctIcon = t.is_correct_item === null ? '⬜' : t.is_correct_item ? '✅' : '❌';
-    const scoreIcon = t.is_scoreable ? '✅' : '❌';
-    const riskIcon = t.risk_detected ? '🔴' : '🟢';
-
-    const convModeMap = {
-      clarifying: '🟢 釐清',
-      probing:    '🟡 追問',
-      switching:  '🔵 換題'
-    };
-    const convModeLabel = convModeMap[t.conversation_mode] || t.conversation_mode || '—';
+    const itemLabel = HAMD_ITEM_LABELS[t.target_item] || t.target_item || '尚未決定';
+    const actionLabel = actionMap[t.intervention_action] || t.intervention_action || '沒有說明';
+    const reasonLabel = reasonMap[t.intervention_reason] || t.intervention_reason || '沒有說明';
+    const convModeLabel = modeLabelMap[t.conversation_mode] || t.conversation_mode || '尚未決定';
+    const interveneLabel = t.should_intervene ? '有，系統決定接手調整這一輪問法' : '沒有，系統讓原本問法直接通過';
     const summaryBadges = [
       `<span class="trace-badge">${escapeHtml(convModeLabel)}</span>`,
-      `<span class="trace-badge">🎯 ${escapeHtml(itemLabel)}</span>`,
-      `<span class="trace-badge">${escapeHtml(interveneIcon)}</span>`,
-      `<span class="trace-badge">${t.risk_detected ? '🚨 有風險訊號' : '🟢 無高風險'}</span>`
+      `<span class="trace-badge">目前主題：${escapeHtml(itemLabel)}</span>`,
+      `<span class="trace-badge">${escapeHtml(t.risk_detected ? '有風險訊號' : '目前沒有高風險訊號')}</span>`
     ].join(' ');
     const decisionPath = Array.isArray(t.decision_path) && t.decision_path.length
-      ? t.decision_path.map((step) => `<div class="trace-step">${escapeHtml(step)}</div>`).join('')
-      : '<div class="trace-step">（沒有額外決策路徑）</div>';
+      ? t.decision_path.map((step) => `<div class="trace-step">${escapeHtml(formatDecisionStep(step))}</div>`).join('')
+      : '<div class="trace-step">這一輪沒有額外的判斷分支。</div>';
 
     panel.innerHTML = `
-      <div class="trace-header">🧠 系統決策</div>
+      <div class="trace-header">系統怎麼決定這一輪要問什麼</div>
       <div class="trace-summary-strip">${summaryBadges}</div>
-      <div class="trace-section-title">快速摘要</div>
-      <div class="trace-row"><span class="trace-label">系統看到的狀態</span><span class="trace-value">${escapeHtml(convModeLabel)} / ${escapeHtml(reasonLabel)}</span></div>
+      <div class="trace-section-title">先看結論</div>
+      <div class="trace-row"><span class="trace-label">系統現在在做什麼</span><span class="trace-value">${escapeHtml(convModeLabel)}</span></div>
+      <div class="trace-row"><span class="trace-label">為什麼這樣做</span><span class="trace-value">${escapeHtml(reasonLabel)}</span></div>
       <div class="trace-row"><span class="trace-label">AI 原始問句</span><span class="trace-value">「${escapeHtml(t.extracted_question || '沒問問題')}」</span></div>
       <div class="trace-row"><span class="trace-label">原始輸出</span><span class="trace-value">「${escapeHtml((t.raw_output || '').substring(0, 90))}${(t.raw_output || '').length > 90 ? '…' : ''}」</span></div>
       <div class="trace-divider"></div>
       <div class="trace-section-title">系統判讀</div>
-      <div class="trace-row"><span class="trace-label">當前該問</span><span class="trace-value">${escapeHtml(itemLabel)}</span></div>
-      <div class="trace-row"><span class="trace-label">可評分嗎</span><span class="trace-value">${scoreIcon}</span></div>
-      <div class="trace-row"><span class="trace-label">問對了嗎</span><span class="trace-value">${correctIcon}</span></div>
-      <div class="trace-row"><span class="trace-label">風險訊號</span><span class="trace-value">${riskIcon}</span></div>
-      <div class="trace-row"><span class="trace-label">系統介入</span><span class="trace-value">${escapeHtml(interveneIcon)}</span></div>
-      <div class="trace-row"><span class="trace-label">介入動作</span><span class="trace-value">${escapeHtml(actionLabel)}</span></div>
+      <div class="trace-row"><span class="trace-label">現在最該追問的主題</span><span class="trace-value">${escapeHtml(itemLabel)}</span></div>
+      <div class="trace-row"><span class="trace-label">這題能不能拿來判讀</span><span class="trace-value">${escapeHtml(yesNoUnknown(t.is_scoreable, '可以，夠具體', '不行，太模糊'))}</span></div>
+      <div class="trace-row"><span class="trace-label">AI 有沒有問到重點</span><span class="trace-value">${escapeHtml(yesNoUnknown(t.is_correct_item, '有，方向正確', '沒有，問偏了'))}</span></div>
+      <div class="trace-row"><span class="trace-label">有沒有風險訊號</span><span class="trace-value">${escapeHtml(t.risk_detected ? '有，所以系統會優先看安全問題' : '目前沒有看到高風險訊號')}</span></div>
+      <div class="trace-row"><span class="trace-label">系統有沒有介入</span><span class="trace-value">${escapeHtml(interveneLabel)}</span></div>
+      <div class="trace-row"><span class="trace-label">系統實際做了什麼</span><span class="trace-value">${escapeHtml(actionLabel)}</span></div>
       <div class="trace-divider"></div>
       <div class="trace-section-title">輸出結果</div>
-      ${t.replacement_probe ? `<div class="trace-row"><span class="trace-label">替換問句</span><span class="trace-value">「${escapeHtml(t.replacement_probe.substring(0, 80))}${t.replacement_probe.length > 80 ? '…' : ''}」</span></div>` : ''}
+      ${t.replacement_probe ? `<div class="trace-row"><span class="trace-label">系統改成這樣問</span><span class="trace-value">「${escapeHtml(t.replacement_probe.substring(0, 80))}${t.replacement_probe.length > 80 ? '…' : ''}」</span></div>` : ''}
       <div class="trace-divider"></div>
-      <div class="trace-row trace-final"><span class="trace-label">最終問句</span><span class="trace-value">「${escapeHtml(t.final_question || '沒有問句')}」</span></div>
+      <div class="trace-row trace-final"><span class="trace-label">最後真的送出的問句</span><span class="trace-value">「${escapeHtml(t.final_question || '沒有問句')}」</span></div>
       <div class="trace-divider"></div>
-      <div class="trace-section-title">決策路徑</div>
+      <div class="trace-section-title">系統為什麼一步一步走到這裡</div>
       <div class="trace-step-list">${decisionPath}</div>
-      ${t.error ? `<div class="trace-row trace-error"><span class="trace-label">⚠️ 錯誤</span><span class="trace-value">${escapeHtml(t.error)}</span></div>` : ''}
+      ${t.error ? `<div class="trace-row trace-error"><span class="trace-label">系統錯誤</span><span class="trace-value">${escapeHtml(t.error)}</span></div>` : ''}
     `;
   }
 
