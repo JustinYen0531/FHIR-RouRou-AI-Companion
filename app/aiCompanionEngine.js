@@ -834,20 +834,23 @@ function inferDirectAnswerValue(text, scaleRange) {
 
 function computeHamdItemLockState(progressItems, formalItems) {
   const lockState = {};
-  // Rule 1: progress tracker marks item as complete
-  normalizeArray(progressItems).forEach((item) => {
-    const code = String(item.item || item.item_code || '').trim();
-    if (!code) return;
-    if (item.status === 'complete') lockState[code] = 'locked';
-  });
-  // Rule 2: formal assessment has evidence + score; Rule 3: probed >= 2 times
+  // LLM progress complete 只作為參考，不單獨觸發鎖定
+  // （保留 progressItems 掃描以備未來擴充，但不寫入 locked）
+
   normalizeArray(formalItems).forEach((item) => {
     const code = String(item.item_code || '').trim();
     if (!code || lockState[code] === 'locked') return;
     const hasEvidence = normalizeArray(item.evidence_summary).length > 0;
     const hasScore = item.ai_suggested_score != null;
-    if (hasEvidence && hasScore) lockState[code] = 'locked';
-    if ((item.probe_count || 0) >= 2) lockState[code] = 'locked';
+    // 真正鎖定：有 evidence 且有 AI 評分
+    if (hasEvidence && hasScore) {
+      lockState[code] = 'locked';
+      return;
+    }
+    // 暫時跳過：問了 2 次仍沒有 evidence → skipped（不是永久鎖，低優先補問）
+    if ((item.probe_count || 0) >= 2 && !hasEvidence) {
+      lockState[code] = 'skipped';
+    }
   });
   return lockState;
 }
@@ -855,6 +858,11 @@ function computeHamdItemLockState(progressItems, formalItems) {
 function getLockedItemCodes(state) {
   const lockState = normalizeObjectState(state, 'hamd_item_lock_state', {});
   return Object.keys(lockState).filter((code) => lockState[code] === 'locked');
+}
+
+function getSkippedItemCodes(state) {
+  const lockState = normalizeObjectState(state, 'hamd_item_lock_state', {});
+  return Object.keys(lockState).filter((code) => lockState[code] === 'skipped');
 }
 
 // ── 問題類型鎖（Question Type Lock） ──────────────────────────────────────
@@ -1069,35 +1077,38 @@ function extractLastQuestion(text) {
 
 function pickEmergencyProbe(state) {
   const lockedCodes = getLockedItemCodes(state);
+  const skippedCodes = getSkippedItemCodes(state);
+  const excludedCodes = [...new Set([...lockedCodes, ...skippedCodes])];
   const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
   const progress = normalizeObjectState(state, 'hamd_progress_state', {});
   const dimOrder = [];
   if (progress.next_recommended_dimension) dimOrder.push(progress.next_recommended_dimension);
   HAMD_PROGRESS_DIMENSIONS.forEach((d) => { if (!dimOrder.includes(d)) dimOrder.push(d); });
+
+  // Pass 1: 優先選無 evidence 的未鎖/未跳過題
   for (const dim of dimOrder) {
-    const codes = HAMD_DIMENSION_TO_ITEM_CODES[dim] || [];
-    for (const code of codes) {
-      if (lockedCodes.includes(code)) continue;
+    for (const code of (HAMD_DIMENSION_TO_ITEM_CODES[dim] || [])) {
+      if (excludedCodes.includes(code)) continue;
       const item = assessment.items.find((i) => i.item_code === code);
       const def = HAMD_FORMAL_ITEM_MAP[code];
       if (!item || !def) continue;
-      // 優先挑無 evidence 的；若都被 review，挑第一個未鎖
       if (!item.evidence_summary.length || item.review_required) {
+        const variants = ITEM_PROBE_TEXTS[code];
         return {
           item_code: code,
           item_label: def.item_label,
           question_type: 'frequency',
-          probe_question: def.probe_question,
+          probe_question: (variants && variants[0]) ? variants[0] : def.probe_question,
           reason: 'emergency_fallback'
         };
       }
     }
   }
-  // 退而求其次：所有未鎖題都有 evidence，仍挑一個
+
+  // Pass 2: 退而求其次 — 都有 evidence，仍選一個
   for (const dim of dimOrder) {
-    const codes = HAMD_DIMENSION_TO_ITEM_CODES[dim] || [];
-    for (const code of codes) {
-      if (lockedCodes.includes(code)) continue;
+    for (const code of (HAMD_DIMENSION_TO_ITEM_CODES[dim] || [])) {
+      if (excludedCodes.includes(code)) continue;
       const def = HAMD_FORMAL_ITEM_MAP[code];
       if (!def) continue;
       return {
@@ -1109,6 +1120,20 @@ function pickEmergencyProbe(state) {
       };
     }
   }
+
+  // Pass 3 (最後手段): 所有題都 locked/skipped，從 skipped 補問
+  for (const code of skippedCodes) {
+    const def = HAMD_FORMAL_ITEM_MAP[code];
+    if (!def) continue;
+    return {
+      item_code: code,
+      item_label: def.item_label,
+      question_type: 'frequency',
+      probe_question: def.probe_question,
+      reason: 'emergency_fallback_skipped_retry'
+    };
+  }
+
   return null;
 }
 
@@ -1701,18 +1726,35 @@ function enforceQuestionSafety(draft, { probeQuestion, shouldAsk }) {
 function buildFormalAssessmentProbeFallback(state) {
   const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
   const lockedCodes = getLockedItemCodes(state);
-  if (assessment.pending_probe_item_code && !lockedCodes.includes(assessment.pending_probe_item_code)) {
-    return {
-      should_ask: 'no',
-      item_code: '',
-      item_label: '',
-      probe_question: '',
-      reason: 'pending_probe_exists'
-    };
+  const skippedCodes = getSkippedItemCodes(state);
+
+  // Pending probe：probe_count < 2 時繼續黏著（第 2 次用更簡單問法）
+  if (assessment.pending_probe_item_code) {
+    const pendingCode = assessment.pending_probe_item_code;
+    if (!lockedCodes.includes(pendingCode) && !skippedCodes.includes(pendingCode)) {
+      const pendingItem = assessment.items.find((i) => i.item_code === pendingCode);
+      const probeCount = pendingItem ? (pendingItem.probe_count || 0) : 0;
+      if (probeCount < 2) {
+        const def = HAMD_FORMAL_ITEM_MAP[pendingCode];
+        // 第 2 次（retry）：改用 ITEM_PROBE_TEXTS 的第二個變種（更簡單）
+        const variants = ITEM_PROBE_TEXTS[pendingCode];
+        const retryQuestion = (probeCount === 1 && variants && variants[1]) ? variants[1] : (def ? def.probe_question : '');
+        return {
+          should_ask: 'yes',
+          item_code: pendingCode,
+          item_label: def ? def.item_label : '',
+          question_type: 'frequency',
+          probe_question: retryQuestion,
+          reason: probeCount === 1 ? 'sticky_retry' : 'sticky_first'
+        };
+      }
+      // probe_count >= 2 → 不再黏著，fall through
+    }
   }
+
   const nextDimension = normalizeObjectState(state, 'hamd_progress_state', {}).next_recommended_dimension || 'depressed_mood';
   const candidateCode = (HAMD_DIMENSION_TO_ITEM_CODES[nextDimension] || []).find((itemCode) => {
-    if (lockedCodes.includes(itemCode)) return false;
+    if (lockedCodes.includes(itemCode) || skippedCodes.includes(itemCode)) return false;
     const item = assessment.items.find((entry) => entry.item_code === itemCode);
     return item && (!item.evidence_summary.length || item.review_required);
   });
@@ -1726,15 +1768,14 @@ function buildFormalAssessmentProbeFallback(state) {
     };
   }
   const definition = HAMD_FORMAL_ITEM_MAP[candidateCode];
-  const candidateItem = assessment.items.find((i) => i.item_code === candidateCode);
-  const probeCount = candidateItem ? (candidateItem.probe_count || 0) : 0;
-  const questionType = ALLOWED_QUESTION_TYPES[probeCount % ALLOWED_QUESTION_TYPES.length];
+  const variants = ITEM_PROBE_TEXTS[candidateCode];
+  const probeQuestion = (variants && variants[0]) ? variants[0] : definition.probe_question;
   return {
     should_ask: 'yes',
     item_code: definition.item_code,
     item_label: definition.item_label,
-    question_type: questionType,
-    probe_question: definition.probe_question,
+    question_type: 'frequency',
+    probe_question: probeQuestion,
     reason: `gap_in_${nextDimension}`
   };
 }
@@ -1992,32 +2033,42 @@ function mergeFormalAssessmentUpdates(assessment, evidenceResult, scoreResult) {
 function getFormalTargetItems(state, limit = 2) {
   const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
   const lockedCodes = getLockedItemCodes(state);
-  if (
-    assessment.pending_probe_item_code &&
-    HAMD_FORMAL_ITEM_MAP[assessment.pending_probe_item_code] &&
-    !lockedCodes.includes(assessment.pending_probe_item_code)
-  ) {
-    return [HAMD_FORMAL_ITEM_MAP[assessment.pending_probe_item_code]];
+  const skippedCodes = getSkippedItemCodes(state);
+  const excludedCodes = [...new Set([...lockedCodes, ...skippedCodes])];
+
+  // Pending probe：probe_count < 2 才黏著
+  if (assessment.pending_probe_item_code) {
+    const pendingCode = assessment.pending_probe_item_code;
+    if (HAMD_FORMAL_ITEM_MAP[pendingCode] && !excludedCodes.includes(pendingCode)) {
+      const pendingItem = assessment.items.find((i) => i.item_code === pendingCode);
+      const probeCount = pendingItem ? (pendingItem.probe_count || 0) : 0;
+      if (probeCount < 2) return [HAMD_FORMAL_ITEM_MAP[pendingCode]];
+      // probe_count >= 2 → 不再黏著，繼續往下選
+    }
   }
+
   const progress = normalizeObjectState(state, 'hamd_progress_state', {});
   const dimensions = [];
   if (progress.next_recommended_dimension) dimensions.push(progress.next_recommended_dimension);
   normalizeArray(progress.supported_dimensions).forEach((item) => {
     if (dimensions.indexOf(item) === -1) dimensions.push(item);
   });
-  if (!dimensions.length) dimensions.push('depressed_mood');
+  HAMD_PROGRESS_DIMENSIONS.forEach((d) => { if (!dimensions.includes(d)) dimensions.push(d); });
+
   const targetCodes = [];
-  dimensions.forEach((dimension) => {
-    (HAMD_DIMENSION_TO_ITEM_CODES[dimension] || []).forEach((itemCode) => {
-      if (targetCodes.length >= limit) return;
-      if (lockedCodes.includes(itemCode)) return;
+  for (const dimension of dimensions) {
+    for (const itemCode of (HAMD_DIMENSION_TO_ITEM_CODES[dimension] || [])) {
+      if (targetCodes.length >= limit) break;
+      if (excludedCodes.includes(itemCode)) continue;
       const current = assessment.items.find((item) => item.item_code === itemCode);
-      if (!current) return;
+      if (!current) continue;
       if (!current.evidence_summary.length || current.review_required) {
-        if (targetCodes.indexOf(itemCode) === -1) targetCodes.push(itemCode);
+        if (!targetCodes.includes(itemCode)) targetCodes.push(itemCode);
       }
-    });
-  });
+    }
+    if (targetCodes.length >= limit) break;
+  }
+
   return targetCodes.map((itemCode) => HAMD_FORMAL_ITEM_MAP[itemCode]).filter(Boolean);
 }
 
@@ -4671,13 +4722,23 @@ class AICompanionEngine {
     };
     state.hamd_formal_assessment = mergeFormalAssessmentUpdates(assessment, evidenceResult, scoreResult);
     if (assessment.pending_probe_item_code) {
-      const answeredPending = state.hamd_formal_assessment.items.find((item) =>
-        item.item_code === assessment.pending_probe_item_code && normalizeArray(item.evidence_summary).length
-      );
-      if (answeredPending) {
+      const pendingCode = assessment.pending_probe_item_code;
+      const pendingItem = state.hamd_formal_assessment.items.find((item) => item.item_code === pendingCode);
+      const hasEvidence = pendingItem && normalizeArray(pendingItem.evidence_summary).length > 0;
+      const probeCount = pendingItem ? (pendingItem.probe_count || 0) : 0;
+      if (hasEvidence) {
+        // 使用者有回答 → 正常清除 pending
         state.hamd_formal_assessment.pending_probe_item_code = '';
         state.hamd_formal_assessment.pending_probe_question = '';
+        state.hamd_formal_assessment.pending_probe_meta = null;
+      } else if (probeCount >= 2) {
+        // 問了 2 次仍沒答 → 標記 skipped，清除 pending，換題
+        state.hamd_formal_assessment.pending_probe_item_code = '';
+        state.hamd_formal_assessment.pending_probe_question = '';
+        state.hamd_formal_assessment.pending_probe_meta = null;
+        // skipped 狀態會由後面 computeHamdItemLockState 根據 probe_count >= 2 + no evidence 自動計算
       }
+      // probe_count == 1 且沒有 evidence → 保留 pending，下一輪用 retry 問法再問一次
     }
     // Recompute completion locks after evidence/score update
     const prevLockedCodes = getLockedItemCodes(state);
