@@ -5115,6 +5115,38 @@ class AICompanionEngine {
       baseResolvedTarget.targetItemCode,
       baseResolvedTarget.targetItemSource
     );
+
+    // ── LLM 語意維度引導（dominant_dimension）──────────────────────────────
+    // 若 LLM 判斷 dominant_dimension 明確（不是 unclear），系統從該 dimension 選 target
+    // 這讓「累、睡不好、沒動力」這種語意同屬一個群的輸入不會錯誤觸發 clarifying
+    const llmDominantDim = String(rawDecision.dominant_dimension || '').trim();
+    const DIMENSION_MAP = {
+      depressed_mood:  ['depressed_mood', 'suicide'],
+      guilt:           ['guilt', 'insight'],
+      suicide:         ['suicide'],
+      insomnia:        ['insomnia_early', 'insomnia_middle', 'insomnia_late'],
+      low_energy:      ['work_activities', 'retardation', 'general_somatic'],
+      psychomotor:     ['retardation', 'agitation'],
+      anxiety:         ['psychic_anxiety', 'somatic_anxiety', 'gastrointestinal_somatic'],
+      somatic:         ['gastrointestinal_somatic', 'general_somatic', 'genital_symptoms', 'hypochondriasis', 'weight_loss']
+    };
+    if (llmDominantDim && llmDominantDim !== 'unclear' && DIMENSION_MAP[llmDominantDim]) {
+      const lockedCodes = getLockedItemCodes(state);
+      const candidateCodes = DIMENSION_MAP[llmDominantDim];
+      const firstUnlocked = candidateCodes.find((c) => !lockedCodes.includes(c));
+      if (firstUnlocked) {
+        // LLM 語意明確 → 系統接管 target，不論 mode
+        if (decision.mode === 'clarifying') {
+          // 語意已夠明確 → 改為 probing，不讓釐清邏輯浪費一輪
+          decision.mode = 'probing';
+          decision.reason = `llm_dominant_dim(${llmDominantDim})→item(${firstUnlocked})`;
+        }
+        baseResolvedTarget.targetItemCode = firstUnlocked;
+        baseResolvedTarget.targetItemSource = `llm_dominant_dim:${llmDominantDim}`;
+      }
+    }
+    decision.llm_dominant_dimension = llmDominantDim || 'unclear';
+
     const resolvedTarget = resolveConversationTargetByMode(state, message, formalProbe, decision.mode, baseResolvedTarget);
     decision.target_item_code = resolvedTarget.targetItemCode || '';
     decision.target_item_source = resolvedTarget.targetItemSource || 'none';
@@ -5141,6 +5173,7 @@ class AICompanionEngine {
       hamd_ready: decision.hamd_ready,
       progression: decision.progression,
       loop_detected: decision.loop_detected,
+      llm_dominant_dimension: decision.llm_dominant_dimension || 'unclear',
       target_item_code: decision.target_item_code,
       target_item_label: decision.target_item_label,
       target_item_source: decision.target_item_source,
