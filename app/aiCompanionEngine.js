@@ -47,6 +47,7 @@ const PROMPT_FILES = {
   followupResolver: '追問解析器.md',
   followupFinalizer: '追問收斂器.md',
   clarifyQuestion: '釐清問題.md',
+  conversationModeJudge: '對話三態判斷器.md',
   memoryCompressionBuilder: '肉肉認識你壓縮器.md'
 };
 
@@ -1725,6 +1726,60 @@ function determineConversationMode(state, userText, targetItemCode) {
   return { mode: 'probing', reason: 'continue_same_item', probe_count: probeCount };
 }
 
+function resolveConversationTarget(state, userText, formalProbe) {
+  const nextItemCode = pickNextUnlockedItemCode(state);
+  let targetItemCode = nextItemCode || (formalProbe && formalProbe.item_code) || '';
+  let targetItemSource = nextItemCode ? 'next_unlocked' : (formalProbe && formalProbe.item_code) ? 'formal_probe' : 'none';
+  const decisionNotes = [];
+
+  if (targetItemCode) {
+    const lastAsked = String(state.hamd_last_asked_item || '');
+    const turnCount = getItemTurnCount(state, targetItemCode);
+    const isConsecutive = lastAsked === targetItemCode;
+    const consecutiveCount = isConsecutive ? (state._consecutive_same_item_count || 1) : 0;
+    const shouldForceSwitch = consecutiveCount >= MAX_CONSECUTIVE_SAME_ITEM || turnCount >= MAX_TURNS_PER_ITEM;
+    if (shouldForceSwitch) {
+      const altProbe = pickEmergencyProbe(state, userText, [targetItemCode]);
+      if (altProbe) {
+        decisionNotes.push(`繞題防護: "${targetItemCode}"(連續=${consecutiveCount}, 累計=${turnCount}) → 強制切換 "${altProbe.item_code}"`);
+        targetItemCode = altProbe.item_code;
+        targetItemSource = 'stuck_override';
+        state._consecutive_same_item_count = 0;
+      }
+    } else {
+      state._consecutive_same_item_count = isConsecutive ? consecutiveCount + 1 : 1;
+    }
+  }
+
+  return {
+    targetItemCode,
+    targetItemSource,
+    decisionNotes
+  };
+}
+
+function normalizeConversationModeDecision(rawDecision, fallbackDecision, targetItemCode, targetItemSource) {
+  const fallback = fallbackDecision && typeof fallbackDecision === 'object'
+    ? fallbackDecision
+    : { mode: 'clarifying', reason: 'fallback_default' };
+  const raw = rawDecision && typeof rawDecision === 'object' ? rawDecision : {};
+  const allowedModes = new Set(['clarifying', 'probing', 'switching']);
+  const mode = allowedModes.has(String(raw.mode || '').trim())
+    ? String(raw.mode || '').trim()
+    : fallback.mode;
+  const normalized = {
+    mode,
+    reason: String(raw.reason || '').trim() || fallback.reason || 'llm_judgement',
+    topic_clarity: String(raw.topic_clarity || '').trim() || '',
+    hamd_ready: String(raw.hamd_ready || '').trim() || '',
+    progression: String(raw.progression || '').trim() || '',
+    loop_detected: String(raw.loop_detected || '').trim() || '',
+    target_item_code: targetItemCode || '',
+    target_item_source: targetItemSource || 'none'
+  };
+  return normalized;
+}
+
 // ── 繞題追蹤 helpers ─────────────────────────────────────────────────────────
 
 function getItemTurnCount(state, itemCode) {
@@ -1845,6 +1900,7 @@ function ensureAiTrace(state) {
       timestamp: new Date().toISOString(),
       burden: null,
       hamd_progress: null,
+      conversation_mode_judge: null,
       low_energy: null,
       intent: null,
       flow: null,
@@ -1861,7 +1917,9 @@ function clinicalPostProcessor(draft, {
   userText = '',
   state = {},
   formalProbe = null,
-  atmosphereProtected = false
+  atmosphereProtected = false,
+  conversationDecision = null,
+  resolvedConversationTarget = null
 } = {}) {
   // ── Debug Trace Object：每一步決策都記錄 ──
   const debugTrace = {
@@ -1950,36 +2008,16 @@ function clinicalPostProcessor(draft, {
     }
 
     // ── 第 2 層：取得 next_item ──
-    const nextItemCode = pickNextUnlockedItemCode(state);
-    let targetItemCode = nextItemCode || (formalProbe && formalProbe.item_code) || '';
-    debugTrace.target_item_source = nextItemCode ? 'next_unlocked' : (formalProbe && formalProbe.item_code) ? 'formal_probe' : 'none';
-
-    // ── 繞題防護：連續問同一題 OR 累計超過上限 → 強制切換 ──
-    if (targetItemCode) {
-      const lastAsked = String(state.hamd_last_asked_item || '');
-      const turnCount = getItemTurnCount(state, targetItemCode);
-      const isConsecutive = lastAsked === targetItemCode;
-      const consecutiveCount = isConsecutive ? (state._consecutive_same_item_count || 1) : 0;
-      const shouldForceSwitch = consecutiveCount >= MAX_CONSECUTIVE_SAME_ITEM || turnCount >= MAX_TURNS_PER_ITEM;
-      if (shouldForceSwitch) {
-        const altProbe = pickEmergencyProbe(state, userText, [targetItemCode]);
-        if (altProbe) {
-          debugTrace.decision_path.push(`繞題防護: "${targetItemCode}"(連續=${consecutiveCount}, 累計=${turnCount}) → 強制切換 "${altProbe.item_code}"`);
-          targetItemCode = altProbe.item_code;
-          debugTrace.target_item_source = 'stuck_override';
-          state._consecutive_same_item_count = 0;
-        }
-      } else {
-        state._consecutive_same_item_count = isConsecutive ? consecutiveCount + 1 : 1;
-      }
-    }
-
+    const resolvedTarget = resolvedConversationTarget || resolveConversationTarget(state, userText, formalProbe);
+    let targetItemCode = resolvedTarget.targetItemCode || '';
+    debugTrace.target_item_source = resolvedTarget.targetItemSource || 'none';
+    resolvedTarget.decisionNotes.forEach((note) => debugTrace.decision_path.push(note));
     debugTrace.target_item = targetItemCode || null;
     debugTrace.decision_path.push(`target_item = ${targetItemCode || 'none'} (${debugTrace.target_item_source})`);
 
     // ── 第 2.5 層：conversation_mode 三態決策 ──
     // clarifying（釐清）/ probing（補問同題）/ switching（換題）
-    const convMode = determineConversationMode(state, userText, targetItemCode);
+    const convMode = conversationDecision || determineConversationMode(state, userText, targetItemCode);
     debugTrace.conversation_mode = convMode.mode;
     debugTrace.conversation_mode_reason = convMode.reason;
     debugTrace.decision_path.push(`conversation_mode = ${convMode.mode} (${convMode.reason})`);
@@ -4964,6 +5002,81 @@ class AICompanionEngine {
     return 'mode_5_natural';
   }
 
+  async judgeConversationMode(session, message, formalProbe) {
+    const state = session.state;
+    const resolvedTarget = resolveConversationTarget(state, message, formalProbe);
+    const fallbackDecision = determineConversationMode(state, message, resolvedTarget.targetItemCode);
+    const itemDefinition = HAMD_FORMAL_ITEM_MAP[resolvedTarget.targetItemCode] || null;
+    const targetDimension = itemDefinition ? itemDefinition.dimension : '';
+    const targetDimensionLabel = targetDimension ? humanizeHamdDimension(targetDimension) : '';
+
+    const rawDecision = await this.runJsonTask('conversationModeJudge', session, message, {
+      extraContext: {
+        conversation_mode: {
+          target_item_code: resolvedTarget.targetItemCode,
+          target_item_label: itemDefinition ? itemDefinition.item_label : '',
+          target_item_source: resolvedTarget.targetItemSource,
+          target_dimension: targetDimension,
+          target_dimension_label: targetDimensionLabel,
+          fallback_mode: fallbackDecision.mode,
+          fallback_reason: fallbackDecision.reason,
+          followup_turn_count: Number(state.followup_turn_count || '0'),
+          probe_count: resolvedTarget.targetItemCode ? getItemProbeCount(state, resolvedTarget.targetItemCode) : 0,
+          current_focus: normalizeObjectState(state, 'hamd_progress_state', {}).current_focus || '',
+          next_recommended_dimension: normalizeObjectState(state, 'hamd_progress_state', {}).next_recommended_dimension || ''
+        }
+      },
+      fallback: {
+        mode: fallbackDecision.mode,
+        reason: fallbackDecision.reason,
+        topic_clarity: 'fallback',
+        hamd_ready: resolvedTarget.targetItemCode ? 'yes' : 'no',
+        progression: 'fallback',
+        loop_detected: fallbackDecision.mode === 'switching' ? 'yes' : 'no'
+      }
+    });
+
+    const decision = normalizeConversationModeDecision(
+      rawDecision,
+      fallbackDecision,
+      resolvedTarget.targetItemCode,
+      resolvedTarget.targetItemSource
+    );
+
+    if ((decision.mode === 'probing' || decision.mode === 'switching') && targetDimension) {
+      decision.hamd_dimension = targetDimension;
+      decision.hamd_dimension_label = targetDimensionLabel;
+      decision.target_item_label = itemDefinition ? itemDefinition.item_label : '';
+    } else {
+      decision.hamd_dimension = '';
+      decision.hamd_dimension_label = '';
+      decision.target_item_label = itemDefinition ? itemDefinition.item_label : '';
+    }
+    decision.fallback_mode = fallbackDecision.mode;
+    decision.fallback_reason = fallbackDecision.reason;
+
+    ensureAiTrace(state).conversation_mode_judge = {
+      mode: decision.mode,
+      reason: decision.reason,
+      topic_clarity: decision.topic_clarity,
+      hamd_ready: decision.hamd_ready,
+      progression: decision.progression,
+      loop_detected: decision.loop_detected,
+      target_item_code: decision.target_item_code,
+      target_item_label: decision.target_item_label,
+      target_item_source: decision.target_item_source,
+      hamd_dimension: decision.hamd_dimension,
+      hamd_dimension_label: decision.hamd_dimension_label,
+      fallback_mode: decision.fallback_mode,
+      fallback_reason: decision.fallback_reason
+    };
+
+    return {
+      decision,
+      resolvedTarget
+    };
+  }
+
   updateFlowState(state, updates = {}) {
     const prev = normalizeObjectState(state, 'flow_state', {});
     const prevProbes = Number(prev.consecutive_probes || 0);
@@ -5269,11 +5382,14 @@ class AICompanionEngine {
     };
 
     // ── 統一後處理器（取代散落三層）────────────────────────────────────────────
+    const conversationModeResult = await this.judgeConversationMode(session, message, formalProbe);
     const postProcessResult = clinicalPostProcessor(answer, {
       userText: message,
       state,
       formalProbe: (canProbeHamd && formalProbe.should_ask === 'yes') ? formalProbe : null,
-      atmosphereProtected
+      atmosphereProtected,
+      conversationDecision: conversationModeResult.decision,
+      resolvedConversationTarget: conversationModeResult.resolvedTarget
     });
     answer = postProcessResult.text;
     const clinicalTrace = postProcessResult.debugTrace;

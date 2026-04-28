@@ -32,6 +32,30 @@ function createStubModelClient() {
     if (systemPrompt.includes('低能量與認知負擔偵測器')) {
       return { text: 'continue_auto' };
     }
+    if (systemPrompt.includes('你是「對話三態判斷器」')) {
+      if (userPrompt.includes('很累') && userPrompt.includes('焦慮') && userPrompt.includes('睡不好')) {
+        return {
+          text: JSON.stringify({
+            mode: 'clarifying',
+            reason: '主軸仍偏散，需要先收斂最核心的困擾',
+            topic_clarity: 'partial',
+            hamd_ready: 'maybe',
+            progression: 'unclear',
+            loop_detected: 'no'
+          })
+        };
+      }
+      return {
+        text: JSON.stringify({
+          mode: 'probing',
+          reason: '主軸已清楚，可以沿著同一條線往下問',
+          topic_clarity: 'clear',
+          hamd_ready: 'yes',
+          progression: 'advancing',
+          loop_detected: 'no'
+        })
+      };
+    }
     if (systemPrompt.includes('你是意圖分類器')) {
       return { text: 'mode_5_natural' };
     }
@@ -745,6 +769,19 @@ async function testClarifyingTurnClearsStaleSliderProbeMeta() {
   assert.strictEqual(session.state.hamd_formal_assessment.pending_probe_meta, null);
 }
 
+async function testAiTraceIncludesConversationModeAndHamdDimension() {
+  const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
+  const result = await engine.handleMessage({
+    message: '最近工作壓力很大，心裡一直很焦慮。',
+    user: 'trace-user',
+    conversation_id: 'conv-trace-mode'
+  });
+
+  assert.strictEqual(result.metadata.ai_trace?.conversation_mode_judge?.mode, 'probing');
+  assert.ok(result.metadata.ai_trace?.conversation_mode_judge?.hamd_dimension);
+  assert.ok(result.metadata.ai_trace?.conversation_mode_judge?.hamd_dimension_label);
+}
+
 async function run() {
   await testCommandRouting();
   await testHighRiskRouting();
@@ -771,6 +808,7 @@ async function run() {
   testClarifyingProbeUsesFeelingFocusedQuestions();
   testClarifyingProbeFallsBackToGentleEmotionalPrompt();
   await testClarifyingTurnClearsStaleSliderProbeMeta();
+  await testAiTraceIncludesConversationModeAndHamdDimension();
   console.log('AI companion engine tests passed.');
 }
 

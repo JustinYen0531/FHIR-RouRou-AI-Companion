@@ -7169,7 +7169,30 @@ function renderAiTraceButton(group, btnRow, aiTraceData) {
       `);
     }
 
-    // 3. 模式分流
+    // 3. 對話三態
+    if (a.conversation_mode_judge) {
+      const cm = a.conversation_mode_judge;
+      const modeMap = {
+        clarifying: '🟢 釐清',
+        probing: '🟡 追問',
+        switching: '🔵 換題'
+      };
+      sections.push(`
+        <div class="trace-section-title">🧭 對話三態（conversationModeJudge）</div>
+        <div class="trace-row"><span class="trace-label">判定模式</span><span class="trace-value">${escapeHtml(modeMap[cm.mode] || cm.mode || '—')}</span></div>
+        <div class="trace-row"><span class="trace-label">理由</span><span class="trace-value">${escapeHtml(cm.reason || '—')}</span></div>
+        <div class="trace-row"><span class="trace-label">主軸清晰度</span><span class="trace-value">${escapeHtml(cm.topic_clarity || '—')}</span></div>
+        <div class="trace-row"><span class="trace-label">HAM-D 準備度</span><span class="trace-value">${escapeHtml(cm.hamd_ready || '—')}</span></div>
+        <div class="trace-row"><span class="trace-label">推進狀態</span><span class="trace-value">${escapeHtml(cm.progression || '—')}</span></div>
+        <div class="trace-row"><span class="trace-label">是否繞圈</span><span class="trace-value">${escapeHtml(cm.loop_detected || '—')}</span></div>
+        <div class="trace-row"><span class="trace-label">目前題項</span><span class="trace-value">${escapeHtml(cm.target_item_label || cm.target_item_code || '—')}</span></div>
+        ${(cm.mode === 'probing' || cm.mode === 'switching') ? `<div class="trace-row"><span class="trace-label">HAM-D 面向</span><span class="trace-value">${escapeHtml(cm.hamd_dimension_label || cm.hamd_dimension || '—')}</span></div>` : ''}
+        <div class="trace-row"><span class="trace-label">系統備援</span><span class="trace-value">${escapeHtml(cm.fallback_mode || '—')} / ${escapeHtml(cm.fallback_reason || '—')}</span></div>
+        <div class="trace-divider"></div>
+      `);
+    }
+
+    // 4. 模式分流
     if (a.low_energy || a.intent || a.flow) {
       const subModeLabel = SUB_MODE_LABELS[a.flow && a.flow.sub_mode] || (a.flow && a.flow.sub_mode) || '—';
       sections.push(`
@@ -7186,7 +7209,7 @@ function renderAiTraceButton(group, btnRow, aiTraceData) {
       `);
     }
 
-    // 4. 探針選擇
+    // 5. 探針選擇
     if (a.probe_selector) {
       const psItem = HAMD_ITEM_LABELS[a.probe_selector.item_code] || a.probe_selector.item_code || '—';
       const PROBE_STATUS_LABELS = {
@@ -7214,7 +7237,7 @@ function renderAiTraceButton(group, btnRow, aiTraceData) {
       `);
     }
 
-    // 5. 證據分類
+    // 6. 證據分類
     if (a.evidence_classifier && Array.isArray(a.evidence_classifier.items) && a.evidence_classifier.items.length) {
       const evidenceRows = a.evidence_classifier.items.map((it) => {
         const label = HAMD_ITEM_LABELS[it.item_code] || it.item_code;
@@ -7228,7 +7251,7 @@ function renderAiTraceButton(group, btnRow, aiTraceData) {
       `);
     }
 
-    // 6. 評分器
+    // 7. 評分器
     if (a.scorer && Array.isArray(a.scorer.items) && a.scorer.items.length) {
       const scoreRows = a.scorer.items.map((it) => {
         const label = HAMD_ITEM_LABELS[it.item_code] || it.item_code;
@@ -7242,7 +7265,7 @@ function renderAiTraceButton(group, btnRow, aiTraceData) {
       `);
     }
 
-    // 7. Smart Hunter
+    // 8. Smart Hunter
     if (a.smart_hunter) {
       const shSubMode = SUB_MODE_LABELS[a.smart_hunter.sub_mode] || a.smart_hunter.sub_mode || '—';
       sections.push(`
