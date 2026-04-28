@@ -1669,6 +1669,10 @@ const APP_STATE = {
     error: '',
     emptyReason: ''
   },
+  restoredSessionRefresh: {
+    conversationId: '',
+    inFlight: false
+  },
   privacySettings: {
     fhirRealtimeSync: localStorage.getItem('rourou.fhirRealtimeSync') === 'true',
     autoReportDraft: localStorage.getItem('rourou.autoReportDraft') === 'true'
@@ -1930,6 +1934,7 @@ function clearAuthenticatedSession(options = {}) {
   APP_STATE.auth = { token: '', user: null };
   APP_STATE.patientAssignment = null;
   APP_STATE.serverRecentSessions = [];
+  APP_STATE.restoredSessionRefresh = { conversationId: '', inFlight: false };
   persistAuthState('', null);
   if (!options.preserveUserId) {
     APP_STATE.userId = DEFAULT_USER_ID;
@@ -8284,6 +8289,9 @@ function applySessionRecord(session = {}, fallbackSessionId = '') {
   renderReportOutputs();
   saveReportOutputsToCache();
   showScreen('screen-chat');
+  refreshRestoredSessionOutputsIfNeeded(APP_STATE.reportOutputs.session_export).catch((error) => {
+    console.warn('Unable to refresh restored session outputs:', error);
+  });
 }
 
 function resetConversationState(options = {}) {
@@ -8308,6 +8316,10 @@ function resetConversationState(options = {}) {
     isLoading: false,
     error: '',
     emptyReason: ''
+  };
+  APP_STATE.restoredSessionRefresh = {
+    conversationId: '',
+    inFlight: false
   };
   saveReportOutputsToCache();
 }
@@ -8680,6 +8692,77 @@ function buildSessionExportFromRecord(session = {}) {
     __requiresRegeneration: !trustStructuredOutputs,
     __source: trustStructuredOutputs ? 'server_session' : 'local_archive'
   });
+}
+
+function shouldRefreshRestoredSessionOutputs(sessionExport = {}) {
+  if (!sessionExport || typeof sessionExport !== 'object') return false;
+  if (sessionExport.__requiresRegeneration) return true;
+  const hasMeaningfulOutputs = Boolean(
+    isValidClinicianSummaryOutput(sessionExport.clinician_summary_draft) ||
+    isValidPatientAnalysisOutput(sessionExport.patient_analysis) ||
+    isValidFhirDraftOutput(sessionExport.fhir_delivery_draft)
+  );
+  return !hasMeaningfulOutputs && Boolean(APP_STATE.conversationId && APP_STATE.chatHistory.length);
+}
+
+async function refreshRestoredSessionOutputsIfNeeded(sessionExport = {}) {
+  const currentConversationId = String(APP_STATE.conversationId || '').trim();
+  if (!currentConversationId || !shouldRefreshRestoredSessionOutputs(sessionExport)) {
+    return;
+  }
+  if (
+    APP_STATE.restoredSessionRefresh.inFlight &&
+    APP_STATE.restoredSessionRefresh.conversationId === currentConversationId
+  ) {
+    return;
+  }
+
+  APP_STATE.restoredSessionRefresh = {
+    conversationId: currentConversationId,
+    inFlight: true
+  };
+
+  const noticeKey = 'restored-session-refresh';
+  appendSystemNotice('正在重新整理這段對話的輸出資料...', { replaceKey: noticeKey });
+  setOutputCountdownState('正在重新整理這段對話的輸出資料...');
+
+  try {
+    const payload = await fetchOutputPayload('session_export', '重新整理這段歷史對話的輸出資料');
+    if (String(APP_STATE.conversationId || '').trim() !== currentConversationId) {
+      return;
+    }
+    if (payload.session_export && typeof payload.session_export === 'object') {
+      APP_STATE.reportOutputs.session_export = PatientProfile.applyToSessionExport(payload.session_export);
+      syncReportOutputsFromSessionExport(APP_STATE.reportOutputs.session_export);
+      syncTherapeuticMemoryFromSessionExport(APP_STATE.reportOutputs.session_export);
+      APP_STATE.reportOutputs.updatedAt = formatTimeLabel(new Date());
+      renderReportOutputs();
+      saveReportOutputsToCache();
+    }
+    appendSystemNotice('這段對話的輸出資料已重新整理完成。', { replaceKey: noticeKey });
+    setOutputCountdownState('這段對話的輸出資料已重新整理完成。', { status: 'success' });
+    setTimeout(() => {
+      if (String(APP_STATE.conversationId || '').trim() === currentConversationId) {
+        setOutputCountdownState('');
+      }
+    }, 1800);
+  } catch (error) {
+    if (String(APP_STATE.conversationId || '').trim() !== currentConversationId) {
+      return;
+    }
+    const failText = `這段對話的輸出資料重整失敗：${error.message || '未知錯誤'}`;
+    appendSystemNotice(failText, { replaceKey: noticeKey });
+    setOutputCountdownState(failText, { status: 'error' });
+    setTimeout(() => {
+      if (String(APP_STATE.conversationId || '').trim() === currentConversationId) {
+        setOutputCountdownState('');
+      }
+    }, 3200);
+  } finally {
+    if (APP_STATE.restoredSessionRefresh.conversationId === currentConversationId) {
+      APP_STATE.restoredSessionRefresh.inFlight = false;
+    }
+  }
 }
 
 async function syncLocalSessionRecordToServer(session = {}) {
