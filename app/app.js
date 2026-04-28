@@ -7104,12 +7104,30 @@ function renderClinicalTraceButton(group, btnRow, traceData) {
     btn.classList.toggle('active', !isVisible);
   });
 
-  btnRow.appendChild(btn);
+  targetBtnRow.appendChild(btn);
   group.appendChild(panel);
 }
 
 function renderAiTraceButton(group, btnRow, aiTraceData) {
   if (!group) return;
+
+  // Support both (group, btnRow, aiTraceData) and (group, aiTraceData)
+  let actualAiTraceData = aiTraceData;
+  let targetBtnRow = btnRow;
+
+  if (arguments.length === 2 || (aiTraceData === undefined && btnRow && typeof btnRow.appendChild !== 'function')) {
+    actualAiTraceData = btnRow;
+    targetBtnRow = null;
+  }
+
+  if (!targetBtnRow) {
+    targetBtnRow = group.querySelector('.trace-actions');
+    if (!targetBtnRow) {
+      targetBtnRow = document.createElement('div');
+      targetBtnRow.className = 'trace-actions';
+      group.appendChild(targetBtnRow);
+    }
+  }
 
   const btn = document.createElement('button');
   btn.className = 'clinical-trace-toggle ai-trace-toggle';
@@ -7323,7 +7341,7 @@ function renderAiTraceButton(group, btnRow, aiTraceData) {
     btn.classList.toggle('active', !isVisible);
   });
 
-  btnRow.appendChild(btn);
+  targetBtnRow.appendChild(btn);
   group.appendChild(panel);
 }
 
