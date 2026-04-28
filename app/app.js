@@ -6971,6 +6971,24 @@ async function animateAiMessage(bubble, text) {
 function renderClinicalTraceButton(group, btnRow, traceData) {
   if (!group) return;
 
+  // Support both (group, btnRow, traceData) and (group, traceData)
+  let actualTraceData = traceData;
+  let targetBtnRow = btnRow;
+
+  if (arguments.length === 2 || (traceData === undefined && btnRow && typeof btnRow.appendChild !== 'function')) {
+    actualTraceData = btnRow;
+    targetBtnRow = null;
+  }
+
+  if (!targetBtnRow) {
+    targetBtnRow = group.querySelector('.trace-actions');
+    if (!targetBtnRow) {
+      targetBtnRow = document.createElement('div');
+      targetBtnRow.className = 'trace-actions';
+      group.appendChild(targetBtnRow);
+    }
+  }
+
   const btn = document.createElement('button');
   btn.className = 'clinical-trace-toggle';
   btn.type = 'button';
@@ -6978,11 +6996,13 @@ function renderClinicalTraceButton(group, btnRow, traceData) {
   btn.title = '查看 AI 決策紀錄';
   btn.innerHTML = '<span class="mat-icon" style="font-size:16px">psychology</span> 決策紀錄';
 
+  const t = actualTraceData;
+
   const panel = document.createElement('div');
   panel.className = 'clinical-trace-panel';
   panel.style.display = 'none';
 
-  if (!traceData) {
+  if (!t) {
     // 沒有 trace → 顯示「此訊息無決策紀錄」
     panel.innerHTML = `
       <div class="trace-header">🧠 臨床分析官 決策紀要</div>
@@ -6999,7 +7019,6 @@ function renderClinicalTraceButton(group, btnRow, traceData) {
       insight: '病識感'
     };
 
-    const t = traceData;
     const actionMap = {
       none_llm_correct: '✅ 不用（AI 問得很好）',
       append_question: '➕ 補了一題',
