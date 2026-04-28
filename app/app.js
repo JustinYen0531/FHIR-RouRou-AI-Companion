@@ -3049,6 +3049,21 @@ function isMeaningfulDraftText(value = '') {
   return text && !isPlaceholderDraftText(text);
 }
 
+// 偵測是否為病人原始對話文本（不應在報表直接顯示）
+function isDirectPatientQuote(text = '') {
+  const t = String(text || '').trim();
+  if (!t) return false;
+  // 含「...」直接引述
+  if (/「[^」]{4,}」/.test(t)) return true;
+  // 含對話舞台指示 （停一下）（語氣放輕）等
+  if (/（[^）]{1,12}）/.test(t)) return true;
+  // 開頭是直接引述符號
+  if (/^「/.test(t)) return true;
+  // 太長的單句且看起來像逐字轉錄（含「我」+「的」等口語特徵且超過 40 字）
+  if (t.length > 40 && /我[^，。？！]{3,}[的地得了嗎呢啊哦唉喔]{1}/.test(t)) return true;
+  return false;
+}
+
 function cleanClinicalDisplayText(value = '') {
   let text = String(value || '').trim();
   if (!text) return '';
@@ -3071,7 +3086,7 @@ function getMeaningfulItems(items = []) {
   if (!Array.isArray(items)) return [];
   return items
     .map((item) => cleanClinicalDisplayText(item))
-    .filter((item, index, arr) => item && !isPlaceholderDraftText(item) && arr.indexOf(item) === index);
+    .filter((item, index, arr) => item && !isPlaceholderDraftText(item) && !isDirectPatientQuote(item) && arr.indexOf(item) === index);
 }
 
 function formatHamdSignalLabel(signal) {
@@ -3247,8 +3262,9 @@ function renderHamdGapIndicator(hamd = {}) {
 }
 
 function renderDoctorSummary(summary = {}) {
+  const draftSummary = String(summary?.draft_summary || '').trim();
   const parts = [
-    String(summary?.draft_summary || '').trim(),
+    isDirectPatientQuote(draftSummary) ? '' : draftSummary,
     ...getMeaningfulItems(summary?.chief_concerns).slice(0, 2),
     ...getMeaningfulItems(summary?.symptom_observations).slice(0, 2)
   ].filter((item, index, arr) => item && arr.indexOf(item) === index);
@@ -3314,16 +3330,7 @@ function renderHamdMapping(summary = {}, progress = {}) {
 }
 
 function toggleHamdDetail() {
-  const panel = document.getElementById('report-hamd-detail-panel');
-  const toggle = document.getElementById('report-hamd-detail-toggle');
-  if (!panel) return;
-  const nextHidden = !panel.hidden ? true : false;
-  panel.hidden = nextHidden;
-  if (toggle) {
-    toggle.classList.toggle('active', !nextHidden);
-    const icon = toggle.querySelector('.mat-icon');
-    if (icon) icon.textContent = nextHidden ? 'expand_more' : 'expand_less';
-  }
+  showScreen('screen-hamd-detail');
 }
 
 function buildFhirSnippet(fhirDraft = {}, deliveryResult = null) {
@@ -4181,6 +4188,7 @@ function renderReportOutputs() {
 
   if (hamdDetailPanel) hamdDetailPanel.innerHTML = renderHamdFormalDetail(hamdFormalAssessment);
   if (hamdDetailToggle) {
+    // 有題項資料才顯示入口按鈕
     hamdDetailToggle.hidden = !hamdFormalStats.items.length;
   }
   if (insights) insights.innerHTML = renderClinicalInsights(clinician);

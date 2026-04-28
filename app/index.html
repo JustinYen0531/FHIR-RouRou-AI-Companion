@@ -565,28 +565,10 @@
 
           <button id="report-hamd-detail-toggle" class="hamd-detail-toggle" type="button" onclick="toggleHamdDetail()">
             查看每一題分數與評判依據
-            <span class="mat-icon">expand_more</span>
+            <span class="mat-icon">chevron_right</span>
           </button>
-          <div id="report-hamd-detail-panel" class="hamd-detail-panel" hidden>
-            <p class="report-empty-copy">目前還沒有可顯示的 HAM-D 題項明細。</p>
-          </div>
         </section>
 
-      <section class="section">
-        <div class="section-header-row">
-          <h3 class="section-heading">情緒波形圖 (7d)</h3>
-          <span class="trend-label" id="report-trend-label">趨勢趨向平穩</span>
-        </div>
-        <div class="wave-chart">
-          <div class="wave-bar" style="height:50%"></div>
-          <div class="wave-bar" style="height:66%"></div>
-          <div class="wave-bar" style="height:75%"></div>
-          <div class="wave-bar" style="height:50%"></div>
-          <div class="wave-bar" style="height:80%"></div>
-          <div class="wave-bar" style="height:62%"></div>
-          <div class="wave-bar" style="height:68%"></div>
-        </div>
-      </section>
 
       <section class="section">
         <h3 class="section-heading">臨床重點</h3>
@@ -765,6 +747,23 @@
       <button class="nav-item active" onclick="showScreen('screen-report')"><span class="mat-icon fill">analytics</span><span>報表</span></button>
       <button class="nav-item" onclick="showScreen('screen-settings')"><span class="mat-icon">person_2</span><span>設定</span></button>
     </nav>
+  </div>
+
+  <!-- ===== SCREEN: HAMD DETAIL ===== -->
+  <div class="screen" id="screen-hamd-detail">
+    <header class="top-bar glass">
+      <div class="top-bar-left">
+        <button class="icon-btn" type="button" aria-label="返回" onclick="showScreen('screen-report')">
+          <span class="mat-icon">arrow_back</span>
+        </button>
+        <div><h1 class="app-title">HAM-D 題項明細</h1><div class="sub-title">每題分數與評判依據</div></div>
+      </div>
+    </header>
+    <main class="scroll-content">
+      <div id="report-hamd-detail-panel" class="hamd-detail-panel section">
+        <p class="report-empty-copy">目前還沒有可顯示的 HAM-D 題項明細。</p>
+      </div>
+    </main>
   </div>
 
   <!-- ===== SCREEN: CLINICAL DASHBOARD ===== -->
