@@ -2156,6 +2156,12 @@ function clinicalPostProcessor(draft, {
     debugTrace.llm_target_item = (resolvedConversationTarget && resolvedConversationTarget.targetItemSource &&
       resolvedConversationTarget.targetItemSource.startsWith('llm_dominant_dim'))
       ? resolvedConversationTarget.targetItemCode : null;
+    // 是否被規則強制覆蓋（rule_guard: probe_count >= 2 或 data_complete 觸發 switching）
+    const convModeReason = String(convMode.reason || '');
+    debugTrace.rule_guard_active = convModeReason.includes('rule_guard');
+    debugTrace.rule_guard_reason = debugTrace.rule_guard_active
+      ? convModeReason.replace('rule_guard(', '').replace(')→override_llm_probing', '').replace('rule_guard_', '')
+      : null;
     debugTrace.decision_path.push(`conversation_mode = ${convMode.mode} (${convMode.reason})`);
 
     // 🟢 clarifying：主軸不明確 → 直接問「哪個最困擾」，不做 HAM-D 題壓力

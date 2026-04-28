@@ -7073,12 +7073,32 @@ function renderClinicalTraceButton(group, btnRow, traceData) {
       insomnia: '😴 睡眠', low_energy: '🔋 活動力/精力',
       psychomotor: '🐢 動作遲滯', anxiety: '😰 焦慮', somatic: '🤢 身體症狀', unclear: '❓ 不明確'
     };
+    const RULE_GUARD_LABELS = {
+      probe_exhausted: '問次已滿（≥2次）→ 強制換題',
+      data_complete:   '資料已完整 → 強制換題',
+      multi_symptom_input: '多症狀輸入 → 先釐清'
+    };
     const llmDim = t.llm_dominant_dimension ? (DIM_LABELS_CLINICAL[t.llm_dominant_dimension] || t.llm_dominant_dimension) : null;
     const llmTarget = t.llm_target_item ? (HAMD_ITEM_LABELS[t.llm_target_item] || t.llm_target_item) : null;
     const fromLlm = !!t.llm_target_item;
-    const targetSource = fromLlm
-      ? `<span class="trace-source-badge trace-source-llm">🤖 來源：LLM 語意判斷</span>`
-      : `<span class="trace-source-badge trace-source-rule">⚙️ 來源：系統規則</span>`;
+    const ruleGuard = !!t.rule_guard_active;
+    const ruleGuardLabel = ruleGuard
+      ? (RULE_GUARD_LABELS[t.rule_guard_reason] || t.rule_guard_reason || '規則強制換題')
+      : null;
+    // 三種來源標籤：
+    // ⚙️ 系統規則強制（rule guard 觸發，LLM 被覆蓋）
+    // 🤖+⚙️ 規則換題、LLM 選方向（最常見：probe 滿了，LLM dominant_dim 決定換去哪）
+    // 🤖 純 LLM（dominant_dimension 直接選題）
+    let targetSource;
+    if (ruleGuard && fromLlm) {
+      targetSource = `<span class="trace-source-badge trace-source-rule">⚙️ 規則強制換題</span> <span class="trace-source-badge trace-source-llm">🤖 LLM 選方向</span>`;
+    } else if (ruleGuard) {
+      targetSource = `<span class="trace-source-badge trace-source-rule">⚙️ 系統規則</span>`;
+    } else if (fromLlm) {
+      targetSource = `<span class="trace-source-badge trace-source-llm">🤖 LLM 語意判斷</span>`;
+    } else {
+      targetSource = `<span class="trace-source-badge trace-source-rule">⚙️ 系統規則</span>`;
+    }
     const targetConflict = llmTarget && llmTarget !== itemLabel;
     const conflictNote = targetConflict
       ? `<div class="trace-row trace-conflict"><span class="trace-label">⚡ LLM 判斷</span><span class="trace-value">${escapeHtml(llmTarget)}${llmDim ? `（${escapeHtml(llmDim)}）` : ''}</span></div>`
