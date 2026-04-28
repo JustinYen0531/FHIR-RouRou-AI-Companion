@@ -694,7 +694,8 @@ async function processChatPayload(payload, options = {}) {
         force_new_session: Boolean(payload.force_new_session),
         force_memory_compression: Boolean(payload.force_memory_compression),
         therapeutic_profile: payload.therapeutic_profile || null,
-        patient_profile: payload.patient_profile || null
+        patient_profile: payload.patient_profile || null,
+        user_self_rating: payload.user_self_rating || null
       }
     );
 

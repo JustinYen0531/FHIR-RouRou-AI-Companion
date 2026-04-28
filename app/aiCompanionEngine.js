@@ -735,6 +735,7 @@ function createDefaultFormalAssessment() {
     recall_window: 'past_7_days',
     pending_probe_item_code: '',
     pending_probe_question: '',
+    pending_probe_meta: null,
     items: HAMD_FORMAL_ITEMS.map((item) => ({
       item_code: item.item_code,
       item_label: item.item_label,
@@ -743,6 +744,7 @@ function createDefaultFormalAssessment() {
       direct_answer_value: null,
       ai_suggested_score: null,
       clinician_final_score: null,
+      user_self_rating: null,
       evidence_summary: [],
       rating_rationale: '',
       confidence: 'low',
@@ -773,13 +775,19 @@ function hydrateFormalAssessment(value) {
   base.recall_window = current.recall_window || base.recall_window;
   base.pending_probe_item_code = current.pending_probe_item_code || '';
   base.pending_probe_question = current.pending_probe_question || '';
+  base.pending_probe_meta = current.pending_probe_meta || null;
   base.ai_total_score = typeof current.ai_total_score === 'number' ? current.ai_total_score : 0;
   base.clinician_total_score = typeof current.clinician_total_score === 'number' ? current.clinician_total_score : null;
   base.severity_band = current.severity_band || base.severity_band;
   base.review_flags = normalizeArray(current.review_flags);
   base.rated_by = current.rated_by || '';
   base.reviewed_at = current.reviewed_at || '';
-  base.items = HAMD_FORMAL_ITEMS.map((item) => Object.assign({}, base.items.find((entry) => entry.item_code === item.item_code), itemMap[item.item_code] || {}));
+  base.items = HAMD_FORMAL_ITEMS.map((item) => {
+    const saved = itemMap[item.item_code] || {};
+    const merged = Object.assign({}, base.items.find((entry) => entry.item_code === item.item_code), saved);
+    if (saved.user_self_rating !== undefined) merged.user_self_rating = saved.user_self_rating;
+    return merged;
+  });
   return base;
 }
 
@@ -1131,15 +1139,93 @@ const SCOREABLE_PATTERNS = [
   /影響.{0,10}(工作|上班|上課|上學|讀書|念書|睡眠|睡覺|入睡|吃飯|食慾|胃口|社交|朋友|家人|同事|同學|出門|完成|任務|事情)/
 ];
 
+// 對應 HAM-D 17 個面向，每條兩個變種探針，隨機抽一個避免重複感
 const SYMPTOM_TO_PROBE = [
-  { pattern: /(睡不好|難以?入睡|躺很久|睡著.{0,4}醒|半夜醒|早醒|失眠)/, probe: '最近這種睡不好的情況，大概一週會有幾天？' },
-  { pattern: /(疲倦|沒力氣|提不起勁|無力|很累|沒精神|累得.{0,4})/, probe: '最近這種疲倦或提不起勁的感覺，大概一週會有幾天？' },
-  { pattern: /(空虛|空掉|低落|沒有意義|沒意義|沮喪|難過)/, probe: '最近這種空掉或低落的感覺，是幾乎每天都有，還是偶爾才會出現？' },
-  { pattern: /(食慾|吃不下|胃口|沒胃口|體重.{0,4}下降)/, probe: '最近食慾變化是輕微，還是已經明顯影響到平常吃東西？' },
-  { pattern: /(自責|內疚|罪惡感|怪自己|都是我的錯)/, probe: '這種自責的感覺，大概一週會出現幾天？' },
-  { pattern: /(緊張|焦慮|不安|擔心|心悸|胸悶)/, probe: '這種緊張或焦慮的感覺，是偶爾，還是幾乎每天都會有？' },
-  { pattern: /(注意力|專心|分心|恍神|做事變慢)/, probe: '注意力或做事的速度，大概一週會有幾天明顯變差？' },
-  { pattern: /(坐不住|煩躁|靜不下來|一直動)/, probe: '這種坐不住或煩躁的感覺，是偶爾，還是幾乎每天都有？' }
+  // 1. 憂鬱情緒
+  { pattern: /(空虛|空掉|低落|沒有意義|沒意義|沮喪|難過|心情很差|情緒低落)/, probes: [
+    '最近這種空掉或低落的感覺，是幾乎每天都有，還是偶爾才會出現？',
+    '這一週心情低落或空洞的感覺，是每天幾乎都這樣，還是偶爾才有？'
+  ]},
+  // 2. 有罪感
+  { pattern: /(自責|內疚|罪惡感|怪自己|都是我的錯|愧疚|對不起大家)/, probes: [
+    '這種自責的感覺，大概一週會出現幾天？',
+    '最近一直覺得哪裡做錯或怪自己，這種感覺一週大約有幾天？'
+  ]},
+  // 3. 自殺意念
+  { pattern: /(不想活|想消失|想死|了結|結束一切|活著沒意義|輕生|不如死)/, probes: [
+    '這一週有沒有出現過不想活、想消失，或覺得活著沒有意義的念頭？',
+    '這週有沒有冒出過想消失、不想繼續，或覺得活著很累的念頭？'
+  ]},
+  // 4. 入睡困難
+  { pattern: /(睡不著|難以?入睡|躺很久睡不著|怎樣都睡不著|睡前一直醒著)/, probes: [
+    '最近睡前難入睡的情況，大概一週會有幾天？',
+    '最近要花多久才睡得著？這種情況一週大概幾天會發生？'
+  ]},
+  // 5. 睡眠中斷
+  { pattern: /(半夜醒|睡到一半醒|中途一直醒|睡睡醒醒|睡不深)/, probes: [
+    '最近半夜醒來的情況，是偶爾還是幾乎每天都發生？',
+    '最近睡到一半醒來的狀況，大概一週有幾天？'
+  ]},
+  // 6. 早醒
+  { pattern: /(早醒|很早就醒|比平常早醒|醒太早|天還沒亮就醒)/, probes: [
+    '最近早醒之後就睡不回去的情況，大概一週會有幾天？',
+    '最近有沒有常常比預計早醒，而且醒了就再也睡不回去？'
+  ]},
+  // 7. 工作與活動
+  { pattern: /(提不起勁|沒動力|不想做事|做不下去|懶得動|沒興趣做|什麼都不想)/, probes: [
+    '這一週做事的動力跟以前比起來，是差不多、明顯下降，還是幾乎提不起來？',
+    '最近想做事或出門的動力，跟平常相比是差不多、有點下降，還是幾乎都提不起來？'
+  ]},
+  // 8. 精神運動遲滯
+  { pattern: /(做事變慢|思考變慢|反應慢|動作遲緩|腦袋轉不動|說話慢)/, probes: [
+    '最近覺得思考或做事變慢，大概一週會有幾天明顯感覺到？',
+    '這一週有沒有覺得自己反應或做事比以前慢，大概幾天會有這種感覺？'
+  ]},
+  // 9. 激越
+  { pattern: /(坐不住|煩躁|靜不下來|一直動來動去|焦躁|待不住)/, probes: [
+    '這種坐不住或煩躁的感覺，是偶爾，還是幾乎每天都有？',
+    '最近有沒有容易感到煩躁、靜不下來？這種情況大概多常出現？'
+  ]},
+  // 10. 精神性焦慮
+  { pattern: /(緊張|焦慮|一直擔心|莫名不安|很害怕|恐慌|惶惶不安)/, probes: [
+    '這種緊張或焦慮的感覺，是偶爾，還是幾乎每天都會有？',
+    '最近心裡有沒有一種莫名的不安或擔心，這種感覺大概一週幾天會有？'
+  ]},
+  // 11. 軀體性焦慮
+  { pattern: /(心悸|胸悶|肌肉緊繃|頭痛頭暈|手抖|冒冷汗|身體很緊)/, probes: [
+    '身體上的緊繃、心悸或頭痛這類反應，大概一週會出現幾天？',
+    '最近有沒有出現心跳加速、胸悶或肌肉緊繃這類身體反應，大概一週幾天？'
+  ]},
+  // 12. 胃腸症狀
+  { pattern: /(食慾|吃不下|胃口|沒胃口|腸胃不舒服|胃痛|噁心想吐)/, probes: [
+    '食慾或腸胃不適的情況，是輕微還是已經明顯影響到你吃飯？',
+    '最近腸胃狀況或食慾，有沒有因為情緒受到影響？程度是輕微還是明顯？'
+  ]},
+  // 13. 一般身體症狀
+  { pattern: /(疲倦|沒力氣|很累|沒精神|無力感|身體很重|整個人沉沉的)/, probes: [
+    '身體整體的疲累或痠痛，大概一週會有幾天？',
+    '最近整個人有沒有特別容易累或覺得身體沉重，大概一週幾天會這樣？'
+  ]},
+  // 14. 生理功能症狀
+  { pattern: /(性慾|對那方面沒興趣|生理功能|房事|性生活|對性沒感覺)/, probes: [
+    '最近性慾或生理功能的變化，是輕微還是明顯？',
+    '最近對這方面的興趣或反應，有沒有感覺跟以前不太一樣？是輕微還是明顯？'
+  ]},
+  // 15. 疑病傾向
+  { pattern: /(一直擔心身體|覺得自己生病|一直去看醫生|身體哪裡出問題|疑神疑鬼身體|反覆檢查身體)/, probes: [
+    '對身體狀況的擔心，大概一週會有幾天讓你放不下？',
+    '最近有沒有常常很擔心自己身體哪裡出問題，這種擔心大概多常讓你放不下？'
+  ]},
+  // 16. 體重下降
+  { pattern: /(體重|變瘦|瘦了|吃得很少|食量減少|體重掉|明顯輕了)/, probes: [
+    '最近食量或體重變化，是輕微還是明顯到你自己都感覺得到？',
+    '這一個月體重或食量有沒有明顯變化，是輕微還是連自己都感覺得到？'
+  ]},
+  // 17. 病識感
+  { pattern: /(覺得沒什麼問題|應該沒關係|只是太累|只是壓力|不覺得自己有病|大家都這樣)/, probes: [
+    '你自己覺得最近這些狀況，比較像是一時的壓力，還是已經持續一段時間的情緒困擾？',
+    '對自己最近這些變化，你比較覺得是壓力反應、情緒困擾，還是其實沒什麼問題？'
+  ]}
 ];
 
 function isScoreableQuestion(question) {
@@ -1148,29 +1234,82 @@ function isScoreableQuestion(question) {
   return SCOREABLE_PATTERNS.some((p) => p.test(q));
 }
 
-// HAM-D 17 題：每題一句可評分問句（優先用此推進量表）
+// HAM-D 17 題：每題兩個變種問句，隨機抽一個避免使用者看出固定模式
 const ITEM_PROBE_TEXTS = {
-  depressed_mood: '最近這種低落或空掉的感覺，是幾乎每天都有，還是偶爾才會出現？',
-  guilt: '這種自責的感覺，大概一週會出現幾天？',
-  suicide: '這一週有沒有出現過不想活、想消失，或覺得活著沒有意義的念頭？',
-  insomnia_early: '最近睡前難入睡的情況，大概一週會有幾天？',
-  insomnia_middle: '最近半夜醒來的情況，大概一週會有幾天？',
-  insomnia_late: '最近早醒之後就睡不回去的情況，大概一週會有幾天？',
-  work_activities: '這一週做事的動力跟以前比起來，是差不多、明顯下降，還是幾乎提不起來？',
-  retardation: '最近覺得思考或做事變慢，大概一週會有幾天明顯感覺到？',
-  agitation: '這種坐不住或煩躁的感覺，是偶爾還是幾乎每天都有？',
-  psychic_anxiety: '這種緊張或焦慮的感覺，是偶爾，還是幾乎每天都會有？',
-  somatic_anxiety: '身體上的緊繃、心悸或頭痛這類反應，大概一週會出現幾天？',
-  gastrointestinal_somatic: '食慾或腸胃不適的情況，是輕微還是已經明顯影響到你吃飯？',
-  general_somatic: '身體整體的疲累或痠痛，大概一週會有幾天？',
-  genital_symptoms: '最近性慾或生理功能的變化，是輕微還是明顯？',
-  hypochondriasis: '對身體狀況的擔心，大概一週會有幾天讓你放不下？',
-  weight_loss: '最近食量或體重變化，是輕微還是明顯到你自己都感覺得到？',
-  insight: '對自己最近這些變化，你比較覺得是壓力反應、情緒困擾，還是其實沒什麼問題？'
+  depressed_mood: [
+    '最近這種低落或空掉的感覺，是幾乎每天都有，還是偶爾才會出現？',
+    '這一週心情比較低落或空洞的感覺，是每天幾乎都這樣，還是偶爾才會有？'
+  ],
+  guilt: [
+    '這種自責的感覺，大概一週會出現幾天？',
+    '最近有沒有常常覺得哪裡做錯、一直怪自己？這種感覺一週大約有幾天？'
+  ],
+  suicide: [
+    '這一週有沒有出現過不想活、想消失，或覺得活著沒有意義的念頭？',
+    '這週有沒有冒出過想消失、不想繼續，或覺得活著很累的念頭？'
+  ],
+  insomnia_early: [
+    '最近睡前難入睡的情況，大概一週會有幾天？',
+    '最近要花多久才睡得著？這種情況一週大概幾天會發生？'
+  ],
+  insomnia_middle: [
+    '最近半夜醒來的情況，大概一週會有幾天？',
+    '最近睡到一半醒來的狀況，是偶爾還是已經很頻繁？'
+  ],
+  insomnia_late: [
+    '最近早醒之後就睡不回去的情況，大概一週會有幾天？',
+    '最近有沒有常常比預計早醒，而且醒了就再也睡不回去？'
+  ],
+  work_activities: [
+    '這一週做事的動力跟以前比起來，是差不多、明顯下降，還是幾乎提不起來？',
+    '最近想做事或出門的動力，跟平常相比是差不多、有點下降，還是幾乎都提不起來？'
+  ],
+  retardation: [
+    '最近覺得思考或做事變慢，大概一週會有幾天明顯感覺到？',
+    '這一週有沒有覺得自己反應或做事比以前慢，大概幾天會有這種感覺？'
+  ],
+  agitation: [
+    '這種坐不住或煩躁的感覺，是偶爾還是幾乎每天都有？',
+    '最近有沒有容易感到煩躁、靜不下來？這種情況大概多常出現？'
+  ],
+  psychic_anxiety: [
+    '這種緊張或焦慮的感覺，是偶爾，還是幾乎每天都會有？',
+    '最近心裡有沒有一種莫名的不安或擔心，這種感覺大概一週幾天會有？'
+  ],
+  somatic_anxiety: [
+    '身體上的緊繃、心悸或頭痛這類反應，大概一週會出現幾天？',
+    '最近有沒有出現心跳加速、胸悶或肌肉緊繃這類身體反應，大概一週幾天？'
+  ],
+  gastrointestinal_somatic: [
+    '食慾或腸胃不適的情況，是輕微還是已經明顯影響到你吃飯？',
+    '最近腸胃狀況或食慾，有沒有因為情緒而受到影響？程度是輕微還是明顯？'
+  ],
+  general_somatic: [
+    '身體整體的疲累或痠痛，大概一週會有幾天？',
+    '最近整個人有沒有特別容易累或覺得身體沉重，大概一週幾天會這樣？'
+  ],
+  genital_symptoms: [
+    '最近性慾或生理功能的變化，是輕微還是明顯？',
+    '最近對這方面的興趣或反應，有沒有感覺跟以前不太一樣？是輕微還是明顯？'
+  ],
+  hypochondriasis: [
+    '對身體狀況的擔心，大概一週會有幾天讓你放不下？',
+    '最近有沒有常常很擔心自己身體哪裡出問題，這種擔心大概多常讓你放不下？'
+  ],
+  weight_loss: [
+    '最近食量或體重變化，是輕微還是明顯到你自己都感覺得到？',
+    '這一個月體重或食量有沒有明顯變化，是輕微還是連自己都感覺得到？'
+  ],
+  insight: [
+    '對自己最近這些變化，你比較覺得是壓力反應、情緒困擾，還是其實沒什麼問題？',
+    '你自己覺得最近這些狀況，比較像是一時的壓力，還是已經持續一段時間的情緒困擾？'
+  ]
 };
 
 function buildProbeFromItem(itemCode) {
-  return ITEM_PROBE_TEXTS[itemCode] || '最近這種狀態是幾乎每天都有，還是偶爾才會出現？';
+  const variants = ITEM_PROBE_TEXTS[itemCode];
+  if (!variants) return '最近這種狀態是幾乎每天都有，還是偶爾才會出現？';
+  return variants[Math.floor(Math.random() * variants.length)];
 }
 
 function pickNextUnlockedItemCode(state) {
@@ -1190,7 +1329,7 @@ function pickScoreableProbe(userText, draft, formalProbe, state) {
   // ③ 從症狀關鍵詞抓
   const source = `${String(userText || '')}\n${String(draft || '')}`;
   for (const rule of SYMPTOM_TO_PROBE) {
-    if (rule.pattern.test(source)) return rule.probe;
+    if (rule.pattern.test(source)) return rule.probes[Math.floor(Math.random() * rule.probes.length)];
   }
   return '最近這種狀態是幾乎每天都有，還是偶爾才會出現？';
 }
@@ -3911,6 +4050,9 @@ class AICompanionEngine {
     this.syncTherapeuticProfile(session, payload.therapeutic_profile);
     this.syncPatientProfile(session, payload.patient_profile);
     this.syncPhq9Assessment(session, payload.phq9_assessment);
+    if (payload.user_self_rating && typeof payload.user_self_rating === 'object') {
+      state._pending_user_self_rating = payload.user_self_rating;
+    }
 
     if (payload.force_memory_compression) {
       const result = await this.compressTherapeuticMemory(session, message || '測試壓縮', { force: true });
@@ -4171,7 +4313,8 @@ class AICompanionEngine {
         latest_tag_payload: normalizeObjectState(state, 'latest_tag_payload', {}),
         burden_level_state: normalizeObjectState(state, 'burden_level_state', {}),
         clinical_trace: _traceSnapshot,
-        ai_trace: _aiTraceSnapshot
+        ai_trace: _aiTraceSnapshot,
+        probe_meta: (state.hamd_formal_assessment && state.hamd_formal_assessment.pending_probe_meta) || null
       }
     };
   }
@@ -4494,6 +4637,29 @@ class AICompanionEngine {
       fallback: scoreFallback
     });
     const scoreResult = mergeFormalScoringResultWithFallback(rawScoreResult, scoreFallback, targetItems);
+
+    // Hybrid 評分：若使用者有拖滑桿，以 0.7 NLP + 0.3 user 混合
+    const pendingRating = state._pending_user_self_rating || null;
+    if (pendingRating && assessment.pending_probe_item_code && Array.isArray(scoreResult.items)) {
+      const targetCode = assessment.pending_probe_item_code;
+      scoreResult.items = scoreResult.items.map((it) => {
+        if (it.item_code !== targetCode || typeof it.ai_suggested_score !== 'number') return it;
+        const uVal = Number(pendingRating.value);
+        if (isNaN(uVal)) return it;
+        const nlpVal = it.ai_suggested_score;
+        const blended = Math.round(0.7 * nlpVal + 0.3 * uVal);
+        return Object.assign({}, it, {
+          ai_suggested_score: blended,
+          user_self_rating: pendingRating,
+          rating_rationale: `${it.rating_rationale || ''} [hybrid: NLP=${nlpVal}, user=${uVal}, final=${blended}]`.trim()
+        });
+      });
+      // 把 user_self_rating 也寫進 assessment item
+      const assessmentItem = assessment.items.find((i) => i.item_code === targetCode);
+      if (assessmentItem) assessmentItem.user_self_rating = pendingRating;
+    }
+    delete state._pending_user_self_rating;
+
     ensureAiTrace(state).scorer = {
       items: Array.isArray(scoreResult.items)
         ? scoreResult.items.map((it) => ({
@@ -4659,6 +4825,10 @@ class AICompanionEngine {
       assessment.pending_probe_item_code = formalProbe.item_code;
       assessment.pending_probe_question = normalizedProbeQuestion;
       assessment.assessment_mode = 'smart_hunter_probe';
+      assessment.pending_probe_meta = {
+        item_code: formalProbe.item_code,
+        type: formalProbe.question_type || 'frequency'
+      };
       state.hamd_formal_assessment = assessment;
       // 重新計算鎖定狀態（probe_count 可能剛達到 2）
       const progressItems2 = normalizeObjectState(state, 'hamd_progress_state', {}).items || [];

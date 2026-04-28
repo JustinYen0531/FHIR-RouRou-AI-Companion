@@ -1619,6 +1619,7 @@ const APP_STATE = {
   runtimeMode: '',
   syncedMode: '',
   isSending: false,
+  pendingSliderRating: null,
   currentReportTab: 'auto',
   currentWeeklyAudience: 'patient',
   turnCount: 0,
@@ -7314,6 +7315,57 @@ function updateScrollSafeArea() {
   });
 }
 
+function renderHamdSlider(group, probeMeta) {
+  if (!probeMeta || !probeMeta.item_code) return;
+  const isFrequency = probeMeta.type !== 'severity';
+  const max = isFrequency ? 7 : 4;
+  const labels = isFrequency
+    ? ['從不', '1天', '2天', '3天', '4天', '5天', '6天', '每天']
+    : ['完全沒有', '輕微', '中等', '嚴重', '非常嚴重'];
+  const mid = Math.floor(max / 2);
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'hamd-slider-wrapper';
+  wrapper.setAttribute('data-item-code', probeMeta.item_code);
+  wrapper.innerHTML = `
+    <div class="hamd-slider-inner">
+      <input type="range" class="hamd-slider" min="0" max="${max}" step="1" value="${mid}">
+      <div class="hamd-slider-labels">${labels.map((l) => `<span>${l}</span>`).join('')}</div>
+      <div class="hamd-slider-actions">
+        <button class="hamd-slider-confirm">確認（${labels[mid]}）</button>
+        <button class="hamd-slider-skip">略過</button>
+      </div>
+    </div>`;
+
+  const slider = wrapper.querySelector('.hamd-slider');
+  const confirmBtn = wrapper.querySelector('.hamd-slider-confirm');
+  const skipBtn = wrapper.querySelector('.hamd-slider-skip');
+
+  slider.addEventListener('input', () => {
+    confirmBtn.textContent = `確認（${labels[parseInt(slider.value, 10)]}）`;
+  });
+
+  confirmBtn.addEventListener('click', () => {
+    APP_STATE.pendingSliderRating = {
+      type: isFrequency ? 'frequency' : 'severity',
+      value: parseInt(slider.value, 10),
+      source: 'slider'
+    };
+    wrapper.classList.add('hamd-slider-confirmed');
+    confirmBtn.disabled = true;
+    skipBtn.disabled = true;
+    slider.disabled = true;
+    confirmBtn.textContent = `✓ 已記錄（${labels[parseInt(slider.value, 10)]}）`;
+  });
+
+  skipBtn.addEventListener('click', () => {
+    APP_STATE.pendingSliderRating = null;
+    wrapper.remove();
+  });
+
+  group.appendChild(wrapper);
+}
+
 async function appendMessage(role, text, options = {}) {
   const { bubble, group } = createMessageBubble(role);
   if (!bubble) return;
@@ -7325,6 +7377,7 @@ async function appendMessage(role, text, options = {}) {
     await animateAiMessage(bubble, text);
     renderClinicalTraceButton(group, options.traceData || null);
     renderAiTraceButton(group, options.aiTraceData || null);
+    renderHamdSlider(group, options.probeMeta || null);
     return;
   }
 
@@ -7332,6 +7385,7 @@ async function appendMessage(role, text, options = {}) {
     bubble.innerHTML = renderMessageMarkdown(text);
     renderClinicalTraceButton(group, options.traceData || null);
     renderAiTraceButton(group, options.aiTraceData || null);
+    renderHamdSlider(group, options.probeMeta || null);
   } else {
     bubble.textContent = text;
   }
@@ -9496,6 +9550,7 @@ async function sendMessage() {
         patient_profile: conversationState.patient_profile,
         phq9_assessment: conversationState.phq9_assessment,
         user: config.userId,
+        user_self_rating: APP_STATE.pendingSliderRating || null,
         ...buildRuntimeRequestConfig(config)
       })
     });
@@ -9505,6 +9560,7 @@ async function sendMessage() {
       throw new Error(formatChatError(payload));
     }
 
+    APP_STATE.pendingSliderRating = null;
     finalizeConversationRequest(payload);
     APP_STATE.lastChatMetadata = payload.metadata || null;
     APP_STATE.reportOutputs.session_export = payload.session_export || APP_STATE.reportOutputs.session_export;
@@ -9520,7 +9576,7 @@ async function sendMessage() {
     saveReportOutputsToCache();
     setTyping(false);
     console.log('[DEBUG] clinical_trace 收到了嗎？', payload.metadata?.clinical_trace ? '✅ 有' : '❌ 沒有', '| ai_trace:', payload.metadata?.ai_trace ? '✅ 有' : '❌ 沒有');
-    await appendMessage('ai', payload.answer || '我有收到你的訊息，但這次沒有拿到完整回覆。', { animate: true, traceData: payload.metadata?.clinical_trace || null, aiTraceData: payload.metadata?.ai_trace || null });
+    await appendMessage('ai', payload.answer || '我有收到你的訊息，但這次沒有拿到完整回覆。', { animate: true, traceData: payload.metadata?.clinical_trace || null, aiTraceData: payload.metadata?.ai_trace || null, probeMeta: payload.metadata?.probe_meta || null });
 
     // 每次 AI 回覆後自動存檔，確保對話不因刷新/跳頁而消失
     saveCurrentSessionToLocalArchive();
