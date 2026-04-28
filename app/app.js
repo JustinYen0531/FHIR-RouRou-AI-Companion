@@ -7154,13 +7154,27 @@ function renderAiTraceButton(group, btnRow, aiTraceData) {
     // 4. 探針選擇
     if (a.probe_selector) {
       const psItem = HAMD_ITEM_LABELS[a.probe_selector.item_code] || a.probe_selector.item_code || '—';
+      const PROBE_STATUS_LABELS = {
+        fresh:            '🟢 全新題目',
+        sticky:           '🟡 黏著中（第1輪）',
+        rescued:          '🟠 救了一次（第2輪，換問法）',
+        circling_skipped: '🔴 繞圈→跳題',
+        risk_override:    '🚨 風險覆寫',
+        no_probe:         '— 不問'
+      };
+      const probeStatusLabel = PROBE_STATUS_LABELS[a.probe_selector.probe_status] || a.probe_selector.probe_status || '—';
+      const skippedList = Array.isArray(a.probe_selector.skipped_items) && a.probe_selector.skipped_items.length
+        ? a.probe_selector.skipped_items.map((c) => HAMD_ITEM_LABELS[c] || c).join('、')
+        : '（無）';
       sections.push(`
         <div class="trace-section-title">🎣 探針選擇（hamdFormalProbeSelector）</div>
+        <div class="trace-row"><span class="trace-label">循環狀態</span><span class="trace-value">${probeStatusLabel}</span></div>
         <div class="trace-row"><span class="trace-label">是否要問</span><span class="trace-value">${a.probe_selector.should_ask === 'yes' ? '✅ 是' : '❌ 否'}</span></div>
         <div class="trace-row"><span class="trace-label">選定題項</span><span class="trace-value">${escapeHtml(psItem)}</span></div>
         <div class="trace-row"><span class="trace-label">問題類型</span><span class="trace-value">${escapeHtml(a.probe_selector.question_type || '—')}</span></div>
         <div class="trace-row"><span class="trace-label">原因</span><span class="trace-value">${escapeHtml(a.probe_selector.reason || '—')}</span></div>
         ${a.probe_selector.probe_question ? `<div class="trace-row"><span class="trace-label">問句</span><span class="trace-value">「${escapeHtml(a.probe_selector.probe_question.substring(0, 60))}」</span></div>` : ''}
+        <div class="trace-row"><span class="trace-label">已跳過題目</span><span class="trace-value">${escapeHtml(skippedList)}</span></div>
         <div class="trace-divider"></div>
       `);
     }

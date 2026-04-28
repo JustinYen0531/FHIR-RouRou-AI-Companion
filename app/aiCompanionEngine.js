@@ -4829,7 +4829,9 @@ class AICompanionEngine {
         item_label: RISK_PROBE.item_label,
         question_type: RISK_PROBE.question_type,
         reason: 'risk_signal_override_skip_selector',
-        probe_question: RISK_PROBE.probe_question
+        probe_question: RISK_PROBE.probe_question,
+        probe_status: 'risk_override',
+        skipped_items: getSkippedItemCodes(state)
       };
     } else {
       formalProbe = buildFormalAssessmentProbeFallback(state, message);
@@ -4846,13 +4848,24 @@ class AICompanionEngine {
         // 氣氛保護：強制關閉探針
         formalProbe = { ...formalProbe, should_ask: 'no' };
       }
+      // 循環偵測：判斷本次探針是 fresh / rescued / circling_skipped
+      const _skippedCodes = getSkippedItemCodes(state);
+      const _circlingStatus = (() => {
+        if (formalProbe.should_ask !== 'yes') return 'no_probe';
+        if (_skippedCodes.includes(formalProbe.item_code)) return 'circling_skipped';
+        if (formalProbe.reason === 'sticky_retry') return 'rescued';
+        if (formalProbe.reason === 'sticky_first') return 'sticky';
+        return 'fresh';
+      })();
       ensureAiTrace(state).probe_selector = {
         should_ask: formalProbe.should_ask,
         item_code: formalProbe.item_code,
         item_label: formalProbe.item_label,
         question_type: formalProbe.question_type,
         reason: formalProbe.reason,
-        probe_question: formalProbe.probe_question
+        probe_question: formalProbe.probe_question,
+        probe_status: _circlingStatus,
+        skipped_items: _skippedCodes
       };
 
       // 若探針選到已鎖定題項，強制取消
