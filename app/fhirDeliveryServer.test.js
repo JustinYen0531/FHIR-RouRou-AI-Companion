@@ -527,6 +527,47 @@ async function testSessionPatchEndpoint() {
   assert.strictEqual(sessions.get('conv-a').state.patient_profile.profileKey, 'pt-lin-xiao');
 }
 
+async function testSessionPatchCreatesMissingSession() {
+  const sessions = new Map();
+  const server = createServer({ sessions });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const patch = await requestJson(port, '/api/chat/session?id=conv-local-backup', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: {
+      user: 'demo-user',
+      startedAt: '2026-04-04T00:00:00.000Z',
+      history: [
+        { role: 'user', content: '我想打開之前的對話' },
+        { role: 'assistant', content: '我在，這段可以繼續。' }
+      ],
+      state: {
+        active_mode: 'mode_5_natural',
+        risk_flag: 'false'
+      },
+      memory_snapshot: {
+        last_user_message: '我想打開之前的對話',
+        last_assistant_message: '我在，這段可以繼續。'
+      },
+      revision: 2,
+      clear_output_cache: true
+    }
+  });
+
+  const detail = await requestJson(port, '/api/chat/session?id=conv-local-backup');
+
+  server.close();
+  assert.strictEqual(patch.statusCode, 200);
+  assert.strictEqual(patch.body.ok, true);
+  assert.strictEqual(detail.statusCode, 200);
+  assert.strictEqual(detail.body.session.id, 'conv-local-backup');
+  assert.strictEqual(detail.body.session.history.length, 2);
+  assert.strictEqual(detail.body.session.state.active_mode, 'mode_5_natural');
+  assert.strictEqual(detail.body.session.revision, 2);
+}
+
 async function testQuickCheckEndpoint() {
   const server = createServer({});
   await new Promise((resolve) => server.listen(0, resolve));
@@ -800,6 +841,7 @@ async function run() {
   await testSessionDetailEndpoint();
   await testSessionDeleteEndpoint();
   await testSessionPatchEndpoint();
+  await testSessionPatchCreatesMissingSession();
   await testQuickCheckEndpoint();
   await testPatientRefreshEndpoint();
   await testAuthRegisterAndMeEndpoint();

@@ -1830,10 +1830,10 @@ function updateAuthUI() {
   if (homeSessionList) {
     if (isLoggedIn && user.role === 'doctor') {
       homeSessionList.innerHTML = `<div class="home-session-empty">醫師端不顯示聊天紀錄，請進入病人管理工作台查看 AI 使用摘要。</div>`;
-    } else if (isLoggedIn) {
-      renderRecentSessions();
     } else {
-      homeSessionList.innerHTML = `<div class="home-session-empty">登入後，首頁才會顯示屬於這個帳號的對話紀錄。</div>`;
+      APP_STATE.pinnedSession = loadPinnedSession();
+      APP_STATE.recentSessions = getRecentSessionSummaries();
+      renderRecentSessions();
     }
   }
 }
@@ -8449,11 +8449,11 @@ async function loadRecentSessions() {
     container.innerHTML = `<div class="home-session-empty">正在讀取最近對話...</div>`;
   }
 
-  if (!isAuthenticated()) {
+  if (isDoctorUser()) {
     APP_STATE.pinnedSession = null;
     APP_STATE.recentSessions = [];
     if (container) {
-      container.innerHTML = `<div class="home-session-empty">登入後，首頁才會顯示屬於這個帳號的對話紀錄。</div>`;
+      container.innerHTML = `<div class="home-session-empty">醫師端不顯示聊天紀錄，請進入病人管理工作台查看 AI 使用摘要。</div>`;
     }
     syncPinnedSessionButtonState();
     return;
@@ -8464,7 +8464,9 @@ async function loadRecentSessions() {
   if (APP_STATE.recentSessions.length || APP_STATE.pinnedSession) {
     renderRecentSessions();
   } else if (container) {
-    container.innerHTML = `<div class="home-session-empty">目前還沒有已保存的對話。等你手動儲存後，這裡就會依序保留新舊紀錄。</div>`;
+    container.innerHTML = isAuthenticated()
+      ? `<div class="home-session-empty">目前還沒有已保存的對話。等你手動儲存後，這裡就會依序保留新舊紀錄。</div>`
+      : `<div class="home-session-empty">目前這台裝置還沒有已保存的對話。登入後可把之後的對話同步到你的帳號。</div>`;
   }
   syncPinnedSessionButtonState();
 }

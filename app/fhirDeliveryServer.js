@@ -1163,19 +1163,29 @@ function createServer(options = {}) {
           return;
         }
 
-        const session = sharedSessions.get(sessionId);
-        if (!session) {
-          sendJson(res, 404, { error: 'Session not found.' });
-          return;
-        }
-        if (!sessionBelongsToUser(session, authUser)) {
+        let session = sharedSessions.get(sessionId);
+        if (session && !sessionBelongsToUser(session, authUser)) {
           sendJson(res, 403, { error: 'Forbidden' });
           return;
         }
 
+        if (!session) {
+          session = {
+            id: sessionId,
+            user: authUser?.id || payload.user || 'web-demo-user',
+            startedAt: payload.startedAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            history: [],
+            state: {},
+            revision: 0,
+            memory_snapshot: {},
+            output_cache: {}
+          };
+          sharedSessions.set(sessionId, session);
+        }
+
         let updated = false;
         session.state = session.state && typeof session.state === 'object' ? session.state : {};
-
         if (payload.therapeutic_profile && typeof payload.therapeutic_profile === 'object') {
           session.state.therapeutic_profile = payload.therapeutic_profile;
           updated = true;
@@ -1186,11 +1196,46 @@ function createServer(options = {}) {
           updated = true;
         }
 
-        if (updated) {
-          session.updatedAt = new Date().toISOString();
-          persistence.save(sharedSessions);
+        if (Array.isArray(payload.history)) {
+          session.history = payload.history;
+          updated = true;
         }
 
+        if (payload.state && typeof payload.state === 'object') {
+          session.state = payload.state;
+          updated = true;
+        }
+
+        if (payload.memory_snapshot && typeof payload.memory_snapshot === 'object') {
+          session.memory_snapshot = payload.memory_snapshot;
+          updated = true;
+        }
+
+        if (Number.isFinite(Number(payload.revision))) {
+          session.revision = Number(payload.revision);
+          updated = true;
+        }
+
+        if (payload.user) {
+          session.user = authUser?.id || payload.user;
+          updated = true;
+        }
+
+        if (payload.startedAt) {
+          session.startedAt = payload.startedAt;
+          updated = true;
+        }
+
+        if (payload.clear_output_cache) {
+          session.output_cache = {};
+          updated = true;
+        }
+
+        if (updated) {
+          session.updatedAt = new Date().toISOString();
+        }
+
+        persistence.save(sharedSessions);
         sendJson(res, 200, { ok: true, updated, session_id: sessionId });
         return;
       }
