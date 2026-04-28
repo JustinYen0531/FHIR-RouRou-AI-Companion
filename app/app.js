@@ -1549,9 +1549,67 @@ function renderDoctorVisiblePatientSummary(patient = {}) {
           `).join('') : '<div class="doctor-self-report-empty">尚未進入安全模式。</div>'}
         </section>
       </div>
+      ${renderDoctorFhirDeliveryBlock(summary.lastFhirDelivery || null)}
       <div class="doctor-self-report-note">僅顯示病人自評、PHQ-9 與安全模式時間；聊天內容不會在醫師端顯示。</div>
     </div>
   `;
+}
+
+function renderDoctorFhirDeliveryBlock(delivery = null) {
+  if (!delivery || typeof delivery !== 'object') {
+    return `
+      <div class="doctor-fhir-delivery-block doctor-fhir-delivery-empty">
+        <span class="mat-icon">upload_file</span>
+        <span>尚未有 FHIR 交付紀錄。</span>
+      </div>`;
+  }
+  const statusLabel = {
+    delivered: '已成功交付',
+    dry_run_ready: 'Dry-run 完成（未真正送出）',
+    transaction_failed: '交付失敗',
+    blocked: '條件未滿足，無法交付',
+    validation_failed: '驗證失敗',
+    unknown: '狀態不明'
+  }[delivery.deliveryStatus] || delivery.deliveryStatus || '未知';
+  const statusClass = delivery.deliveryStatus === 'delivered' ? 'delivered'
+    : delivery.deliveryStatus === 'dry_run_ready' ? 'dryrun'
+    : 'failed';
+  const timeStr = delivery.deliveredAt ? formatDoctorSummaryTime(delivery.deliveredAt) : '未知時間';
+
+  // 建立資源連結
+  const buildLink = (path, label, baseUrl) => {
+    if (!path) return '';
+    const href = baseUrl ? `${baseUrl.replace(/\/$/, '')}/${path}` : null;
+    return href
+      ? `<a class="doctor-fhir-resource-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">
+           <span class="mat-icon">open_in_new</span>${escapeHtml(label || path)}
+         </a>`
+      : `<span class="doctor-fhir-resource-tag">${escapeHtml(label || path)}</span>`;
+  };
+
+  const patientLinkHtml = buildLink(delivery.patientResourcePath, delivery.patientResourceLabel, delivery.fhirBaseUrl);
+  const encounterLinkHtml = buildLink(delivery.encounterResourcePath, '', delivery.fhirBaseUrl);
+  const extraLinks = (delivery.resourceLinks || [])
+    .filter((l) => l.path && !l.path.startsWith('Patient/') && !l.path.startsWith('Encounter/'))
+    .slice(0, 4)
+    .map((l) => buildLink(l.path, l.label, delivery.fhirBaseUrl))
+    .join('');
+
+  return `
+    <div class="doctor-fhir-delivery-block">
+      <div class="doctor-fhir-delivery-header">
+        <span class="mat-icon">upload_file</span>
+        <span class="doctor-fhir-delivery-title">最近 FHIR 交付</span>
+        <span class="doctor-fhir-delivery-badge ${statusClass}">${escapeHtml(statusLabel)}</span>
+        <span class="doctor-fhir-delivery-time">${escapeHtml(timeStr)}</span>
+      </div>
+      ${delivery.summary ? `<div class="doctor-fhir-delivery-summary">${escapeHtml(delivery.summary)}</div>` : ''}
+      <div class="doctor-fhir-delivery-links">
+        ${patientLinkHtml}
+        ${encounterLinkHtml}
+        ${extraLinks}
+      </div>
+    </div>`;
 }
 
 function shouldDisplayPatientAssignment(entry = null) {
@@ -3620,12 +3678,24 @@ function recordFhirDraftHistory(draft, sessionExport = null) {
 
 function recordFhirDeliveryHistory(deliveryResult, draft = null, sessionExport = null) {
   if (!deliveryResult || typeof deliveryResult !== 'object') return;
-  upsertFhirHistoryEntry(buildFhirHistoryEntry({
-    type: 'delivery',
-    draft,
-    deliveryResult,
-    sessionExport
-  }));
+  const entry = buildFhirHistoryEntry({ type: 'delivery', draft, deliveryResult, sessionExport });
+  upsertFhirHistoryEntry(entry);
+
+  // 讓醫生端能看到最近一次 FHIR 交付紀錄
+  const patientLink = findFhirResourceLink(deliveryResult, 'Patient');
+  const encounterLink = findFhirResourceLink(deliveryResult, 'Encounter');
+  publishDoctorVisiblePatientSummary({
+    lastFhirDelivery: {
+      deliveryStatus: deliveryResult.delivery_status || 'unknown',
+      deliveredAt: new Date().toISOString(),
+      fhirBaseUrl: entry.targetUrl || '',
+      patientResourcePath: patientLink ? patientLink.path : '',
+      patientResourceLabel: patientLink ? patientLink.label : '',
+      encounterResourcePath: encounterLink ? encounterLink.path : '',
+      resourceLinks: (entry.resourceLinks || []).map((l) => ({ path: l.path, label: l.label })),
+      summary: entry.summary || ''
+    }
+  });
 }
 
 function removeFhirHistoryEntry(entryId) {
