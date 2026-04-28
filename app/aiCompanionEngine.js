@@ -1418,9 +1418,9 @@ const ITEM_SYMPTOM_KEYWORDS = {
   depressed_mood: ['低落', '提不起勁', '沮喪', '難過', '沒動力', '空虛', '心情不好', '鬱悶', '沒精神'],
   guilt: ['自責', '內疚', '罪惡感', '怪自己', '都是我的錯', '覺得對不起', '後悔'],
   suicide: ['不想活', '想死', '消失', '沒意義', '活著', '結束', '死', '想消失', '撐不下去'],
-  insomnia_early: ['睡不著', '難入睡', '躺很久', '失眠', '睡前', '入睡'],
-  insomnia_middle: ['半夜醒', '睡一睡', '中途醒', '容易醒', '睡眠中斷'],
-  insomnia_late: ['早醒', '太早醒', '睡不回去', '天沒亮'],
+  insomnia_early: ['睡不著', '難入睡', '躺很久', '失眠', '睡前', '入睡', '睡不好', '不好睡', '睡眠', '躺著', '睡覺'],
+  insomnia_middle: ['半夜醒', '睡一睡', '中途醒', '容易醒', '睡眠中斷', '睡眠', '睡不好'],
+  insomnia_late: ['早醒', '太早醒', '睡不回去', '天沒亮', '睡眠', '睡不好'],
   work_activities: ['做事', '動力', '工作', '上班', '上課', '提不起來', '不想做', '效率'],
   retardation: ['變慢', '思考', '回話', '拖住', '遲鈍', '反應慢', '做事慢'],
   agitation: ['坐不住', '煩躁', '靜不下來', '一直動', '不安', '焦躁'],
@@ -1467,10 +1467,26 @@ function isCorrectItem(question, targetItemCode) {
 }
 
 /**
+ * 判斷 AI 問的是否是患者自己在這輪訊息中親口提到的症狀
+ * 若是，即使不是 target item，也不應強制替換
+ */
+function isAskingAboutMentionedSymptom(question, userText) {
+  const q = String(question || '');
+  const u = String(userText || '');
+  if (!q || !u) return false;
+  for (const keywords of Object.values(ITEM_SYMPTOM_KEYWORDS)) {
+    if (keywords.some((kw) => q.includes(kw)) && keywords.some((kw) => u.includes(kw))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * 判斷是否需要介入
  * shouldIntervene = 沒有問句 OR 問句不可評分 OR 問錯 item OR 問句為禁止類型
  */
-function shouldIntervene(draft, targetItemCode) {
+function shouldIntervene(draft, targetItemCode, userText) {
   const lastQ = extractLastQuestion(draft);
   // 沒有問句 → 需要介入（補一題）
   if (!lastQ) return { intervene: true, reason: 'no_question' };
@@ -1484,7 +1500,11 @@ function shouldIntervene(draft, targetItemCode) {
     return { intervene: true, reason: 'not_scoreable' };
   }
   // 問錯 item（有 target 但沒命中）
+  // 豁免：若 AI 問的是患者這輪自己提到的症狀，屬於自然跟隨脈絡，不強制換題
   if (targetItemCode && !isCorrectItem(q, targetItemCode)) {
+    if (userText && isAskingAboutMentionedSymptom(q, userText)) {
+      return { intervene: false, reason: 'pass' };
+    }
     return { intervene: true, reason: 'wrong_item' };
   }
   // 太空泛的 functional_impact
@@ -1667,7 +1687,7 @@ function clinicalPostProcessor(draft, {
       debugTrace.has_specific_context = false;
     }
 
-    const decision = shouldIntervene(text, targetItemCode);
+    const decision = shouldIntervene(text, targetItemCode, userText);
     debugTrace.should_intervene = decision.intervene;
     debugTrace.intervention_reason = decision.reason;
 
