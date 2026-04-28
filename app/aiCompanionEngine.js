@@ -2025,6 +2025,8 @@ function clinicalPostProcessor(draft, {
     conversation_mode_reason: null,
     target_item: null,
     target_item_source: null,
+    llm_dominant_dimension: null,
+    llm_target_item: null,
     extracted_question: null,
     is_scoreable: null,
     is_correct_item: null,
@@ -2112,6 +2114,11 @@ function clinicalPostProcessor(draft, {
     const convMode = conversationDecision || determineConversationMode(state, userText, targetItemCode);
     debugTrace.conversation_mode = convMode.mode;
     debugTrace.conversation_mode_reason = convMode.reason;
+    // 記錄 LLM 語意判斷結果（供 UI 顯示「來源：LLM / 系統規則」）
+    debugTrace.llm_dominant_dimension = convMode.llm_dominant_dimension || null;
+    debugTrace.llm_target_item = (resolvedConversationTarget && resolvedConversationTarget.targetItemSource &&
+      resolvedConversationTarget.targetItemSource.startsWith('llm_dominant_dim'))
+      ? resolvedConversationTarget.targetItemCode : null;
     debugTrace.decision_path.push(`conversation_mode = ${convMode.mode} (${convMode.reason})`);
 
     // 🟢 clarifying：主軸不明確 → 直接問「哪個最困擾」，不做 HAM-D 題壓力

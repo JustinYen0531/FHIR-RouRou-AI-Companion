@@ -7067,9 +7067,58 @@ function renderClinicalTraceButton(group, btnRow, traceData) {
       `<span class="trace-badge">${escapeHtml(interveneIcon)}</span>`,
       `<span class="trace-badge">${t.risk_detected ? '🚨 有風險訊號' : '🟢 無高風險'}</span>`
     ].join(' ');
-    const decisionPath = Array.isArray(t.decision_path) && t.decision_path.length
-      ? t.decision_path.map((step) => `<div class="trace-step">${escapeHtml(step)}</div>`).join('')
-      : '<div class="trace-step">（沒有額外決策路徑）</div>';
+    // ── LLM 判斷 vs 系統規則 ──
+    const DIM_LABELS_CLINICAL = {
+      depressed_mood: '😔 心情低落', guilt: '😞 罪惡感', suicide: '⚠️ 自傷意念',
+      insomnia: '😴 睡眠', low_energy: '🔋 活動力/精力',
+      psychomotor: '🐢 動作遲滯', anxiety: '😰 焦慮', somatic: '🤢 身體症狀', unclear: '❓ 不明確'
+    };
+    const llmDim = t.llm_dominant_dimension ? (DIM_LABELS_CLINICAL[t.llm_dominant_dimension] || t.llm_dominant_dimension) : null;
+    const llmTarget = t.llm_target_item ? (HAMD_ITEM_LABELS[t.llm_target_item] || t.llm_target_item) : null;
+    const fromLlm = !!t.llm_target_item;
+    const targetSource = fromLlm
+      ? `<span class="trace-source-badge trace-source-llm">🤖 來源：LLM 語意判斷</span>`
+      : `<span class="trace-source-badge trace-source-rule">⚙️ 來源：系統規則</span>`;
+    const targetConflict = llmTarget && llmTarget !== itemLabel;
+    const conflictNote = targetConflict
+      ? `<div class="trace-row trace-conflict"><span class="trace-label">⚡ LLM 判斷</span><span class="trace-value">${escapeHtml(llmTarget)}${llmDim ? `（${escapeHtml(llmDim)}）` : ''}</span></div>`
+      : '';
+
+    // ── 決策路徑流程圖 ──
+    const STEP_ICONS = {
+      'comfort_phrases_stripped': { icon: '✂️', label: '移除安慰句' },
+      'risk_signal': { icon: '🚨', label: '風險訊號' },
+      'target_item': { icon: '🎯', label: '選定題項' },
+      'conversation_mode': { icon: '🧭', label: '對話模式' },
+      'shouldIntervene=false': { icon: '✅', label: 'AI 問得好' },
+      'shouldIntervene=true': { icon: '🔧', label: '系統介入' },
+      'replace': { icon: '🔄', label: '替換問句' },
+      'append': { icon: '➕', label: '補充問句' },
+      'enforce_single_question': { icon: '✂️', label: '單問句' },
+      'clarifying': { icon: '🟢', label: '釐清模式' },
+      'switching': { icon: '🔵', label: '換題' },
+      'probing': { icon: '🟡', label: '追問' },
+    };
+    function classifyStep(step) {
+      const s = step.toLowerCase();
+      for (const [key, val] of Object.entries(STEP_ICONS)) {
+        if (s.startsWith(key) || s.includes(key)) return val;
+      }
+      return { icon: '▸', label: null };
+    }
+    const decisionFlowSteps = Array.isArray(t.decision_path) && t.decision_path.length
+      ? t.decision_path.map((step, i) => {
+          const { icon } = classifyStep(step);
+          const isLast = i === t.decision_path.length - 1;
+          return `
+            <div class="trace-flow-step ${isLast ? 'trace-flow-step--final' : ''}">
+              <div class="trace-flow-icon">${icon}</div>
+              <div class="trace-flow-content">${escapeHtml(step)}</div>
+            </div>
+            ${!isLast ? '<div class="trace-flow-arrow">↓</div>' : ''}
+          `;
+        }).join('')
+      : '<div class="trace-flow-step"><div class="trace-flow-content">（沒有決策路徑）</div></div>';
 
     panel.innerHTML = `
       <div class="trace-header">🧠 系統決策</div>
@@ -7080,7 +7129,12 @@ function renderClinicalTraceButton(group, btnRow, traceData) {
       <div class="trace-row"><span class="trace-label">原始輸出</span><span class="trace-value">「${escapeHtml((t.raw_output || '').substring(0, 90))}${(t.raw_output || '').length > 90 ? '…' : ''}」</span></div>
       <div class="trace-divider"></div>
       <div class="trace-section-title">系統判讀</div>
-      <div class="trace-row"><span class="trace-label">當前該問</span><span class="trace-value">${escapeHtml(itemLabel)}</span></div>
+      <div class="trace-row">
+        <span class="trace-label">當前該問</span>
+        <span class="trace-value">${escapeHtml(itemLabel)} ${targetSource}</span>
+      </div>
+      ${conflictNote}
+      ${llmDim && !targetConflict ? `<div class="trace-row"><span class="trace-label">🔍 LLM 語意</span><span class="trace-value">${escapeHtml(llmDim)}</span></div>` : ''}
       <div class="trace-row"><span class="trace-label">可評分嗎</span><span class="trace-value">${scoreIcon}</span></div>
       <div class="trace-row"><span class="trace-label">問對了嗎</span><span class="trace-value">${correctIcon}</span></div>
       <div class="trace-row"><span class="trace-label">風險訊號</span><span class="trace-value">${riskIcon}</span></div>
@@ -7093,7 +7147,7 @@ function renderClinicalTraceButton(group, btnRow, traceData) {
       <div class="trace-row trace-final"><span class="trace-label">最終問句</span><span class="trace-value">「${escapeHtml(t.final_question || '沒有問句')}」</span></div>
       <div class="trace-divider"></div>
       <div class="trace-section-title">決策路徑</div>
-      <div class="trace-step-list">${decisionPath}</div>
+      <div class="trace-flow-list">${decisionFlowSteps}</div>
       ${t.error ? `<div class="trace-row trace-error"><span class="trace-label">⚠️ 錯誤</span><span class="trace-value">${escapeHtml(t.error)}</span></div>` : ''}
     `;
   }
