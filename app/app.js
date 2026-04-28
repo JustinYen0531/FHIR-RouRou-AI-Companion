@@ -7000,9 +7000,9 @@ function renderClinicalTraceButton(group, btnRow, traceData) {
   const btn = document.createElement('button');
   btn.className = 'clinical-trace-toggle';
   btn.type = 'button';
-  btn.setAttribute('aria-label', '查看 AI 決策紀錄');
-  btn.title = '查看 AI 決策紀錄';
-  btn.innerHTML = '<span class="mat-icon" style="font-size:16px">psychology</span> 決策紀錄';
+  btn.setAttribute('aria-label', '查看系統決策紀錄');
+  btn.title = '查看系統後處理與介入決策';
+  btn.innerHTML = '<span class="mat-icon" style="font-size:16px">psychology</span> 系統決策';
 
   const t = actualTraceData;
 
@@ -7013,7 +7013,7 @@ function renderClinicalTraceButton(group, btnRow, traceData) {
   if (!t) {
     // 沒有 trace → 顯示「此訊息無決策紀錄」
     panel.innerHTML = `
-      <div class="trace-header">🧠 臨床分析官 決策紀要</div>
+      <div class="trace-header">🧠 系統決策</div>
       <div class="trace-row"><span class="trace-label">⚪ 狀態</span><span class="trace-value">此訊息沒有經過臨床後處理器（可能不是智慧獵手模式）</span></div>
     `;
   } else {
@@ -7056,29 +7056,44 @@ function renderClinicalTraceButton(group, btnRow, traceData) {
     const riskIcon = t.risk_detected ? '🔴' : '🟢';
 
     const convModeMap = {
-      clarifying: '🟢 釐清（主軸不明）',
-      probing:    '🟡 補問（同一題）',
+      clarifying: '🟢 釐清',
+      probing:    '🟡 追問',
       switching:  '🔵 換題'
     };
     const convModeLabel = convModeMap[t.conversation_mode] || t.conversation_mode || '—';
+    const summaryBadges = [
+      `<span class="trace-badge">${escapeHtml(convModeLabel)}</span>`,
+      `<span class="trace-badge">🎯 ${escapeHtml(itemLabel)}</span>`,
+      `<span class="trace-badge">${escapeHtml(interveneIcon)}</span>`,
+      `<span class="trace-badge">${t.risk_detected ? '🚨 有風險訊號' : '🟢 無高風險'}</span>`
+    ].join(' ');
+    const decisionPath = Array.isArray(t.decision_path) && t.decision_path.length
+      ? t.decision_path.map((step) => `<div class="trace-step">${escapeHtml(step)}</div>`).join('')
+      : '<div class="trace-step">（沒有額外決策路徑）</div>';
 
     panel.innerHTML = `
-      <div class="trace-header">🧠 臨床分析官 決策紀要</div>
-      <div class="trace-row"><span class="trace-label">📝 AI 原本說</span><span class="trace-value">「${escapeHtml((t.raw_output || '').substring(0, 50))}…」</span></div>
-      <div class="trace-row"><span class="trace-label">❓ 抓到的問句</span><span class="trace-value">「${escapeHtml(t.extracted_question || '沒問問題')}」</span></div>
+      <div class="trace-header">🧠 系統決策</div>
+      <div class="trace-summary-strip">${summaryBadges}</div>
+      <div class="trace-section-title">快速摘要</div>
+      <div class="trace-row"><span class="trace-label">系統看到的狀態</span><span class="trace-value">${escapeHtml(convModeLabel)} / ${escapeHtml(reasonLabel)}</span></div>
+      <div class="trace-row"><span class="trace-label">AI 原始問句</span><span class="trace-value">「${escapeHtml(t.extracted_question || '沒問問題')}」</span></div>
+      <div class="trace-row"><span class="trace-label">原始輸出</span><span class="trace-value">「${escapeHtml((t.raw_output || '').substring(0, 90))}${(t.raw_output || '').length > 90 ? '…' : ''}」</span></div>
       <div class="trace-divider"></div>
-      <div class="trace-row"><span class="trace-label">🎯 當前該問</span><span class="trace-value">${escapeHtml(itemLabel)}</span></div>
-      <div class="trace-row"><span class="trace-label">📊 可評分嗎</span><span class="trace-value">${scoreIcon}</span></div>
-      <div class="trace-row"><span class="trace-label">🎯 問對了嗎</span><span class="trace-value">${correctIcon}</span></div>
-      <div class="trace-row"><span class="trace-label">🚨 風險訊號</span><span class="trace-value">${riskIcon}</span></div>
-      <div class="trace-row"><span class="trace-label">🗣️ 對話狀態</span><span class="trace-value">${escapeHtml(convModeLabel)}</span></div>
+      <div class="trace-section-title">系統判讀</div>
+      <div class="trace-row"><span class="trace-label">當前該問</span><span class="trace-value">${escapeHtml(itemLabel)}</span></div>
+      <div class="trace-row"><span class="trace-label">可評分嗎</span><span class="trace-value">${scoreIcon}</span></div>
+      <div class="trace-row"><span class="trace-label">問對了嗎</span><span class="trace-value">${correctIcon}</span></div>
+      <div class="trace-row"><span class="trace-label">風險訊號</span><span class="trace-value">${riskIcon}</span></div>
+      <div class="trace-row"><span class="trace-label">系統介入</span><span class="trace-value">${escapeHtml(interveneIcon)}</span></div>
+      <div class="trace-row"><span class="trace-label">介入動作</span><span class="trace-value">${escapeHtml(actionLabel)}</span></div>
       <div class="trace-divider"></div>
-      <div class="trace-row"><span class="trace-label">🤔 系統介入</span><span class="trace-value">${escapeHtml(interveneIcon)}</span></div>
-      <div class="trace-row"><span class="trace-label">💬 原因</span><span class="trace-value">${escapeHtml(reasonLabel)}</span></div>
-      <div class="trace-row"><span class="trace-label">🔧 動作</span><span class="trace-value">${escapeHtml(actionLabel)}</span></div>
-      ${t.replacement_probe ? `<div class="trace-row"><span class="trace-label">🔁 換成</span><span class="trace-value">「${escapeHtml(t.replacement_probe.substring(0, 40))}…」</span></div>` : ''}
+      <div class="trace-section-title">輸出結果</div>
+      ${t.replacement_probe ? `<div class="trace-row"><span class="trace-label">替換問句</span><span class="trace-value">「${escapeHtml(t.replacement_probe.substring(0, 80))}${t.replacement_probe.length > 80 ? '…' : ''}」</span></div>` : ''}
       <div class="trace-divider"></div>
-      <div class="trace-row trace-final"><span class="trace-label">✨ 最終問句</span><span class="trace-value">「${escapeHtml(t.final_question || '沒有問句')}」</span></div>
+      <div class="trace-row trace-final"><span class="trace-label">最終問句</span><span class="trace-value">「${escapeHtml(t.final_question || '沒有問句')}」</span></div>
+      <div class="trace-divider"></div>
+      <div class="trace-section-title">決策路徑</div>
+      <div class="trace-step-list">${decisionPath}</div>
       ${t.error ? `<div class="trace-row trace-error"><span class="trace-label">⚠️ 錯誤</span><span class="trace-value">${escapeHtml(t.error)}</span></div>` : ''}
     `;
   }
@@ -7130,13 +7145,42 @@ function renderAiTraceButton(group, btnRow, aiTraceData) {
     };
     const a = aiTraceData;
     const sections = [];
+    const cm = a.conversation_mode_judge || null;
+    const probe = a.probe_selector || null;
+    const modeMap = {
+      clarifying: '🟢 釐清',
+      probing: '🟡 追問',
+      switching: '🔵 換題'
+    };
+    const topBadges = [
+      cm ? `<span class="trace-badge">${escapeHtml(modeMap[cm.mode] || cm.mode || '—')}</span>` : '',
+      cm && (cm.hamd_dimension_label || cm.hamd_dimension) ? `<span class="trace-badge">🧭 ${escapeHtml(cm.hamd_dimension_label || cm.hamd_dimension)}</span>` : '',
+      probe ? `<span class="trace-badge">${probe.should_ask === 'yes' ? '✅ 會問 HAMD' : '⏸️ 暫不問 HAMD'}</span>` : '',
+      a.burden ? `<span class="trace-badge">負擔 ${escapeHtml(a.burden.burden_level || '—')}</span>` : ''
+    ].filter(Boolean).join(' ');
 
     sections.push('<div class="trace-header">🤖 AI 決策紀錄</div>');
+    if (topBadges) {
+      sections.push(`<div class="trace-summary-strip">${topBadges}</div>`);
+    }
+
+    if (cm) {
+      sections.push(`
+        <div class="trace-section-title">先看結論</div>
+        <div class="trace-row"><span class="trace-label">目前模式</span><span class="trace-value">${escapeHtml(modeMap[cm.mode] || cm.mode || '—')}</span></div>
+        <div class="trace-row"><span class="trace-label">AI 理由</span><span class="trace-value">${escapeHtml(cm.reason || '—')}</span></div>
+        <div class="trace-row"><span class="trace-label">目前題項</span><span class="trace-value">${escapeHtml(cm.target_item_label || cm.target_item_code || '—')}</span></div>
+        ${(cm.mode === 'probing' || cm.mode === 'switching') ? `<div class="trace-row"><span class="trace-label">HAM-D 面向</span><span class="trace-value">${escapeHtml(cm.hamd_dimension_label || cm.hamd_dimension || '—')}</span></div>` : ''}
+        <div class="trace-row"><span class="trace-label">HAM-D 準備度</span><span class="trace-value">${escapeHtml(cm.hamd_ready || '—')}</span></div>
+        <div class="trace-row"><span class="trace-label">推進狀態</span><span class="trace-value">${escapeHtml(cm.progression || '—')} / 繞圈：${escapeHtml(cm.loop_detected || '—')}</span></div>
+        <div class="trace-divider"></div>
+      `);
+    }
 
     // 1. 負擔判定
     if (a.burden) {
       sections.push(`
-        <div class="trace-section-title">📊 負擔判定（burdenLevelBuilder）</div>
+        <div class="trace-section-title">📊 負擔判定</div>
         <div class="trace-row"><span class="trace-label">負擔等級</span><span class="trace-value">${escapeHtml(a.burden.burden_level || '—')}</span></div>
         <div class="trace-row"><span class="trace-label">回應風格</span><span class="trace-value">${escapeHtml(a.burden.response_style || '—')}</span></div>
         <div class="trace-row"><span class="trace-label">追問預算</span><span class="trace-value">${escapeHtml(a.burden.followup_budget || '—')}</span></div>
@@ -7159,7 +7203,7 @@ function renderAiTraceButton(group, btnRow, aiTraceData) {
           }).join(' ')
         : '<span class="trace-value">（尚無資料）</span>';
       sections.push(`
-        <div class="trace-section-title">🎯 HAM-D 進度（hamdProgressTracker）</div>
+        <div class="trace-section-title">🎯 HAM-D 進度</div>
         <div class="trace-row"><span class="trace-label">階段</span><span class="trace-value">${escapeHtml(a.hamd_progress.progress_stage || '—')}</span></div>
         <div class="trace-row"><span class="trace-label">下一推薦維度</span><span class="trace-value">${escapeHtml(focusLabel)}</span></div>
         <div class="trace-row"><span class="trace-label">完成度</span><span class="trace-value">${completion}</span></div>
@@ -7170,15 +7214,9 @@ function renderAiTraceButton(group, btnRow, aiTraceData) {
     }
 
     // 3. 對話三態
-    if (a.conversation_mode_judge) {
-      const cm = a.conversation_mode_judge;
-      const modeMap = {
-        clarifying: '🟢 釐清',
-        probing: '🟡 追問',
-        switching: '🔵 換題'
-      };
+    if (cm) {
       sections.push(`
-        <div class="trace-section-title">🧭 對話三態（conversationModeJudge）</div>
+        <div class="trace-section-title">🧭 對話三態</div>
         <div class="trace-row"><span class="trace-label">判定模式</span><span class="trace-value">${escapeHtml(modeMap[cm.mode] || cm.mode || '—')}</span></div>
         <div class="trace-row"><span class="trace-label">理由</span><span class="trace-value">${escapeHtml(cm.reason || '—')}</span></div>
         <div class="trace-row"><span class="trace-label">主軸清晰度</span><span class="trace-value">${escapeHtml(cm.topic_clarity || '—')}</span></div>
@@ -7196,7 +7234,7 @@ function renderAiTraceButton(group, btnRow, aiTraceData) {
     if (a.low_energy || a.intent || a.flow) {
       const subModeLabel = SUB_MODE_LABELS[a.flow && a.flow.sub_mode] || (a.flow && a.flow.sub_mode) || '—';
       sections.push(`
-        <div class="trace-section-title">🔀 模式分流（lowEnergy / intent / flow）</div>
+        <div class="trace-section-title">🔀 模式分流</div>
         ${a.low_energy ? `<div class="trace-row"><span class="trace-label">低能量偵測</span><span class="trace-value">${escapeHtml(a.low_energy)}</span></div>` : ''}
         ${a.intent ? `<div class="trace-row"><span class="trace-label">意圖分類</span><span class="trace-value">${escapeHtml(a.intent)}</span></div>` : ''}
         ${a.flow ? `
@@ -7225,7 +7263,7 @@ function renderAiTraceButton(group, btnRow, aiTraceData) {
         ? a.probe_selector.skipped_items.map((c) => HAMD_ITEM_LABELS[c] || c).join('、')
         : '（無）';
       sections.push(`
-        <div class="trace-section-title">🎣 探針選擇（hamdFormalProbeSelector）</div>
+        <div class="trace-section-title">🎣 探針選擇</div>
         <div class="trace-row"><span class="trace-label">循環狀態</span><span class="trace-value">${probeStatusLabel}</span></div>
         <div class="trace-row"><span class="trace-label">是否要問</span><span class="trace-value">${a.probe_selector.should_ask === 'yes' ? '✅ 是' : '❌ 否'}</span></div>
         <div class="trace-row"><span class="trace-label">選定題項</span><span class="trace-value">${escapeHtml(psItem)}</span></div>
@@ -7245,7 +7283,7 @@ function renderAiTraceButton(group, btnRow, aiTraceData) {
         return `<div class="trace-row"><span class="trace-label">${escapeHtml(label)}</span><span class="trace-value">${escapeHtml(it.evidence_type || '—')} / ${escapeHtml(it.confidence || '—')}<br><small>${evList}</small></span></div>`;
       }).join('');
       sections.push(`
-        <div class="trace-section-title">🔍 證據分類（hamdEvidenceClassifier）</div>
+        <div class="trace-section-title">🔍 證據分類</div>
         ${evidenceRows}
         <div class="trace-divider"></div>
       `);
@@ -7259,7 +7297,7 @@ function renderAiTraceButton(group, btnRow, aiTraceData) {
         return `<div class="trace-row"><span class="trace-label">${escapeHtml(label)}</span><span class="trace-value">${score}<br><small>${escapeHtml((it.rating_rationale || '').substring(0, 80))}</small></span></div>`;
       }).join('');
       sections.push(`
-        <div class="trace-section-title">⚖️ 評分器（hamdFormalItemScorer）</div>
+        <div class="trace-section-title">⚖️ 評分器</div>
         ${scoreRows}
         <div class="trace-divider"></div>
       `);
@@ -7269,7 +7307,7 @@ function renderAiTraceButton(group, btnRow, aiTraceData) {
     if (a.smart_hunter) {
       const shSubMode = SUB_MODE_LABELS[a.smart_hunter.sub_mode] || a.smart_hunter.sub_mode || '—';
       sections.push(`
-        <div class="trace-section-title">🦊 Smart Hunter（smartHunter）</div>
+        <div class="trace-section-title">🦊 Smart Hunter</div>
         <div class="trace-row"><span class="trace-label">採用子模式</span><span class="trace-value">${escapeHtml(shSubMode)}</span></div>
         <div class="trace-row"><span class="trace-label">收到探針</span><span class="trace-value">${a.smart_hunter.formal_probe_received && a.smart_hunter.formal_probe_received.should_ask === 'yes' ? '✅' : '—'} ${escapeHtml((a.smart_hunter.formal_probe_received && a.smart_hunter.formal_probe_received.item_code) || '')}</span></div>
         <div class="trace-row trace-final"><span class="trace-label">原始輸出</span><span class="trace-value">「${escapeHtml((a.smart_hunter.raw_output || '').substring(0, 120))}…」</span></div>
