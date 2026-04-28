@@ -4910,6 +4910,29 @@ body {
  margin-top: 14px;
 }
 
+.home-history-feedback {
+ margin-top: 10px;
+ padding: 10px 12px;
+ border-radius: 12px;
+ font-size: 12px;
+ line-height: 1.5;
+ background: rgba(255, 247, 220, 0.9);
+ border: 1px solid rgba(214, 176, 64, 0.28);
+ color: #7a5b16;
+}
+
+.home-history-feedback.is-error {
+ background: rgba(255, 238, 238, 0.94);
+ border-color: rgba(202, 91, 91, 0.24);
+ color: #8f3a3a;
+}
+
+.home-history-feedback.is-success {
+ background: rgba(233, 247, 239, 0.94);
+ border-color: rgba(88, 154, 108, 0.24);
+ color: #2f6c41;
+}
+
 .home-session-card {
  width: 100%;
  text-align: left;

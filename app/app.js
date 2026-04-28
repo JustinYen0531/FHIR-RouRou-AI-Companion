@@ -8603,6 +8603,35 @@ function renderRecentSessions() {
   container.innerHTML = `${pinnedHtml}${historySection}`;
 }
 
+function setHomeHistoryFeedback(text = '', options = {}) {
+  const node = document.getElementById('home-history-feedback');
+  if (!node) return;
+  const message = String(text || '').trim();
+  node.classList.remove('is-error', 'is-success');
+  if (!message) {
+    node.textContent = '';
+    node.style.display = 'none';
+    return;
+  }
+  if (options.status === 'error') node.classList.add('is-error');
+  if (options.status === 'success') node.classList.add('is-success');
+  node.textContent = message;
+  node.style.display = 'block';
+}
+
+function removeUnavailableRecentSession(sessionId) {
+  const targetId = String(sessionId || '').trim();
+  if (!targetId) return;
+  removeLocalSessionArchive(targetId);
+  APP_STATE.serverRecentSessions = APP_STATE.serverRecentSessions.filter((item) => item.id !== targetId);
+  APP_STATE.recentSessions = APP_STATE.recentSessions.filter((item) => item.id !== targetId);
+  if (APP_STATE.pinnedSession?.id === targetId) {
+    APP_STATE.pinnedSession = null;
+    localStorage.removeItem(PINNED_SESSION_KEY);
+  }
+  renderRecentSessions();
+}
+
 async function deleteRecentSession(sessionId) {
   if (String(APP_STATE.pinnedSession?.id || '').trim() === String(sessionId || '').trim()) {
     appendSystemNotice('這段對話已被釘選，請先取消釘選後才能刪除。');
@@ -8648,6 +8677,7 @@ async function deleteRecentSession(sessionId) {
 
 async function loadRecentSessions() {
   const container = document.getElementById('home-session-list');
+  setHomeHistoryFeedback('');
   if (container) {
     container.innerHTML = `<div class="home-session-empty">正在讀取最近對話...</div>`;
   }
@@ -8857,7 +8887,9 @@ async function restoreSession(sessionId) {
     const response = await fetch(`/api/chat/session?id=${encodeURIComponent(sessionId)}`);
     const payload = await response.json();
     if (!response.ok) {
-      throw new Error(payload.error || '讀取對話內容失敗');
+      const error = new Error(payload.error || '讀取對話內容失敗');
+      error.status = response.status;
+      throw error;
     }
     const serverSession = payload.session || {};
     const shouldPreferLocal = Boolean(
@@ -8886,13 +8918,22 @@ async function restoreSession(sessionId) {
 async function continueLatestSession() {
   const latest = APP_STATE.recentSessions[0];
   if (!latest) {
+    setHomeHistoryFeedback('目前還沒有可繼續的舊對話。', { status: 'error' });
     appendSystemNotice('目前還沒有可繼續的舊對話。');
     return;
   }
   try {
+    setHomeHistoryFeedback('正在開啟上次對話...', { status: 'success' });
     await restoreSession(latest.id);
+    setHomeHistoryFeedback(`已切換到 ${formatSessionTimestamp(latest.updatedAt)} 的對話。`, { status: 'success' });
     appendSystemNotice(`已切換到 ${formatSessionTimestamp(latest.updatedAt)} 的對話。`);
   } catch (error) {
+    if (Number(error.status) === 404) {
+      removeUnavailableRecentSession(latest.id);
+      setHomeHistoryFeedback('這筆舊對話目前找不到可還原內容，已從首頁清單移除。', { status: 'error' });
+      return;
+    }
+    setHomeHistoryFeedback(error.message || '切換舊對話失敗。', { status: 'error' });
     appendSystemNotice(error.message || '切換舊對話失敗。');
   }
 }
@@ -8902,14 +8943,23 @@ async function continueSpecificSession(sessionId) {
     || (APP_STATE.pinnedSession?.id === sessionId ? APP_STATE.pinnedSession : null);
   if (!target) return;
   try {
+    setHomeHistoryFeedback(`正在開啟 ${formatSessionTimestamp(target.updatedAt)} 的對話...`, { status: 'success' });
     await restoreSession(target.id);
+    setHomeHistoryFeedback(`已切換到 ${formatSessionTimestamp(target.updatedAt)} 的對話。`, { status: 'success' });
     appendSystemNotice(`已切換到 ${formatSessionTimestamp(target.updatedAt)} 的對話。`);
   } catch (error) {
+    if (Number(error.status) === 404) {
+      removeUnavailableRecentSession(target.id);
+      setHomeHistoryFeedback('這筆舊對話目前找不到可還原內容，已從首頁清單移除。', { status: 'error' });
+      return;
+    }
+    setHomeHistoryFeedback(error.message || '切換舊對話失敗。', { status: 'error' });
     appendSystemNotice(error.message || '切換舊對話失敗。');
   }
 }
 
 async function startNewConversation() {
+  setHomeHistoryFeedback('');
   await maybeSaveCurrentSessionBefore('開始新對話');
   resetConversationState();
   APP_STATE.pendingFreshSession = true;
