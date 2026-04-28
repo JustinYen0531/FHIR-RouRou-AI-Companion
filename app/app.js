@@ -8726,10 +8726,12 @@ function renderChatHistory(history = []) {
     if (!bubble) return;
     if (item.role === 'ai') {
       bubble.innerHTML = renderMessageMarkdown(item.content);
-      // 還原兩顆決策紀錄按鈕（含 trace 資料時才掛上）
       if (group) {
-        renderClinicalTraceButton(group, item.traceData || null);
-        renderAiTraceButton(group, item.aiTraceData || null);
+        const btnRow = document.createElement('div');
+        btnRow.className = 'trace-btn-row';
+        group.appendChild(btnRow);
+        renderClinicalTraceButton(group, btnRow, item.traceData || null);
+        renderAiTraceButton(group, btnRow, item.aiTraceData || null);
       }
     } else {
       bubble.textContent = item.content;
