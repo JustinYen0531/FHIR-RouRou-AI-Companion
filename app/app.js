@@ -2878,19 +2878,24 @@ function getHamdSummary(summary = {}, progress = {}, formalAssessment = {}) {
     if (code) itemStatusMap[code] = item;
   });
 
-  // slider 狀態：完整 = 有滑桿（user_self_rating）；部分 = 文字但無滑桿；未提及 = missing
+  // complete = 滑桿 + 有敘述；partial = 其中一個；missing = 都沒有
   const formalItems = Array.isArray(formalAssessment?.items) ? formalAssessment.items : [];
   const sliderMap = {};
+  const textEvidenceMap = {};
   formalItems.forEach((item) => {
     const code = String(item?.item_code || '').trim();
-    if (code) sliderMap[code] = item?.user_self_rating != null;
+    if (!code) return;
+    sliderMap[code] = item?.user_self_rating != null;
+    textEvidenceMap[code] = String(item?.evidence_type || '').trim() !== 'none'
+      && String(item?.evidence_type || '').trim() !== '';
   });
 
   const perItemStatus = HAMD_PROGRESS_DIMENSIONS.map((dim) => {
     const tracked = itemStatusMap[dim];
     const isCovered = coveredDimensions.includes(dim);
     const hasSlider = !!sliderMap[dim];
-    const status = hasSlider ? 'complete' : (isCovered ? 'partial' : 'missing');
+    const hasText = isCovered || !!textEvidenceMap[dim];
+    const status = (hasSlider && hasText) ? 'complete' : (hasSlider || hasText) ? 'partial' : 'missing';
     return {
       item: dim,
       label: formatHamdSignalLabel(dim),
@@ -2902,8 +2907,6 @@ function getHamdSummary(summary = {}, progress = {}, formalAssessment = {}) {
 
   const nextQuestionHint = String(progress?.next_question_hint || '').trim();
   const nextTarget = String(progress?.next_recommended_dimension || progress?.current_focus || '').trim();
-
-  const formalItems = Array.isArray(formalAssessment?.items) ? formalAssessment.items : [];
   const ratedItems = formalItems.filter((item) => Number.isFinite(Number(item?.clinician_final_score)) || Number.isFinite(Number(item?.ai_suggested_score)));
   const clinicianRatedItems = formalItems.filter((item) => Number.isFinite(Number(item?.clinician_final_score)));
   const evidenceBackedItems = formalItems.filter((item) => {
