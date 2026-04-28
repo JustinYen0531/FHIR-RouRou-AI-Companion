@@ -7192,12 +7192,12 @@ body.micro-detail-open {
   margin-top: 6px;
   padding: 14px 16px;
   border-radius: 16px;
-  background: rgba(24, 36, 43, 0.92);
+  background: rgba(235, 248, 242, 0.96);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  color: #e8f0f4;
+  border: 1px solid rgba(90, 171, 137, 0.22);
+  box-shadow: 0 8px 32px rgba(90, 171, 137, 0.12);
+  color: #2d4a3e;
   font-size: 12px;
   line-height: 1.5;
   max-width: 360px;
@@ -7218,10 +7218,10 @@ body.micro-detail-open {
 .trace-header {
   font-size: 13px;
   font-weight: 700;
-  color: #b8dbc8;
+  color: #3a7a5e;
   margin-bottom: 10px;
   padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(90, 171, 137, 0.2);
 }
 
 .trace-row {
@@ -7234,29 +7234,29 @@ body.micro-detail-open {
 .trace-label {
   flex: 0 0 auto;
   min-width: 90px;
-  color: rgba(184, 219, 200, 0.8);
+  color: rgba(50, 100, 78, 0.75);
   font-weight: 600;
   white-space: nowrap;
 }
 
 .trace-value {
-  color: #e8f0f4;
+  color: #2d4a3e;
   word-break: break-word;
 }
 
 .trace-divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(90, 171, 137, 0.15);
   margin: 6px 0;
 }
 
 .trace-final .trace-value {
-  color: #a8e6cf;
+  color: #2e7d55;
   font-weight: 600;
 }
 
 .trace-error .trace-value {
-  color: #ffb4a9;
+  color: #c0392b;
 }
 
 /* AI Trace 專屬樣式 */
@@ -7274,25 +7274,25 @@ body.micro-detail-open {
 }
 
 .ai-trace-panel {
-  background: rgba(28, 32, 56, 0.92);
-  border-color: rgba(124, 92, 240, 0.18);
+  background: rgba(232, 246, 244, 0.96);
+  border-color: rgba(106, 180, 160, 0.22);
   max-width: 420px;
 }
 
 .ai-trace-panel .trace-header {
-  color: #c8d4ff;
-  border-bottom-color: rgba(124, 92, 240, 0.18);
+  color: #2e6e62;
+  border-bottom-color: rgba(106, 180, 160, 0.2);
 }
 
 .ai-trace-panel .trace-label {
-  color: rgba(200, 212, 255, 0.78);
+  color: rgba(40, 90, 78, 0.72);
   min-width: 100px;
 }
 
 .trace-section-title {
   font-size: 12px;
   font-weight: 700;
-  color: #b9a9ff;
+  color: #3a7a6a;
   margin: 8px 0 6px;
   padding-top: 4px;
   letter-spacing: 0.02em;
@@ -7310,13 +7310,13 @@ body.micro-detail-open {
   font-size: 11px;
   padding: 2px 7px;
   border-radius: 999px;
-  background: rgba(124, 92, 240, 0.18);
-  color: #d8d0ff;
-  border: 1px solid rgba(124, 92, 240, 0.28);
+  background: rgba(90, 171, 137, 0.14);
+  color: #2e6e55;
+  border: 1px solid rgba(90, 171, 137, 0.28);
 }
 
 .ai-trace-panel .trace-row small {
-  color: rgba(200, 212, 255, 0.6);
+  color: rgba(40, 90, 70, 0.6);
   font-size: 11px;
   display: block;
   margin-top: 2px;
