@@ -717,6 +717,34 @@ function testClarifyingProbeFallsBackToGentleEmotionalPrompt() {
   );
 }
 
+async function testClarifyingTurnClearsStaleSliderProbeMeta() {
+  const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
+  const first = await engine.handleMessage({
+    message: '最近工作讓我很焦慮，也常常睡不好。',
+    user: 'clarify-user',
+    conversation_id: 'conv-clarify-slider'
+  });
+  const session = engine.sessions.get(first.conversation_id);
+  session.state.hamd_formal_assessment = Object.assign({}, session.state.hamd_formal_assessment, {
+    pending_probe_item_code: 'depressed_mood',
+    pending_probe_question: '最近低落的情況大概一週有幾天？',
+    pending_probe_meta: {
+      item_code: 'depressed_mood',
+      type: 'frequency'
+    }
+  });
+
+  const result = await engine.handleMessage({
+    message: '最近真的很累、很焦慮、也睡不好，整個人都卡住了。',
+    user: 'clarify-user',
+    conversation_id: first.conversation_id
+  });
+
+  assert.strictEqual(result.metadata.clinical_trace?.conversation_mode, 'clarifying');
+  assert.strictEqual(result.metadata.probe_meta, null);
+  assert.strictEqual(session.state.hamd_formal_assessment.pending_probe_meta, null);
+}
+
 async function run() {
   await testCommandRouting();
   await testHighRiskRouting();
@@ -742,6 +770,7 @@ async function run() {
   await testSessionPersistenceRoundTrip();
   testClarifyingProbeUsesFeelingFocusedQuestions();
   testClarifyingProbeFallsBackToGentleEmotionalPrompt();
+  await testClarifyingTurnClearsStaleSliderProbeMeta();
   console.log('AI companion engine tests passed.');
 }
 

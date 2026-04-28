@@ -1986,6 +1986,11 @@ function clinicalPostProcessor(draft, {
 
     // 🟢 clarifying：主軸不明確 → 直接問「哪個最困擾」，不做 HAM-D 題壓力
     if (convMode.mode === 'clarifying') {
+      if (state.hamd_formal_assessment) {
+        state.hamd_formal_assessment.pending_probe_item_code = '';
+        state.hamd_formal_assessment.pending_probe_question = '';
+        state.hamd_formal_assessment.pending_probe_meta = null;
+      }
       const clarifyProbe = buildClarifyingProbe(userText);
       const lastQForClarify = extractLastQuestion(text);
       if (lastQForClarify && lastQForClarify.before) {
@@ -5272,6 +5277,18 @@ class AICompanionEngine {
     });
     answer = postProcessResult.text;
     const clinicalTrace = postProcessResult.debugTrace;
+    const clarifyingInterventionActive = clinicalTrace && clinicalTrace.intervention_action === 'clarifying_probe';
+
+    if (clarifyingInterventionActive) {
+      formalProbe = {
+        should_ask: 'no',
+        item_code: '',
+        item_label: '',
+        question_type: '',
+        probe_question: '',
+        reason: 'clarifying_override'
+      };
+    }
 
     // ── 存 debug trace 到 state（API 可讀）──
     state._clinical_trace = clinicalTrace;
@@ -5282,7 +5299,7 @@ class AICompanionEngine {
     let probeActive = canProbeHamd && formalProbe.should_ask === 'yes' && Boolean(normalizedProbeQuestion);
 
     // 若統一後處理器替換了問句，且非氣氛保護模式，視為 probe active
-    if (!probeActive && !atmosphereProtected) {
+    if (!probeActive && !atmosphereProtected && !clarifyingInterventionActive) {
       const postLastQ = extractLastQuestion(answer);
       if (postLastQ && isScoreableQuestion(postLastQ.question)) {
         // 找到後處理器注入的可評分問題 → 自動關聯到 next_item
