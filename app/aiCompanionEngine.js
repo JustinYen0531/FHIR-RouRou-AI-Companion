@@ -1789,6 +1789,43 @@ function isProbeEligibleItem(state, itemCode) {
   return !lockedCodes.includes(code) && !skippedCodes.includes(code) && !overTurn;
 }
 
+// ── 換題銜接句（switching 模式專用）─────────────────────────────────────────
+// 只在 conversation_mode = switching 時，從舊維度跨到新維度才觸發
+const DIMENSION_TRANSITION_PHRASES = {
+  // from → to → 銜接句
+  insomnia:      { default: '你說的睡眠狀況我先記下來了，' },
+  depressed_mood:{ default: '心情這塊先放這裡，' },
+  guilt:         { default: '你剛才說的那種感覺我有記下來，' },
+  work_interest: { default: '動力這件事先放著，' },
+  retardation:   { default: '整個人變慢的感覺先記著，' },
+  somatic_anxiety:{ default: '身體這塊先記下來，' },
+  agitation:     { default: '那種坐不住的感覺先放著，' }
+};
+
+// 「換個方向」引導語，接在 from 銜接句後，然後接新題
+const TOPIC_SHIFT_CONNECTORS = [
+  '我想換個方向了解一下，',
+  '我想多問你另一塊，',
+  '我換個角度問問你，',
+  '讓我換個方向問你，'
+];
+
+function buildSwitchingTransition(fromItemCode, toItemCode) {
+  if (!fromItemCode || !toItemCode || fromItemCode === toItemCode) return '';
+  const fromDef = HAMD_FORMAL_ITEM_MAP[fromItemCode];
+  const toDef   = HAMD_FORMAL_ITEM_MAP[toItemCode];
+  if (!fromDef || !toDef) return '';
+  const fromDim = fromDef.dimension || '';
+  // 同 dimension 換題不需要銜接句（只是同類補問）
+  if (fromDim === (toDef.dimension || '')) return '';
+  const fromPhrases = DIMENSION_TRANSITION_PHRASES[fromDim] || {};
+  const ack = fromPhrases.default || '';
+  const connector = TOPIC_SHIFT_CONNECTORS[
+    Math.abs((fromItemCode + toItemCode).split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0)) % TOPIC_SHIFT_CONNECTORS.length
+  ];
+  return ack + connector;
+}
+
 function buildFormalProbeFromItemCode(state, itemCode, reason = 'mode_selected_item') {
   const code = String(itemCode || '').trim();
   const definition = HAMD_FORMAL_ITEM_MAP[code];
@@ -5536,7 +5573,16 @@ class AICompanionEngine {
         if (probingProbe.should_ask === 'yes') formalProbe = probingProbe;
       } else if (conversationModeResult.decision.mode === 'switching' && conversationModeResult.decision.target_item_code) {
         const switchingProbe = buildFormalProbeFromItemCode(state, conversationModeResult.decision.target_item_code, 'mode_switching_new_item');
-        if (switchingProbe.should_ask === 'yes') formalProbe = switchingProbe;
+        if (switchingProbe.should_ask === 'yes') {
+          // 跨維度換題 → 插入銜接句
+          const lastAskedItem = String(state.hamd_last_asked_item || '').trim();
+          const transition = buildSwitchingTransition(lastAskedItem, conversationModeResult.decision.target_item_code);
+          if (transition) {
+            switchingProbe.probe_question = transition + switchingProbe.probe_question;
+            switchingProbe.has_transition = true;
+          }
+          formalProbe = switchingProbe;
+        }
       }
 
       const _skippedCodes = getSkippedItemCodes(state);
