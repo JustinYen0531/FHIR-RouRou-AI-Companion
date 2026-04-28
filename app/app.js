@@ -7558,6 +7558,38 @@ function updateScrollSafeArea() {
   });
 }
 
+// 滑桿確認後的 Rou Rou 即時回應
+function buildSliderReaction(isFrequency, val, max) {
+  if (isFrequency) {
+    // 頻率型：0=從不 … 7=每天
+    if (val === 0) {
+      return '聽起來這方面你還好耶，難得！如果有什麼讓你維持住的，可以在下面跟我說說 😊';
+    } else if (val <= 2) {
+      return '偶爾這樣也是辛苦的。你願意的話，跟我說說通常是什麼情況嗎？';
+    } else if (val <= 4) {
+      return '這樣不時就有這種感覺，我想多了解一點——可以在對話框說說是什麼情境嗎？';
+    } else if (val < max) {
+      return '這樣蠻頻繁的，辛苦了。可以跟我說說大概是什麼時候、什麼情況比較明顯嗎？';
+    } else {
+      // val === max (每天)
+      return '每天都這樣，真的很累吧。謝謝你告訴我，可以在下面說說是什麼感覺嗎？';
+    }
+  } else {
+    // 嚴重度型：0=完全沒有 … 4=非常嚴重
+    if (val === 0) {
+      return '這部分看起來還好，不用太擔心。如果之後有什麼變化，隨時可以告訴我 🙂';
+    } else if (val === 1) {
+      return '輕微的程度，還在可以應對的範圍。可以說說什麼時候特別有感覺嗎？';
+    } else if (val === 2) {
+      return '中等程度已經不算輕鬆了，謝謝你如實告訴我。可以多說說是什麼情境嗎？';
+    } else if (val === 3) {
+      return '這樣蠻嚴重的，你辛苦了。可以在對話框說說是什麼樣的感覺嗎？';
+    } else {
+      return '聽到你這樣我很在意，謝謝你願意告訴我。可以說說你現在的狀態嗎？';
+    }
+  }
+}
+
 function renderHamdSlider(group, probeMeta) {
   if (!probeMeta || !probeMeta.item_code) return;
   const isFrequency = probeMeta.type !== 'severity';
@@ -7589,16 +7621,28 @@ function renderHamdSlider(group, probeMeta) {
   });
 
   confirmBtn.addEventListener('click', () => {
+    const val = parseInt(slider.value, 10);
     APP_STATE.pendingSliderRating = {
       type: isFrequency ? 'frequency' : 'severity',
-      value: parseInt(slider.value, 10),
+      value: val,
       source: 'slider'
     };
     wrapper.classList.add('hamd-slider-confirmed');
     confirmBtn.disabled = true;
     skipBtn.disabled = true;
     slider.disabled = true;
-    confirmBtn.textContent = `✓ 已記錄（${labels[parseInt(slider.value, 10)]}）`;
+    confirmBtn.textContent = `✓ 已記錄（${labels[val]}）`;
+
+    // 根據數值產生 Rou Rou 即時回應
+    const reaction = buildSliderReaction(isFrequency, val, max);
+    if (reaction) {
+      const reactionEl = document.createElement('div');
+      reactionEl.className = 'hamd-slider-reaction';
+      reactionEl.innerHTML = `<span class="hamd-slider-reaction-icon">🐾</span><span class="hamd-slider-reaction-text">${reaction}</span>`;
+      wrapper.appendChild(reactionEl);
+      // 小延遲後顯示，讓確認動畫先完成
+      setTimeout(() => reactionEl.classList.add('hamd-slider-reaction--visible'), 120);
+    }
   });
 
   skipBtn.addEventListener('click', () => {

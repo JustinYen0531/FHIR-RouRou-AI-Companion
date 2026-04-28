@@ -7565,3 +7565,35 @@ body.micro-detail-open {
   border-color: rgba(90, 171, 137, 0.6);
   background: rgba(90, 171, 137, 0.12);
 }
+
+/* 滑桿確認後的 Rou Rou 即時回應氣泡 */
+.hamd-slider-reaction {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 9px 13px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(90, 171, 137, 0.28);
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #2b4f3c;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.28s ease, transform 0.28s ease;
+  pointer-events: none;
+}
+.hamd-slider-reaction--visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.hamd-slider-reaction-icon {
+  font-size: 15px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.hamd-slider-reaction-text {
+  flex: 1;
+}
