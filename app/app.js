@@ -2881,20 +2881,19 @@ function getHamdSummary(summary = {}, progress = {}, formalAssessment = {}) {
   // complete = 滑桿 + 有敘述；partial = 其中一個；missing = 都沒有
   const formalItems = Array.isArray(formalAssessment?.items) ? formalAssessment.items : [];
   const sliderMap = {};
-  const textEvidenceMap = {};
+  const meaningfulTextMap = {};
   formalItems.forEach((item) => {
     const code = String(item?.item_code || '').trim();
     if (!code) return;
     sliderMap[code] = item?.user_self_rating != null;
-    textEvidenceMap[code] = String(item?.evidence_type || '').trim() !== 'none'
-      && String(item?.evidence_type || '').trim() !== '';
+    // LLM 判斷的有效文字標記（has_meaningful_text），比啟發式更準確
+    meaningfulTextMap[code] = item?.has_meaningful_text === true;
   });
 
   const perItemStatus = HAMD_PROGRESS_DIMENSIONS.map((dim) => {
     const tracked = itemStatusMap[dim];
-    const isCovered = coveredDimensions.includes(dim);
     const hasSlider = !!sliderMap[dim];
-    const hasText = isCovered || !!textEvidenceMap[dim];
+    const hasText = !!meaningfulTextMap[dim];
     const status = (hasSlider && hasText) ? 'complete' : (hasSlider || hasText) ? 'partial' : 'missing';
     return {
       item: dim,

@@ -776,6 +776,7 @@ function createDefaultFormalAssessment() {
       ai_suggested_score: null,
       clinician_final_score: null,
       user_self_rating: null,
+      has_meaningful_text: false,
       evidence_summary: [],
       rating_rationale: '',
       confidence: 'low',
@@ -817,6 +818,7 @@ function hydrateFormalAssessment(value) {
     const saved = itemMap[item.item_code] || {};
     const merged = Object.assign({}, base.items.find((entry) => entry.item_code === item.item_code), saved);
     if (saved.user_self_rating !== undefined) merged.user_self_rating = saved.user_self_rating;
+    if (typeof saved.has_meaningful_text === 'boolean') merged.has_meaningful_text = saved.has_meaningful_text;
     return merged;
   });
   return base;
@@ -2062,6 +2064,9 @@ function mergeFormalAssessmentUpdates(assessment, evidenceResult, scoreResult) {
       evidence_summary: evidence ? normalizeHamdEvidenceSummary(item, evidence.evidence_summary) : normalizeHamdEvidenceSummary(item, item.evidence_summary),
       confidence: score ? score.confidence || item.confidence : (evidence ? evidence.confidence || item.confidence : item.confidence),
       review_required: evidence ? Boolean(evidence.review_required) : item.review_required,
+      has_meaningful_text: evidence && typeof evidence.has_meaningful_text === 'boolean'
+        ? evidence.has_meaningful_text
+        : (item.has_meaningful_text || false),
       ai_suggested_score: score && Object.prototype.hasOwnProperty.call(score, 'ai_suggested_score')
         ? clampScore(score.ai_suggested_score, item.scale_range)
         : item.ai_suggested_score,
