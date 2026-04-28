@@ -1815,6 +1815,16 @@ function buildFormalProbeFromItemCode(state, itemCode, reason = 'mode_selected_i
 function resolveConversationTargetByMode(state, userText, formalProbe, mode, baseResolvedTarget) {
   const base = baseResolvedTarget || resolveConversationTarget(state, userText, formalProbe);
   if (mode === 'probing') {
+    // ⚡ LLM dominant_dim 已明確選定題項 → 直接信任，不讓 pending/formalProbe 蓋掉
+    if (base.targetItemSource && base.targetItemSource.startsWith('llm_dominant_dim')) {
+      if (isProbeEligibleItem(state, base.targetItemCode)) {
+        return {
+          targetItemCode: base.targetItemCode,
+          targetItemSource: base.targetItemSource,
+          decisionNotes: [...base.decisionNotes, `probing → LLM dominant_dim 優先選 "${base.targetItemCode}"`]
+        };
+      }
+    }
     const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
     const probingCandidate = [
       assessment.pending_probe_item_code,
