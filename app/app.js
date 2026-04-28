@@ -7384,7 +7384,14 @@ async function appendMessage(role, text, options = {}) {
   const { bubble, group } = createMessageBubble(role);
   if (!bubble) return;
 
-  APP_STATE.chatHistory.push({ role, content: text, createdAt: new Date().toISOString(), ...(options.ephemeral ? { ephemeral: true } : {}) });
+  APP_STATE.chatHistory.push({
+    role,
+    content: text,
+    createdAt: new Date().toISOString(),
+    ...(options.ephemeral ? { ephemeral: true } : {}),
+    ...(options.traceData ? { traceData: options.traceData } : {}),
+    ...(options.aiTraceData ? { aiTraceData: options.aiTraceData } : {})
+  });
   APP_STATE.chatHistory = APP_STATE.chatHistory.slice(-24);
 
   if (role === 'ai' && options.animate) {
@@ -8470,10 +8477,15 @@ function renderChatHistory(history = []) {
   const items = (Array.isArray(history) ? history : []).filter((e) => !isEphemeralShortcutMessage(e));
   items.forEach((item) => {
     if (!item || !item.role || !item.content) return;
-    const { bubble } = createMessageBubble(item.role);
+    const { group, bubble } = createMessageBubble(item.role);
     if (!bubble) return;
     if (item.role === 'ai') {
       bubble.innerHTML = renderMessageMarkdown(item.content);
+      // 還原兩顆決策紀錄按鈕（含 trace 資料時才掛上）
+      if (group) {
+        renderClinicalTraceButton(group, item.traceData || null);
+        renderAiTraceButton(group, item.aiTraceData || null);
+      }
     } else {
       bubble.textContent = item.content;
     }
