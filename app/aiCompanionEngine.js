@@ -1728,9 +1728,15 @@ function determineConversationMode(state, userText, targetItemCode) {
     return { mode: 'clarifying', reason: 'no_target_item' };
   }
   // 使用者本輪同時提到 ≥3 個不同 HAM-D 症狀群 → 主軸不明確，先釐清
+  // 例外：若目前 target_item 的關鍵詞仍在使用者文字中 → 主軸未散，禁止釐清
   const mentioned = countMentionedItems(userText);
   if (mentioned >= 3) {
-    return { mode: 'clarifying', reason: 'multi_symptom_input', mentioned_count: mentioned };
+    const targetKeywords = ITEM_SYMPTOM_KEYWORDS[targetItemCode] || [];
+    const userMentionsTarget = targetKeywords.some((kw) => String(userText || '').includes(kw));
+    if (!userMentionsTarget) {
+      return { mode: 'clarifying', reason: 'multi_symptom_input', mentioned_count: mentioned };
+    }
+    // target 語意仍在 → 主軸還在，不釐清
   }
   // 該題已收集到 evidence + score → 換題
   if (isItemDataComplete(state, targetItemCode)) {
@@ -5259,6 +5265,17 @@ class AICompanionEngine {
       }
     }
     decision.llm_dominant_dimension = llmDominantDim || 'unclear';
+
+    // ── 硬規則：target_item 存在且使用者回應包含相關語意 → 禁止 clarifying ──
+    // 只要主軸還在（probing > switching > clarifying），不釐清
+    if (decision.mode === 'clarifying' && baseResolvedTarget.targetItemCode) {
+      const targetKws = ITEM_SYMPTOM_KEYWORDS[baseResolvedTarget.targetItemCode] || [];
+      const userMentionsTarget = targetKws.some((kw) => String(message || '').includes(kw));
+      if (userMentionsTarget) {
+        decision.mode = 'probing';
+        decision.reason = 'target_semantic_present→force_probing';
+      }
+    }
 
     const resolvedTarget = resolveConversationTargetByMode(state, message, formalProbe, decision.mode, baseResolvedTarget);
     decision.target_item_code = resolvedTarget.targetItemCode || '';
