@@ -1499,6 +1499,17 @@ function shouldIntervene(draft, targetItemCode) {
  * 確保回答中只有一個問句（永遠只保留最後一個）
  * 多問句時只保留最後一個，前面的問號句全部移除
  */
+const TRANSITION_PHRASES = [
+  '順便想多了解一下，',
+  '想多問你一個問題，',
+  '我也想多了解一下，',
+  '可以再問你一件事嗎，',
+  '想多知道一些，',
+];
+function pickTransition() {
+  return TRANSITION_PHRASES[Math.floor(Math.random() * TRANSITION_PHRASES.length)];
+}
+
 function enforceSingleQuestion(text) {
   const t = String(text || '').trim();
   if (!t) return t;
@@ -1697,26 +1708,24 @@ function clinicalPostProcessor(draft, {
       return { text, debugTrace };
     }
 
+    // ── 第 5 層：先對 AI 原文做單問句清理，再注入系統探針（保護探針不被誤刪）──
     if (decision.reason === 'no_question') {
       debugTrace.intervention_action = 'append_question';
       debugTrace.decision_path.push(`append_probe: "${probe.substring(0, 30)}..."`);
-      text = `${text}\n\n${probe}`;
+      text = `${enforceSingleQuestion(text)}\n\n${probe}`;
     } else {
       debugTrace.intervention_action = 'replace_question';
       debugTrace.decision_path.push(`replace: "${(debugTrace.extracted_question || '').substring(0, 20)}..." → "${probe.substring(0, 30)}..."`);
-      if (lastQ && lastQ.before) {
-        text = `${lastQ.before}\n\n${probe}`;
-      } else {
-        text = probe;
-      }
+      const transition = pickTransition();
+      const probeWithTransition = `${transition}${probe}`;
+      const cleanBefore = lastQ && lastQ.before ? enforceSingleQuestion(lastQ.before) : '';
+      text = cleanBefore ? `${cleanBefore}\n\n${probeWithTransition}` : probeWithTransition;
     }
 
-    // ── 第 5 層：單問句 ──
-    text = enforceSingleQuestion(text);
     debugTrace.final_output = text;
     const fq3 = extractLastQuestion(text);
     debugTrace.final_question = fq3 ? fq3.question : null;
-    debugTrace.decision_path.push('enforce_single_question → done');
+    debugTrace.decision_path.push('enforce_single_question(pre-probe) → done');
     return { text, debugTrace };
 
   } catch (error) {
