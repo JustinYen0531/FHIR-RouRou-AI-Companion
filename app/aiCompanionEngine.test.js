@@ -33,6 +33,18 @@ function createStubModelClient() {
       return { text: 'continue_auto' };
     }
     if (systemPrompt.includes('你是「對話三態判斷器」')) {
+      if (userPrompt.includes('繞圈')) {
+        return {
+          text: JSON.stringify({
+            mode: 'switching',
+            reason: '同一條線沒有明顯新資訊，適合換題',
+            topic_clarity: 'clear',
+            hamd_ready: 'yes',
+            progression: 'flat',
+            loop_detected: 'yes'
+          })
+        };
+      }
       if (userPrompt.includes('很累') && userPrompt.includes('焦慮') && userPrompt.includes('睡不好')) {
         return {
           text: JSON.stringify({
@@ -782,6 +794,38 @@ async function testAiTraceIncludesConversationModeAndHamdDimension() {
   assert.ok(result.metadata.ai_trace?.conversation_mode_judge?.hamd_dimension_label);
 }
 
+async function testProbingModeKeepsSameHamdItem() {
+  const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
+  const first = await engine.handleMessage({
+    message: '最近會一直怪自己，好像很多事都是我的錯。',
+    user: 'probing-user',
+    conversation_id: 'conv-probing-same-item'
+  });
+  const session = engine.sessions.get(first.conversation_id);
+  session.state.hamd_last_asked_item = 'guilt';
+  session.state.hamd_item_lock_state = {};
+  session.state.hamd_formal_assessment.pending_probe_item_code = '';
+  session.state.hamd_formal_assessment.pending_probe_question = '';
+  session.state.hamd_formal_assessment.pending_probe_meta = null;
+  const guiltItem = session.state.hamd_formal_assessment.items.find((item) => item.item_code === 'guilt');
+  if (guiltItem) {
+    guiltItem.evidence_summary = [];
+    guiltItem.ai_suggested_score = null;
+    guiltItem.review_required = true;
+    guiltItem.probe_count = 0;
+  }
+
+  const result = await engine.handleMessage({
+    message: '可是我最近也一直睡不好，半夜常常醒來。',
+    user: 'probing-user',
+    conversation_id: first.conversation_id
+  });
+
+  assert.strictEqual(result.metadata.ai_trace?.conversation_mode_judge?.mode, 'probing');
+  assert.strictEqual(result.metadata.ai_trace?.conversation_mode_judge?.target_item_code, 'guilt');
+  assert.strictEqual(result.metadata.clinical_trace?.target_item, 'guilt');
+}
+
 async function run() {
   await testCommandRouting();
   await testHighRiskRouting();
@@ -809,6 +853,7 @@ async function run() {
   testClarifyingProbeFallsBackToGentleEmotionalPrompt();
   await testClarifyingTurnClearsStaleSliderProbeMeta();
   await testAiTraceIncludesConversationModeAndHamdDimension();
+  await testProbingModeKeepsSameHamdItem();
   console.log('AI companion engine tests passed.');
 }
 

@@ -1780,6 +1780,79 @@ function normalizeConversationModeDecision(rawDecision, fallbackDecision, target
   return normalized;
 }
 
+function isProbeEligibleItem(state, itemCode) {
+  const code = String(itemCode || '').trim();
+  if (!code) return false;
+  const lockedCodes = getLockedItemCodes(state);
+  const skippedCodes = getSkippedItemCodes(state);
+  const overTurn = getItemTurnCount(state, code) >= MAX_TURNS_PER_ITEM;
+  return !lockedCodes.includes(code) && !skippedCodes.includes(code) && !overTurn;
+}
+
+function buildFormalProbeFromItemCode(state, itemCode, reason = 'mode_selected_item') {
+  const code = String(itemCode || '').trim();
+  const definition = HAMD_FORMAL_ITEM_MAP[code];
+  if (!definition) {
+    return { should_ask: 'no', item_code: '', item_label: '', question_type: '', probe_question: '', reason: 'invalid_mode_item' };
+  }
+  const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
+  const item = assessment.items.find((entry) => entry.item_code === code) || {};
+  const variants = ITEM_PROBE_TEXTS[code];
+  const probeCount = Number(item.probe_count || 0);
+  const probeQuestion = (probeCount === 1 && variants && variants[1])
+    ? variants[1]
+    : ((variants && variants[0]) ? variants[0] : definition.probe_question);
+  return {
+    should_ask: 'yes',
+    item_code: definition.item_code,
+    item_label: definition.item_label,
+    question_type: getItemDataGap(item) || 'frequency',
+    probe_question: probeQuestion,
+    reason
+  };
+}
+
+function resolveConversationTargetByMode(state, userText, formalProbe, mode, baseResolvedTarget) {
+  const base = baseResolvedTarget || resolveConversationTarget(state, userText, formalProbe);
+  if (mode === 'probing') {
+    const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
+    const probingCandidate = [
+      assessment.pending_probe_item_code,
+      state.hamd_last_asked_item,
+      formalProbe && formalProbe.item_code,
+      base.targetItemCode
+    ].find((code) => isProbeEligibleItem(state, code));
+    if (probingCandidate) {
+      return {
+        targetItemCode: probingCandidate,
+        targetItemSource: probingCandidate === base.targetItemCode ? base.targetItemSource : 'probing_same_item',
+        decisionNotes: probingCandidate === base.targetItemCode
+          ? [...base.decisionNotes]
+          : [...base.decisionNotes, `probing → 沿用同題 "${probingCandidate}"`]
+      };
+    }
+    return base;
+  }
+
+  if (mode === 'switching') {
+    const excluded = [
+      base.targetItemCode,
+      state.hamd_last_asked_item,
+      formalProbe && formalProbe.item_code
+    ].filter(Boolean);
+    const altProbe = pickEmergencyProbe(state, userText, excluded);
+    if (altProbe && altProbe.item_code) {
+      return {
+        targetItemCode: altProbe.item_code,
+        targetItemSource: 'switching_new_item',
+        decisionNotes: [...base.decisionNotes, `switching → 另選新題 "${altProbe.item_code}"`]
+      };
+    }
+  }
+
+  return base;
+}
+
 // ── 繞題追蹤 helpers ─────────────────────────────────────────────────────────
 
 function getItemTurnCount(state, itemCode) {
@@ -5004,24 +5077,24 @@ class AICompanionEngine {
 
   async judgeConversationMode(session, message, formalProbe) {
     const state = session.state;
-    const resolvedTarget = resolveConversationTarget(state, message, formalProbe);
-    const fallbackDecision = determineConversationMode(state, message, resolvedTarget.targetItemCode);
-    const itemDefinition = HAMD_FORMAL_ITEM_MAP[resolvedTarget.targetItemCode] || null;
-    const targetDimension = itemDefinition ? itemDefinition.dimension : '';
-    const targetDimensionLabel = targetDimension ? humanizeHamdDimension(targetDimension) : '';
+    const baseResolvedTarget = resolveConversationTarget(state, message, formalProbe);
+    const fallbackDecision = determineConversationMode(state, message, baseResolvedTarget.targetItemCode);
+    const baseDefinition = HAMD_FORMAL_ITEM_MAP[baseResolvedTarget.targetItemCode] || null;
+    const baseTargetDimension = baseDefinition ? baseDefinition.dimension : '';
+    const baseTargetDimensionLabel = baseTargetDimension ? humanizeHamdDimension(baseTargetDimension) : '';
 
     const rawDecision = await this.runJsonTask('conversationModeJudge', session, message, {
       extraContext: {
         conversation_mode: {
-          target_item_code: resolvedTarget.targetItemCode,
-          target_item_label: itemDefinition ? itemDefinition.item_label : '',
-          target_item_source: resolvedTarget.targetItemSource,
-          target_dimension: targetDimension,
-          target_dimension_label: targetDimensionLabel,
+          target_item_code: baseResolvedTarget.targetItemCode,
+          target_item_label: baseDefinition ? baseDefinition.item_label : '',
+          target_item_source: baseResolvedTarget.targetItemSource,
+          target_dimension: baseTargetDimension,
+          target_dimension_label: baseTargetDimensionLabel,
           fallback_mode: fallbackDecision.mode,
           fallback_reason: fallbackDecision.reason,
           followup_turn_count: Number(state.followup_turn_count || '0'),
-          probe_count: resolvedTarget.targetItemCode ? getItemProbeCount(state, resolvedTarget.targetItemCode) : 0,
+          probe_count: baseResolvedTarget.targetItemCode ? getItemProbeCount(state, baseResolvedTarget.targetItemCode) : 0,
           current_focus: normalizeObjectState(state, 'hamd_progress_state', {}).current_focus || '',
           next_recommended_dimension: normalizeObjectState(state, 'hamd_progress_state', {}).next_recommended_dimension || ''
         }
@@ -5030,7 +5103,7 @@ class AICompanionEngine {
         mode: fallbackDecision.mode,
         reason: fallbackDecision.reason,
         topic_clarity: 'fallback',
-        hamd_ready: resolvedTarget.targetItemCode ? 'yes' : 'no',
+        hamd_ready: baseResolvedTarget.targetItemCode ? 'yes' : 'no',
         progression: 'fallback',
         loop_detected: fallbackDecision.mode === 'switching' ? 'yes' : 'no'
       }
@@ -5039,9 +5112,15 @@ class AICompanionEngine {
     const decision = normalizeConversationModeDecision(
       rawDecision,
       fallbackDecision,
-      resolvedTarget.targetItemCode,
-      resolvedTarget.targetItemSource
+      baseResolvedTarget.targetItemCode,
+      baseResolvedTarget.targetItemSource
     );
+    const resolvedTarget = resolveConversationTargetByMode(state, message, formalProbe, decision.mode, baseResolvedTarget);
+    decision.target_item_code = resolvedTarget.targetItemCode || '';
+    decision.target_item_source = resolvedTarget.targetItemSource || 'none';
+    const itemDefinition = HAMD_FORMAL_ITEM_MAP[decision.target_item_code] || null;
+    const targetDimension = itemDefinition ? itemDefinition.dimension : '';
+    const targetDimensionLabel = targetDimension ? humanizeHamdDimension(targetDimension) : '';
 
     if ((decision.mode === 'probing' || decision.mode === 'switching') && targetDimension) {
       decision.hamd_dimension = targetDimension;
@@ -5363,6 +5442,38 @@ class AICompanionEngine {
       }
     }
 
+    const conversationModeResult = await this.judgeConversationMode(session, message, formalProbe);
+    if (!riskOverride) {
+      if (conversationModeResult.decision.mode === 'clarifying') {
+        formalProbe = { ...formalProbe, should_ask: 'no', reason: 'mode_clarifying_hold_hamd' };
+      } else if (conversationModeResult.decision.mode === 'probing' && conversationModeResult.decision.target_item_code) {
+        const probingProbe = buildFormalProbeFromItemCode(state, conversationModeResult.decision.target_item_code, 'mode_probing_same_item');
+        if (probingProbe.should_ask === 'yes') formalProbe = probingProbe;
+      } else if (conversationModeResult.decision.mode === 'switching' && conversationModeResult.decision.target_item_code) {
+        const switchingProbe = buildFormalProbeFromItemCode(state, conversationModeResult.decision.target_item_code, 'mode_switching_new_item');
+        if (switchingProbe.should_ask === 'yes') formalProbe = switchingProbe;
+      }
+
+      const _skippedCodes = getSkippedItemCodes(state);
+      const _circlingStatus = (() => {
+        if (formalProbe.should_ask !== 'yes') return 'no_probe';
+        if (_skippedCodes.includes(formalProbe.item_code)) return 'circling_skipped';
+        if (formalProbe.reason === 'sticky_retry' || formalProbe.reason === 'mode_probing_same_item') return 'rescued';
+        if (formalProbe.reason === 'sticky_first') return 'sticky';
+        return 'fresh';
+      })();
+      ensureAiTrace(state).probe_selector = {
+        should_ask: formalProbe.should_ask,
+        item_code: formalProbe.item_code,
+        item_label: formalProbe.item_label,
+        question_type: formalProbe.question_type,
+        reason: formalProbe.reason,
+        probe_question: formalProbe.probe_question,
+        probe_status: _circlingStatus,
+        skipped_items: _skippedCodes
+      };
+    }
+
     let answer = await this.runTextTask('smartHunter', session, message, {
       extraContext: {
         formal_probe: formalProbe,
@@ -5382,7 +5493,6 @@ class AICompanionEngine {
     };
 
     // ── 統一後處理器（取代散落三層）────────────────────────────────────────────
-    const conversationModeResult = await this.judgeConversationMode(session, message, formalProbe);
     const postProcessResult = clinicalPostProcessor(answer, {
       userText: message,
       state,
