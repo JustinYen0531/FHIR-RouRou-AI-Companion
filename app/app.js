@@ -1634,6 +1634,7 @@ const APP_STATE = {
   customShortcuts: loadCustomShortcuts(),
   reportOutputs: createEmptyReportOutputs(),
   fhirReportHistory: loadFhirReportHistory(),
+  serverRecentSessions: [],
   recentSessions: [],
   pinnedSession: loadPinnedSession(),
   pendingConsent: {
@@ -1905,6 +1906,7 @@ async function requestAuthAction(action, body) {
 function setAuthenticatedSession(token = '', user = null) {
   APP_STATE.auth = { token, user };
   APP_STATE.patientAssignment = null;
+  APP_STATE.serverRecentSessions = [];
   persistAuthState(token, user);
   syncAuthStateToApp();
   migrateGuestSessionsToAuthUser(user?.id);
@@ -1927,6 +1929,7 @@ function setAuthenticatedSession(token = '', user = null) {
 function clearAuthenticatedSession(options = {}) {
   APP_STATE.auth = { token: '', user: null };
   APP_STATE.patientAssignment = null;
+  APP_STATE.serverRecentSessions = [];
   persistAuthState('', null);
   if (!options.preserveUserId) {
     APP_STATE.userId = DEFAULT_USER_ID;
@@ -7811,6 +7814,81 @@ function summarizeSessionRecord(session = {}) {
   };
 }
 
+function normalizeSessionSummaryRecord(session = {}) {
+  if (!session || typeof session !== 'object') return null;
+  const summary = summarizeSessionRecord(session);
+  const fallbackState = session.state && typeof session.state === 'object' ? session.state : {};
+  const fallbackMemory = session.memory_snapshot && typeof session.memory_snapshot === 'object'
+    ? session.memory_snapshot
+    : {};
+
+  return {
+    id: String(session.id || summary.id || '').trim(),
+    user: String(session.user || summary.user || APP_STATE.userId || DEFAULT_USER_ID).trim() || DEFAULT_USER_ID,
+    startedAt: session.startedAt || summary.startedAt || '',
+    updatedAt: session.updatedAt || summary.updatedAt || '',
+    active_mode: String(session.active_mode || summary.active_mode || fallbackState.active_mode || fallbackMemory.active_mode || 'auto').trim() || 'auto',
+    risk_flag: String(session.risk_flag || summary.risk_flag || fallbackState.risk_flag || fallbackMemory.risk_flag || 'false').trim() || 'false',
+    latest_tag_summary: pickReadableSessionText([
+      session.latest_tag_summary,
+      summary.latest_tag_summary
+    ], ''),
+    last_user_message: pickReadableSessionText([
+      session.last_user_message,
+      summary.last_user_message
+    ], ''),
+    last_assistant_message: pickReadableSessionText([
+      session.last_assistant_message,
+      summary.last_assistant_message
+    ], ''),
+    note_history_count: Number.isFinite(Number(session.note_history_count))
+      ? Number(session.note_history_count)
+      : summary.note_history_count,
+    has_clinician_summary: Boolean(session.has_clinician_summary ?? summary.has_clinician_summary),
+    has_fhir_draft: Boolean(session.has_fhir_draft ?? summary.has_fhir_draft),
+    has_corrupted_history: Boolean(session.has_corrupted_history ?? summary.has_corrupted_history),
+    message_count: Number.isFinite(Number(session.message_count))
+      ? Number(session.message_count)
+      : summary.message_count
+  };
+}
+
+function scoreSessionSummaryForDisplay(session = {}) {
+  let score = 0;
+  if (!session.has_corrupted_history) score += 4;
+  if (session.last_user_message) score += 3;
+  if (session.last_assistant_message) score += 2;
+  if (session.latest_tag_summary) score += 1;
+  score += Math.min(Number(session.message_count) || 0, 6);
+  return score;
+}
+
+function mergeRecentSessionSummaries(localSessions = [], serverSessions = []) {
+  const merged = new Map();
+
+  [...(Array.isArray(serverSessions) ? serverSessions : []), ...(Array.isArray(localSessions) ? localSessions : [])]
+    .map((session) => normalizeSessionSummaryRecord(session))
+    .filter((session) => session && session.id)
+    .forEach((session) => {
+      const existing = merged.get(session.id);
+      if (!existing) {
+        merged.set(session.id, session);
+        return;
+      }
+
+      const nextScore = scoreSessionSummaryForDisplay(session);
+      const existingScore = scoreSessionSummaryForDisplay(existing);
+      if (nextScore > existingScore || (nextScore === existingScore && String(session.updatedAt || '') > String(existing.updatedAt || ''))) {
+        merged.set(session.id, { ...existing, ...session });
+      } else {
+        merged.set(session.id, { ...session, ...existing });
+      }
+    });
+
+  return Array.from(merged.values())
+    .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+}
+
 function buildFhirHistoryPreviewSessionExport(item = {}) {
   const baseExport = deepCloneSerializable(item.sessionExportPayload || {}, {});
   const refreshPayload = item.patientRefreshPayload && typeof item.patientRefreshPayload === 'object'
@@ -8019,11 +8097,33 @@ function getRecentSessionSummaries(limit = MAX_LOCAL_SESSION_ARCHIVE_RECORDS) {
   if (currentAuthId) {
     migrateGuestSessionsToAuthUser(currentAuthId);
   }
-  // 完全不過濾 user，本機所有 session 都列出（避免 userId 變化導致歷史紀錄消失）
-  return loadLocalSessionArchiveRecords()
+  const normalizedLimit = Math.max(1, Number(limit) || MAX_LOCAL_SESSION_ARCHIVE_RECORDS);
+  const localSessions = loadLocalSessionArchiveRecords()
     .map((session) => summarizeSessionRecord(session))
     .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
-    .slice(0, Math.max(1, Number(limit) || MAX_LOCAL_SESSION_ARCHIVE_RECORDS));
+    .slice(0, normalizedLimit);
+  return mergeRecentSessionSummaries(localSessions, APP_STATE.serverRecentSessions).slice(0, normalizedLimit);
+}
+
+async function fetchServerRecentSessions(limit = MAX_LOCAL_SESSION_ARCHIVE_RECORDS) {
+  if (!isAuthenticated() || isDoctorUser()) {
+    return [];
+  }
+
+  try {
+    const normalizedLimit = Math.max(1, Number(limit) || MAX_LOCAL_SESSION_ARCHIVE_RECORDS);
+    const response = await fetch(`/api/chat/sessions?limit=${encodeURIComponent(String(normalizedLimit))}`);
+    const payload = await readJsonResponseSafe(response);
+    if (!response.ok) {
+      throw new Error(payload.error || '讀取雲端對話列表失敗');
+    }
+    return (Array.isArray(payload.sessions) ? payload.sessions : [])
+      .map((session) => normalizeSessionSummaryRecord(session))
+      .filter((session) => session && session.id);
+  } catch (error) {
+    console.warn('Unable to load server recent sessions:', error);
+    return [];
+  }
 }
 
 function buildCurrentSessionRecord() {
@@ -8443,11 +8543,22 @@ async function deleteRecentSession(sessionId) {
   if (!confirmed) return;
 
   const removedLocalBackup = removeLocalSessionArchive(sessionId);
-  if (!removedLocalBackup) {
+  let removedServerBackup = false;
+  if (isAuthenticated()) {
+    try {
+      const response = await fetch(`/api/chat/session?id=${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+      removedServerBackup = response.ok;
+    } catch (error) {
+      console.warn('Unable to delete server session:', error);
+    }
+  }
+
+  if (!removedLocalBackup && !removedServerBackup) {
     appendSystemNotice('目前沒有可刪除的已保存對話。');
     return;
   }
 
+  APP_STATE.serverRecentSessions = APP_STATE.serverRecentSessions.filter((item) => item.id !== sessionId);
   APP_STATE.recentSessions = APP_STATE.recentSessions.filter((item) => item.id !== sessionId);
   if (APP_STATE.conversationId === sessionId) {
     resetConversationState();
@@ -8470,6 +8581,7 @@ async function loadRecentSessions() {
 
   if (isDoctorUser()) {
     APP_STATE.pinnedSession = null;
+    APP_STATE.serverRecentSessions = [];
     APP_STATE.recentSessions = [];
     if (container) {
       container.innerHTML = `<div class="home-session-empty">醫師端不顯示聊天紀錄，請進入病人管理工作台查看 AI 使用摘要。</div>`;
@@ -8479,12 +8591,13 @@ async function loadRecentSessions() {
   }
 
   APP_STATE.pinnedSession = loadPinnedSession();
+  APP_STATE.serverRecentSessions = await fetchServerRecentSessions(MAX_LOCAL_SESSION_ARCHIVE_RECORDS);
   APP_STATE.recentSessions = getRecentSessionSummaries();
   if (APP_STATE.recentSessions.length || APP_STATE.pinnedSession) {
     renderRecentSessions();
   } else if (container) {
     container.innerHTML = isAuthenticated()
-      ? `<div class="home-session-empty">目前還沒有已保存的對話。等你手動儲存後，這裡就會依序保留新舊紀錄。</div>`
+      ? `<div class="home-session-empty">目前還沒有可顯示的對話。你新的聊天內容存下來後，這裡就會開始累積。</div>`
       : `<div class="home-session-empty">目前這台裝置還沒有已保存的對話。登入後可把之後的對話同步到你的帳號。</div>`;
   }
   syncPinnedSessionButtonState();
