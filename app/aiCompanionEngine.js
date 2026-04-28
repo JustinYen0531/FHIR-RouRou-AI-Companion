@@ -5147,12 +5147,14 @@ class AICompanionEngine {
     // 若 LLM 判斷 dominant_dimension 明確（不是 unclear），系統從該 dimension 選 target
     // 這讓「累、睡不好、沒動力」這種語意同屬一個群的輸入不會錯誤觸發 clarifying
     const llmDominantDim = String(rawDecision.dominant_dimension || '').trim();
+    // 對應 LLM dominant_dimension 輸出值 → 實際 HAMD item codes
+    // item codes 必須存在於 HAMD_FORMAL_ITEM_MAP（見 HAMD_FORMAL_ITEMS 定義）
     const DIMENSION_MAP = {
       depressed_mood:  ['depressed_mood', 'suicide'],
       guilt:           ['guilt', 'insight'],
       suicide:         ['suicide'],
       insomnia:        ['insomnia_early', 'insomnia_middle', 'insomnia_late'],
-      low_energy:      ['work_activities', 'retardation', 'general_somatic'],
+      low_energy:      ['work_activities', 'retardation', 'general_somatic'], // work_activities.dimension='work_interest', retardation.dimension='retardation'
       psychomotor:     ['retardation', 'agitation'],
       anxiety:         ['psychic_anxiety', 'somatic_anxiety', 'gastrointestinal_somatic'],
       somatic:         ['gastrointestinal_somatic', 'general_somatic', 'genital_symptoms', 'hypochondriasis', 'weight_loss']
