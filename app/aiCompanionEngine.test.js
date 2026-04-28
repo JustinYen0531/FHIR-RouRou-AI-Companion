@@ -267,6 +267,31 @@ function createStubModelClient() {
   };
 }
 
+function createMislabeledWorkQuestionClient() {
+  const fallbackClient = createStubModelClient();
+  return async (payload) => {
+    const systemPrompt = String(payload?.systemPrompt || '');
+    if (systemPrompt.includes('HAM-D Formal Probe Selector')) {
+      return {
+        text: JSON.stringify({
+          should_ask: 'no',
+          item_code: '',
+          item_label: '',
+          question_type: '',
+          probe_question: '',
+          reason: 'test_disable_probe_selector'
+        })
+      };
+    }
+    if (systemPrompt.includes('自動分流模式的核心助理') || systemPrompt.includes('像真人的朋友')) {
+      return {
+        text: '你白天做事的動力和以前比起來，現在是差不多、明顯下降，還是幾乎提不起來？'
+      };
+    }
+    return fallbackClient(payload);
+  };
+}
+
 function createPollutedBridgeModelClient() {
   const fallbackClient = createStubModelClient();
   return async (payload) => {
@@ -826,6 +851,40 @@ async function testProbingModeKeepsSameHamdItem() {
   assert.strictEqual(result.metadata.clinical_trace?.target_item, 'guilt');
 }
 
+async function testFinalQuestionAlignmentOverridesStaleInternalItem() {
+  const engine = new AICompanionEngine({ modelClient: createMislabeledWorkQuestionClient(), apiKey: 'fake' });
+  const first = await engine.handleMessage({
+    message: '最近會一直怪自己，好像很多事都是我的錯。',
+    user: 'alignment-user',
+    conversation_id: 'conv-final-question-alignment'
+  });
+  const session = engine.sessions.get(first.conversation_id);
+  session.state.hamd_last_asked_item = 'guilt';
+  session.state.hamd_item_lock_state = {};
+  session.state.hamd_formal_assessment.pending_probe_item_code = '';
+  session.state.hamd_formal_assessment.pending_probe_question = '';
+  session.state.hamd_formal_assessment.pending_probe_meta = null;
+  const guiltItem = session.state.hamd_formal_assessment.items.find((item) => item.item_code === 'guilt');
+  if (guiltItem) {
+    guiltItem.evidence_summary = [];
+    guiltItem.ai_suggested_score = null;
+    guiltItem.review_required = true;
+    guiltItem.probe_count = 0;
+  }
+
+  const result = await engine.handleMessage({
+    message: '最近上班真的快撐不住了，做事情很沒動力。',
+    user: 'alignment-user',
+    conversation_id: first.conversation_id
+  });
+
+  assert.strictEqual(result.metadata.clinical_trace?.final_question, '你白天做事的動力和以前比起來，現在是差不多、明顯下降，還是幾乎提不起來？');
+  assert.strictEqual(result.metadata.clinical_trace?.target_item, 'work_activities');
+  assert.strictEqual(session.state.hamd_last_asked_item, 'work_activities');
+  assert.strictEqual(session.state.hamd_formal_assessment.pending_probe_item_code, 'work_activities');
+  assert.strictEqual(session.state.hamd_formal_assessment.pending_probe_meta?.item_code, 'work_activities');
+}
+
 async function run() {
   await testCommandRouting();
   await testHighRiskRouting();
@@ -854,6 +913,7 @@ async function run() {
   await testClarifyingTurnClearsStaleSliderProbeMeta();
   await testAiTraceIncludesConversationModeAndHamdDimension();
   await testProbingModeKeepsSameHamdItem();
+  await testFinalQuestionAlignmentOverridesStaleInternalItem();
   console.log('AI companion engine tests passed.');
 }
 

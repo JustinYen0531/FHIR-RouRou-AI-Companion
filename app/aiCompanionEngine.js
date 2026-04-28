@@ -1883,10 +1883,23 @@ function trackAskedItem(state, finalQuestion, fallbackItemCode) {
   if (!code) {
     // 問的不是 HAM-D 題 → 重置連續計數
     state.hamd_last_asked_item = '';
-    return;
+    return null;
   }
   incrementItemTurnCount(state, code);
   state.hamd_last_asked_item = code;
+   return code;
+}
+
+function syncTraceTargetToFinalQuestion(debugTrace, finalQuestion, fallbackItemCode) {
+  if (!debugTrace) return fallbackItemCode || null;
+  const alignedCode = detectItemFromQuestion(finalQuestion) || fallbackItemCode || null;
+  if (!alignedCode) return null;
+  if (debugTrace.target_item !== alignedCode) {
+    debugTrace.decision_path.push(`final_question 對齊 → "${alignedCode}"`);
+    debugTrace.target_item = alignedCode;
+    debugTrace.target_item_source = 'final_question_alignment';
+  }
+  return alignedCode;
 }
 
 /**
@@ -2042,7 +2055,8 @@ function clinicalPostProcessor(draft, {
       const finalQ = extractLastQuestion(text);
       debugTrace.final_question = finalQ ? finalQ.question : null;
       debugTrace.decision_path.push('atmosphere_protected → no_intervention');
-      trackAskedItem(state, debugTrace.final_question, null);
+      const askedCode = trackAskedItem(state, debugTrace.final_question, null);
+      syncTraceTargetToFinalQuestion(debugTrace, debugTrace.final_question, askedCode);
       return { text, debugTrace };
     }
 
@@ -2069,7 +2083,8 @@ function clinicalPostProcessor(draft, {
       debugTrace.final_output = text;
       const finalQ2 = extractLastQuestion(text);
       debugTrace.final_question = finalQ2 ? finalQ2.question : riskQ;
-      trackAskedItem(state, debugTrace.final_question, 'suicide');
+      const askedCode = trackAskedItem(state, debugTrace.final_question, 'suicide');
+      syncTraceTargetToFinalQuestion(debugTrace, debugTrace.final_question, askedCode);
       return { text, debugTrace };
     }
     if (debugTrace.risk_detected && lockedCodes.includes('suicide')) {
@@ -2116,7 +2131,8 @@ function clinicalPostProcessor(draft, {
       const fqC = extractLastQuestion(text);
       debugTrace.final_question = fqC ? fqC.question : clarifyProbe;
       debugTrace.decision_path.push(`clarifying → "${clarifyProbe.substring(0, 40)}..."`);
-      trackAskedItem(state, debugTrace.final_question, null);
+      const askedCode = trackAskedItem(state, debugTrace.final_question, null);
+      syncTraceTargetToFinalQuestion(debugTrace, debugTrace.final_question, askedCode);
       return { text, debugTrace };
     }
 
@@ -2158,7 +2174,8 @@ function clinicalPostProcessor(draft, {
       debugTrace.final_output = text;
       const fq = extractLastQuestion(text);
       debugTrace.final_question = fq ? fq.question : null;
-      trackAskedItem(state, debugTrace.final_question, targetItemCode);
+      const askedCode = trackAskedItem(state, debugTrace.final_question, targetItemCode);
+      syncTraceTargetToFinalQuestion(debugTrace, debugTrace.final_question, askedCode || targetItemCode);
       return { text, debugTrace };
     }
 
@@ -2174,7 +2191,8 @@ function clinicalPostProcessor(draft, {
       debugTrace.final_output = text;
       const fq2 = extractLastQuestion(text);
       debugTrace.final_question = fq2 ? fq2.question : null;
-      trackAskedItem(state, debugTrace.final_question, targetItemCode);
+      const askedCode = trackAskedItem(state, debugTrace.final_question, targetItemCode);
+      syncTraceTargetToFinalQuestion(debugTrace, debugTrace.final_question, askedCode || targetItemCode);
       return { text, debugTrace };
     }
 
@@ -2198,7 +2216,8 @@ function clinicalPostProcessor(draft, {
     const fq3 = extractLastQuestion(text);
     debugTrace.final_question = fq3 ? fq3.question : null;
     debugTrace.decision_path.push('enforce_single_question → done');
-    trackAskedItem(state, debugTrace.final_question, targetItemCode);
+    const askedCode = trackAskedItem(state, debugTrace.final_question, targetItemCode);
+    syncTraceTargetToFinalQuestion(debugTrace, debugTrace.final_question, askedCode || targetItemCode);
     return { text, debugTrace };
 
   } catch (error) {
@@ -5524,22 +5543,21 @@ class AICompanionEngine {
     let normalizedProbeQuestion = String(formalProbe.probe_question || '').trim();
     let probeActive = canProbeHamd && formalProbe.should_ask === 'yes' && Boolean(normalizedProbeQuestion);
 
-    // 若統一後處理器替換了問句，且非氣氛保護模式，視為 probe active
-    if (!probeActive && !atmosphereProtected && !clarifyingInterventionActive) {
+    // 以最後真的送出的問句為準，必要時覆蓋掉舊的 formalProbe，避免嘴巴問對了但內部標籤還停在上一題
+    if (!atmosphereProtected && !clarifyingInterventionActive) {
       const postLastQ = extractLastQuestion(answer);
       if (postLastQ && isScoreableQuestion(postLastQ.question)) {
-        // 找到後處理器注入的可評分問題 → 自動關聯到 next_item
-        const nextCode = pickNextUnlockedItemCode(state);
-        if (nextCode) {
-          const def = HAMD_FORMAL_ITEM_MAP[nextCode];
+        const alignedCode = detectItemFromQuestion(postLastQ.question) || clinicalTrace?.target_item || pickNextUnlockedItemCode(state);
+        if (alignedCode) {
+          const def = HAMD_FORMAL_ITEM_MAP[alignedCode];
           if (def) {
             formalProbe = {
               should_ask: 'yes',
-              item_code: nextCode,
+              item_code: alignedCode,
               item_label: def.item_label,
-              question_type: 'frequency',
+              question_type: formalProbe.question_type || 'frequency',
               probe_question: postLastQ.question,
-              reason: 'post_processor_injected'
+              reason: probeActive ? 'final_question_alignment_override' : 'post_processor_aligned_to_final_question'
             };
             normalizedProbeQuestion = postLastQ.question;
             probeActive = true;
