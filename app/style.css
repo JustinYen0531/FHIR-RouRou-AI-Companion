@@ -7149,6 +7149,14 @@ body.micro-detail-open {
 }
 
 /* ── Clinical Trace Debug Button & Panel ── */
+.trace-btn-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
 .clinical-trace-toggle {
   display: inline-flex;
   align-items: center;
@@ -7158,27 +7166,26 @@ body.micro-detail-open {
   padding: 0 12px;
   border-radius: 999px;
   border: none;
-  background: linear-gradient(135deg, #6c5ce7, #a855f7);
+  background: linear-gradient(135deg, #5aab89, #7ec8a4);
   color: white;
   cursor: pointer;
   transition: all 0.2s ease;
-  margin-top: 6px;
   opacity: 1;
   font-size: 12px;
   font-weight: 700;
-  box-shadow: 0 2px 12px rgba(108, 92, 231, 0.4);
+  box-shadow: 0 2px 12px rgba(90, 171, 137, 0.35);
   letter-spacing: 0.02em;
 }
 
 .clinical-trace-toggle:hover {
-  background: linear-gradient(135deg, #5b4bd5, #9333ea);
-  box-shadow: 0 4px 20px rgba(108, 92, 231, 0.55);
+  background: linear-gradient(135deg, #4a9a78, #6db893);
+  box-shadow: 0 4px 20px rgba(90, 171, 137, 0.5);
   transform: translateY(-1px);
 }
 
 .clinical-trace-toggle.active {
-  background: linear-gradient(135deg, #e74c3c, #ff6b6b);
-  box-shadow: 0 4px 20px rgba(231, 76, 60, 0.45);
+  background: linear-gradient(135deg, #3d8868, #56a882);
+  box-shadow: 0 4px 20px rgba(90, 171, 137, 0.45);
 }
 
 .clinical-trace-panel {
@@ -7254,14 +7261,16 @@ body.micro-detail-open {
 
 /* AI Trace 專屬樣式 */
 .ai-trace-toggle {
-  background: linear-gradient(135deg, #5b8def 0%, #7c5cf0 100%);
+  background: linear-gradient(135deg, #6ab4a0 0%, #8fcfba 100%);
+  box-shadow: 0 2px 12px rgba(106, 180, 160, 0.35);
 }
 .ai-trace-toggle:hover {
-  background: linear-gradient(135deg, #4a7ce0 0%, #6c4cd9 100%);
+  background: linear-gradient(135deg, #59a390 0%, #7ebfaa 100%);
+  box-shadow: 0 4px 20px rgba(106, 180, 160, 0.5);
 }
 .ai-trace-toggle.active {
-  background: linear-gradient(135deg, #4a6ed0 0%, #6b3cc4 100%);
-  box-shadow: 0 4px 20px rgba(91, 141, 239, 0.45);
+  background: linear-gradient(135deg, #47907e 0%, #6aab97 100%);
+  box-shadow: 0 4px 20px rgba(106, 180, 160, 0.45);
 }
 
 .ai-trace-panel {
@@ -7317,10 +7326,11 @@ body.micro-detail-open {
 .hamd-slider-wrapper {
   margin-top: 10px;
   padding: 12px 16px;
-  background: rgba(124, 92, 240, 0.08);
-  border: 1px solid rgba(124, 92, 240, 0.25);
+  background: rgba(90, 171, 137, 0.07);
+  border: 1px solid rgba(90, 171, 137, 0.25);
   border-radius: 14px;
-  max-width: 380px;
+  max-width: 520px;
+  width: 100%;
 }
 
 .hamd-slider-inner {
@@ -7334,7 +7344,7 @@ body.micro-detail-open {
   width: 100%;
   height: 6px;
   border-radius: 3px;
-  background: linear-gradient(to right, #7c5cf0, #c084fc);
+  background: linear-gradient(to right, #5aab89, #a8d5be);
   outline: none;
   cursor: pointer;
 }
@@ -7350,15 +7360,16 @@ body.micro-detail-open {
   height: 18px;
   border-radius: 50%;
   background: #fff;
-  border: 2px solid #7c5cf0;
+  border: 2px solid #5aab89;
   cursor: pointer;
 }
 
 .hamd-slider-labels {
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
-  color: rgba(200, 212, 255, 0.6);
+  font-size: 11px;
+  color: rgba(40, 70, 55, 0.72);
+  font-weight: 500;
 }
 
 .hamd-slider-actions {
@@ -7371,7 +7382,7 @@ body.micro-detail-open {
   padding: 5px 14px;
   border-radius: 999px;
   border: none;
-  background: linear-gradient(135deg, #7c5cf0, #c084fc);
+  background: linear-gradient(135deg, #5aab89, #7ec8a4);
   color: #fff;
   font-size: 12px;
   cursor: pointer;
@@ -7386,9 +7397,9 @@ body.micro-detail-open {
 .hamd-slider-skip {
   padding: 5px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(124, 92, 240, 0.35);
+  border: 1px solid rgba(90, 171, 137, 0.35);
   background: transparent;
-  color: rgba(200, 212, 255, 0.7);
+  color: rgba(40, 70, 55, 0.65);
   font-size: 12px;
   cursor: pointer;
 }
@@ -7399,6 +7410,6 @@ body.micro-detail-open {
 }
 
 .hamd-slider-wrapper.hamd-slider-confirmed {
-  border-color: rgba(124, 92, 240, 0.6);
-  background: rgba(124, 92, 240, 0.14);
+  border-color: rgba(90, 171, 137, 0.6);
+  background: rgba(90, 171, 137, 0.12);
 }

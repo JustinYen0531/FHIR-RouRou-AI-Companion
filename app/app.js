@@ -6968,7 +6968,7 @@ async function animateAiMessage(bubble, text) {
   scrollChatToBottom();
 }
 
-function renderClinicalTraceButton(group, traceData) {
+function renderClinicalTraceButton(group, btnRow, traceData) {
   if (!group) return;
 
   const btn = document.createElement('button');
@@ -7054,11 +7054,11 @@ function renderClinicalTraceButton(group, traceData) {
     btn.classList.toggle('active', !isVisible);
   });
 
-  group.appendChild(btn);
+  btnRow.appendChild(btn);
   group.appendChild(panel);
 }
 
-function renderAiTraceButton(group, aiTraceData) {
+function renderAiTraceButton(group, btnRow, aiTraceData) {
   if (!group) return;
 
   const btn = document.createElement('button');
@@ -7213,7 +7213,7 @@ function renderAiTraceButton(group, aiTraceData) {
     btn.classList.toggle('active', !isVisible);
   });
 
-  group.appendChild(btn);
+  btnRow.appendChild(btn);
   group.appendChild(panel);
 }
 
@@ -7375,16 +7375,22 @@ async function appendMessage(role, text, options = {}) {
 
   if (role === 'ai' && options.animate) {
     await animateAiMessage(bubble, text);
-    renderClinicalTraceButton(group, options.traceData || null);
-    renderAiTraceButton(group, options.aiTraceData || null);
+    const btnRow = document.createElement('div');
+    btnRow.className = 'trace-btn-row';
+    group.appendChild(btnRow);
+    renderClinicalTraceButton(group, btnRow, options.traceData || null);
+    renderAiTraceButton(group, btnRow, options.aiTraceData || null);
     renderHamdSlider(group, options.probeMeta || null);
     return;
   }
 
   if (role === 'ai') {
     bubble.innerHTML = renderMessageMarkdown(text);
-    renderClinicalTraceButton(group, options.traceData || null);
-    renderAiTraceButton(group, options.aiTraceData || null);
+    const btnRow = document.createElement('div');
+    btnRow.className = 'trace-btn-row';
+    group.appendChild(btnRow);
+    renderClinicalTraceButton(group, btnRow, options.traceData || null);
+    renderAiTraceButton(group, btnRow, options.aiTraceData || null);
     renderHamdSlider(group, options.probeMeta || null);
   } else {
     bubble.textContent = text;
