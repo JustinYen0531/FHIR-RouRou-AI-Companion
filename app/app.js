@@ -2877,13 +2877,24 @@ function getHamdSummary(summary = {}, progress = {}, formalAssessment = {}) {
     const code = String(item?.item || '').trim();
     if (code) itemStatusMap[code] = item;
   });
+
+  // slider 狀態：完整 = 有滑桿（user_self_rating）；部分 = 文字但無滑桿；未提及 = missing
+  const formalItems = Array.isArray(formalAssessment?.items) ? formalAssessment.items : [];
+  const sliderMap = {};
+  formalItems.forEach((item) => {
+    const code = String(item?.item_code || '').trim();
+    if (code) sliderMap[code] = item?.user_self_rating != null;
+  });
+
   const perItemStatus = HAMD_PROGRESS_DIMENSIONS.map((dim) => {
     const tracked = itemStatusMap[dim];
     const isCovered = coveredDimensions.includes(dim);
+    const hasSlider = !!sliderMap[dim];
+    const status = hasSlider ? 'complete' : (isCovered ? 'partial' : 'missing');
     return {
       item: dim,
       label: formatHamdSignalLabel(dim),
-      status: tracked?.status || (isCovered ? 'partial' : 'missing'),
+      status,
       evidence: getMeaningfulItems(tracked?.evidence || []),
       missing: getMeaningfulItems(tracked?.missing || [])
     };
@@ -7329,6 +7340,46 @@ function updateScrollSafeArea() {
   });
 }
 
+// 拖曳後評論：item_code × 4個區段（0 / 1-2 / 3-5 / 6-7）
+const SLIDER_COMMENTS = {
+  // 頻率型 (0-7天)
+  HAM1:  ['這週心情平穩，幾乎沒有低落的感受。', '偶爾會有些情緒波動，但不算太頻繁。', '這週有好幾天感覺比較低落，算是蠻明顯的。', '幾乎每天都覺得心情很差，這樣持續下去很消耗人。'],
+  HAM2:  ['這週沒怎麼感到罪惡或自責。', '偶爾會有些自責的念頭，但還能接受。', '這週好幾天都在怪自己，心理壓力不小。', '幾乎每天都在怪自己，這種感覺很沉重。'],
+  HAM3:  ['這週沒有出現想傷害自己的念頭，很好。', '偶爾有些消極的念頭，但沒有具體想法。', '這週有不少次冒出過一些比較黑暗的念頭。', '幾乎每天都有，這需要認真面對和支持。'],
+  HAM4:  ['這週睡眠入睡都還算順利。', '偶爾會輾轉難眠，不過不是每次都這樣。', '有好幾個晚上比較難入睡，影響到休息品質。', '幾乎每晚都睡不好，長期下來很累。'],
+  HAM5:  ['睡眠中段沒什麼大問題，可以一覺到天亮。', '偶爾半夜會醒來，但還能再入睡。', '好幾個晚上都會在半夜醒來，影響睡眠品質。', '幾乎每晚都會中途醒來，睡眠品質很差。'],
+  HAM6:  ['早晨睡到時間都還能起床，沒有特別早醒。', '偶爾比預計早醒，但不算困擾。', '好幾天都比平常早醒很多，而且醒了就睡不回去。', '幾乎每天清晨就醒了，完全睡不回去。'],
+  HAM7:  ['這週工作和日常事務能夠正常進行。', '偶爾覺得有點力不從心，但大多還能應付。', '這週有好幾天感到很難集中心力做事。', '幾乎每天都難以完成日常事務，狀態很低落。'],
+  HAM8:  ['這週行動和反應跟平常差不多。', '偶爾感到有點遲緩，但還算正常。', '好幾天明顯感到行動比較慢、反應比較遲鈍。', '幾乎每天都感到明顯遲緩，連基本動作都費力。'],
+  HAM9:  ['這週沒有特別坐立難安的感覺。', '偶爾會有點煩躁或焦慮，但不嚴重。', '好幾天都感到明顯的焦躁或不安。', '幾乎每天都很難靜下來，持續的焦慮感很消耗人。'],
+  HAM10: ['這週食慾還不錯，吃東西都有胃口。', '偶爾食慾稍差，但還是能正常吃東西。', '好幾天食慾明顯下降，吃不太下。', '幾乎每天都沒什麼食慾，飲食上的狀態很差。'],
+  HAM11: ['這週體重沒有明顯變化，維持得不錯。', '體重稍有波動，但還在正常範圍內。', '體重有些明顯的變化，可能跟飲食狀況有關。', '體重有很大的改變，需要注意一下身體狀況。'],
+  HAM12: ['身體方面這週沒什麼不舒服。', '偶爾有點小不適，但不影響日常。', '好幾天都有一些身體上的不舒服感。', '幾乎每天都有明顯的身體症狀，讓人很難受。'],
+  HAM13: ['這週性方面沒有特別的困擾。', '偶爾感到有些變化，但還好。', '這塊有些明顯的改變，對生活有一定影響。', '這週在這方面有很大的困擾，影響不小。'],
+  HAM14: ['這週沒有特別強烈的焦慮或擔憂感。', '偶爾感到有點焦慮，但還能調節。', '好幾天都感到比較強烈的焦慮情緒。', '幾乎每天都處於高度焦慮的狀態，很難放鬆。'],
+  HAM15: ['身體上的緊張感這週不明顯。', '偶爾感到身體有些緊繃，但還好。', '好幾天有明顯的身體緊張或不適感。', '幾乎每天都感到身體非常緊繃或不舒服。'],
+  HAM16: ['這週沒有特別疑病的擔憂。', '偶爾會擔心自己的健康，但不嚴重。', '好幾天都在擔心自己的身體狀況。', '幾乎每天都很害怕自己生病，擔憂感很強。'],
+  HAM17: ['這週體重沒有太大波動。', '體重稍有變化，還在可接受的範圍。', '體重有一些明顯的變化，值得注意。', '體重變化很明顯，需要留意飲食和身體狀態。'],
+};
+// 嚴重度型 fallback (0-4)
+const SLIDER_COMMENTS_SEVERITY = {
+  default: ['幾乎沒有影響，狀況很好。', '輕微的程度，對日常生活影響不大。', '中等程度，已經對日常有些影響了。', '相當嚴重，對生活造成明顯的困擾。'],
+};
+
+function getSliderComment(itemCode, value, isFrequency) {
+  const comments = isFrequency
+    ? (SLIDER_COMMENTS[itemCode] || SLIDER_COMMENTS.HAM1)
+    : (SLIDER_COMMENTS_SEVERITY[itemCode] || SLIDER_COMMENTS_SEVERITY.default);
+  if (!isFrequency) {
+    // severity 0-4 → 4段
+    const idx = value <= 0 ? 0 : value <= 1 ? 1 : value <= 2 ? 2 : 3;
+    return comments[idx];
+  }
+  // frequency 0-7 → 4段: 0 / 1-2 / 3-5 / 6-7
+  const idx = value === 0 ? 0 : value <= 2 ? 1 : value <= 5 ? 2 : 3;
+  return comments[idx];
+}
+
 function renderHamdSlider(group, probeMeta) {
   if (!probeMeta || !probeMeta.item_code) return;
   const isFrequency = probeMeta.type !== 'severity';
@@ -7343,38 +7394,35 @@ function renderHamdSlider(group, probeMeta) {
   wrapper.setAttribute('data-item-code', probeMeta.item_code);
   wrapper.innerHTML = `
     <div class="hamd-slider-inner">
+      <div class="hamd-slider-prompt">請選擇</div>
       <input type="range" class="hamd-slider" min="0" max="${max}" step="1" value="${mid}">
       <div class="hamd-slider-labels">${labels.map((l) => `<span>${l}</span>`).join('')}</div>
       <div class="hamd-slider-actions">
         <button class="hamd-slider-confirm">確認（${labels[mid]}）</button>
-        <button class="hamd-slider-skip">略過</button>
       </div>
     </div>`;
 
   const slider = wrapper.querySelector('.hamd-slider');
   const confirmBtn = wrapper.querySelector('.hamd-slider-confirm');
-  const skipBtn = wrapper.querySelector('.hamd-slider-skip');
 
   slider.addEventListener('input', () => {
     confirmBtn.textContent = `確認（${labels[parseInt(slider.value, 10)]}）`;
   });
 
   confirmBtn.addEventListener('click', () => {
+    const val = parseInt(slider.value, 10);
     APP_STATE.pendingSliderRating = {
       type: isFrequency ? 'frequency' : 'severity',
-      value: parseInt(slider.value, 10),
+      value: val,
       source: 'slider'
     };
-    wrapper.classList.add('hamd-slider-confirmed');
-    confirmBtn.disabled = true;
-    skipBtn.disabled = true;
-    slider.disabled = true;
-    confirmBtn.textContent = `✓ 已記錄（${labels[parseInt(slider.value, 10)]}）`;
-  });
-
-  skipBtn.addEventListener('click', () => {
-    APP_STATE.pendingSliderRating = null;
-    wrapper.remove();
+    const comment = getSliderComment(probeMeta.item_code, val, isFrequency);
+    wrapper.innerHTML = `
+      <div class="hamd-slider-comment">
+        <div class="hamd-slider-comment-text">${comment}</div>
+        <div class="hamd-slider-comment-followup">期待你更詳細地告訴我具體情形！</div>
+        <div class="hamd-slider-comment-tag">✓ 已記錄：${labels[val]}</div>
+      </div>`;
   });
 
   group.appendChild(wrapper);

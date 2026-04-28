@@ -4888,7 +4888,17 @@ class AICompanionEngine {
       }
     }
 
-    let answer = await this.runTextTask('smartHunter', session, message, {
+    // 若有滑桿資料，在 user message 前加一行提示讓 LLM 承認
+    const pendingRating = state._pending_user_self_rating;
+    let messageForLLM = message;
+    if (pendingRating && pendingRating.value != null) {
+      const ratingLabel = pendingRating.type === 'frequency'
+        ? `${pendingRating.value} 天／週`
+        : ['完全沒有', '輕微', '中等', '嚴重', '非常嚴重'][Math.min(pendingRating.value, 4)];
+      messageForLLM = `[系統提示：使用者剛透過滑桿回答了頻率或程度，數值為「${ratingLabel}」。請在回應開頭自然地承認這個資訊，例如「了解，大概是${ratingLabel}這樣」，再繼續對話。]\n${message}`;
+    }
+
+    let answer = await this.runTextTask('smartHunter', session, messageForLLM, {
       extraContext: {
         formal_probe: formalProbe,
         flow_state: flowState
