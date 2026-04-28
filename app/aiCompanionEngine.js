@@ -87,6 +87,37 @@ const HAMD_DIMENSION_TO_ITEM_CODES = {
 
 const HAMD_PROGRESS_DIMENSIONS = Object.keys(HAMD_DIMENSION_TO_ITEM_CODES);
 
+// Change 4: 從使用者說的話偵測提到哪些 dimension，讓選題優先對應語境
+const DIMENSION_KEYWORD_PATTERNS = {
+  depressed_mood: /(空虛|空掉|低落|沒有意義|沒意義|沮喪|難過|心情很差|情緒低落|憂鬱|提不起來|悶悶)/,
+  guilt:          /(自責|內疚|罪惡感|怪自己|都是我的錯|愧疚)/,
+  insomnia:       /(睡不好|睡不著|難入睡|早醒|半夜醒|失眠|睡眠不好|睡得很差)/,
+  work_interest:  /(提不起勁|沒動力|不想做事|做不下去|懶得動|沒興趣|什麼都不想做)/,
+  retardation:    /(做事變慢|思考慢|反應慢|動作遲緩|腦袋轉不動|說話慢|整個人慢)/,
+  agitation:      /(坐不住|煩躁|靜不下來|一直動來動去|焦躁|待不住)/,
+  somatic_anxiety:/(緊張|焦慮|心悸|胸悶|肌肉緊繃|頭痛|食慾|疲倦|很累|身體不舒服)/
+};
+
+function detectMentionedDimensions(userMessage) {
+  if (!userMessage) return [];
+  const dims = [];
+  for (const [dim, pattern] of Object.entries(DIMENSION_KEYWORD_PATTERNS)) {
+    if (pattern.test(userMessage)) dims.push(dim);
+  }
+  return dims;
+}
+
+// Change 5: 依 evidence 缺口決定 question_type，不照固定輪替
+function getItemDataGap(item) {
+  const evidence = normalizeArray(item.evidence_summary).join(' ');
+  if (!evidence) return 'frequency';
+  const hasFrequency = /一週|幾天|每天|偶爾|幾乎每天|大多數|天左右|幾乎天天|不常|很少/.test(evidence);
+  const hasSeverity = /輕微|中等|嚴重|明顯|輕度|重度|很嚴重|有點嚴重|程度/.test(evidence);
+  if (!hasFrequency) return 'frequency';
+  if (!hasSeverity) return 'severity';
+  return null;
+}
+
 const HAMD_DIMENSION_LABELS_ZH = {
   depressed_mood: '情緒低落',
   guilt: '自責或罪惡感',
@@ -1075,14 +1106,19 @@ function extractLastQuestion(text) {
   return null;
 }
 
-function pickEmergencyProbe(state) {
+function pickEmergencyProbe(state, userMessage = '') {
   const lockedCodes = getLockedItemCodes(state);
   const skippedCodes = getSkippedItemCodes(state);
   const excludedCodes = [...new Set([...lockedCodes, ...skippedCodes])];
   const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
   const progress = normalizeObjectState(state, 'hamd_progress_state', {});
-  const dimOrder = [];
-  if (progress.next_recommended_dimension) dimOrder.push(progress.next_recommended_dimension);
+
+  // 動態 dimension 順序：使用者提到的症狀 → next_recommended → 全部
+  const mentionedDims = detectMentionedDimensions(userMessage);
+  const dimOrder = [...mentionedDims];
+  if (progress.next_recommended_dimension && !dimOrder.includes(progress.next_recommended_dimension)) {
+    dimOrder.push(progress.next_recommended_dimension);
+  }
   HAMD_PROGRESS_DIMENSIONS.forEach((d) => { if (!dimOrder.includes(d)) dimOrder.push(d); });
 
   // Pass 1: 優先選無 evidence 的未鎖/未跳過題
@@ -1097,7 +1133,7 @@ function pickEmergencyProbe(state) {
         return {
           item_code: code,
           item_label: def.item_label,
-          question_type: 'frequency',
+          question_type: getItemDataGap(item) || 'frequency',
           probe_question: (variants && variants[0]) ? variants[0] : def.probe_question,
           reason: 'emergency_fallback'
         };
@@ -1105,19 +1141,23 @@ function pickEmergencyProbe(state) {
     }
   }
 
-  // Pass 2: 退而求其次 — 都有 evidence，仍選一個
+  // Pass 2: 都有部分 evidence，選缺 severity/frequency 的那個
   for (const dim of dimOrder) {
     for (const code of (HAMD_DIMENSION_TO_ITEM_CODES[dim] || [])) {
       if (excludedCodes.includes(code)) continue;
+      const item = assessment.items.find((i) => i.item_code === code);
       const def = HAMD_FORMAL_ITEM_MAP[code];
       if (!def) continue;
-      return {
-        item_code: code,
-        item_label: def.item_label,
-        question_type: 'severity',
-        probe_question: def.probe_question,
-        reason: 'emergency_fallback_all_partial'
-      };
+      const gap = item ? getItemDataGap(item) : 'frequency';
+      if (gap) {
+        return {
+          item_code: code,
+          item_label: def.item_label,
+          question_type: gap,
+          probe_question: def.probe_question,
+          reason: 'emergency_fallback_fill_gap'
+        };
+      }
     }
   }
 
@@ -1125,10 +1165,11 @@ function pickEmergencyProbe(state) {
   for (const code of skippedCodes) {
     const def = HAMD_FORMAL_ITEM_MAP[code];
     if (!def) continue;
+    const item = assessment.items.find((i) => i.item_code === code);
     return {
       item_code: code,
       item_label: def.item_label,
-      question_type: 'frequency',
+      question_type: getItemDataGap(item || {}) || 'frequency',
       probe_question: def.probe_question,
       reason: 'emergency_fallback_skipped_retry'
     };
@@ -1723,7 +1764,7 @@ function enforceQuestionSafety(draft, { probeQuestion, shouldAsk }) {
   return text;
 }
 
-function buildFormalAssessmentProbeFallback(state) {
+function buildFormalAssessmentProbeFallback(state, userMessage = '') {
   const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
   const lockedCodes = getLockedItemCodes(state);
   const skippedCodes = getSkippedItemCodes(state);
@@ -1736,47 +1777,56 @@ function buildFormalAssessmentProbeFallback(state) {
       const probeCount = pendingItem ? (pendingItem.probe_count || 0) : 0;
       if (probeCount < 2) {
         const def = HAMD_FORMAL_ITEM_MAP[pendingCode];
-        // 第 2 次（retry）：改用 ITEM_PROBE_TEXTS 的第二個變種（更簡單）
         const variants = ITEM_PROBE_TEXTS[pendingCode];
         const retryQuestion = (probeCount === 1 && variants && variants[1]) ? variants[1] : (def ? def.probe_question : '');
+        const qType = getItemDataGap(pendingItem || {}) || 'frequency';
         return {
           should_ask: 'yes',
           item_code: pendingCode,
           item_label: def ? def.item_label : '',
-          question_type: 'frequency',
+          question_type: qType,
           probe_question: retryQuestion,
           reason: probeCount === 1 ? 'sticky_retry' : 'sticky_first'
         };
       }
-      // probe_count >= 2 → 不再黏著，fall through
     }
   }
 
-  const nextDimension = normalizeObjectState(state, 'hamd_progress_state', {}).next_recommended_dimension || 'depressed_mood';
-  const candidateCode = (HAMD_DIMENSION_TO_ITEM_CODES[nextDimension] || []).find((itemCode) => {
-    if (lockedCodes.includes(itemCode) || skippedCodes.includes(itemCode)) return false;
-    const item = assessment.items.find((entry) => entry.item_code === itemCode);
-    return item && (!item.evidence_summary.length || item.review_required);
-  });
-  if (!candidateCode) {
-    return {
-      should_ask: 'no',
-      item_code: '',
-      item_label: '',
-      probe_question: '',
-      reason: 'no_gap'
-    };
+  // 動態 dimension 順序：使用者提到的症狀 → next_recommended → 全部
+  const progress = normalizeObjectState(state, 'hamd_progress_state', {});
+  const mentionedDims = detectMentionedDimensions(userMessage);
+  const dimOrder = [...mentionedDims];
+  if (progress.next_recommended_dimension && !dimOrder.includes(progress.next_recommended_dimension)) {
+    dimOrder.push(progress.next_recommended_dimension);
   }
+  HAMD_PROGRESS_DIMENSIONS.forEach((d) => { if (!dimOrder.includes(d)) dimOrder.push(d); });
+
+  let candidateCode = null;
+  for (const dim of dimOrder) {
+    candidateCode = (HAMD_DIMENSION_TO_ITEM_CODES[dim] || []).find((itemCode) => {
+      if (lockedCodes.includes(itemCode) || skippedCodes.includes(itemCode)) return false;
+      const item = assessment.items.find((entry) => entry.item_code === itemCode);
+      return item && (!item.evidence_summary.length || item.review_required);
+    });
+    if (candidateCode) break;
+  }
+
+  if (!candidateCode) {
+    return { should_ask: 'no', item_code: '', item_label: '', probe_question: '', reason: 'no_gap' };
+  }
+
   const definition = HAMD_FORMAL_ITEM_MAP[candidateCode];
+  const candidateItem = assessment.items.find((i) => i.item_code === candidateCode);
   const variants = ITEM_PROBE_TEXTS[candidateCode];
   const probeQuestion = (variants && variants[0]) ? variants[0] : definition.probe_question;
+  const questionType = getItemDataGap(candidateItem || {}) || 'frequency';
   return {
     should_ask: 'yes',
     item_code: definition.item_code,
     item_label: definition.item_label,
-    question_type: 'frequency',
+    question_type: questionType,
     probe_question: probeQuestion,
-    reason: `gap_in_${nextDimension}`
+    reason: `gap_in_${mentionedDims.length ? mentionedDims[0] : (progress.next_recommended_dimension || 'global')}`
   };
 }
 
@@ -2030,7 +2080,7 @@ function mergeFormalAssessmentUpdates(assessment, evidenceResult, scoreResult) {
   return assessment;
 }
 
-function getFormalTargetItems(state, limit = 2) {
+function getFormalTargetItems(state, limit = 2, userMessage = '') {
   const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
   const lockedCodes = getLockedItemCodes(state);
   const skippedCodes = getSkippedItemCodes(state);
@@ -2043,15 +2093,18 @@ function getFormalTargetItems(state, limit = 2) {
       const pendingItem = assessment.items.find((i) => i.item_code === pendingCode);
       const probeCount = pendingItem ? (pendingItem.probe_count || 0) : 0;
       if (probeCount < 2) return [HAMD_FORMAL_ITEM_MAP[pendingCode]];
-      // probe_count >= 2 → 不再黏著，繼續往下選
     }
   }
 
+  // 動態 dimension 順序：使用者提到的症狀優先，再 next_recommended，再補齊全部
   const progress = normalizeObjectState(state, 'hamd_progress_state', {});
-  const dimensions = [];
-  if (progress.next_recommended_dimension) dimensions.push(progress.next_recommended_dimension);
-  normalizeArray(progress.supported_dimensions).forEach((item) => {
-    if (dimensions.indexOf(item) === -1) dimensions.push(item);
+  const mentionedDims = detectMentionedDimensions(userMessage);
+  const dimensions = [...mentionedDims];
+  if (progress.next_recommended_dimension && !dimensions.includes(progress.next_recommended_dimension)) {
+    dimensions.push(progress.next_recommended_dimension);
+  }
+  normalizeArray(progress.supported_dimensions).forEach((d) => {
+    if (!dimensions.includes(d)) dimensions.push(d);
   });
   HAMD_PROGRESS_DIMENSIONS.forEach((d) => { if (!dimensions.includes(d)) dimensions.push(d); });
 
@@ -4644,7 +4697,7 @@ class AICompanionEngine {
   async updateFormalAssessment(session, message) {
     const state = session.state;
     const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
-    const targetItems = getFormalTargetItems(state, 2);
+    const targetItems = getFormalTargetItems(state, 2, message);
     if (!targetItems.length) {
       state.hamd_formal_assessment = assessment;
       return;
@@ -4779,12 +4832,12 @@ class AICompanionEngine {
         probe_question: RISK_PROBE.probe_question
       };
     } else {
-      formalProbe = buildFormalAssessmentProbeFallback(state);
+      formalProbe = buildFormalAssessmentProbeFallback(state, message);
       if (canProbeHamd) {
         formalProbe = await this.runJsonTask('hamdFormalProbeSelector', session, message, {
           extraContext: {
             formal_probe: {
-              items: getFormalTargetItems(state, 4)
+              items: getFormalTargetItems(state, 4, message)
             }
           },
           fallback: formalProbe
