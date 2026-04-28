@@ -874,8 +874,11 @@ function computeHamdItemLockState(progressItems, formalItems) {
     if (!code || lockState[code] === 'locked') return;
     const hasEvidence = normalizeArray(item.evidence_summary).length > 0;
     const hasScore = item.ai_suggested_score != null;
-    // 真正鎖定：有 evidence 且有 AI 評分
-    if (hasEvidence && hasScore) {
+    const hasSlider = item.user_self_rating != null
+      && item.user_self_rating.source === 'slider'
+      && item.user_self_rating.value != null;
+    // 真正鎖定：有 evidence 且有 AI 評分，或有滑桿自評 + 文字證據
+    if ((hasEvidence && hasScore) || (hasSlider && hasEvidence)) {
       lockState[code] = 'locked';
       return;
     }
@@ -1719,7 +1722,11 @@ function isItemDataComplete(state, itemCode) {
   if (!item) return false;
   const hasEvidence = Array.isArray(item.evidence_summary) && item.evidence_summary.length > 0;
   const hasScore = item.ai_suggested_score != null;
-  return hasEvidence && hasScore;
+  // 有滑桿數值 + 文字證據 → 使用者已自評，視為完成（不需再問）
+  const hasSlider = item.user_self_rating != null
+    && item.user_self_rating.source === 'slider'
+    && item.user_self_rating.value != null;
+  return (hasEvidence && hasScore) || (hasSlider && hasEvidence);
 }
 
 function determineConversationMode(state, userText, targetItemCode) {
@@ -2222,6 +2229,12 @@ function clinicalPostProcessor(draft, {
         debugTrace.target_item = switchedCode;
         debugTrace.target_item_source = 'switching_override';
         debugTrace.decision_path.push(`switching → 強制換題: "${switchedCode}"`);
+      }
+      // 若因「已拿到答案（滑桿+描述）」而換題，在 AI 文字前補過渡句
+      if (convModeReason.includes('data_complete')) {
+        const transition = '了解，這部分我大概有概念了，我們可以看看另一個面向。';
+        text = text ? `${transition}\n\n${text}` : transition;
+        debugTrace.decision_path.push('switching_transition → 已完成，加過渡句');
       }
     }
     // 🟡 probing：繼續同一題，走現有邏輯（不特別處理，讓後面的 shouldIntervene 接管）
