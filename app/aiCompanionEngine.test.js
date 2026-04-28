@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { AICompanionEngine, defaultSessionExport } = require('./aiCompanionEngine');
+const { AICompanionEngine, buildClarifyingProbe, defaultSessionExport } = require('./aiCompanionEngine');
 const { loadSessionsFromFile, saveSessionsToFile } = require('./sessionPersistence');
 const fs = require('fs');
 const os = require('os');
@@ -697,6 +697,26 @@ async function testSessionPersistenceRoundTrip() {
   assert.strictEqual(second.metadata.route, 'output');
 }
 
+function testClarifyingProbeUsesFeelingFocusedQuestions() {
+  const probe = buildClarifyingProbe('最近壓力真的很大，也有點委屈，覺得快撐不住了。');
+  assert.ok(probe.includes('壓力') || probe.includes('委屈'));
+  assert.ok(!probe.includes('哪一個對你影響最大'));
+  assert.ok(!probe.includes('最困擾'));
+}
+
+function testClarifyingProbeFallsBackToGentleEmotionalPrompt() {
+  const probe = buildClarifyingProbe('不知道該怎麼說，就是怪怪的。');
+  assert.ok(
+    [
+      '你能深入說說你現在的感受嗎？對你來說，最卡住的是哪一塊？',
+      '如果我們先不急著找答案，你覺得剛剛那份感受裡，最難受的是什麼？',
+      '你願意陪我再往裡面說一點嗎？那個讓你有感覺的點，最像什麼？',
+      '當你說這些的時候，你心裡最明顯浮上來的感受是什麼？',
+      '如果把剛剛那個瞬間停下來看，你最希望我先理解你的哪一部分？'
+    ].includes(probe)
+  );
+}
+
 async function run() {
   await testCommandRouting();
   await testHighRiskRouting();
@@ -720,6 +740,8 @@ async function run() {
   await testTherapeuticMemoryCompressionAddsLongTermChunk();
   await testForceMemoryCompressionRequestReturnsTestRoute();
   await testSessionPersistenceRoundTrip();
+  testClarifyingProbeUsesFeelingFocusedQuestions();
+  testClarifyingProbeFallsBackToGentleEmotionalPrompt();
   console.log('AI companion engine tests passed.');
 }
 

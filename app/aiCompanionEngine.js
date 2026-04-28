@@ -1391,45 +1391,62 @@ function pickNextUnlockedItemCode(state) {
   return probe ? probe.item_code : null;
 }
 
-// 釐清模式專用問句：列出使用者本輪實際提到的症狀群（最多 3 個），請對方挑最困擾的
-const CLARIFY_LABEL_MAP = {
-  insomnia_early: '睡不好',
-  insomnia_middle: '睡不好',
-  insomnia_late: '睡不好',
-  work_activities: '動力下降',
-  retardation: '做事變慢',
-  general_somatic: '疲倦',
-  psychic_anxiety: '焦慮',
-  depressed_mood: '心情低落',
-  guilt: '自責',
-  suicide: '對活著的疑惑',
-  agitation: '煩躁',
-  somatic_anxiety: '身體緊繃',
-  gastrointestinal_somatic: '胃口或腸胃',
-  weight_loss: '食量變化',
-  hypochondriasis: '擔心身體',
-  insight: '對狀況的看法',
-  genital_symptoms: '生理變化'
-};
+const CLARIFY_FEELING_CUES = [
+  { label: '壓力', keywords: ['壓力', '喘不過氣', '扛不住', '被追著跑', '卡住'] },
+  { label: '委屈', keywords: ['委屈', '不被理解', '誤會', '吞下去'] },
+  { label: '難過', keywords: ['難過', '低落', '想哭', '沮喪', '失落'] },
+  { label: '焦慮', keywords: ['焦慮', '緊張', '慌', '不安', '擔心'] },
+  { label: '生氣', keywords: ['生氣', '火大', '煩', '煩躁', '不爽'] },
+  { label: '自責', keywords: ['自責', '內疚', '都是我', '怪自己'] },
+  { label: '疲憊', keywords: ['很累', '疲憊', '撐不住', '沒力', '耗盡'] },
+  { label: '孤單', keywords: ['孤單', '孤獨', '一個人', '沒人懂'] }
+];
+
+const CLARIFY_PROBE_TEMPLATES_WITH_FEELING = [
+  (labels) => `你能多說說你剛剛提到的${labels}嗎？現在最貼近你的，是哪一層感受？`,
+  (labels) => `如果我們先不急著解決，只停在你剛剛說的${labels}裡，你覺得最難受的是哪一塊？`,
+  (labels) => `剛剛那些${labels}背後，好像還有一個更深的感覺，你願意陪我一起往下說一點嗎？`,
+  (labels) => `當${labels}冒出來的那一刻，你心裡最常跳出來的感受或念頭是什麼？`,
+  (labels) => `你現在最想被理解的，會是這些${labels}中的哪一個部分？`
+];
+
+const CLARIFY_PROBE_TEMPLATES_GENERIC = [
+  '你能深入說說你現在的感受嗎？對你來說，最卡住的是哪一塊？',
+  '如果我們先不急著找答案，你覺得剛剛那份感受裡，最難受的是什麼？',
+  '你願意陪我再往裡面說一點嗎？那個讓你有感覺的點，最像什麼？',
+  '當你說這些的時候，你心裡最明顯浮上來的感受是什麼？',
+  '如果把剛剛那個瞬間停下來看，你最希望我先理解你的哪一部分？'
+];
+
+function pickDeterministicIndex(text, size) {
+  const input = String(text || '');
+  if (!size || size <= 1) return 0;
+  let hash = 0;
+  for (let i = 0; i < input.length; i += 1) {
+    hash = ((hash * 31) + input.charCodeAt(i)) % 2147483647;
+  }
+  return Math.abs(hash) % size;
+}
 
 function buildClarifyingProbe(userText) {
   const t = String(userText || '');
   const seen = new Set();
-  const mentions = [];
-  for (const [code, keywords] of Object.entries(ITEM_SYMPTOM_KEYWORDS)) {
-    if (keywords.some((kw) => t.includes(kw))) {
-      const label = CLARIFY_LABEL_MAP[code] || code;
-      if (!seen.has(label)) {
-        mentions.push(label);
-        seen.add(label);
+  const feelingLabels = [];
+  for (const cue of CLARIFY_FEELING_CUES) {
+    if (cue.keywords.some((kw) => t.includes(kw))) {
+      if (!seen.has(cue.label)) {
+        feelingLabels.push(cue.label);
+        seen.add(cue.label);
       }
     }
   }
-  if (mentions.length === 0) {
-    return '你剛剛說的這些感受裡，最近哪一個對你影響最大？';
+  if (feelingLabels.length === 0) {
+    const index = pickDeterministicIndex(t, CLARIFY_PROBE_TEMPLATES_GENERIC.length);
+    return CLARIFY_PROBE_TEMPLATES_GENERIC[index];
   }
-  const top = mentions.slice(0, 3).join('、');
-  return `你剛剛提到${top}這幾個感受，最近哪一個對你影響最大？`;
+  const labels = feelingLabels.slice(0, 2).join('和');
+  const index = pickDeterministicIndex(t, CLARIFY_PROBE_TEMPLATES_WITH_FEELING.length);
+  return CLARIFY_PROBE_TEMPLATES_WITH_FEELING[index](labels);
 }
 
 function pickScoreableProbe(userText, draft, formalProbe, state) {
@@ -5818,6 +5835,7 @@ class AICompanionEngine {
 
 module.exports = {
   AICompanionEngine,
+  buildClarifyingProbe,
   createDefaultState,
   createSimpleRetriever,
   defaultSessionExport,
