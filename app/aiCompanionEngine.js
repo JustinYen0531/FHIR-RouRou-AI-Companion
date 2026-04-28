@@ -5180,6 +5180,17 @@ class AICompanionEngine {
       baseResolvedTarget.targetItemSource
     );
 
+    // ── 硬規則守門（Rules > LLM，僅限 switching 強制）─────────────────────────
+    // LLM 負責「方向」，但下列兩種情況必須強制換題，LLM 無法阻止：
+    // 1. probe_count >= 2（已問夠次數）
+    // 2. isItemDataComplete（已有完整 evidence + score）
+    // 其餘情況：LLM wins
+    if (decision.mode === 'probing' && fallbackDecision.mode === 'switching') {
+      decision.mode = 'switching';
+      decision.reason = `rule_guard(${fallbackDecision.reason})→override_llm_probing`;
+      decision.decision_path_note = `LLM 說繼續追問，但規則強制換題（${fallbackDecision.reason}）`;
+    }
+
     // ── LLM 語意維度引導（dominant_dimension）──────────────────────────────
     // 若 LLM 判斷 dominant_dimension 明確（不是 unclear），系統從該 dimension 選 target
     // 這讓「累、睡不好、沒動力」這種語意同屬一個群的輸入不會錯誤觸發 clarifying
