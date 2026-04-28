@@ -7028,6 +7028,13 @@ function renderClinicalTraceButton(group, btnRow, traceData) {
     const scoreIcon = t.is_scoreable ? '✅' : '❌';
     const riskIcon = t.risk_detected ? '🔴' : '🟢';
 
+    const convModeMap = {
+      clarifying: '🟢 釐清（主軸不明）',
+      probing:    '🟡 補問（同一題）',
+      switching:  '🔵 換題'
+    };
+    const convModeLabel = convModeMap[t.conversation_mode] || t.conversation_mode || '—';
+
     panel.innerHTML = `
       <div class="trace-header">🧠 臨床分析官 決策紀要</div>
       <div class="trace-row"><span class="trace-label">📝 AI 原本說</span><span class="trace-value">「${escapeHtml((t.raw_output || '').substring(0, 50))}…」</span></div>
@@ -7037,6 +7044,7 @@ function renderClinicalTraceButton(group, btnRow, traceData) {
       <div class="trace-row"><span class="trace-label">📊 可評分嗎</span><span class="trace-value">${scoreIcon}</span></div>
       <div class="trace-row"><span class="trace-label">🎯 問對了嗎</span><span class="trace-value">${correctIcon}</span></div>
       <div class="trace-row"><span class="trace-label">🚨 風險訊號</span><span class="trace-value">${riskIcon}</span></div>
+      <div class="trace-row"><span class="trace-label">🗣️ 對話狀態</span><span class="trace-value">${escapeHtml(convModeLabel)}</span></div>
       <div class="trace-divider"></div>
       <div class="trace-row"><span class="trace-label">🤔 系統介入</span><span class="trace-value">${escapeHtml(interveneIcon)}</span></div>
       <div class="trace-row"><span class="trace-label">💬 原因</span><span class="trace-value">${escapeHtml(reasonLabel)}</span></div>
