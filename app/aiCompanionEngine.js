@@ -1391,6 +1391,47 @@ function pickNextUnlockedItemCode(state) {
   return probe ? probe.item_code : null;
 }
 
+// 釐清模式專用問句：列出使用者本輪實際提到的症狀群（最多 3 個），請對方挑最困擾的
+const CLARIFY_LABEL_MAP = {
+  insomnia_early: '睡不好',
+  insomnia_middle: '睡不好',
+  insomnia_late: '睡不好',
+  work_activities: '動力下降',
+  retardation: '做事變慢',
+  general_somatic: '疲倦',
+  psychic_anxiety: '焦慮',
+  depressed_mood: '心情低落',
+  guilt: '自責',
+  suicide: '對活著的疑惑',
+  agitation: '煩躁',
+  somatic_anxiety: '身體緊繃',
+  gastrointestinal_somatic: '胃口或腸胃',
+  weight_loss: '食量變化',
+  hypochondriasis: '擔心身體',
+  insight: '對狀況的看法',
+  genital_symptoms: '生理變化'
+};
+
+function buildClarifyingProbe(userText) {
+  const t = String(userText || '');
+  const seen = new Set();
+  const mentions = [];
+  for (const [code, keywords] of Object.entries(ITEM_SYMPTOM_KEYWORDS)) {
+    if (keywords.some((kw) => t.includes(kw))) {
+      const label = CLARIFY_LABEL_MAP[code] || code;
+      if (!seen.has(label)) {
+        mentions.push(label);
+        seen.add(label);
+      }
+    }
+  }
+  if (mentions.length === 0) {
+    return '你剛剛說的這些感受裡，最近哪一個對你影響最大？';
+  }
+  const top = mentions.slice(0, 3).join('、');
+  return `你剛剛提到${top}這幾個感受，最近哪一個對你影響最大？`;
+}
+
 function pickScoreableProbe(userText, draft, formalProbe, state) {
   // ① formal_probe 已有問句 → 直接用
   const formalQ = String((formalProbe && formalProbe.probe_question) || '').trim();
@@ -1610,6 +1651,63 @@ function isAskingAboutMentionedSymptom(question, userText) {
   return false;
 }
 
+// ── 對話狀態（conversation_mode）─────────────────────────────────────────────
+// 三態：clarifying（釐清）/ probing（補問同題）/ switching（換題）
+function countMentionedItems(userText) {
+  const t = String(userText || '');
+  if (!t) return 0;
+  let count = 0;
+  for (const keywords of Object.values(ITEM_SYMPTOM_KEYWORDS)) {
+    if (keywords.some((kw) => t.includes(kw))) count += 1;
+  }
+  return count;
+}
+
+function getItemProbeCount(state, itemCode) {
+  if (!state || !itemCode) return 0;
+  // 優先讀 formal_assessment 的 probe_count，再 fallback 到 hamd_item_turn_counts
+  const assessment = normalizeObjectState(state, 'hamd_formal_assessment', {});
+  const items = Array.isArray(assessment.items) ? assessment.items : [];
+  const item = items.find((i) => i && i.item_code === itemCode);
+  const fromAssessment = item ? Number(item.probe_count || 0) : 0;
+  const fromTurnCount = getItemTurnCount(state, itemCode);
+  return Math.max(fromAssessment, fromTurnCount);
+}
+
+function isItemDataComplete(state, itemCode) {
+  if (!state || !itemCode) return false;
+  const assessment = normalizeObjectState(state, 'hamd_formal_assessment', {});
+  const items = Array.isArray(assessment.items) ? assessment.items : [];
+  const item = items.find((i) => i && i.item_code === itemCode);
+  if (!item) return false;
+  const hasEvidence = Array.isArray(item.evidence_summary) && item.evidence_summary.length > 0;
+  const hasScore = item.ai_suggested_score != null;
+  return hasEvidence && hasScore;
+}
+
+function determineConversationMode(state, userText, targetItemCode) {
+  // 沒 target → 必然 clarifying
+  if (!targetItemCode) {
+    return { mode: 'clarifying', reason: 'no_target_item' };
+  }
+  // 使用者本輪同時提到 ≥3 個不同 HAM-D 症狀群 → 主軸不明確，先釐清
+  const mentioned = countMentionedItems(userText);
+  if (mentioned >= 3) {
+    return { mode: 'clarifying', reason: 'multi_symptom_input', mentioned_count: mentioned };
+  }
+  // 該題已收集到 evidence + score → 換題
+  if (isItemDataComplete(state, targetItemCode)) {
+    return { mode: 'switching', reason: 'data_complete' };
+  }
+  // 已對該題探過 ≥2 次 → 換題（避免黏題）
+  const probeCount = getItemProbeCount(state, targetItemCode);
+  if (probeCount >= 2) {
+    return { mode: 'switching', reason: 'probe_exhausted', probe_count: probeCount };
+  }
+  // 預設：補問同題
+  return { mode: 'probing', reason: 'continue_same_item', probe_count: probeCount };
+}
+
 // ── 繞題追蹤 helpers ─────────────────────────────────────────────────────────
 
 function getItemTurnCount(state, itemCode) {
@@ -1756,6 +1854,8 @@ function clinicalPostProcessor(draft, {
     atmosphere_protected: atmosphereProtected,
     risk_detected: false,
     risk_action: null,
+    conversation_mode: null,
+    conversation_mode_reason: null,
     target_item: null,
     target_item_source: null,
     extracted_question: null,
@@ -1859,6 +1959,45 @@ function clinicalPostProcessor(draft, {
 
     debugTrace.target_item = targetItemCode || null;
     debugTrace.decision_path.push(`target_item = ${targetItemCode || 'none'} (${debugTrace.target_item_source})`);
+
+    // ── 第 2.5 層：conversation_mode 三態決策 ──
+    // clarifying（釐清）/ probing（補問同題）/ switching（換題）
+    const convMode = determineConversationMode(state, userText, targetItemCode);
+    debugTrace.conversation_mode = convMode.mode;
+    debugTrace.conversation_mode_reason = convMode.reason;
+    debugTrace.decision_path.push(`conversation_mode = ${convMode.mode} (${convMode.reason})`);
+
+    // 🟢 clarifying：主軸不明確 → 直接問「哪個最困擾」，不做 HAM-D 題壓力
+    if (convMode.mode === 'clarifying') {
+      const clarifyProbe = buildClarifyingProbe(userText);
+      const lastQForClarify = extractLastQuestion(text);
+      if (lastQForClarify && lastQForClarify.before) {
+        text = `${lastQForClarify.before}\n\n${clarifyProbe}`;
+      } else {
+        text = text ? `${text}\n\n${clarifyProbe}` : clarifyProbe;
+      }
+      text = enforceSingleQuestion(text);
+      debugTrace.intervention_action = 'clarifying_probe';
+      debugTrace.replacement_probe = clarifyProbe;
+      debugTrace.final_output = text;
+      const fqC = extractLastQuestion(text);
+      debugTrace.final_question = fqC ? fqC.question : clarifyProbe;
+      debugTrace.decision_path.push(`clarifying → "${clarifyProbe.substring(0, 40)}..."`);
+      trackAskedItem(state, debugTrace.final_question, null);
+      return { text, debugTrace };
+    }
+
+    // 🔵 switching：強制換下一個未鎖定 item
+    if (convMode.mode === 'switching') {
+      const switchedCode = pickNextUnlockedItemCode(state);
+      if (switchedCode) {
+        targetItemCode = switchedCode;
+        debugTrace.target_item = switchedCode;
+        debugTrace.target_item_source = 'switching_override';
+        debugTrace.decision_path.push(`switching → 強制換題: "${switchedCode}"`);
+      }
+    }
+    // 🟡 probing：繼續同一題，走現有邏輯（不特別處理，讓後面的 shouldIntervene 接管）
 
     // ── 第 3 層：判斷介入 ──
     const lastQ = extractLastQuestion(text);
