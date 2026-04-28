@@ -1,5 +1,15 @@
 [
   {
+    "name": "conversation_mode_state",
+    "selector": [
+      "conversation",
+      "conversation_mode_state"
+    ],
+    "default_value": "none",
+    "value_type": "string",
+    "description": "Persisted conversation mode decision snapshot: mode (clarifying/probing/switching), dominant_dimension, target_item_code, hamd_dimension. Injected back into LLM next turn so the judge knows what state we were in."
+  },
+  {
     "name": "pending_question",
     "selector": [
       "conversation",

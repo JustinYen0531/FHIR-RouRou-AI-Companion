@@ -7352,6 +7352,35 @@ body.micro-detail-open {
   margin-top: 2px;
 }
 
+/* ── 推論鏈（LLM 決策流程箭頭）─────────────────────── */
+.trace-reasoning-chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px;
+  margin: 4px 0 8px;
+  background: rgba(90, 171, 137, 0.07);
+  border-radius: 10px;
+  border: 1px solid rgba(90, 171, 137, 0.18);
+}
+.trace-chain-step {
+  font-size: 11px;
+  color: rgba(30, 70, 55, 0.85);
+  padding: 2px 6px;
+  background: rgba(255,255,255,0.6);
+  border-radius: 6px;
+  border: 1px solid rgba(90, 171, 137, 0.22);
+}
+.trace-chain-step b {
+  color: #1e5c42;
+}
+.trace-chain-arrow {
+  font-size: 11px;
+  color: rgba(90, 171, 137, 0.7);
+  font-weight: 600;
+}
+
 .trace-step-list {
   display: flex;
   flex-direction: column;

@@ -7170,8 +7170,14 @@ function renderAiTraceButton(group, btnRow, aiTraceData) {
       probing: '🟡 追問',
       switching: '🔵 換題'
     };
+    const DIM_LABELS_TOP = {
+      depressed_mood: '😔 低落', guilt: '😞 罪惡感', suicide: '⚠️ 自傷',
+      insomnia: '😴 睡眠', low_energy: '🔋 精力',
+      psychomotor: '🐢 遲滯', anxiety: '😰 焦慮', somatic: '🤢 身體', unclear: '❓ 不明'
+    };
     const topBadges = [
       cm ? `<span class="trace-badge">${escapeHtml(modeMap[cm.mode] || cm.mode || '—')}</span>` : '',
+      cm && cm.llm_dominant_dimension ? `<span class="trace-badge">🔍 ${escapeHtml(DIM_LABELS_TOP[cm.llm_dominant_dimension] || cm.llm_dominant_dimension)}</span>` : '',
       cm && (cm.hamd_dimension_label || cm.hamd_dimension) ? `<span class="trace-badge">🧭 ${escapeHtml(cm.hamd_dimension_label || cm.hamd_dimension)}</span>` : '',
       probe ? `<span class="trace-badge">${probe.should_ask === 'yes' ? '✅ 會問 HAMD' : '⏸️ 暫不問 HAMD'}</span>` : '',
       a.burden ? `<span class="trace-badge">負擔 ${escapeHtml(a.burden.burden_level || '—')}</span>` : ''
@@ -7183,8 +7189,16 @@ function renderAiTraceButton(group, btnRow, aiTraceData) {
     }
 
     if (cm) {
+      const DIM_LABELS_QUICK = {
+        depressed_mood: '😔 心情低落', guilt: '😞 罪惡感', suicide: '⚠️ 自傷',
+        insomnia: '😴 睡眠', low_energy: '🔋 活動力/精力',
+        psychomotor: '🐢 動作遲滯', anxiety: '😰 焦慮', somatic: '🤢 身體症狀', unclear: '❓ 不明確'
+      };
+      const domDimQuick = cm.llm_dominant_dimension || '';
+      const domDimLabelQuick = DIM_LABELS_QUICK[domDimQuick] || domDimQuick || '—';
       sections.push(`
         <div class="trace-section-title">先看結論</div>
+        <div class="trace-row"><span class="trace-label">🔍 LLM 語意核心</span><span class="trace-value" style="font-weight:600">${escapeHtml(domDimLabelQuick)}</span></div>
         <div class="trace-row"><span class="trace-label">目前模式</span><span class="trace-value">${escapeHtml(modeMap[cm.mode] || cm.mode || '—')}</span></div>
         <div class="trace-row"><span class="trace-label">AI 理由</span><span class="trace-value">${escapeHtml(cm.reason || '—')}</span></div>
         <div class="trace-row"><span class="trace-label">目前題項</span><span class="trace-value">${escapeHtml(cm.target_item_label || cm.target_item_code || '—')}</span></div>
@@ -7233,14 +7247,41 @@ function renderAiTraceButton(group, btnRow, aiTraceData) {
 
     // 3. 對話三態
     if (cm) {
+      const DIM_LABELS = {
+        depressed_mood: '😔 心情低落',
+        guilt: '😞 罪惡感/自責',
+        suicide: '⚠️ 自傷意念',
+        insomnia: '😴 睡眠',
+        low_energy: '🔋 活動力/精力',
+        psychomotor: '🐢 動作遲滯/激動',
+        anxiety: '😰 焦慮',
+        somatic: '🤢 身體症狀',
+        unclear: '❓ 不明確'
+      };
+      const domDim = cm.llm_dominant_dimension || '';
+      const domDimLabel = DIM_LABELS[domDim] || domDim || '—';
+
+      // 推論流程箭頭（LLM 判斷鏈）
+      const reasoningChain = [
+        `<span class="trace-chain-step">使用者說了什麼</span>`,
+        `<span class="trace-chain-arrow">→</span>`,
+        `<span class="trace-chain-step">LLM 判斷語意核心：<b>${escapeHtml(domDimLabel)}</b></span>`,
+        `<span class="trace-chain-arrow">→</span>`,
+        `<span class="trace-chain-step">模式：<b>${escapeHtml(modeMap[cm.mode] || cm.mode || '—')}</b></span>`,
+        `<span class="trace-chain-arrow">→</span>`,
+        `<span class="trace-chain-step">選定題項：<b>${escapeHtml(cm.target_item_label || cm.target_item_code || '—')}</b></span>`
+      ].join('');
+
       sections.push(`
-        <div class="trace-section-title">🧭 對話三態</div>
+        <div class="trace-section-title">🧭 對話三態（LLM 推論鏈）</div>
+        <div class="trace-reasoning-chain">${reasoningChain}</div>
+        <div class="trace-divider"></div>
+        <div class="trace-row"><span class="trace-label">🔍 語意核心維度</span><span class="trace-value" style="font-weight:600">${escapeHtml(domDimLabel)}</span></div>
         <div class="trace-row"><span class="trace-label">判定模式</span><span class="trace-value">${escapeHtml(modeMap[cm.mode] || cm.mode || '—')}</span></div>
-        <div class="trace-row"><span class="trace-label">理由</span><span class="trace-value">${escapeHtml(cm.reason || '—')}</span></div>
+        <div class="trace-row"><span class="trace-label">AI 理由</span><span class="trace-value">${escapeHtml(cm.reason || '—')}</span></div>
         <div class="trace-row"><span class="trace-label">主軸清晰度</span><span class="trace-value">${escapeHtml(cm.topic_clarity || '—')}</span></div>
         <div class="trace-row"><span class="trace-label">HAM-D 準備度</span><span class="trace-value">${escapeHtml(cm.hamd_ready || '—')}</span></div>
-        <div class="trace-row"><span class="trace-label">推進狀態</span><span class="trace-value">${escapeHtml(cm.progression || '—')}</span></div>
-        <div class="trace-row"><span class="trace-label">是否繞圈</span><span class="trace-value">${escapeHtml(cm.loop_detected || '—')}</span></div>
+        <div class="trace-row"><span class="trace-label">推進狀態</span><span class="trace-value">${escapeHtml(cm.progression || '—')} / 繞圈：${escapeHtml(cm.loop_detected || '—')}</span></div>
         <div class="trace-row"><span class="trace-label">目前題項</span><span class="trace-value">${escapeHtml(cm.target_item_label || cm.target_item_code || '—')}</span></div>
         ${(cm.mode === 'probing' || cm.mode === 'switching') ? `<div class="trace-row"><span class="trace-label">HAM-D 面向</span><span class="trace-value">${escapeHtml(cm.hamd_dimension_label || cm.hamd_dimension || '—')}</span></div>` : ''}
         <div class="trace-row"><span class="trace-label">系統備援</span><span class="trace-value">${escapeHtml(cm.fallback_mode || '—')} / ${escapeHtml(cm.fallback_reason || '—')}</span></div>

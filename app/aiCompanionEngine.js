@@ -1835,6 +1835,15 @@ function resolveConversationTargetByMode(state, userText, formalProbe, mode, bas
   }
 
   if (mode === 'switching') {
+    // ⚡ 如果 target 是 LLM dominant_dim 決定的，直接信任它，不要再 re-pick 蓋掉
+    if (base.targetItemSource && base.targetItemSource.startsWith('llm_dominant_dim')) {
+      return {
+        targetItemCode: base.targetItemCode,
+        targetItemSource: base.targetItemSource,
+        decisionNotes: [...base.decisionNotes, `switching → LLM dominant_dim 直接選 "${base.targetItemCode}"（不重選）`]
+      };
+    }
+    // 一般 switching：排除當前題，重新選
     const excluded = [
       base.targetItemCode,
       state.hamd_last_asked_item,
@@ -3420,9 +3429,9 @@ function enrichHamdProgressState(progress, longitudinal) {
   } else {
     next.progress_stage = next.progress_stage || 'initial';
   }
-  if (coveredDimensions.includes('somatic_anxiety') && !coveredDimensions.includes('guilt')) {
-    next.next_recommended_dimension = 'guilt';
-  } else if (coveredDimensions.includes('insomnia') && !coveredDimensions.includes('work_interest')) {
+  // ⚠️ 移除硬編碼 somatic_anxiety→guilt 規則（會讓系統卡在罪惡感）
+  // next_recommended_dimension 交給 LLM tracker 的優先規則決定
+  if (coveredDimensions.includes('insomnia') && !coveredDimensions.includes('work_interest')) {
     next.next_recommended_dimension = 'work_interest';
   } else {
     next.next_recommended_dimension = coveredDimensions[1] || coveredDimensions[0] || next.next_recommended_dimension || 'depressed_mood';
@@ -5096,7 +5105,8 @@ class AICompanionEngine {
           followup_turn_count: Number(state.followup_turn_count || '0'),
           probe_count: baseResolvedTarget.targetItemCode ? getItemProbeCount(state, baseResolvedTarget.targetItemCode) : 0,
           current_focus: normalizeObjectState(state, 'hamd_progress_state', {}).current_focus || '',
-          next_recommended_dimension: normalizeObjectState(state, 'hamd_progress_state', {}).next_recommended_dimension || ''
+          next_recommended_dimension: normalizeObjectState(state, 'hamd_progress_state', {}).next_recommended_dimension || '',
+          previous_mode_state: normalizeObjectState(state, 'conversation_mode_state', {})
         }
       },
       fallback: {
@@ -5135,11 +5145,22 @@ class AICompanionEngine {
       const candidateCodes = DIMENSION_MAP[llmDominantDim];
       const firstUnlocked = candidateCodes.find((c) => !lockedCodes.includes(c));
       if (firstUnlocked) {
-        // LLM 語意明確 → 系統接管 target，不論 mode
+        // 取得目前 pending probe 的 item 來比對 dimension
+        const pendingAssessment = normalizeObjectState(state, 'hamd_formal_assessment', {});
+        const pendingCode = String(pendingAssessment.pending_probe_item_code || '').trim();
+        // 判斷 pending probe 是否屬於 LLM 選定的同一個 dimension
+        const pendingInSameDim = !pendingCode || candidateCodes.includes(pendingCode);
+
         if (decision.mode === 'clarifying') {
-          // 語意已夠明確 → 改為 probing，不讓釐清邏輯浪費一輪
+          // 語意已夠明確 → 改為 probing
           decision.mode = 'probing';
           decision.reason = `llm_dominant_dim(${llmDominantDim})→item(${firstUnlocked})`;
+        } else if (decision.mode === 'probing' && pendingCode && !pendingInSameDim) {
+          // ⚠️ LLM 說的維度 ≠ 目前 pending probe 的維度
+          // → 強制 switching，讓 LLM 的語意判斷贏過 pending_probe 黏題
+          decision.mode = 'switching';
+          decision.reason = `llm_dim(${llmDominantDim})≠pending(${pendingCode})→switch`;
+          decision.decision_path_note = `dominant_dimension override: ${pendingCode} → ${firstUnlocked}`;
         }
         baseResolvedTarget.targetItemCode = firstUnlocked;
         baseResolvedTarget.targetItemSource = `llm_dominant_dim:${llmDominantDim}`;
@@ -5182,6 +5203,18 @@ class AICompanionEngine {
       fallback_mode: decision.fallback_mode,
       fallback_reason: decision.fallback_reason
     };
+
+    // ── 持久化：把本輪決策存到 state，讓下一輪 LLM 知道「上一輪我們在哪一題、哪個模式」
+    state.conversation_mode_state = JSON.stringify({
+      mode: decision.mode,
+      reason: decision.reason,
+      dominant_dimension: decision.llm_dominant_dimension || 'unclear',
+      target_item_code: decision.target_item_code || '',
+      target_item_label: decision.target_item_label || '',
+      hamd_dimension: decision.hamd_dimension || '',
+      hamd_dimension_label: decision.hamd_dimension_label || '',
+      updatedAt: new Date().toISOString()
+    });
 
     return {
       decision,
