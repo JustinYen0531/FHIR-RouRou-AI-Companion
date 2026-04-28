@@ -915,6 +915,10 @@ const BAD_COMFORT_PATTERNS = [
   /(你的)?感受(是|都)?(很)?重要[^。\n]*。?/g
 ];
 
+// 繞題防護閾值
+const MAX_TURNS_PER_ITEM = 3;       // 同一題累計被問 3 次 → 暫列為過多，排除
+const MAX_CONSECUTIVE_SAME_ITEM = 2; // 連續 2 輪問同一題 → 強制切換
+
 // 第 2 層：最後一句問句的非法句型 → 命中替換成 formal_probe / emergencyProbe
 const BAD_QUESTION_PATTERNS = [
   // coping
@@ -1106,10 +1110,14 @@ function extractLastQuestion(text) {
   return null;
 }
 
-function pickEmergencyProbe(state, userMessage = '') {
+function pickEmergencyProbe(state, userMessage = '', extraExcludeCodes = []) {
   const lockedCodes = getLockedItemCodes(state);
   const skippedCodes = getSkippedItemCodes(state);
-  const excludedCodes = [...new Set([...lockedCodes, ...skippedCodes])];
+  // 過多探針的題項也暫時排除（繞題防護）
+  const overProbedCodes = Object.entries((state && state.hamd_item_turn_counts) || {})
+    .filter(([, count]) => Number(count) >= MAX_TURNS_PER_ITEM)
+    .map(([code]) => code);
+  const excludedCodes = [...new Set([...lockedCodes, ...skippedCodes, ...overProbedCodes, ...extraExcludeCodes])];
   const assessment = hydrateFormalAssessment(state.hamd_formal_assessment);
   const progress = normalizeObjectState(state, 'hamd_progress_state', {});
 
@@ -1602,6 +1610,42 @@ function isAskingAboutMentionedSymptom(question, userText) {
   return false;
 }
 
+// ── 繞題追蹤 helpers ─────────────────────────────────────────────────────────
+
+function getItemTurnCount(state, itemCode) {
+  if (!state || !itemCode) return 0;
+  return Number(((state.hamd_item_turn_counts) || {})[itemCode] || 0);
+}
+
+function incrementItemTurnCount(state, itemCode) {
+  if (!state || !itemCode) return;
+  if (!state.hamd_item_turn_counts) state.hamd_item_turn_counts = {};
+  state.hamd_item_turn_counts[itemCode] = (state.hamd_item_turn_counts[itemCode] || 0) + 1;
+}
+
+// 從問句文字反推屬於哪個 HAM-D 題項（找第一個命中的）
+function detectItemFromQuestion(question) {
+  const q = String(question || '');
+  if (!q) return null;
+  for (const [code, keywords] of Object.entries(ITEM_SYMPTOM_KEYWORDS)) {
+    if (keywords.some((kw) => q.includes(kw))) return code;
+  }
+  return null;
+}
+
+// 在後處理器每個輸出路徑結束時呼叫，更新繞題追蹤 state
+function trackAskedItem(state, finalQuestion, fallbackItemCode) {
+  if (!state) return;
+  const code = detectItemFromQuestion(finalQuestion) || fallbackItemCode || null;
+  if (!code) {
+    // 問的不是 HAM-D 題 → 重置連續計數
+    state.hamd_last_asked_item = '';
+    return;
+  }
+  incrementItemTurnCount(state, code);
+  state.hamd_last_asked_item = code;
+}
+
 /**
  * 判斷是否需要介入
  * shouldIntervene = 沒有問句 OR 問句不可評分 OR 問錯 item OR 問句為禁止類型
@@ -1750,6 +1794,7 @@ function clinicalPostProcessor(draft, {
       const finalQ = extractLastQuestion(text);
       debugTrace.final_question = finalQ ? finalQ.question : null;
       debugTrace.decision_path.push('atmosphere_protected → no_intervention');
+      trackAskedItem(state, debugTrace.final_question, null);
       return { text, debugTrace };
     }
 
@@ -1776,6 +1821,7 @@ function clinicalPostProcessor(draft, {
       debugTrace.final_output = text;
       const finalQ2 = extractLastQuestion(text);
       debugTrace.final_question = finalQ2 ? finalQ2.question : riskQ;
+      trackAskedItem(state, debugTrace.final_question, 'suicide');
       return { text, debugTrace };
     }
     if (debugTrace.risk_detected && lockedCodes.includes('suicide')) {
@@ -1788,9 +1834,30 @@ function clinicalPostProcessor(draft, {
 
     // ── 第 2 層：取得 next_item ──
     const nextItemCode = pickNextUnlockedItemCode(state);
-    const targetItemCode = nextItemCode || (formalProbe && formalProbe.item_code) || '';
-    debugTrace.target_item = targetItemCode || null;
+    let targetItemCode = nextItemCode || (formalProbe && formalProbe.item_code) || '';
     debugTrace.target_item_source = nextItemCode ? 'next_unlocked' : (formalProbe && formalProbe.item_code) ? 'formal_probe' : 'none';
+
+    // ── 繞題防護：連續問同一題 OR 累計超過上限 → 強制切換 ──
+    if (targetItemCode) {
+      const lastAsked = String(state.hamd_last_asked_item || '');
+      const turnCount = getItemTurnCount(state, targetItemCode);
+      const isConsecutive = lastAsked === targetItemCode;
+      const consecutiveCount = isConsecutive ? (state._consecutive_same_item_count || 1) : 0;
+      const shouldForceSwitch = consecutiveCount >= MAX_CONSECUTIVE_SAME_ITEM || turnCount >= MAX_TURNS_PER_ITEM;
+      if (shouldForceSwitch) {
+        const altProbe = pickEmergencyProbe(state, userText, [targetItemCode]);
+        if (altProbe) {
+          debugTrace.decision_path.push(`繞題防護: "${targetItemCode}"(連續=${consecutiveCount}, 累計=${turnCount}) → 強制切換 "${altProbe.item_code}"`);
+          targetItemCode = altProbe.item_code;
+          debugTrace.target_item_source = 'stuck_override';
+          state._consecutive_same_item_count = 0;
+        }
+      } else {
+        state._consecutive_same_item_count = isConsecutive ? consecutiveCount + 1 : 1;
+      }
+    }
+
+    debugTrace.target_item = targetItemCode || null;
     debugTrace.decision_path.push(`target_item = ${targetItemCode || 'none'} (${debugTrace.target_item_source})`);
 
     // ── 第 3 層：判斷介入 ──
@@ -1819,6 +1886,7 @@ function clinicalPostProcessor(draft, {
       debugTrace.final_output = text;
       const fq = extractLastQuestion(text);
       debugTrace.final_question = fq ? fq.question : null;
+      trackAskedItem(state, debugTrace.final_question, targetItemCode);
       return { text, debugTrace };
     }
 
@@ -1834,6 +1902,7 @@ function clinicalPostProcessor(draft, {
       debugTrace.final_output = text;
       const fq2 = extractLastQuestion(text);
       debugTrace.final_question = fq2 ? fq2.question : null;
+      trackAskedItem(state, debugTrace.final_question, targetItemCode);
       return { text, debugTrace };
     }
 
@@ -1857,6 +1926,7 @@ function clinicalPostProcessor(draft, {
     const fq3 = extractLastQuestion(text);
     debugTrace.final_question = fq3 ? fq3.question : null;
     debugTrace.decision_path.push('enforce_single_question → done');
+    trackAskedItem(state, debugTrace.final_question, targetItemCode);
     return { text, debugTrace };
 
   } catch (error) {
