@@ -91,11 +91,11 @@ const HAMD_PROGRESS_DIMENSIONS = Object.keys(HAMD_DIMENSION_TO_ITEM_CODES);
 const DIMENSION_KEYWORD_PATTERNS = {
   depressed_mood: /(空虛|空掉|低落|沒有意義|沒意義|沮喪|難過|心情很差|情緒低落|憂鬱|提不起來|悶悶)/,
   guilt:          /(自責|內疚|罪惡感|怪自己|都是我的錯|愧疚)/,
-  insomnia:       /(睡不好|睡不著|難入睡|早醒|半夜醒|失眠|睡眠不好|睡得很差)/,
-  work_interest:  /(提不起勁|沒動力|不想做事|做不下去|懶得動|沒興趣|什麼都不想做)/,
-  retardation:    /(做事變慢|思考慢|反應慢|動作遲緩|腦袋轉不動|說話慢|整個人慢)/,
+  insomnia:       /(睡不好|睡不著|難入睡|早醒|半夜醒|失眠|睡眠不好|睡得很差|不太好睡|沒辦法睡|躺著睡不著|腦袋停不下來|想東想西睡不著|睡前一直想)/,
+  work_interest:  /(提不起勁|沒動力|不想做事|做不下去|懶得動|沒興趣|什麼都不想做|效率變差|效率沒有以前)/,
+  retardation:    /(做事變慢|思考慢|反應慢|動作遲緩|腦袋轉不動|說話慢|整個人慢|拖一下才開始)/,
   agitation:      /(坐不住|煩躁|靜不下來|一直動來動去|焦躁|待不住)/,
-  somatic_anxiety:/(緊張|焦慮|心悸|胸悶|肌肉緊繃|頭痛|食慾|疲倦|很累|身體不舒服)/
+  somatic_anxiety:/(緊張|焦慮|心悸|胸悶|肌肉緊繃|頭痛|食慾|疲倦|很累|身體不舒服|沒力氣|整個人很累|整體沒力)/
 };
 
 function detectMentionedDimensions(userMessage) {
@@ -1380,8 +1380,8 @@ function buildProbeFromItem(itemCode) {
   return variants[Math.floor(Math.random() * variants.length)];
 }
 
-function pickNextUnlockedItemCode(state) {
-  const probe = pickEmergencyProbe(state);
+function pickNextUnlockedItemCode(state, userMessage) {
+  const probe = pickEmergencyProbe(state, userMessage || '');
   return probe ? probe.item_code : null;
 }
 
@@ -1389,12 +1389,12 @@ function pickScoreableProbe(userText, draft, formalProbe, state) {
   // ① formal_probe 已有問句 → 直接用
   const formalQ = String((formalProbe && formalProbe.probe_question) || '').trim();
   if (formalQ) return formalQ;
-  // ② next_item：問下一個未鎖定的 HAM-D 題（推進量表）
+  // ② next_item：優先選與使用者語境相關的未評估題（userText 傳入讓 pickEmergencyProbe 做 dimension 排序）
   if (state) {
-    const nextCode = pickNextUnlockedItemCode(state);
+    const nextCode = pickNextUnlockedItemCode(state, userText);
     if (nextCode) return buildProbeFromItem(nextCode);
   }
-  // ③ 從症狀關鍵詞抓
+  // ③ 從症狀關鍵詞抓（兜底）
   const source = `${String(userText || '')}\n${String(draft || '')}`;
   for (const rule of SYMPTOM_TO_PROBE) {
     if (rule.pattern.test(source)) return rule.probes[Math.floor(Math.random() * rule.probes.length)];
