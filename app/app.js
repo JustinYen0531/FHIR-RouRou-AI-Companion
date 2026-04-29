@@ -5905,9 +5905,11 @@ function renderPhq9Screen() {
 
   if (!container) return;
 
+  const PHQ9_LABELS = ['完全沒有', '幾天', '一半以上天數', '幾乎每天'];
   container.innerHTML = PHQ9_QUESTION_DEFS.map((question, index) => {
     const score = Math.max(0, Math.min(3, Number(draft.scores[index]) || 0));
     const narrative = String(draft.narratives[index] || '');
+    const pct = (score / 3) * 100;
     return `
       <div class="phq-card" data-phq-index="${index}">
         <div class="phq-card-head">
@@ -5915,17 +5917,30 @@ function renderPhq9Screen() {
           <div class="phq-card-title">${escapeHtml(question.label)}</div>
           <div class="phq-card-prompt">${escapeHtml(question.prompt)}</div>
         </div>
-        <div class="phq-score-row" role="group" aria-label="${escapeHtml(question.label)}">
-          <button type="button" aria-pressed="${score === 0 ? 'true' : 'false'}" class="phq-score-pill ${score === 0 ? 'active' : ''}" onclick="setPHQ(${index}, 0)">0 完全沒有</button>
-          <button type="button" aria-pressed="${score === 1 ? 'true' : 'false'}" class="phq-score-pill ${score === 1 ? 'active' : ''}" onclick="setPHQ(${index}, 1)">1 幾天</button>
-          <button type="button" aria-pressed="${score === 2 ? 'true' : 'false'}" class="phq-score-pill ${score === 2 ? 'active' : ''}" onclick="setPHQ(${index}, 2)">2 一半以上天數</button>
-          <button type="button" aria-pressed="${score === 3 ? 'true' : 'false'}" class="phq-score-pill ${score === 3 ? 'active' : ''}" onclick="setPHQ(${index}, 3)">3 幾乎每天</button>
+        <div class="phq9-slider-block">
+          <input
+            type="range"
+            class="phq9-slider"
+            id="phq9-range-${index}"
+            min="0" max="3" step="1"
+            value="${score}"
+            style="--pct:${pct}%"
+            oninput="onPhq9SliderInput(${index}, this)"
+            onchange="setPHQ(${index}, parseInt(this.value, 10))"
+          >
+          <div class="phq9-slider-labels">
+            ${PHQ9_LABELS.map((l, i) => `<span class="${i === score ? 'phq9-slider-label-active' : ''}">${l}</span>`).join('')}
+          </div>
+          <div class="phq9-slider-val" id="phq9-val-${index}">
+            <span class="phq9-val-num">${score}</span>
+            <span class="phq9-val-text">${PHQ9_LABELS[score]}</span>
+          </div>
         </div>
-        <label class="phq-note-label" for="phq-note-${index}">正式敘述 / 補充說明</label>
+        <label class="phq-note-label" for="phq9-note-${index}">補充說明（選填）</label>
         <textarea
-          id="phq-note-${index}"
+          id="phq9-note-${index}"
           class="phq-note-input"
-          placeholder="請寫下這一題對你造成的正式描述，例如持續多久、影響到什麼、你怎麼感受。"
+          placeholder="可補充這一題的情況，例如持續多久、影響到什麼。"
           oninput="updatePhq9Narrative(${index}, this.value)"
         >${escapeHtml(narrative)}</textarea>
       </div>
@@ -5982,6 +5997,140 @@ function renderPhq9ReportSummary() {
       <button class="phq9-open-link-btn" type="button" onclick="openPhq9Assessment()">重新填寫 PHQ-9</button>
     </div>
   `;
+}
+
+// ── PHQ-9 滑桿即時回饋 ──────────────────────────────────────────────────────
+function onPhq9SliderInput(index, input) {
+  const v = parseInt(input.value, 10);
+  const PHQ9_LABELS = ['完全沒有', '幾天', '一半以上天數', '幾乎每天'];
+  const pct = (v / 3) * 100;
+  input.style.setProperty('--pct', `${pct}%`);
+  // 更新數值標籤
+  const valEl = document.getElementById(`phq9-val-${index}`);
+  if (valEl) {
+    valEl.querySelector('.phq9-val-num').textContent = v;
+    valEl.querySelector('.phq9-val-text').textContent = PHQ9_LABELS[v];
+  }
+  // 更新底部文字高亮
+  const labelsEl = input.closest('.phq9-slider-block')?.querySelector('.phq9-slider-labels');
+  if (labelsEl) {
+    labelsEl.querySelectorAll('span').forEach((span, i) => {
+      span.classList.toggle('phq9-slider-label-active', i === v);
+    });
+  }
+}
+
+// ── PHQ-9 Tab 切換 ────────────────────────────────────────────────────────────
+function switchPhq9Tab(tab) {
+  document.getElementById('phq9-panel-fill').style.display = tab === 'fill' ? '' : 'none';
+  document.getElementById('phq9-panel-scores').style.display = tab === 'scores' ? '' : 'none';
+  document.getElementById('phq9-tab-fill').classList.toggle('active', tab === 'fill');
+  document.getElementById('phq9-tab-scores').classList.toggle('active', tab === 'scores');
+  if (tab === 'scores') renderSliderScoresTab();
+}
+
+// ── 已填分數 Tab 渲染 ─────────────────────────────────────────────────────────
+function renderSliderScoresTab() {
+  const root = document.getElementById('phq9-slider-scores-root');
+  if (!root) return;
+
+  const HAMD_LABEL_MAP = {
+    depressed_mood: '憂鬱情緒', guilt: '罪惡感', suicide: '自殺意念',
+    insomnia_early: '早段失眠', insomnia_middle: '中段失眠', insomnia_late: '晚段失眠',
+    work_activities: '工作與活動', retardation: '動作遲滯', agitation: '激動',
+    psychic_anxiety: '精神性焦慮', somatic_anxiety: '身體性焦慮',
+    gastrointestinal_somatic: '腸胃症狀', general_somatic: '一般身體症狀',
+    genital_symptoms: '性功能', hypochondriasis: '疑病症',
+    weight_loss: '體重減輕', insight: '病識感'
+  };
+  const PHQ9_LABELS = ['完全沒有', '幾天', '一半以上天數', '幾乎每天'];
+  const PHQ9_QUESTION_LABELS = [
+    '興趣或樂趣缺乏', '情緒低落', '睡眠困擾', '疲倦沒精神',
+    '食慾改變', '自我感覺差', '難以專注', '動作遲緩或躁動', '自傷意念'
+  ];
+
+  const sections = [];
+
+  // ── HAM-D 對話中滑桿紀錄 ──
+  const sessionExport = APP_STATE.reportOutputs?.session_export || {};
+  const formalAssessment = sessionExport.hamd_formal_assessment || {};
+  const hamdItems = Array.isArray(formalAssessment.items) ? formalAssessment.items : [];
+  const hamdRated = hamdItems.filter((item) => item.user_self_rating != null);
+
+  if (hamdRated.length > 0) {
+    sections.push(`
+      <div class="score-section-title">
+        <span class="mat-icon" style="font-size:16px;vertical-align:middle">psychology</span>
+        HAM-D 對話中自評（${hamdRated.length} 題）
+      </div>
+      ${hamdRated.map((item) => {
+        const label = HAMD_LABEL_MAP[item.item_code] || item.item_code;
+        const rating = item.user_self_rating || {};
+        const v = Number(rating.value ?? 0);
+        const typeLabel = rating.type === 'frequency' ? '頻率' : '嚴重度';
+        const maxVal = rating.type === 'frequency' ? 4 : 3;
+        const pct = Math.round((v / maxVal) * 100);
+        return `
+          <div class="score-item-card">
+            <div class="score-item-head">
+              <div class="score-item-label">${escapeHtml(label)}</div>
+              <div class="score-item-meta">${typeLabel}</div>
+            </div>
+            <div class="score-item-bar-wrap">
+              <div class="score-item-bar" style="width:${pct}%"></div>
+            </div>
+            <div class="score-item-foot">
+              <span class="score-item-val">${v} <span style="font-weight:400;opacity:.7">/ ${maxVal}</span></span>
+              <span class="score-item-pct">${pct}%</span>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    `);
+  } else {
+    sections.push(`
+      <div class="score-section-title">
+        <span class="mat-icon" style="font-size:16px;vertical-align:middle">psychology</span>
+        HAM-D 對話中自評
+      </div>
+      <div class="score-empty">對話中還沒有使用過滑桿評分。</div>
+    `);
+  }
+
+  // ── PHQ-9 最新填寫紀錄 ──
+  const latest = PHQ9Tracker.getLatestAssessment();
+  const phq9Answers = latest ? (latest.answers || []) : [];
+
+  sections.push(`
+    <div class="score-section-title" style="margin-top:24px">
+      <span class="mat-icon" style="font-size:16px;vertical-align:middle">assignment</span>
+      PHQ-9 最新填寫${latest ? `（${formatTimeLabel(latest.completedAt || latest.createdAt || '')}）` : ''}
+    </div>
+    ${phq9Answers.length > 0
+      ? phq9Answers.map((ans, i) => {
+          const v = Number(ans.score ?? 0);
+          const pct = Math.round((v / 3) * 100);
+          return `
+            <div class="score-item-card">
+              <div class="score-item-head">
+                <div class="score-item-label">${escapeHtml(ans.label || PHQ9_QUESTION_LABELS[i] || `問題 ${i + 1}`)}</div>
+                <div class="score-item-meta">0–3</div>
+              </div>
+              <div class="score-item-bar-wrap">
+                <div class="score-item-bar phq9-bar" style="width:${pct}%"></div>
+              </div>
+              <div class="score-item-foot">
+                <span class="score-item-val">${v} <span style="font-weight:400;opacity:.7">/ 3</span></span>
+                <span class="score-item-pct">${PHQ9_LABELS[v] || ''}</span>
+              </div>
+            </div>
+          `;
+        }).join('')
+      : '<div class="score-empty">還沒有完成的 PHQ-9 紀錄。</div>'
+    }
+  `);
+
+  root.innerHTML = sections.join('');
 }
 
 function openPhq9Assessment() {
