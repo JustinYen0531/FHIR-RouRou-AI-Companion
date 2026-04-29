@@ -20,6 +20,23 @@ const PROJECT_ROOT = path.join(APP_DIR, '..');
 const DEFAULT_PUBLIC_FHIR_BASE_URL = 'https://r4.smarthealthit.org';
 const LEGACY_HAPI_FHIR_BASE_URL = 'https://hapi.fhir.org/baseR4';
 const PUBLIC_DEMO_FHIR_TARGETS = [DEFAULT_PUBLIC_FHIR_BASE_URL, LEGACY_HAPI_FHIR_BASE_URL];
+
+// 允許 client 傳入自訂 URL 的白名單網域
+const ALLOWED_CLIENT_FHIR_DOMAINS = ['hapi.fhir.org', 'r4.smarthealthit.org', 'localhost'];
+function resolveClientFhirBaseUrl(clientUrl) {
+  const raw = String(clientUrl || '').trim().replace(/\/+$/, '');
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    const hostname = parsed.hostname;
+    if (!ALLOWED_CLIENT_FHIR_DOMAINS.some((d) => hostname === d || hostname.endsWith('.' + d))) {
+      return null;
+    }
+    return raw;
+  } catch {
+    return null;
+  }
+}
 const DELIVERY_DEBUG_LOG_PATH = path.join(APP_DIR, '..', '.logs', 'fhir-delivery-debug.ndjson');
 const LOCAL_ENV_PATH = path.join(PROJECT_ROOT, '.env.local');
 const STATIC_FILES = {
@@ -371,12 +388,15 @@ async function processDeliveryCheckPayload(payload, options = {}) {
 }
 
 async function processExportPayload(payload, options = {}) {
-  const deliveryPayload = preparePayloadForDeliveryTarget(payload, options.fhirBaseUrl);
+  // client 傳來的 __deliveryTargetUrl 優先（需通過白名單），否則用 server 設定
+  const clientUrl = resolveClientFhirBaseUrl(payload?.__deliveryTargetUrl);
+  const effectiveFhirBaseUrl = clientUrl || options.fhirBaseUrl || '';
+  const deliveryPayload = preparePayloadForDeliveryTarget(payload, effectiveFhirBaseUrl);
   const bundleResult = buildSessionExportBundle(deliveryPayload);
   const response = {
     delivery_status: 'blocked',
-    mode: options.fhirBaseUrl ? 'transaction' : 'dry_run',
-    fhir_base_url: options.fhirBaseUrl || '',
+    mode: effectiveFhirBaseUrl ? 'transaction' : 'dry_run',
+    fhir_base_url: effectiveFhirBaseUrl,
     bundle_result: bundleResult,
     transaction_response: null
   };
@@ -385,7 +405,7 @@ async function processExportPayload(payload, options = {}) {
     appendDeliveryDebugLog({
       phase: 'bundle_missing',
       deliveryStatus: 'blocked',
-      fhirBaseUrl: options.fhirBaseUrl || '',
+      fhirBaseUrl: effectiveFhirBaseUrl,
       patientKey: deliveryPayload?.patient?.key || '',
       encounterKey: deliveryPayload?.session?.encounterKey || '',
       blockingReasons: bundleResult.blocking_reasons || []
@@ -452,9 +472,9 @@ async function processExportPayload(payload, options = {}) {
   }
 
   try {
-    const primaryAttempt = await sendFhirTransactionAttempt(fetchImpl, options.fhirBaseUrl, bundleResult.bundle_json);
+    const primaryAttempt = await sendFhirTransactionAttempt(fetchImpl, effectiveFhirBaseUrl, bundleResult.bundle_json);
     const fallbackFhirBaseUrl = String(options.fallbackFhirBaseUrl || DEFAULT_PUBLIC_FHIR_BASE_URL).trim();
-    const shouldUseFallback = shouldRetryOnPublicDemoFallback(primaryAttempt, options.fhirBaseUrl, fallbackFhirBaseUrl);
+    const shouldUseFallback = shouldRetryOnPublicDemoFallback(primaryAttempt, effectiveFhirBaseUrl, fallbackFhirBaseUrl);
     const finalAttempt = shouldUseFallback
       ? await sendFhirTransactionAttempt(fetchImpl, fallbackFhirBaseUrl, bundleResult.bundle_json)
       : primaryAttempt;

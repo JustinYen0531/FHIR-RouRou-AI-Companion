@@ -989,6 +989,24 @@
 
       <div class="settings-group-label">隱私與醫療（FHIR）</div>
       <div class="settings-card">
+        <div class="settings-row" style="align-items:flex-start;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="mat-icon" style="color:#446655">cloud_upload</span>
+            <span class="settings-label">HAPI FHIR 伺服器</span>
+          </div>
+          <div class="hapi-server-input-group">
+            <span class="hapi-server-prefix">https://hapi.fhir.org/baseR4/</span>
+            <input
+              id="settings-hapi-server-id"
+              class="hapi-server-id-input"
+              type="text"
+              placeholder="your-server-id（留空用預設）"
+              oninput="onHapiServerIdInput(this)"
+            />
+          </div>
+          <div id="settings-hapi-server-preview" class="hapi-server-preview"></div>
+        </div>
+        <div class="settings-divider"></div>
         <div id="settings-attending-doctor" class="attending-doctor-card">
           <div class="attending-doctor-icon"><span class="mat-icon fill">clinical_notes</span></div>
           <div class="attending-doctor-copy">

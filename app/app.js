@@ -9158,6 +9158,10 @@ function getPreviewPatientIdentifier(sessionExport = {}, deliveryTargetUrl = '')
 }
 
 async function fetchDeliveryTargetUrl() {
+  // 使用者在設定頁指定了 HAPI Server ID → 優先使用
+  if (loadHapiServerId()) {
+    return normalizeFhirBaseUrl(buildHapiFhirBaseUrl());
+  }
   try {
     const response = await fetch('/health');
     if (!response.ok) return '';
@@ -10480,7 +10484,48 @@ function updateSettingsUI() {
     attendingStatus.classList.toggle('complete', Boolean(attending));
     attendingStatus.classList.toggle('incomplete', !attending);
   }
+
+  // HAPI Server ID
+  const hapiInput = document.getElementById('settings-hapi-server-id');
+  if (hapiInput) hapiInput.value = loadHapiServerId();
+  renderHapiServerPreview();
 }
+
+const HAPI_BASE_PREFIX = 'https://hapi.fhir.org/baseR4';
+const HAPI_SERVER_ID_KEY = 'rourou.hapiServerId';
+
+function loadHapiServerId() {
+  return localStorage.getItem(HAPI_SERVER_ID_KEY) || '';
+}
+
+function saveHapiServerId(id) {
+  const trimmed = String(id || '').trim();
+  if (trimmed) {
+    localStorage.setItem(HAPI_SERVER_ID_KEY, trimmed);
+  } else {
+    localStorage.removeItem(HAPI_SERVER_ID_KEY);
+  }
+}
+
+function buildHapiFhirBaseUrl() {
+  const id = loadHapiServerId();
+  return id ? `${HAPI_BASE_PREFIX}/${id}` : HAPI_BASE_PREFIX;
+}
+
+function onHapiServerIdInput(input) {
+  saveHapiServerId(input.value);
+  renderHapiServerPreview();
+}
+
+function renderHapiServerPreview() {
+  const preview = document.getElementById('settings-hapi-server-preview');
+  if (!preview) return;
+  const url = buildHapiFhirBaseUrl();
+  const id = loadHapiServerId();
+  preview.textContent = id ? `上傳網址：${url}` : `上傳網址：${HAPI_BASE_PREFIX}（預設）`;
+}
+
+window.onHapiServerIdInput = onHapiServerIdInput;
 
 function wirePrivacyControls() {
   const realtimeToggle = document.getElementById('fhir-realtime-sync-toggle');

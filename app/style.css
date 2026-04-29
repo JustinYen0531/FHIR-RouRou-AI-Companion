@@ -7708,3 +7708,42 @@ body.micro-detail-open {
   padding-top: 16px;
   border-top: 1px solid rgba(40,80,60,0.10);
 }
+
+/* ── HAPI Server ID 設定 ─────────────────────────────── */
+.hapi-server-input-group {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: #f5f8fb;
+  border: 1px solid #d7e0e7;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.hapi-server-prefix {
+  padding: 9px 10px 9px 14px;
+  font-size: 12px;
+  color: rgba(40,80,60,0.55);
+  white-space: nowrap;
+  background: rgba(68,102,85,0.06);
+  border-right: 1px solid #d7e0e7;
+  flex-shrink: 0;
+}
+
+.hapi-server-id-input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  font-size: 13px;
+  border: none;
+  background: transparent;
+  outline: none;
+  color: #1a3a2e;
+}
+
+.hapi-server-preview {
+  font-size: 11px;
+  color: rgba(40,80,60,0.5);
+  word-break: break-all;
+  padding: 2px 2px 0;
+}
