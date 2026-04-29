@@ -631,6 +631,9 @@
 }</pre>
           </div>
           <div class="report-fhir-actions">
+            <button class="ghost-btn" type="button" onclick="showScreen('screen-fhir-mapping')">
+              <span class="mat-icon">tune</span> Mapping 設定
+            </button>
             <button id="report-delete-fhir-draft" class="ghost-btn report-delete-fhir-draft" type="button" onclick="deleteFhirDraft()">刪除草稿</button>
           </div>
           <div id="report-consent-progress" class="report-consent-progress" aria-live="polite" hidden>
@@ -747,6 +750,35 @@
       <button class="nav-item active" onclick="showScreen('screen-report')"><span class="mat-icon fill">analytics</span><span>報表</span></button>
       <button class="nav-item" onclick="showScreen('screen-settings')"><span class="mat-icon">person_2</span><span>設定</span></button>
     </nav>
+  </div>
+
+  <!-- ===== SCREEN: FHIR MAPPING EDITOR ===== -->
+  <div class="screen" id="screen-fhir-mapping">
+    <header class="top-bar glass">
+      <div class="top-bar-left">
+        <button class="icon-btn" type="button" aria-label="返回" onclick="showScreen('screen-report')">
+          <span class="mat-icon">arrow_back</span>
+        </button>
+        <div><h1 class="app-title">FHIR Mapping 設定</h1><div class="sub-title">欄位對映 &amp; JSON 預覽</div></div>
+      </div>
+      <button class="icon-btn" type="button" aria-label="套用並預覽" onclick="applyAndPreviewFhirMapping()" title="套用並重新產生預覽">
+        <span class="mat-icon">refresh</span>
+      </button>
+    </header>
+    <main class="fhir-mapping-layout">
+      <!-- 左側：設定面板 -->
+      <div class="fhir-mapping-config-panel scroll-content">
+        <div id="fhir-mapping-form"></div>
+      </div>
+      <!-- 右側：JSON 預覽 -->
+      <div class="fhir-mapping-preview-panel scroll-content">
+        <div class="fhir-mapping-preview-header">
+          <span class="mat-icon">data_object</span> FHIR JSON 預覽
+          <span id="fhir-mapping-preview-badge" class="fhir-mapping-preview-badge">草稿</span>
+        </div>
+        <pre id="fhir-mapping-preview-json" class="fhir-mapping-json">// 點擊右上角「重新整理」產生預覽</pre>
+      </div>
+    </main>
   </div>
 
   <!-- ===== SCREEN: HAMD DETAIL ===== -->

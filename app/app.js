@@ -44,6 +44,7 @@ const KNOW_YOU_TOKEN_LIMIT = KNOW_YOU_MEMORY?.DEFAULT_CONTEXT_TOKEN_LIMIT || 320
 const KNOW_YOU_RECENT_HISTORY_ITEMS = KNOW_YOU_MEMORY?.DEFAULT_RECENT_HISTORY_ITEMS || 12;
 const KNOW_YOU_MEMORY_CHUNK_LIMIT = KNOW_YOU_MEMORY?.DEFAULT_MEMORY_CHUNK_LIMIT || 8;
 const FHIR_REPORT_HISTORY_KEY = 'rourou.fhirReportHistory';
+const FHIR_MAPPING_CONFIG_KEY = 'rourou.fhirMappingConfig.v1';
 const PATIENT_PROFILE_STORAGE_KEY = 'rourou.patientProfile.v1';
 
 function loadStoredAuthState() {
@@ -3732,6 +3733,193 @@ function removeFhirHistoryResource(entryId, resourcePath) {
   appendSystemNotice('已刪除這筆記錄中的指定資源。');
 }
 
+// ══════════════════════════════════════════════════════════
+//  FHIR MAPPING EDITOR
+// ══════════════════════════════════════════════════════════
+const DEFAULT_FHIR_MAPPING_CONFIG = {
+  // 滑桿分數放哪
+  sliderDestination: 'Observation.valueInteger',          // 'Observation.valueInteger' | 'QuestionnaireResponse'
+  // AI 摘要/評論放哪
+  summaryDestination: 'Observation.note',                 // 'Observation.note' | 'Composition.section' | 'QuestionnaireResponse'
+  // HAM-D 題項分數
+  hamdScoreType: 'Observation.valueInteger',              // 'Observation.valueInteger' | 'Observation.valueCodeableConcept'
+  // 時間來源
+  timeSource: 'session.endedAt',                         // 'session.endedAt' | 'session.startedAt' | 'now'
+  // Observation status
+  observationStatus: 'preliminary',                       // 'preliminary' | 'final' | 'amended'
+  // 是否在 QuestionnaireResponse 裡加一個 slider 答案 item
+  includeSliderInQR: true,
+  // 每個 HAM-D Observation 是否帶 derivedFrom QR reference
+  derivedFromQR: true,
+  // 是否輸出 AI evidence 到 note
+  includeEvidenceNotes: true,
+};
+
+function loadFhirMappingConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FHIR_MAPPING_CONFIG_KEY) || 'null');
+    return saved && typeof saved === 'object' ? Object.assign({}, DEFAULT_FHIR_MAPPING_CONFIG, saved) : { ...DEFAULT_FHIR_MAPPING_CONFIG };
+  } catch {
+    return { ...DEFAULT_FHIR_MAPPING_CONFIG };
+  }
+}
+
+function saveFhirMappingConfig(config = {}) {
+  const merged = Object.assign({}, DEFAULT_FHIR_MAPPING_CONFIG, config);
+  localStorage.setItem(FHIR_MAPPING_CONFIG_KEY, JSON.stringify(merged));
+  return merged;
+}
+
+function readFhirMappingFormValues() {
+  const get = (id) => document.getElementById(id);
+  return {
+    sliderDestination: get('fhir-map-slider-dest')?.value || DEFAULT_FHIR_MAPPING_CONFIG.sliderDestination,
+    summaryDestination: get('fhir-map-summary-dest')?.value || DEFAULT_FHIR_MAPPING_CONFIG.summaryDestination,
+    hamdScoreType: get('fhir-map-hamd-score')?.value || DEFAULT_FHIR_MAPPING_CONFIG.hamdScoreType,
+    timeSource: get('fhir-map-time-source')?.value || DEFAULT_FHIR_MAPPING_CONFIG.timeSource,
+    observationStatus: get('fhir-map-obs-status')?.value || DEFAULT_FHIR_MAPPING_CONFIG.observationStatus,
+    includeSliderInQR: get('fhir-map-slider-qr')?.checked ?? DEFAULT_FHIR_MAPPING_CONFIG.includeSliderInQR,
+    derivedFromQR: get('fhir-map-derived-from')?.checked ?? DEFAULT_FHIR_MAPPING_CONFIG.derivedFromQR,
+    includeEvidenceNotes: get('fhir-map-evidence-notes')?.checked ?? DEFAULT_FHIR_MAPPING_CONFIG.includeEvidenceNotes,
+  };
+}
+
+function renderFhirMappingForm() {
+  const form = document.getElementById('fhir-mapping-form');
+  if (!form) return;
+  const cfg = loadFhirMappingConfig();
+
+  const selectField = (id, label, hint, options, current) => `
+    <div class="fhir-map-field">
+      <label class="fhir-map-label" for="${id}">${escapeHtml(label)}</label>
+      <div class="fhir-map-hint">${escapeHtml(hint)}</div>
+      <select class="fhir-map-select" id="${id}">
+        ${options.map(([val, txt]) => `<option value="${escapeHtml(val)}" ${val === current ? 'selected' : ''}>${escapeHtml(txt)}</option>`).join('')}
+      </select>
+    </div>`;
+
+  const toggleField = (id, label, hint, current) => `
+    <div class="fhir-map-field fhir-map-toggle-row">
+      <div>
+        <label class="fhir-map-label">${escapeHtml(label)}</label>
+        <div class="fhir-map-hint">${escapeHtml(hint)}</div>
+      </div>
+      <label class="fhir-map-switch">
+        <input type="checkbox" id="${id}" ${current ? 'checked' : ''}>
+        <span class="fhir-map-switch-track"></span>
+      </label>
+    </div>`;
+
+  form.innerHTML = `
+    <div class="fhir-map-section-title">資料流向設定</div>
+
+    ${selectField('fhir-map-slider-dest', '滑桿分數 → 目標欄位',
+      '病人拖曳滑桿後的頻率/嚴重度數值要放在哪個 FHIR 欄位',
+      [
+        ['Observation.valueInteger', 'Observation.valueInteger（推薦）'],
+        ['QuestionnaireResponse', 'QuestionnaireResponse.item.answer.valueInteger'],
+      ], cfg.sliderDestination)}
+
+    ${selectField('fhir-map-summary-dest', 'AI 摘要 / 評論 → 目標欄位',
+      'AI 產生的症狀摘要、評判依據要放在哪',
+      [
+        ['Observation.note', 'Observation.note（推薦）'],
+        ['Composition.section', 'Composition.section.text'],
+        ['QuestionnaireResponse', 'QuestionnaireResponse.item.answer.valueString'],
+      ], cfg.summaryDestination)}
+
+    ${selectField('fhir-map-hamd-score', 'HAM-D 題項分數格式',
+      '每一題的 AI 評分要用什麼 FHIR value 表示',
+      [
+        ['Observation.valueInteger', 'Observation.valueInteger（整數分數）'],
+        ['Observation.valueCodeableConcept', 'Observation.valueCodeableConcept（編碼概念）'],
+      ], cfg.hamdScoreType)}
+
+    <div class="fhir-map-section-title" style="margin-top:20px">時間 &amp; 狀態</div>
+
+    ${selectField('fhir-map-time-source', 'effectiveDateTime 來源',
+      'Observation / QuestionnaireResponse 的時間戳記要用哪個',
+      [
+        ['session.endedAt', '對話結束時間（推薦）'],
+        ['session.startedAt', '對話開始時間'],
+        ['now', '產生報告的當下時間'],
+      ], cfg.timeSource)}
+
+    ${selectField('fhir-map-obs-status', 'Observation status',
+      '依 FHIR 規範，preliminary = AI 草稿；final = 醫師確認後',
+      [
+        ['preliminary', 'preliminary（AI 草稿，推薦）'],
+        ['final', 'final（需醫師確認後使用）'],
+        ['amended', 'amended（修訂版）'],
+      ], cfg.observationStatus)}
+
+    <div class="fhir-map-section-title" style="margin-top:20px">選項</div>
+
+    ${toggleField('fhir-map-slider-qr', '在 QuestionnaireResponse 加入滑桿答案',
+      '除了 Observation 外，也在 QR item list 記一筆滑桿答案', cfg.includeSliderInQR)}
+
+    ${toggleField('fhir-map-derived-from', 'Observation 加 derivedFrom QR',
+      '讓 Observation 通過 derivedFrom 指回 QuestionnaireResponse', cfg.derivedFromQR)}
+
+    ${toggleField('fhir-map-evidence-notes', '在 Observation.note 輸出 AI 證據',
+      'AI 評判依據（evidence_summary）寫入 Observation.note', cfg.includeEvidenceNotes)}
+
+    <div class="fhir-map-actions">
+      <button class="primary-btn" type="button" onclick="applyAndPreviewFhirMapping()">套用並預覽</button>
+      <button class="ghost-btn" type="button" onclick="resetFhirMappingConfig()">還原預設</button>
+    </div>`;
+}
+
+async function applyAndPreviewFhirMapping() {
+  const cfg = readFhirMappingFormValues();
+  saveFhirMappingConfig(cfg);
+
+  const badge = document.getElementById('fhir-mapping-preview-badge');
+  const pre = document.getElementById('fhir-mapping-preview-json');
+  if (badge) badge.textContent = '產生中…';
+  if (pre) pre.textContent = '// 正在產生…';
+
+  try {
+    // 用現有的 session export + 新 mapping config 發一次 dry-run
+    const sessionExport = APP_STATE.reportOutputs?.session_export || APP_STATE.pendingConsent?.sessionExport || null;
+    if (!sessionExport) {
+      if (pre) pre.textContent = '// 尚無 session export 資料，請先產生一次 FHIR 草稿。';
+      if (badge) badge.textContent = '無資料';
+      return;
+    }
+
+    const token = APP_STATE.auth?.token;
+    const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+    const apiKey = APP_STATE.runtimeConfig?.apiKey || '';
+    const payload = Object.assign({}, sessionExport, { mapping_config: cfg, _preview_only: true, ...(apiKey ? { api_key: apiKey } : {}) });
+
+    const res = await fetch('/api/fhir/bundle', { method: 'POST', headers, body: JSON.stringify(payload) });
+    const data = await res.json();
+    const bundle = data?.bundle_result?.bundle_json;
+
+    if (bundle) {
+      if (pre) pre.textContent = JSON.stringify(bundle, null, 2);
+      if (badge) {
+        const status = data.delivery_status || 'dry_run_ready';
+        badge.textContent = status === 'dry_run_ready' ? '預覽就緒' : status;
+        badge.className = 'fhir-mapping-preview-badge ' + (status === 'dry_run_ready' ? 'ready' : 'error');
+      }
+    } else {
+      if (pre) pre.textContent = JSON.stringify(data, null, 2);
+      if (badge) { badge.textContent = '無 Bundle'; badge.className = 'fhir-mapping-preview-badge error'; }
+    }
+  } catch (err) {
+    if (pre) pre.textContent = `// 錯誤：${err.message}`;
+    if (badge) { badge.textContent = '錯誤'; badge.className = 'fhir-mapping-preview-badge error'; }
+  }
+}
+
+function resetFhirMappingConfig() {
+  saveFhirMappingConfig(DEFAULT_FHIR_MAPPING_CONFIG);
+  renderFhirMappingForm();
+  appendSystemNotice('FHIR Mapping 設定已還原為預設值。');
+}
+
 function extractFhirRefreshError(payload = {}) {
   const validationErrors = Array.isArray(payload?.validation_errors)
     ? payload.validation_errors.filter(Boolean)
@@ -5704,6 +5892,10 @@ function showScreen(screenId) {
 
   if (screenId === 'screen-doctor-assign') {
     renderDoctorAssignScreen();
+  }
+
+  if (screenId === 'screen-fhir-mapping') {
+    renderFhirMappingForm();
   }
 
   document.querySelectorAll('.screen').forEach((screen) => {
@@ -10075,7 +10267,7 @@ async function authorizeAndSendReport() {
     const response = await fetch('/api/fhir/bundle', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(sessionExport)
+      body: JSON.stringify(Object.assign({}, sessionExport, { mapping_config: loadFhirMappingConfig() }))
     });
     const payload = await response.json();
     deliveryPayload = payload;
@@ -10659,3 +10851,5 @@ function toggleMemoryDrawer() {
   }
 }
 window.toggleMemoryDrawer = toggleMemoryDrawer;
+window.applyAndPreviewFhirMapping = applyAndPreviewFhirMapping;
+window.resetFhirMappingConfig = resetFhirMappingConfig;

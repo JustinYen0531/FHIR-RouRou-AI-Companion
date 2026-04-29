@@ -784,7 +784,7 @@
               value: input.session.encounterKey + ':' + candidate.focus + ':' + index
             }
           ],
-          status: 'preliminary',
+          status: (input.mappingConfig && input.mappingConfig.observationStatus) || 'preliminary',
           category: [
             {
               coding: [
@@ -808,20 +808,24 @@
           },
           subject: { reference: patientFullUrl },
           encounter: { reference: encounterFullUrl },
-          effectiveDateTime: input.session.endedAt || input.session.startedAt || new Date().toISOString(),
-          derivedFrom: questionnaireFullUrl ? [{ reference: questionnaireFullUrl }] : undefined,
+          effectiveDateTime: mcEffectiveTime(input.session),
+          derivedFrom: (mcDerivedFromQR && questionnaireFullUrl) ? [{ reference: questionnaireFullUrl }] : undefined,
           method: {
             text: 'AI companion conversation extraction'
           },
-          valueString: buildObservationValueString(candidate),
-          valueInteger: valueInteger,
-          note: (function () {
-            // 只保留清洗後最多 2 筆最有代表性的 evidence
+          valueString: (mcHamdScoreType === 'Observation.valueCodeableConcept' && typeof valueInteger === 'number')
+            ? undefined : buildObservationValueString(candidate),
+          valueInteger: (mcHamdScoreType === 'Observation.valueCodeableConcept' && typeof valueInteger === 'number')
+            ? undefined : valueInteger,
+          valueCodeableConcept: (mcHamdScoreType === 'Observation.valueCodeableConcept' && typeof valueInteger === 'number')
+            ? { coding: [{ system: INTERNAL_CANONICALS.codeSystems.signals, code: String(valueInteger), display: String(valueInteger) }], text: String(valueInteger) }
+            : undefined,
+          note: mcIncludeEvidenceNotes ? (function () {
             var cleaned = cleanEvidence(candidate.evidence, 2);
             return cleaned.length
               ? cleaned.map(function (entry) { return { text: entry }; })
               : undefined;
-          })()
+          })() : undefined
         }
       };
     });
@@ -1065,7 +1069,7 @@
           value: input.session.encounterKey
         }
       ],
-      status: 'preliminary',
+      status: (input.mappingConfig && input.mappingConfig.observationStatus) || 'preliminary',
       type: {
         text: 'AI Companion pre-visit summary'
       },
@@ -1421,8 +1425,26 @@
       active_mode: rawInput && rawInput.active_mode ? rawInput.active_mode : '',
       risk_flag: rawInput && rawInput.risk_flag ? rawInput.risk_flag : '',
       latest_tag_payload: toObject(rawInput && rawInput.latest_tag_payload, 'latest_tag_payload', validationErrors),
-      burden_level_state: toObject(rawInput && rawInput.burden_level_state, 'burden_level_state', validationErrors)
+      burden_level_state: toObject(rawInput && rawInput.burden_level_state, 'burden_level_state', validationErrors),
+      mappingConfig: (rawInput && rawInput.mapping_config && typeof rawInput.mapping_config === 'object')
+        ? rawInput.mapping_config : {}
     };
+
+    // ── Mapping config helpers ──
+    var mc = input.mappingConfig;
+    var mcObsStatus = mc.observationStatus || 'preliminary';
+    var mcTimeSource = mc.timeSource || 'session.endedAt';
+    var mcDerivedFromQR = mc.derivedFromQR !== false;
+    var mcIncludeEvidenceNotes = mc.includeEvidenceNotes !== false;
+    var mcHamdScoreType = mc.hamdScoreType || 'Observation.valueInteger';
+    var mcSliderDest = mc.sliderDestination || 'Observation.valueInteger';
+    var mcIncludeSliderInQR = mc.includeSliderInQR !== false;
+
+    function mcEffectiveTime(sessionObj) {
+      if (mcTimeSource === 'session.startedAt') return sessionObj.startedAt || new Date().toISOString();
+      if (mcTimeSource === 'now') return new Date().toISOString();
+      return sessionObj.endedAt || sessionObj.startedAt || new Date().toISOString();
+    }
 
     addValidationErrorIfMissing(input.patient.key, 'patient.key', validationErrors);
     addValidationErrorIfMissing(input.session.encounterKey, 'session.encounterKey', validationErrors);
