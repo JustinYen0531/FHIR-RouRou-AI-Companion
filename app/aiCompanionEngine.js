@@ -263,12 +263,11 @@ const HIGH_RISK_PATTERNS = [
   /流了很多血/,
   /我受傷了/,
   /我把自己弄傷/,
-  /如果消失就好了/,
-  /想消失/,
   /沒必要活著/,
   /不如死/,
   /suicide/i,
   /kill myself/i
+  // 已移除：想消失、如果消失就好了（語意模糊，改由 SOFT 多重命中才觸發）
 ];
 
 const OUTPUT_COMMAND_PATTERNS = [
@@ -882,8 +881,8 @@ function computeHamdItemLockState(progressItems, formalItems) {
       lockState[code] = 'locked';
       return;
     }
-    // 暫時跳過：問了 2 次仍沒有 evidence → skipped（不是永久鎖，低優先補問）
-    if ((item.probe_count || 0) >= 2 && !hasEvidence) {
+    // 暫時跳過：問了 1 次仍沒有 evidence → skipped（不是永久鎖，低優先補問）
+    if ((item.probe_count || 0) >= 1 && !hasEvidence) {
       lockState[code] = 'skipped';
     }
   });
@@ -1082,16 +1081,9 @@ function detectRiskSignal(text, state) {
   // 計算 SOFT risk 命中數
   const softCount = SOFT_RISK_PATTERNS.filter((p) => p.test(t)).length;
   if (softCount === 0) return false;
-  // 規則 A（更穩）：SOFT 命中 2+ 個 → 觸發
-  if (softCount >= 2) return true;
-  // 規則 B：SOFT 1 個 + 低能量（burden=high）→ 觸發
-  // 但若同句也有具體症狀，先讓位給具體症狀問題（冷靜機制）
-  if (state) {
-    const burden = normalizeObjectState(state, 'burden_level_state', {});
-    const isHighBurden = burden.burden_level === 'high';
-    const hasConcreteSymptom = CONCRETE_SYMPTOM_PATTERNS.some((p) => p.test(t));
-    if (isHighBurden && !hasConcreteSymptom) return true;
-  }
+  // 規則 A：SOFT 命中 3+ 個才觸發（門檻由 2 提高至 3，減少日常表達誤觸）
+  if (softCount >= 3) return true;
+  // 規則 B 已移除（SOFT 1 個 + burden=high 自動觸發 → 誤報率太高）
   return false;
 }
 
@@ -1749,9 +1741,9 @@ function determineConversationMode(state, userText, targetItemCode) {
   if (isItemDataComplete(state, targetItemCode)) {
     return { mode: 'switching', reason: 'data_complete' };
   }
-  // 已對該題探過 ≥2 次 → 換題（避免黏題）
+  // 已對該題探過 ≥1 次 → 換題（問一次就夠，不再黏題）
   const probeCount = getItemProbeCount(state, targetItemCode);
-  if (probeCount >= 2) {
+  if (probeCount >= 1) {
     return { mode: 'switching', reason: 'probe_exhausted', probe_count: probeCount };
   }
   // 預設：補問同題
@@ -2188,7 +2180,7 @@ function clinicalPostProcessor(draft, {
     debugTrace.llm_target_item = (resolvedConversationTarget && resolvedConversationTarget.targetItemSource &&
       resolvedConversationTarget.targetItemSource.startsWith('llm_dominant_dim'))
       ? resolvedConversationTarget.targetItemCode : null;
-    // 是否被規則強制覆蓋（rule_guard: probe_count >= 2 或 data_complete 觸發 switching）
+    // 是否被規則強制覆蓋（rule_guard: probe_count >= 1 或 data_complete 觸發 switching）
     const convModeReason = String(convMode.reason || '');
     debugTrace.rule_guard_active = convModeReason.includes('rule_guard');
     debugTrace.rule_guard_reason = debugTrace.rule_guard_active
@@ -2358,13 +2350,13 @@ function buildFormalAssessmentProbeFallback(state, userMessage = '') {
   const lockedCodes = getLockedItemCodes(state);
   const skippedCodes = getSkippedItemCodes(state);
 
-  // Pending probe：probe_count < 2 時繼續黏著（第 2 次用更簡單問法）
+  // Pending probe：probe_count < 1 才黏著（已問過一次即不重問，直接換題）
   if (assessment.pending_probe_item_code) {
     const pendingCode = assessment.pending_probe_item_code;
     if (!lockedCodes.includes(pendingCode) && !skippedCodes.includes(pendingCode)) {
       const pendingItem = assessment.items.find((i) => i.item_code === pendingCode);
       const probeCount = pendingItem ? (pendingItem.probe_count || 0) : 0;
-      if (probeCount < 2) {
+      if (probeCount < 1) {
         const def = HAMD_FORMAL_ITEM_MAP[pendingCode];
         const variants = ITEM_PROBE_TEXTS[pendingCode];
         const retryQuestion = (probeCount === 1 && variants && variants[1]) ? variants[1] : (def ? def.probe_question : '');
@@ -2675,13 +2667,13 @@ function getFormalTargetItems(state, limit = 2, userMessage = '') {
   const skippedCodes = getSkippedItemCodes(state);
   const excludedCodes = [...new Set([...lockedCodes, ...skippedCodes])];
 
-  // Pending probe：probe_count < 2 才黏著
+  // Pending probe：probe_count < 1 才黏著（已問過一次即不重問）
   if (assessment.pending_probe_item_code) {
     const pendingCode = assessment.pending_probe_item_code;
     if (HAMD_FORMAL_ITEM_MAP[pendingCode] && !excludedCodes.includes(pendingCode)) {
       const pendingItem = assessment.items.find((i) => i.item_code === pendingCode);
       const probeCount = pendingItem ? (pendingItem.probe_count || 0) : 0;
-      if (probeCount < 2) return [HAMD_FORMAL_ITEM_MAP[pendingCode]];
+      if (probeCount < 1) return [HAMD_FORMAL_ITEM_MAP[pendingCode]];
     }
   }
 
@@ -5226,8 +5218,8 @@ class AICompanionEngine {
 
     // ── 硬規則守門（Rules > LLM，僅限 switching 強制）─────────────────────────
     // LLM 負責「方向」，但下列兩種情況必須強制換題，LLM 無法阻止：
-    // 1. probe_count >= 2（已問夠次數）
-    // 2. isItemDataComplete（已有完整 evidence + score）
+    // 1. probe_count >= 1（已問過一次，不重問）
+    // 2. isItemDataComplete（已有完整 evidence + score 或 slider + evidence）
     // 其餘情況：LLM wins
     if (decision.mode === 'probing' && fallbackDecision.mode === 'switching') {
       decision.mode = 'switching';
@@ -5535,14 +5527,13 @@ class AICompanionEngine {
         state.hamd_formal_assessment.pending_probe_item_code = '';
         state.hamd_formal_assessment.pending_probe_question = '';
         state.hamd_formal_assessment.pending_probe_meta = null;
-      } else if (probeCount >= 2) {
-        // 問了 2 次仍沒答 → 標記 skipped，清除 pending，換題
+      } else if (probeCount >= 1) {
+        // 問了 1 次仍沒答 → 清除 pending，換題（skipped 由 computeHamdItemLockState 自動計算）
         state.hamd_formal_assessment.pending_probe_item_code = '';
         state.hamd_formal_assessment.pending_probe_question = '';
         state.hamd_formal_assessment.pending_probe_meta = null;
-        // skipped 狀態會由後面 computeHamdItemLockState 根據 probe_count >= 2 + no evidence 自動計算
       }
-      // probe_count == 1 且沒有 evidence → 保留 pending，下一輪用 retry 問法再問一次
+      // probe_count == 0（不應發生）→ 保留 pending
     }
     // Recompute completion locks after evidence/score update
     const prevLockedCodes = getLockedItemCodes(state);
