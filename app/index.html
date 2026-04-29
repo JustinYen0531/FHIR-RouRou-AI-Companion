@@ -985,6 +985,23 @@
           </div>
           <label class="toggle"><input id="settings-interaction-sensing" type="checkbox" onchange="toggleInteractionSensing(this)" checked/><span class="toggle-track"></span></label>
         </div>
+        <div class="settings-divider"></div>
+        <div class="settings-label" style="margin-bottom:8px">
+          <span class="mat-icon" style="font-size:18px;vertical-align:-4px;margin-right:4px;color:#446655">forum</span>
+          問題風格
+        </div>
+        <div class="question-style-chips" id="question-style-chips">
+          <button class="question-style-chip active" data-style="scoreable" onclick="selectQuestionStyle('scoreable', this)">
+            <span class="mat-icon">query_stats</span>
+            <span>評估導向</span>
+            <span class="question-style-chip-sub">自動補問可評分的 HAM-D 項目</span>
+          </button>
+          <button class="question-style-chip" data-style="open_ended" onclick="selectQuestionStyle('open_ended', this)">
+            <span class="mat-icon">record_voice_over</span>
+            <span>開放聆聽</span>
+            <span class="question-style-chip-sub">AI 自由追問具體情況，不強制套用評分格式</span>
+          </button>
+        </div>
       </div>
 
       <div class="settings-group-label">隱私與醫療（FHIR）</div>

@@ -1590,7 +1590,8 @@ function clinicalPostProcessor(draft, {
   userText = '',
   state = {},
   formalProbe = null,
-  atmosphereProtected = false
+  atmosphereProtected = false,
+  openEndedMode = false
 } = {}) {
   // ── Debug Trace Object：每一步決策都記錄 ──
   const debugTrace = {
@@ -1672,6 +1673,18 @@ function clinicalPostProcessor(draft, {
       debugTrace.should_intervene = true;
       debugTrace.intervention_reason = 'risk_detected_but_locked';
       debugTrace.decision_path.push('risk_signal → suicide_locked → 已問過，不重複');
+    }
+
+    // ── 開放聆聽模式：跳過所有評分強制介入，讓 AI 自由追問 ──
+    if (openEndedMode) {
+      // 只做單問句清理（避免雙問句），但不替換成 HAM-D 格式
+      text = enforceSingleQuestion(text);
+      debugTrace.intervention_action = 'open_ended_mode_passthrough';
+      debugTrace.decision_path.push('openEndedMode=true → 跳過評分介入，AI 自由追問');
+      debugTrace.final_output = text;
+      const fqOpen = extractLastQuestion(text);
+      debugTrace.final_question = fqOpen ? fqOpen.question : null;
+      return { text, debugTrace };
     }
 
     // ── 第 2 層：取得 next_item ──
@@ -4201,6 +4214,10 @@ class AICompanionEngine {
     if (payload.user_self_rating && typeof payload.user_self_rating === 'object') {
       state._pending_user_self_rating = payload.user_self_rating;
     }
+    // 問題風格設定：每次都以 client 最新值為準
+    if (payload.question_style === 'open_ended' || payload.question_style === 'scoreable') {
+      state.question_style = payload.question_style;
+    }
 
     if (payload.force_memory_compression) {
       const result = await this.compressTherapeuticMemory(session, message || '測試壓縮', { force: true });
@@ -4956,11 +4973,13 @@ class AICompanionEngine {
     };
 
     // ── 統一後處理器（取代散落三層）────────────────────────────────────────────
+    const openEndedMode = state.question_style === 'open_ended';
     const postProcessResult = clinicalPostProcessor(answer, {
       userText: message,
       state,
       formalProbe: (canProbeHamd && formalProbe.should_ask === 'yes') ? formalProbe : null,
-      atmosphereProtected
+      atmosphereProtected,
+      openEndedMode
     });
     answer = postProcessResult.text;
     const clinicalTrace = postProcessResult.debugTrace;

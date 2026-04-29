@@ -7747,3 +7747,52 @@ body.micro-detail-open {
   word-break: break-all;
   padding: 2px 2px 0;
 }
+
+/* ── 問題風格切換 ─────────────────────────────────────── */
+.question-style-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.question-style-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(68,102,85,0.15);
+  background: var(--surface-container-lowest);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+  flex-wrap: wrap;
+}
+.question-style-chip .mat-icon {
+  font-size: 20px;
+  color: var(--on-surface-variant);
+  flex-shrink: 0;
+}
+.question-style-chip > span:nth-child(2) {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--on-surface);
+}
+.question-style-chip-sub {
+  width: 100%;
+  padding-left: 30px;
+  font-size: 11px;
+  color: var(--on-surface-variant);
+  line-height: 1.4;
+  margin-top: -4px;
+}
+.question-style-chip.active {
+  border-color: var(--primary);
+  background: rgba(68,102,85,0.07);
+}
+.question-style-chip.active .mat-icon {
+  color: var(--primary);
+}
+.question-style-chip.active > span:nth-child(2) {
+  color: var(--primary);
+}

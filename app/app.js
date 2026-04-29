@@ -1734,7 +1734,10 @@ const APP_STATE = {
   aiSettings: {
     voiceStyle: localStorage.getItem('rourou.voiceStyle') || 'gentle',
     interactionSensing: localStorage.getItem('rourou.interactionSensing') !== 'false',
-    userPrompt: localStorage.getItem('rourou.userPrompt') || ''
+    userPrompt: localStorage.getItem('rourou.userPrompt') || '',
+    questionStyle: localStorage.getItem('rourou.questionStyle') || 'scoreable'
+    // 'scoreable'  → 強制 HAM-D 可評分問句（預設）
+    // 'open_ended' → AI 自由追問具體情況，不強制評分格式
   },
   microIntervention: {
     currentCardId: '',
@@ -9895,6 +9898,7 @@ async function sendMessage() {
         phq9_assessment: conversationState.phq9_assessment,
         user: config.userId,
         user_self_rating: APP_STATE.pendingSliderRating || null,
+        question_style: APP_STATE.aiSettings.questionStyle || 'scoreable',
         ...buildRuntimeRequestConfig(config)
       })
     });
@@ -10489,6 +10493,12 @@ function updateSettingsUI() {
   const hapiInput = document.getElementById('settings-hapi-server-id');
   if (hapiInput) hapiInput.value = loadHapiServerId();
   renderHapiServerPreview();
+
+  // 問題風格
+  const currentStyle = APP_STATE.aiSettings.questionStyle || 'scoreable';
+  document.querySelectorAll('#question-style-chips .question-style-chip').forEach(c => {
+    c.classList.toggle('active', c.getAttribute('data-style') === currentStyle);
+  });
 }
 
 const HAPI_BASE_PREFIX = 'https://hapi.fhir.org/baseR4';
@@ -10526,6 +10536,15 @@ function renderHapiServerPreview() {
 }
 
 window.onHapiServerIdInput = onHapiServerIdInput;
+
+function selectQuestionStyle(style, btn) {
+  APP_STATE.aiSettings.questionStyle = style;
+  localStorage.setItem('rourou.questionStyle', style);
+  // 更新 chip active 狀態
+  const chips = document.querySelectorAll('#question-style-chips .question-style-chip');
+  chips.forEach(c => c.classList.toggle('active', c.getAttribute('data-style') === style));
+}
+window.selectQuestionStyle = selectQuestionStyle;
 
 function wirePrivacyControls() {
   const realtimeToggle = document.getElementById('fhir-realtime-sync-toggle');
