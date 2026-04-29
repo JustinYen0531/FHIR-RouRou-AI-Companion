@@ -1515,6 +1515,18 @@ function pickTransition() {
   return TRANSITION_PHRASES[Math.floor(Math.random() * TRANSITION_PHRASES.length)];
 }
 
+// 重問同維度時的「理由句」——讓再問一次的感覺自然而不突兀
+const RETRY_REASON_PHRASES = [
+  '讓我再確認一個細節，這樣我才能更清楚了解你的狀況——',
+  '抱歉多問一次，這個部分對我整理你的狀態很重要——',
+  '為了讓我更完整地掌握，想再請你補充一下——',
+  '我想從另一個角度多了解一點，這樣我才能幫你整理得更準確——',
+  '這部分我還想再多知道一些，請你再說說看——',
+];
+function pickRetryReason() {
+  return RETRY_REASON_PHRASES[Math.floor(Math.random() * RETRY_REASON_PHRASES.length)];
+}
+
 function enforceSingleQuestion(text) {
   const t = String(text || '').trim();
   if (!t) return t;
@@ -1688,6 +1700,20 @@ function clinicalPostProcessor(draft, {
     debugTrace.intervention_reason = decision.reason;
 
     if (!decision.intervene) {
+      // sticky_retry：即使 LLM 問對了，也強制換角度 + 加理由句，避免同一句問兩次
+      if (formalProbe && formalProbe.reason === 'sticky_retry' && formalProbe.probe_question) {
+        const retryReason = pickRetryReason();
+        const retryQ = `${retryReason}${formalProbe.probe_question}`;
+        const cleanBefore = lastQ && lastQ.before ? enforceSingleQuestion(lastQ.before) : enforceSingleQuestion(text);
+        text = cleanBefore ? `${cleanBefore}\n\n${retryQ}` : retryQ;
+        debugTrace.intervention_action = 'sticky_retry_force_replace';
+        debugTrace.replacement_probe = retryQ;
+        debugTrace.decision_path.push(`sticky_retry → force replace with reason + variants[1]: "${retryQ.substring(0, 40)}..."`);
+        debugTrace.final_output = text;
+        const fqR = extractLastQuestion(text);
+        debugTrace.final_question = fqR ? fqR.question : retryQ;
+        return { text, debugTrace };
+      }
       // LLM 問對了 → 系統完全不介入
       debugTrace.intervention_action = 'none_llm_correct';
       debugTrace.decision_path.push('shouldIntervene=false → LLM 問對了 → 閉嘴');
@@ -1721,8 +1747,9 @@ function clinicalPostProcessor(draft, {
     } else {
       debugTrace.intervention_action = 'replace_question';
       debugTrace.decision_path.push(`replace: "${(debugTrace.extracted_question || '').substring(0, 20)}..." → "${probe.substring(0, 30)}..."`);
-      const transition = pickTransition();
-      const probeWithTransition = `${transition}${probe}`;
+      // sticky_retry 用理由句；其他替換用過渡句
+      const prefix = (formalProbe && formalProbe.reason === 'sticky_retry') ? pickRetryReason() : pickTransition();
+      const probeWithTransition = `${prefix}${probe}`;
       const cleanBefore = lastQ && lastQ.before ? enforceSingleQuestion(lastQ.before) : '';
       text = cleanBefore ? `${cleanBefore}\n\n${probeWithTransition}` : probeWithTransition;
     }
