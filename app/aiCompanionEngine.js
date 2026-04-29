@@ -874,14 +874,16 @@ function computeHamdItemLockState(progressItems, formalItems) {
     const code = String(item.item_code || '').trim();
     if (!code || lockState[code] === 'locked') return;
     const hasEvidence = normalizeArray(item.evidence_summary).length > 0;
+    const hasUserRating = item.user_self_rating != null;  // slider 確認也算有效回答
+    const hasAnyAnswer = hasEvidence || hasUserRating;
     const hasScore = item.ai_suggested_score != null;
-    // 真正鎖定：有 evidence 且有 AI 評分
-    if (hasEvidence && hasScore) {
+    // 真正鎖定：有任何形式的回答（文字 or 滑桿）且有 AI 評分
+    if (hasAnyAnswer && hasScore) {
       lockState[code] = 'locked';
       return;
     }
-    // 暫時跳過：問了 2 次仍沒有 evidence → skipped（不是永久鎖，低優先補問）
-    if ((item.probe_count || 0) >= 2 && !hasEvidence) {
+    // 暫時跳過：問了 2 次仍沒有任何回答 → skipped（不是永久鎖，低優先補問）
+    if ((item.probe_count || 0) >= 2 && !hasAnyAnswer) {
       lockState[code] = 'skipped';
     }
   });
@@ -1123,14 +1125,15 @@ function pickEmergencyProbe(state, userMessage = '') {
   }
   HAMD_PROGRESS_DIMENSIONS.forEach((d) => { if (!dimOrder.includes(d)) dimOrder.push(d); });
 
-  // Pass 1: 優先選無 evidence 的未鎖/未跳過題
+  // Pass 1: 優先選無任何回答（evidence 或 user_self_rating）的未鎖/未跳過題
   for (const dim of dimOrder) {
     for (const code of (HAMD_DIMENSION_TO_ITEM_CODES[dim] || [])) {
       if (excludedCodes.includes(code)) continue;
       const item = assessment.items.find((i) => i.item_code === code);
       const def = HAMD_FORMAL_ITEM_MAP[code];
       if (!item || !def) continue;
-      if (!item.evidence_summary.length || item.review_required) {
+      const hasAnyAnswer = item.evidence_summary.length > 0 || item.user_self_rating != null;
+      if (!hasAnyAnswer || item.review_required) {
         const variants = ITEM_PROBE_TEXTS[code];
         return {
           item_code: code,
@@ -4791,21 +4794,25 @@ class AICompanionEngine {
     if (assessment.pending_probe_item_code) {
       const pendingCode = assessment.pending_probe_item_code;
       const pendingItem = state.hamd_formal_assessment.items.find((item) => item.item_code === pendingCode);
-      const hasEvidence = pendingItem && normalizeArray(pendingItem.evidence_summary).length > 0;
+      // 有任何形式的回答（文字 evidence 或滑桿確認）都視為已回答，清除 pending
+      const hasEvidence = pendingItem && (
+        normalizeArray(pendingItem.evidence_summary).length > 0 ||
+        pendingItem.user_self_rating != null
+      );
       const probeCount = pendingItem ? (pendingItem.probe_count || 0) : 0;
       if (hasEvidence) {
-        // 使用者有回答 → 正常清除 pending
+        // 使用者有回答（文字或滑桿）→ 正常清除 pending，換下一題
         state.hamd_formal_assessment.pending_probe_item_code = '';
         state.hamd_formal_assessment.pending_probe_question = '';
         state.hamd_formal_assessment.pending_probe_meta = null;
       } else if (probeCount >= 2) {
-        // 問了 2 次仍沒答 → 標記 skipped，清除 pending，換題
+        // 問了 2 次仍沒有任何回答 → 標記 skipped，清除 pending，換題
         state.hamd_formal_assessment.pending_probe_item_code = '';
         state.hamd_formal_assessment.pending_probe_question = '';
         state.hamd_formal_assessment.pending_probe_meta = null;
-        // skipped 狀態會由後面 computeHamdItemLockState 根據 probe_count >= 2 + no evidence 自動計算
+        // skipped 狀態會由後面 computeHamdItemLockState 根據 probe_count >= 2 + no answer 自動計算
       }
-      // probe_count == 1 且沒有 evidence → 保留 pending，下一輪用 retry 問法再問一次
+      // probe_count == 1 且沒有任何回答 → 保留 pending，下一輪用 retry 問法再問一次
     }
     // Recompute completion locks after evidence/score update
     const prevLockedCodes = getLockedItemCodes(state);
