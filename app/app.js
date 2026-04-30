@@ -965,7 +965,15 @@ function createDefaultDoctorPatients() {
       riskLevel: '中',
       aiSummary: '近三次互動以睡眠中斷、焦慮反芻與就診前緊張為主。PHQ-9 草稿顯示低落與疲倦分數偏高，建議下次回診先確認睡眠與日間功能。',
       lastVisitNote: '病人已同意將摘要作為診前討論素材，但尚未送入正式病歷。',
-      orderDraft: createEmptyDoctorOrder()
+      orderDraft: createEmptyDoctorOrder(),
+      aiSessionData: {
+        chief_concerns: ['近兩三週情緒低落', '睡著後容易醒', '工作效率下降'],
+        symptom_observations: ['情緒低落', '興趣下降', '睡眠中斷'],
+        followup_needs: ['追蹤身體焦慮', '確認被動消失念頭頻率'],
+        safety_flags: ['被動消失想法', '目前否認立即自傷計畫'],
+        hamd_signals: ['depressed_mood', 'work_interest', 'insomnia'],
+        red_flag_signals: ['曾表達如果消失就好了', '否認立即自傷計畫']
+      }
     },
     {
       id: 'patient-demo-002',
@@ -1188,7 +1196,9 @@ function normalizeDoctorPatient(patient = {}) {
     aiSummary: String(patient.aiSummary || '目前沒有可展示的 AI 使用紀錄摘要。'),
     lastVisitNote: String(patient.lastVisitNote || '尚無補充紀錄。'),
     orderDraft: normalizedOrder,
-    medicalRecord: normalizeMedicalRecord(patient.medicalRecord)
+    medicalRecord: normalizeMedicalRecord(patient.medicalRecord),
+    aiSessionData: (patient.aiSessionData && typeof patient.aiSessionData === 'object') ? patient.aiSessionData : null,
+    fhirFieldOverrides: (patient.fhirFieldOverrides && typeof patient.fhirFieldOverrides === 'object') ? patient.fhirFieldOverrides : {}
   };
 }
 
@@ -2901,7 +2911,11 @@ function getHamdSummary(summary = {}, progress = {}, formalAssessment = {}) {
   const nextTarget = String(progress?.next_recommended_dimension || progress?.current_focus || '').trim();
 
   const formalItems = Array.isArray(formalAssessment?.items) ? formalAssessment.items : [];
-  const ratedItems = formalItems.filter((item) => Number.isFinite(Number(item?.clinician_final_score)) || Number.isFinite(Number(item?.ai_suggested_score)));
+  const ratedItems = formalItems.filter((item) =>
+    Number.isFinite(Number(item?.clinician_final_score)) ||
+    Number.isFinite(Number(item?.ai_suggested_score)) ||
+    Number.isFinite(Number(item?.user_self_rating?.value))
+  );
   const clinicianRatedItems = formalItems.filter((item) => Number.isFinite(Number(item?.clinician_final_score)));
   const evidenceBackedItems = formalItems.filter((item) => {
     const evidenceType = String(item?.evidence_type || '').trim();
@@ -3029,6 +3043,10 @@ function getHamdItemScore(item = {}) {
   if (Number.isFinite(aiScore)) {
     return { value: aiScore, source: 'AI 建議' };
   }
+  const sliderScore = Number(item?.user_self_rating?.value);
+  if (Number.isFinite(sliderScore)) {
+    return { value: sliderScore, source: '病人自評（滑桿）' };
+  }
   return { value: null, source: '未評分' };
 }
 
@@ -3037,7 +3055,7 @@ function buildHamdFormalStats(formalAssessment = {}) {
   const maxTotal = items.reduce((sum, item) => sum + getHamdScaleMax(item?.scale_range), 0);
   const scoredItems = items
     .map((item) => ({ item, score: getHamdItemScore(item) }))
-    .filter(({ score }) => Number.isFinite(score.value));
+    .filter(({ score }) => Number.isFinite(score.value) && score.value !== null);
   const aiTotal = scoredItems.reduce((sum, { score }) => sum + score.value, 0);
   const clinicianTotal = Number(formalAssessment?.clinician_total_score);
   const displayedTotal = Number.isFinite(clinicianTotal) ? clinicianTotal : aiTotal;
@@ -3073,10 +3091,18 @@ function renderHamdFormalDetail(formalAssessment = {}) {
   const rows = stats.items.map((item) => {
     const score = getHamdItemScore(item);
     const maxScore = getHamdScaleMax(item?.scale_range);
-    const evidenceSummary = getMeaningfulItems(item?.evidence_summary);
-    const rationale = cleanClinicalDisplayText(item?.rating_rationale);
+    const evidenceSummary = getMeaningfulItems(item?.evidence_summary).slice(0, 2);
+    const rawRationale = cleanClinicalDisplayText(item?.rating_rationale);
+    const sliderRating = item?.user_self_rating;
     const reviewRequired = item?.review_required ? '需人工覆核' : '可作為草稿參考';
     const scoreText = Number.isFinite(score.value) ? `${score.value}/${maxScore}` : `未評分/${maxScore}`;
+
+    // rationale：AI/醫師說明 → 滑桿說明 → 預設文字
+    let rationale = rawRationale;
+    if (!rationale && sliderRating && Number.isFinite(Number(sliderRating.value))) {
+      const typeLabel = sliderRating.type === 'frequency' ? '頻率' : '嚴重度';
+      rationale = `病人透過滑桿自評 ${typeLabel}：${sliderRating.value}/${maxScore}。尚待臨床人員確認。`;
+    }
 
     return `
       <div class="hamd-detail-row">
@@ -3094,7 +3120,7 @@ function renderHamdFormalDetail(formalAssessment = {}) {
           <p>${escapeHtml(rationale || '尚未形成可查證的評分理由。')}</p>
           ${evidenceSummary.length
             ? `<ul>${evidenceSummary.map((evidence) => `<li>${escapeHtml(evidence)}</li>`).join('')}</ul>`
-            : '<p class="hamd-detail-empty">尚無逐題證據摘要。</p>'}
+            : ''}
         </div>
       </div>
     `;
@@ -3236,18 +3262,14 @@ function renderHamdMapping(summary = {}, progress = {}) {
     return '<p class="report-empty-copy">尚未整理出可顯示的 HAM-D 對應項目。</p>';
   }
 
-  return combined.map((signal, index) => {
-    const evidenceText = evidence[index] || evidence[0] || '等待更多對話證據補齊';
-    return `
-      <div class="report-readable-item mapping">
-        <span class="mat-icon">monitor_heart</span>
-        <div>
-          <strong>${escapeHtml(formatHamdSignalLabel(signal))}</strong>
-          <p>${escapeHtml(evidenceText)}</p>
-        </div>
+  return combined.map((signal) => `
+    <div class="report-readable-item mapping">
+      <span class="mat-icon">monitor_heart</span>
+      <div>
+        <strong>${escapeHtml(formatHamdSignalLabel(signal))}</strong>
       </div>
-    `;
-  }).join('');
+    </div>
+  `).join('');
 }
 
 function toggleHamdDetail() {
@@ -4740,6 +4762,7 @@ function renderDoctorAssignScreen() {
       </section>
     </div>
 
+    ${renderFhirFieldEditorTable(patient)}
     ${renderDoctorOrderForm(patient)}
     ${renderMedicalRecordForm(patient)}
   `;
@@ -4760,6 +4783,7 @@ function renderMedicalRecordForm(patient) {
         </div>
         <div class="doctor-fhir-form-actions">
           <button class="ghost-btn" type="button" onclick="previewMedicalRecordFhir()">預覽 FHIR JSON</button>
+          <button class="ghost-btn tw-core-btn" type="button" onclick="previewMedicalRecordFhirTwCore()">轉換 TW IG Core</button>
           <button class="primary-btn" type="button" onclick="saveMedicalRecordForm()">儲存病歷</button>
         </div>
       </header>
@@ -5018,6 +5042,152 @@ function renderMrSectionProvenance(p) {
         ${mrField('provenance.activity', '活動描述 → Provenance.activity.text', p.activity, { placeholder: 'AI 抽取症狀後由醫師審閱' })}
       </div>
     </fieldset>`;
+}
+
+const FHIR_FIELD_RESOURCE_OPTIONS = [
+  { value: 'Observation', label: 'Observation（可查詢症狀）' },
+  { value: 'QuestionnaireResponse', label: 'QuestionnaireResponse（病人問答）' },
+  { value: 'ClinicalImpression', label: 'ClinicalImpression（AI 臨床印象）' },
+  { value: 'Composition', label: 'Composition（醫師摘要文件）' },
+  { value: 'DocumentReference', label: 'DocumentReference（文件參考）' },
+  { value: 'exclude', label: '不納入 FHIR（排除）' }
+];
+
+const FHIR_FIELD_SOURCE_DEFAULTS = {
+  chief_concerns: 'Composition',
+  symptom_observations: 'Observation',
+  followup_needs: 'ClinicalImpression',
+  safety_flags: 'ClinicalImpression',
+  hamd_signals: 'QuestionnaireResponse',
+  red_flag_signals: 'ClinicalImpression'
+};
+
+const FHIR_FIELD_SOURCE_LABELS = {
+  chief_concerns: '主訴',
+  symptom_observations: '症狀觀察',
+  followup_needs: '追蹤需求',
+  safety_flags: '安全警示',
+  hamd_signals: 'HAM-D 信號',
+  red_flag_signals: '高風險信號'
+};
+
+function renderFhirFieldEditorTable(patient) {
+  const aiData = patient?.aiSessionData;
+  const candidates = [];
+  const pushItems = (fieldKey, items) => {
+    if (!Array.isArray(items)) return;
+    items.forEach((text, idx) => {
+      if (!text) return;
+      candidates.push({ fieldKey, itemIndex: idx, text: String(text) });
+    });
+  };
+  if (aiData) {
+    pushItems('chief_concerns', aiData.chief_concerns);
+    pushItems('symptom_observations', aiData.symptom_observations);
+    pushItems('followup_needs', aiData.followup_needs);
+    pushItems('safety_flags', aiData.safety_flags);
+    pushItems('hamd_signals', aiData.hamd_signals);
+    pushItems('red_flag_signals', aiData.red_flag_signals);
+  }
+
+  const emptyBody = !candidates.length ? `
+    <div class="fhir-field-empty">此病人尚無 AI 診前摘要資料，無法進行欄位調整。</div>` : '';
+
+  const rows = candidates.map(({ fieldKey, itemIndex, text }) => {
+    const defaultResource = FHIR_FIELD_SOURCE_DEFAULTS[fieldKey] || 'Composition';
+    const overrideKey = `${fieldKey}[${itemIndex}]`;
+    const currentOverride = patient?.fhirFieldOverrides?.[overrideKey] || null;
+    const currentResource = currentOverride || defaultResource;
+    const sourceLabel = FHIR_FIELD_SOURCE_LABELS[fieldKey] || fieldKey;
+    const isOverridden = Boolean(currentOverride);
+
+    const options = FHIR_FIELD_RESOURCE_OPTIONS.map((opt) => {
+      const sel = opt.value === currentResource ? 'selected' : '';
+      return `<option value="${escapeHtml(opt.value)}" ${sel}>${escapeHtml(opt.label)}</option>`;
+    }).join('');
+
+    return `
+      <tr class="fhir-field-row${isOverridden ? ' fhir-field-overridden' : ''}">
+        <td class="fhir-field-source"><span class="doctor-fhir-tag">${escapeHtml(sourceLabel)}</span></td>
+        <td class="fhir-field-content">${escapeHtml(text)}</td>
+        <td class="fhir-field-default"><span class="doctor-fhir-tag fhir-resource-badge fhir-resource-${escapeHtml(defaultResource.toLowerCase())}">${escapeHtml(defaultResource)}</span></td>
+        <td class="fhir-field-target">
+          <select class="fhir-field-select" data-field-key="${escapeHtml(overrideKey)}" onchange="applyFhirFieldOverride(this)">
+            ${options}
+          </select>
+        </td>
+        <td class="fhir-field-status">${isOverridden ? '<span class="fhir-overridden-badge">已調整</span>' : ''}</td>
+      </tr>`;
+  }).join('');
+
+  const overrideCount = Object.keys(patient?.fhirFieldOverrides || {}).length;
+
+  return `
+    <section class="doctor-fhir-form" aria-label="FHIR 欄位調整">
+      <header class="doctor-fhir-form-head">
+        <div>
+          <div class="doctor-action-kicker">FHIR FIELD EDITOR</div>
+          <h4>FHIR 欄位調整</h4>
+          <p class="doctor-fhir-form-sub">依醫療判斷調整每筆 AI 摘要資料的目標 FHIR Resource。${overrideCount ? `目前已調整 <b>${overrideCount}</b> 個欄位。` : '尚無調整，顯示預設分類。'}變更將在下次 FHIR 交付時套用。</p>
+        </div>
+        ${overrideCount ? `<div class="doctor-fhir-form-actions"><button class="ghost-btn" type="button" onclick="resetFhirFieldOverrides()">重設為預設</button></div>` : ''}
+      </header>
+      ${emptyBody || `
+      <div class="fhir-field-table-wrap">
+        <table class="fhir-field-table">
+          <thead>
+            <tr>
+              <th>資料來源</th>
+              <th>內容</th>
+              <th>預設 Resource</th>
+              <th>調整至</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`}
+    </section>`;
+}
+
+function applyFhirFieldOverride(selectEl) {
+  const patient = getSelectedDoctorPatient();
+  if (!patient || !selectEl) return;
+  const overrideKey = selectEl.dataset?.fieldKey || '';
+  if (!overrideKey) return;
+  const value = selectEl.value;
+  const defaultFieldKey = overrideKey.replace(/\[\d+\]$/, '');
+  const defaultResource = FHIR_FIELD_SOURCE_DEFAULTS[defaultFieldKey] || 'Composition';
+  if (!patient.fhirFieldOverrides) patient.fhirFieldOverrides = {};
+  if (value === defaultResource) {
+    delete patient.fhirFieldOverrides[overrideKey];
+  } else {
+    patient.fhirFieldOverrides[overrideKey] = value;
+  }
+  saveDoctorWorkspace();
+  const row = selectEl.closest('tr');
+  if (row) {
+    const isOverridden = Boolean(patient.fhirFieldOverrides[overrideKey]);
+    row.classList.toggle('fhir-field-overridden', isOverridden);
+    const statusCell = row.querySelector('.fhir-field-status');
+    if (statusCell) {
+      statusCell.innerHTML = isOverridden ? '<span class="fhir-overridden-badge">已調整</span>' : '';
+    }
+  }
+  const header = selectEl.closest('section')?.querySelector('.doctor-fhir-form-sub');
+  if (header) {
+    const count = Object.keys(patient.fhirFieldOverrides).length;
+    header.innerHTML = `依醫療判斷調整每筆 AI 摘要資料的目標 FHIR Resource。${count ? `目前已調整 <b>${count}</b> 個欄位。` : '尚無調整，顯示預設分類。'}變更將在下次 FHIR 交付時套用。`;
+  }
+}
+
+function resetFhirFieldOverrides() {
+  const patient = getSelectedDoctorPatient();
+  if (!patient) return;
+  patient.fhirFieldOverrides = {};
+  saveDoctorWorkspace();
+  renderDoctorAssignScreen();
+  appendSystemNotice('已重設所有 FHIR 欄位調整。');
 }
 
 function readDoctorOrderForm(patient = null, forcedStatus = '') {
@@ -5599,6 +5769,53 @@ async function copyMedicalRecordPreview() {
     appendSystemNotice('已複製 FHIR JSON 到剪貼簿。');
   } catch {
     appendSystemNotice('複製失敗，請手動框選 JSON 文字。');
+  }
+}
+
+const TW_CORE_PROFILE_MAP = {
+  Patient: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Patient-twcore',
+  Encounter: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Encounter-twcore',
+  Observation: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Observation-screening-assessment-twcore',
+  QuestionnaireResponse: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/QuestionnaireResponse-twcore',
+  Composition: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Composition-twcore',
+  DocumentReference: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/DocumentReference-twcore',
+  Provenance: 'https://twcore.mohw.gov.tw/ig/twcore/StructureDefinition/Provenance-twcore'
+};
+
+function applyTwCoreProfilesToBundle(bundle) {
+  if (!bundle || !Array.isArray(bundle.entry)) return bundle;
+  const patched = JSON.parse(JSON.stringify(bundle));
+  patched.entry.forEach((entry) => {
+    const resource = entry?.resource;
+    if (!resource || !resource.resourceType) return;
+    const profileUrl = TW_CORE_PROFILE_MAP[resource.resourceType];
+    if (!profileUrl) return;
+    resource.meta = resource.meta || {};
+    const existing = Array.isArray(resource.meta.profile) ? resource.meta.profile : [];
+    if (!existing.includes(profileUrl)) {
+      resource.meta.profile = [profileUrl, ...existing];
+    }
+  });
+  return patched;
+}
+
+function previewMedicalRecordFhirTwCore() {
+  const patient = getSelectedDoctorPatient();
+  if (!patient) return;
+  commitMedicalRecordFormToState();
+  const bundle = applyTwCoreProfilesToBundle(buildMedicalRecordFhirPreview(patient));
+  const text = JSON.stringify(bundle, null, 2);
+  const overlay = document.getElementById('doctor-fhir-preview-overlay');
+  const body = document.getElementById('doctor-fhir-preview-body');
+  const subtitle = overlay?.querySelector('.doctor-fhir-preview-sub');
+  if (overlay && body) {
+    body.textContent = text;
+    if (subtitle) subtitle.textContent = '已套用 TW IG Core profiles（meta.profile）。僅供檢視，不會自動送出。';
+    overlay.classList.add('active');
+    overlay.setAttribute('aria-hidden', 'false');
+  } else {
+    console.log('[FHIR TW CORE PREVIEW]', bundle);
+    appendSystemNotice('已在主控台輸出 TW IG Core FHIR JSON 預覽。');
   }
 }
 
@@ -8219,16 +8436,7 @@ function openFhirHistoryPreview(entryId = '') {
   });
 
   if (previewBody) {
-    previewBody.innerHTML = `
-      ${buildConsentPreviewHtml(sessionExport, fhirDraft, historyItem.deliveryResultPayload || null)}
-      <details class="consent-preview-section consent-preview-details">
-        <summary>查看這筆歷史記錄的原始保存內容</summary>
-        <div class="consent-preview-details-body">
-          <h4>FHIR History Entry JSON</h4>
-          <pre class="consent-preview-json">${escapeHtml(JSON.stringify(historyItem, null, 2))}</pre>
-        </div>
-      </details>
-    `;
+    previewBody.innerHTML = buildConsentPreviewHtml(sessionExport, fhirDraft, historyItem.deliveryResultPayload || null);
   }
 
   if (quickCheckResult) {
@@ -9455,8 +9663,6 @@ function buildConsentPreviewHtml(sessionExport, fhirDraft, deliveryResultOverrid
       <div class="consent-preview-details-body">
         <h4>已合併進送出 payload 的草稿區塊</h4>
         ${formatArrayForList(payloadBlocks, '目前只有最小必要欄位。')}
-        <h4>Session Export JSON</h4>
-        <pre class="consent-preview-json">${escapeHtml(JSON.stringify(sessionExport, null, 2))}</pre>
       </div>
     </details>
   `;
@@ -10989,10 +11195,13 @@ window.saveDoctorOrderDraft = saveDoctorOrderDraft;
 window.publishDoctorOrder = publishDoctorOrder;
 window.markMedicalRecordSent = markMedicalRecordSent;
 window.generateDemoMedicalRecordAndOrder = generateDemoMedicalRecordAndOrder;
+window.applyFhirFieldOverride = applyFhirFieldOverride;
+window.resetFhirFieldOverrides = resetFhirFieldOverrides;
 window.addMedicalRecordItem = addMedicalRecordItem;
 window.removeMedicalRecordItem = removeMedicalRecordItem;
 window.saveMedicalRecordForm = saveMedicalRecordForm;
 window.previewMedicalRecordFhir = previewMedicalRecordFhir;
+window.previewMedicalRecordFhirTwCore = previewMedicalRecordFhirTwCore;
 window.closeMedicalRecordPreview = closeMedicalRecordPreview;
 window.copyMedicalRecordPreview = copyMedicalRecordPreview;
 window.focusDoctorPendingTasks = focusDoctorPendingTasks;

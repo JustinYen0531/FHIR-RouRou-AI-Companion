@@ -44,6 +44,10 @@
 
   const CLINICAL_IMPRESSION_PROFILE = 'http://hl7.org/fhir/StructureDefinition/ClinicalImpression';
 
+  const AI_DEVICE_FULL_URL = 'Device/ai-companion-node-engine';
+  const AI_DEVICE_DISPLAY = 'AI Companion Node Engine';
+  const AI_DEVICE_REFERENCE = { reference: AI_DEVICE_FULL_URL, display: AI_DEVICE_DISPLAY };
+
   const DIMENSION_LABELS = {
     depressed_mood: 'Depressed mood',
     guilt: 'Guilt or self-blame',
@@ -305,11 +309,9 @@
 
   function collectQuestionnaireItems(input, hamdProgress, formalAssessment, phq9Assessment, clinicianSummary, patientReviewPacket, fhirDeliveryDraft) {
     const items = [];
-    const phq9 = phq9Assessment && typeof phq9Assessment === 'object' ? phq9Assessment : {};
     const formalItems = asArray(formalAssessment.items).filter(function (item) {
       return typeof item.ai_suggested_score === 'number' || typeof item.clinician_final_score === 'number' || asArray(item.evidence_summary).length;
     });
-    const phq9Items = asArray(phq9.answers);
     const summaryItemScores = asArray(clinicianSummary.hamd_item_scores);
 
     if (formalItems.length) {
@@ -364,52 +366,6 @@
             }
           ]
         });
-      });
-    }
-
-    if (phq9Items.length) {
-      phq9Items.forEach(function (item, index) {
-        const linkId = item.questionId || ('phq9_' + (index + 1));
-        const narrative = String(item.narrative || '').trim();
-        items.push({
-          linkId: linkId,
-          text: item.label || ('PHQ-9 Item ' + (index + 1)),
-          answer: [
-            {
-              valueInteger: typeof item.score === 'number' ? item.score : 0
-            }
-          ],
-          item: narrative
-            ? [{
-                linkId: linkId + '_narrative',
-                text: 'Patient narrative',
-                answer: [{ valueString: narrative }]
-              }]
-            : undefined
-        });
-      });
-    }
-
-    if (typeof phq9.totalScore === 'number') {
-      items.push({
-        linkId: 'phq9_total_score',
-        text: 'PHQ-9 total score',
-        answer: [
-          {
-            valueInteger: phq9.totalScore
-          }
-        ],
-        item: phq9.severityBand
-          ? [{
-              linkId: 'phq9_total_severity',
-              text: 'Severity band',
-              answer: [
-                {
-                  valueString: phq9.severityBand
-                }
-              ]
-            }]
-          : undefined
       });
     }
 
@@ -734,9 +690,7 @@
       subject: { reference: patientFullUrl },
       encounter: { reference: encounterFullUrl },
       authored: input.session.endedAt || input.session.startedAt || new Date().toISOString(),
-      author: {
-        display: input.author
-      },
+      author: AI_DEVICE_REFERENCE,
       item: items
     };
   }
@@ -873,11 +827,26 @@
       return s;
     }
 
+    var DRAFT_SUMMARY_MAX_LENGTH = 600;
+
     // ── 4. 組裝 sections ────────────────────────────────────────────────────────
     var sections = [];
 
-    // 4a. Clinician Draft Summary（加過度推論保護）
+    // 4a-0. AI Disclaimer（固定第一節）
+    sections.push({
+      code: { text: 'ai-disclaimer' },
+      title: 'AI Disclaimer',
+      text: {
+        status: 'generated',
+        div: '<div xmlns="http://www.w3.org/1999/xhtml"><p>AI-generated pre-visit draft. Not a diagnosis. Requires clinician review before clinical use.</p></div>'
+      }
+    });
+
+    // 4a. Clinician Draft Summary（加過度推論保護 + 長度截斷）
     var rawDraftSummary = String(clinicianSummary.draft_summary || '').trim();
+    if (rawDraftSummary.length > DRAFT_SUMMARY_MAX_LENGTH) {
+      rawDraftSummary = rawDraftSummary.slice(0, DRAFT_SUMMARY_MAX_LENGTH) + '…';
+    }
     if (rawDraftSummary && isSafeToInclude(rawDraftSummary)) {
       sections.push({
         code: { text: 'clinician-draft-summary' },
@@ -1075,9 +1044,7 @@
       title: 'AI Companion Pre-Visit Summary',
       confidentiality: 'R',
       section: sections,
-      author: input.author
-        ? [{ display: input.author }]
-        : undefined,
+      author: [AI_DEVICE_REFERENCE],
       relatesTo: questionnaireFullUrl
         ? [{ code: 'appends', targetReference: { reference: questionnaireFullUrl } }]
         : undefined
@@ -1162,13 +1129,13 @@
       supportingRefs.push({ reference: entry.fullUrl });
     });
 
-    // ── 5. note：加上風險等級明確標記
+    // ── 5. note：非診斷聲明 + 安全風險統一格式
     var notes = [];
+    notes.push({ text: 'AI-generated pre-visit draft. Not a diagnosis. Requires clinician review.' });
     if (safetySignals.length > 0) {
-      notes.push({ text: 'Risk signals noted (evidence-limited). Clinical verification required before escalation.' });
-      safetySignals.forEach(function (s) { notes.push({ text: s }); });
+      notes.push({ text: 'Passive death-related or risk-related thoughts were reported as fleeting. No plan, intent, or sustained suicidal ideation documented in this session. Requires clinician review.' });
     } else {
-      notes.push({ text: 'No immediate risk signals identified in this session.' });
+      notes.push({ text: 'No risk signals identified in this session. Requires clinician review to confirm.' });
     }
 
     return {
@@ -1180,7 +1147,7 @@
           value: input.session.encounterKey
         }
       ],
-      status: 'completed',
+      status: 'preliminary',
       code: {
         text: 'AI Companion risk and context impression'
       },
@@ -1188,7 +1155,7 @@
       encounter: { reference: encounterFullUrl },
       effectiveDateTime: input.session.endedAt || input.session.startedAt || new Date().toISOString(),
       date: input.session.endedAt || input.session.startedAt || new Date().toISOString(),
-      assessor: input.author ? { display: input.author } : undefined,
+      assessor: AI_DEVICE_REFERENCE,
       description: description,
       finding: finalFindings,
       supportingInfo: supportingRefs.length ? supportingRefs : undefined,
@@ -1197,6 +1164,20 @@
     };
   }
 
+
+  function buildDeviceResource() {
+    return {
+      resourceType: 'Device',
+      id: 'ai-companion-node-engine',
+      status: 'active',
+      deviceName: [
+        {
+          name: AI_DEVICE_DISPLAY,
+          type: 'user-friendly-name'
+        }
+      ]
+    };
+  }
 
   function buildBundle(entries) {
     return {
@@ -1254,7 +1235,7 @@
         text: 'AI Companion clinician summary document'
       },
       date: input.session.endedAt || input.session.startedAt || new Date().toISOString(),
-      author: input.author ? [{ display: input.author }] : undefined,
+      author: [AI_DEVICE_REFERENCE],
       description: 'Clinician-facing AI Companion pre-visit summary draft',
       content: [
         {
@@ -1290,16 +1271,16 @@
       : new Date().toISOString().slice(0, 10);
     var locationDisplay = 'AI Companion Platform – Session ' + sessionKey + ' (' + sessionDate + ')';
 
-    // ── 2. agent：加上 patient-reviewer ─────────────────────────────────────
+    // ── 2. agent：AI 引擎 + 病人授權
     var agents = [
       {
-        type: { text: 'author' },
-        who: { display: input.author || 'AI Companion' }
+        type: { text: 'AI generation engine' },
+        who: AI_DEVICE_REFERENCE
       }
     ];
     if (patientFullUrl) {
       agents.push({
-        type: { text: 'patient-reviewer' },
+        type: { text: 'Patient authorization' },
         who: { reference: patientFullUrl }
       });
     }
@@ -1484,6 +1465,11 @@
       ).concat(gatherFormalObservationCandidates(input.hamd_formal_assessment)).concat(gatherPhq9ObservationCandidates(input.phq9_assessment))
     );
 
+    const deviceEntry = {
+      fullUrl: AI_DEVICE_FULL_URL,
+      resource: buildDeviceResource()
+    };
+
     const patientEntry = {
       fullUrl: patientFullUrl,
       resource: buildPatientResource(input, patientFullUrl)
@@ -1571,7 +1557,7 @@
       )
     };
 
-    const entries = [patientEntry, encounterEntry, questionnaireEntry]
+    const entries = [deviceEntry, patientEntry, encounterEntry, questionnaireEntry]
       .concat(observationEntries)
       .concat([clinicalImpressionEntry, compositionEntry, documentReferenceEntry, provenanceEntry]);
 
