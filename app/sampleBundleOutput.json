@@ -4,6 +4,24 @@
     "type": "transaction",
     "entry": [
       {
+        "fullUrl": "Device/ai-companion-node-engine",
+        "resource": {
+          "resourceType": "Device",
+          "id": "ai-companion-node-engine",
+          "status": "active",
+          "deviceName": [
+            {
+              "name": "AI Companion Node Engine",
+              "type": "user-friendly-name"
+            }
+          ]
+        },
+        "request": {
+          "method": "PUT",
+          "url": "Device/ai-companion-node-engine"
+        }
+      },
+      {
         "fullUrl": "urn:uuid:f95c1274-f95c-e9ac-1274-f95c1274e9ac",
         "resource": {
           "resourceType": "Patient",
@@ -105,7 +123,8 @@
           },
           "authored": "2026-03-29T09:30:00+08:00",
           "author": {
-            "display": "AI Companion MVP"
+            "reference": "Device/ai-companion-node-engine",
+            "display": "AI Companion Node Engine"
           },
           "item": [
             {
@@ -494,7 +513,8 @@
           "effectiveDateTime": "2026-03-29T09:30:00+08:00",
           "date": "2026-03-29T09:30:00+08:00",
           "assessor": {
-            "display": "AI Companion MVP"
+            "reference": "Device/ai-companion-node-engine",
+            "display": "AI Companion Node Engine"
           },
           "description": "近兩三週情緒低落",
           "finding": [
@@ -566,16 +586,10 @@
           ],
           "note": [
             {
-              "text": "曾表達如果消失就好了"
+              "text": "AI-generated pre-visit draft. Not a diagnosis. Requires clinician review."
             },
             {
-              "text": "否認立即自傷計畫"
-            },
-            {
-              "text": "被動消失想法"
-            },
-            {
-              "text": "目前否認立即自傷計畫"
+              "text": "Passive death-related or risk-related thoughts were reported as fleeting. No plan, intent, or sustained suicidal ideation documented in this session. Requires clinician review."
             }
           ],
           "protocol": [
@@ -630,6 +644,16 @@
           "title": "AI Companion Pre-Visit Summary",
           "confidentiality": "R",
           "section": [
+            {
+              "code": {
+                "text": "ai-disclaimer"
+              },
+              "title": "AI Disclaimer",
+              "text": {
+                "status": "generated",
+                "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>AI-generated pre-visit draft. Not a diagnosis. Requires clinician review before clinical use.</p></div>"
+              }
+            },
             {
               "code": {
                 "text": "chief-concerns"
@@ -687,7 +711,8 @@
           ],
           "author": [
             {
-              "display": "AI Companion MVP"
+              "reference": "Device/ai-companion-node-engine",
+              "display": "AI Companion Node Engine"
             }
           ],
           "relatesTo": [
@@ -731,7 +756,8 @@
           "date": "2026-03-29T09:30:00+08:00",
           "author": [
             {
-              "display": "AI Companion MVP"
+              "reference": "Device/ai-companion-node-engine",
+              "display": "AI Companion Node Engine"
             }
           ],
           "description": "Clinician-facing AI Companion pre-visit summary draft",
@@ -796,10 +822,19 @@
           "agent": [
             {
               "type": {
-                "text": "author"
+                "text": "AI generation engine"
               },
               "who": {
-                "display": "AI Companion MVP"
+                "reference": "Device/ai-companion-node-engine",
+                "display": "AI Companion Node Engine"
+              }
+            },
+            {
+              "type": {
+                "text": "Patient authorization"
+              },
+              "who": {
+                "reference": "urn:uuid:f95c1274-f95c-e9ac-1274-f95c1274e9ac"
               }
             }
           ],
@@ -837,6 +872,9 @@
     ]
   },
   "resource_index": {
+    "Device": [
+      "Device/ai-companion-node-engine"
+    ],
     "Patient": [
       "urn:uuid:f95c1274-f95c-e9ac-1274-f95c1274e9ac"
     ],
