@@ -4711,6 +4711,187 @@ body {
   box-shadow: 0 0 0 4px rgba(33, 122, 75, 0.08);
 }
 
+/* ── PHQ-9 Tab Nav ── */
+.phq9-tab-nav {
+  display: flex;
+  gap: 8px;
+  margin: 12px 18px 4px;
+}
+
+.phq9-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 9px 12px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(56, 164, 106, 0.2);
+  background: rgba(255, 255, 255, 0.7);
+  color: #587065;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.phq9-tab.active {
+  background: linear-gradient(135deg, #5aab89, #7ec8a4);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(90, 171, 137, 0.35);
+}
+
+/* ── PHQ-9 Slider （問卷滑桿）── */
+.phq9-slider-block {
+  margin: 4px 0 12px;
+}
+
+.phq9-slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+  background: linear-gradient(
+    to right,
+    #5aab89 0%,
+    #5aab89 var(--pct, 0%),
+    rgba(56, 164, 106, 0.15) var(--pct, 0%),
+    rgba(56, 164, 106, 0.15) 100%
+  );
+  transition: background 0.12s;
+}
+
+.phq9-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2.5px solid #5aab89;
+  box-shadow: 0 2px 8px rgba(90, 171, 137, 0.3);
+  cursor: pointer;
+}
+
+.phq9-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 10px;
+  color: rgba(60, 90, 75, 0.55);
+  font-weight: 500;
+}
+
+.phq9-slider-label-active {
+  color: #3a7a5e;
+  font-weight: 700;
+}
+
+.phq9-slider-val {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.phq9-val-num {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #3a7a5e;
+  line-height: 1;
+}
+
+.phq9-val-text {
+  font-size: 0.9rem;
+  color: #587065;
+  font-weight: 600;
+}
+
+/* ── 已填分數 Tab ── */
+.score-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #3a7a5e;
+  margin: 16px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.score-empty {
+  font-size: 0.9rem;
+  color: rgba(60, 90, 75, 0.55);
+  padding: 12px 0;
+  text-align: center;
+}
+
+.score-item-card {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(56, 164, 106, 0.12);
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+
+.score-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.score-item-label {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #203047;
+}
+
+.score-item-meta {
+  font-size: 11px;
+  color: #87a090;
+  font-weight: 600;
+}
+
+.score-item-bar-wrap {
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(56, 164, 106, 0.1);
+  overflow: hidden;
+}
+
+.score-item-bar {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(to right, #5aab89, #7ec8a4);
+  transition: width 0.4s ease;
+}
+
+.score-item-bar.phq9-bar {
+  background: linear-gradient(to right, #6ab4a0, #8fcfba);
+}
+
+.score-item-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 8px;
+}
+
+.score-item-val {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #3a7a5e;
+}
+
+.score-item-pct {
+  font-size: 11px;
+  color: #87a090;
+  font-weight: 600;
+}
+
+/* ── phq9-action-row (original) ── */
 .phq9-action-row {
   display: flex;
   gap: 10px;

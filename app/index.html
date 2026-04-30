@@ -329,13 +329,13 @@
     </header>
 
     <main class="page-scroll phq9-scroll">
+      <!-- ── 摘要卡 ── -->
       <section class="card-section phq9-hero">
         <div class="section-label">SELF-ASSESSMENT</div>
-        <h2 class="section-heading">請依過去兩週的狀態填寫 PHQ-9</h2>
-        <p class="greeting-sub">每題可先選分數，再在下方補上正式敘述。若你之後再次填寫，最新版本會成為下一輪對話的背景資料。</p>
+        <h2 class="section-heading">自評紀錄</h2>
         <div class="phq9-hero-grid">
           <div class="phq9-summary-card">
-            <div class="phq9-summary-kicker">最新總分</div>
+            <div class="phq9-summary-kicker">PHQ-9 最新總分</div>
             <div id="phq9-latest-summary" class="phq9-summary-body"></div>
             <div id="phq9-latest-meta" class="phq9-summary-meta">尚未填寫</div>
           </div>
@@ -343,30 +343,51 @@
             <div class="phq9-summary-kicker">使用方式</div>
             <div id="phq9-progress-count" class="phq9-summary-body phq9-summary-body-small">PHQ-9 共 9 題，填完後可直接儲存並回到聊天。</div>
             <div id="phq9-prompt-status" class="phq9-prompt-status">目前 prompt 尚未帶入 PHQ-9。</div>
-            <div class="phq9-summary-meta">填寫中可以直接離開，草稿會保留。</div>
           </div>
         </div>
       </section>
 
-      <section class="phq9-form-shell">
-        <div id="phq9-form-root" class="phq9-form-root"></div>
-      </section>
+      <!-- ── Tab 切換 ── -->
+      <div class="phq9-tab-nav">
+        <button class="phq9-tab active" id="phq9-tab-fill"
+          onclick="switchPhq9Tab('fill')">
+          <span class="mat-icon" style="font-size:16px">edit_note</span> 填寫 PHQ-9
+        </button>
+        <button class="phq9-tab" id="phq9-tab-scores"
+          onclick="switchPhq9Tab('scores')">
+          <span class="mat-icon" style="font-size:16px">bar_chart</span> 已填分數
+        </button>
+      </div>
 
-      <section class="section">
-        <div class="section-heading">整體補充敘述</div>
-        <div class="textarea-wrap">
-          <textarea
-            id="phq9-global-note"
-            placeholder="可以補充這次自評的整體情況，例如最近是否有明顯事件、功能受影響、或你想讓 AI 特別記住的背景。"
-            oninput="updatePhq9GlobalNote(this.value)"></textarea>
-          <span class="mat-icon" style="color:#446655;opacity:.4;position:absolute;right:16px;bottom:16px">notes</span>
-        </div>
-      </section>
+      <!-- ── Panel：填寫 PHQ-9 ── -->
+      <div id="phq9-panel-fill">
+        <section class="phq9-form-shell">
+          <div id="phq9-form-root" class="phq9-form-root"></div>
+        </section>
 
-      <section class="section phq9-action-row">
-        <button class="primary-btn" type="button" onclick="submitPhq9Assessment()">儲存並回到聊天</button>
-        <button class="ghost-btn" type="button" onclick="closePhq9Assessment()">先回到聊天</button>
-      </section>
+        <section class="section">
+          <div class="section-heading">整體補充敘述</div>
+          <div class="textarea-wrap">
+            <textarea
+              id="phq9-global-note"
+              placeholder="可以補充這次自評的整體情況，例如最近是否有明顯事件、功能受影響、或你想讓 AI 特別記住的背景。"
+              oninput="updatePhq9GlobalNote(this.value)"></textarea>
+            <span class="mat-icon" style="color:#446655;opacity:.4;position:absolute;right:16px;bottom:16px">notes</span>
+          </div>
+        </section>
+
+        <section class="section phq9-action-row">
+          <button class="primary-btn" type="button" onclick="submitPhq9Assessment()">儲存並回到聊天</button>
+          <button class="ghost-btn" type="button" onclick="closePhq9Assessment()">先回到聊天</button>
+        </section>
+      </div>
+
+      <!-- ── Panel：已填分數 ── -->
+      <div id="phq9-panel-scores" style="display:none">
+        <section class="phq9-form-shell">
+          <div id="phq9-slider-scores-root"></div>
+        </section>
+      </div>
     </main>
   </div>
 
