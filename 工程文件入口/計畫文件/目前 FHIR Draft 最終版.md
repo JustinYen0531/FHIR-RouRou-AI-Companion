@@ -2,259 +2,327 @@
 
 更新日期：`2026-04-30`
 
+本文件這次以 `1487655` 這筆最新 FHIR 交付優化 commit 為主整理，搭配此前 `2026-04-22` 到 `2026-04-29` 的 FHIR 收斂成果一起判讀。  
+這一版已經不是單純補欄位，而是把 `FHIR Draft` 從「可送出、可展示」再往前推到「可調整 mapping、可轉 TW IG Core、AI 身份更標準化、臨床輸出更克制」的版本。
+
+---
+
 ## 一句話結論
-這一輪 `FHIR Draft` 的最終收斂，不再只是把資源「送得出去」，而是把整條交付鏈整理成：  
-**資料來源更清楚、摘要內容更可讀、各資源分工更合理、FHIR delivery gating 更穩、病人與醫師流程也更能接得上。**
+
+這一輪 `FHIR Draft` 最終版最大的變化，不是又多幾個 resource，而是：
+
+**你把原本固定寫死的 AI 陪伴交付，升級成一套更像正式醫療草稿的流程：AI 角色被標準化、病人原話被進一步移出正式輸出、PHQ-9 路徑被重整、FHIR 欄位分配可以被人工調整，甚至連 TW IG Core profile 都能一鍵套用。**
 
 ---
 
-## 這一版最重要的變化
+## 這一版最重要的更新
 
-### 1. FHIR draft 不再只是空骨架
-先前最大問題是：
+### 1. AI 身份正式資源化
 
-- 有 `resource`
-- 有 `bundle`
-- 有 `JSON`
-- 但內容像草稿、像拼貼、像 placeholder
+這次不再讓 AI 只用 `display` 或自由文字出現在 `author / assessor / agent`。  
+系統改成正式建立一個 `Device` resource：
 
-這一輪之後，重點已經從「會不會生」轉成「生出來的東西像不像正式交付草稿」。
+- `Device/ai-companion-node-engine`
+- 名稱為 `AI Companion Node Engine`
 
-最明顯的改變包括：
+接著把原本多處的：
 
-1. `QuestionnaireResponse` 不再只是塞原始句子，而是開始做 `recent_evidence` 清洗、去掉操作句、過短句與重複句。
-2. `Observation` 不再只是一個抽象訊號殼，`valueString` 已改成較可讀的臨床摘要句。
-3. `ClinicalImpression` 不再停在資源宣告，而是真的進 bundle，並且改成較保守的 `preliminary` 臨床印象。
-4. `Composition` 已從雜亂摘要進步到有 section 分工的正式文件骨架，同時開始控制重複與過重警示語氣。
-5. `DocumentReference` 已分成 readable summary 與 internal trace payload 兩層，不再把所有內容混成一包。
-6. `Provenance` 已開始能清楚說明 AI 生成、病人審閱、來源 session 與交付治理。
+- `QuestionnaireResponse.author`
+- `ClinicalImpression.assessor`
+- `Composition.author`
+- `DocumentReference.author`
+- `Provenance.agent`
 
----
+全部改成指向這個 `Device reference`。
 
-## 資源層的最後收斂
+這個改動的意義非常大，因為它把 AI 從「一段說明文字」提升成「FHIR 內部可被引用的正式生成主體」。
 
-### 1. Patient
-這一輪不再讓 `Patient` 停留在 placeholder 殼，而是往「可展示的人物輪廓」收斂。
+代表 commit：
 
-主要變化：
-
-1. 病人基本資料不再只是 demo user 影子，而是能接真實 profile 欄位。
-2. 病人 profile intake 正式接進 FHIR draft。
-3. refresh 時會優先用最新病人資料重建 builder 輸出，而不是沿用舊草稿。
-
-代表 commits：
-
-- `53a5f58` Improve patient draft defaults
-- `3de87ee` feat: wire patient profile intake into FHIR draft
-- `ab1a7e4` fix: refresh patient using latest profile data
-- `5c3197f` fix: sync patient profile into fhir drafts
-
-### 2. Encounter
-這一輪把 `Encounter` 從「看起來像系統時間戳」收斂成「比較像正式照護接觸記錄」。
-
-主要變化：
-
-1. `status` 改為 `finished`，不再用 `in-progress` 模糊帶過。
-2. `period.start/end` 分開，對話時間區間語意更清楚。
-3. 補上 `serviceType`，讓 encounter 的照護情境更完整。
-
-代表 commits：
-
-- `38b70e4` fix(Encounter): status 改為 finished 預設、period 分離 sessionStartedAt/sessionEndedAt、補 serviceType
-
-### 3. QuestionnaireResponse
-這一輪的核心不是多塞欄位，而是把內容從髒、碎、重複，整理成可被後續資源承接的問卷層。
-
-主要變化：
-
-1. `recent_evidence` 開始套用清洗規則。
-2. 操作句、求助句、過短句、重複句會被排除。
-3. PHQ-9 與病人自評資料開始正式進入 structured drafts 與 FHIR 流程。
-
-代表 commits：
-
-- `28d2f35` fix(QR): recent_evidence 套用清洗規則，移除操作句/求助句/過短句/重複句，上限5筆
-- `11c5549` Align QuestionnaireResponse notes with actual test payload
-- `c24ebb4` Add PHQ-9 dual-track assessment flow
-- `925cd04` Integrate PHQ-9 into structured drafts
-
-### 4. Observation
-這一輪把 `Observation` 從「有 signal」收斂成「人類看得懂這在觀察什麼」。
-
-主要變化：
-
-1. `valueString` 改成可讀的臨床摘要句。
-2. `note` 開始限制數量並搭配 `cleanEvidence`。
-3. `Observation` 開始更像 symptom summary 的正式承接層，而不是對話碎句容器。
-
-代表 commits：
-
-- `f581b3a` fix(Observation): valueString 改為可讀臨床摘要句，note 上限2筆並套用cleanEvidence
-
-### 5. ClinicalImpression
-這一層是這輪最關鍵的成熟點之一，因為它直接碰到「AI 會不會過度診斷」的邊界。
-
-主要變化：
-
-1. `ClinicalImpression` 真正進 bundle，不再只停在 draft 宣告。
-2. `description` 改得更保守。
-3. `finding` 開始各自綁定 `basis`。
-4. `note` 補進風險標記。
-5. `status` 改為 `preliminary`，降低過滿語氣。
-
-代表 commits：
-
-- `e7a092f` Fix HAPI ClinicalImpression delivery status
-- `e197c47` fix(ClinicalImpression): description保守化、finding各自綁basis、note加風險標記、status改preliminary
-
-### 6. Composition
-這一輪的 `Composition` 已經不只是有 section，而是開始懂得哪些 section 該收、哪些語氣該保守。
-
-主要變化：
-
-1. `section` 去重並限制上限。
-2. `Safety` 語氣改得更保守。
-3. `clinicalAlerts` 只有在真的有 evidence 時才加入。
-4. `entry` 只放非風險 `Observation`，避免把不該放的內容全部塞進文件。
-
-代表 commits：
-
-- `f8091ea` fix(Composition): section去重上限、Safety保守化、clinicalAlerts有evidence才加、entry只放非風險Observation
-
-### 7. DocumentReference
-這一輪把 `DocumentReference` 從「有附檔」升級成「知道什麼給人看、什麼留給系統追」。
-
-主要變化：
-
-1. readable summary 與 internal trace payload 分離。
-2. 補上和 `Composition` 的 `relatesTo` 關聯。
-3. 附件開始有分層用途，而不是單純 payload 打包。
-
-代表 commits：
-
-- `68c758d` fix(DocumentReference): 分離閱讀版與internal trace payload，補relatesTo關聯Composition
-
-### 8. Provenance
-這一輪的 `Provenance` 不再只是 technical trace，而是開始長出治理語言。
-
-主要變化：
-
-1. `location` 改成人類可讀的 session 說明。
-2. 補上 `patient-reviewer agent`。
-3. `entity` 改得更白話。
-4. `reason` 補進治理說明，而不是只剩技術來源。
-
-代表 commits：
-
-- `811826b` fix(Provenance): location改可讀session說明、補patient-reviewer agent、entity人話描述、reason加白話治理說明
+- `1487655` feat: FHIR 欄位調整表格、TW IG Core 轉換按鈕、FHIR 優化全套
 
 ---
 
-## 交付流程層的最後收斂
+### 2. PHQ-9 從 QuestionnaireResponse 移除，正式改走 Observation 路徑
 
-除了 resource 內容本身，這一輪其實還做了另一條很重要的事：  
-把「FHIR 交付到底穩不穩」這件事，從靠感覺改成靠 gating、quick check、validator 與 refresh flow 控制。
+這次很重要的一個重整，是把原本放在 `QuestionnaireResponse` 裡的 `PHQ-9 item + total score` 內容抽掉。
 
-### 1. draft / bundle / validator / UI 一致性
+也就是說，現在系統不再把 PHQ-9 當成：
 
-主要變化：
+- 問卷 answer list 的主要承載方式
 
-1. `FHIR draft.resources` 收斂成目前真的會輸出的資源。
-2. draft、bundle builder、validator、sample output 開始對齊。
-3. 不再放任 prompt 宣告未實作資源混進交付草稿。
+而是更傾向把它整理後映射進：
 
-代表 commits：
+- `Observation`
+- 後續 summary / scoring / clinical drafting 流程
 
-- `92276d0` Align FHIR draft and bundle delivery resources
-- `8c79630` fix: align fhir bundle statuses with validator
+這個改動的方向很清楚：
 
-### 2. delivery gating 與 quick check
+1. `QuestionnaireResponse` 回到比較像病人問答與審閱容器。
+2. `PHQ-9` 量化結果改由更適合承載分數與觀察的 `Observation` 路徑去接。
+3. 讓 FHIR 交付的資料層次更乾淨，不把所有量表都直接塞在 QR 裡。
 
-主要變化：
+代表 commit：
 
-1. 補強 auth / readiness state normalization。
-2. 新增一鍵 FHIR delivery quick check。
-3. runtime key 優先讀 `.env.local`，降低環境配置失誤。
-
-代表 commits：
-
-- `1905704` fix: normalize auth/readiness states for FHIR delivery gating
-- `6f54f2c` feat: add one-click FHIR delivery quick check
-- `8819530` fix: prefer .env.local runtime keys over inherited env
-
-### 3. refresh / rebuild / persistence
-
-主要變化：
-
-1. 新增 patient-only FHIR refresh flow。
-2. refresh 時會檢查是否真的用最新 profile 重建 builder 輸出。
-3. FHIR history 已可 preview，不再只是存在而已。
-
-代表 commits：
-
-- `69d1e57` Add patient-only FHIR refresh flow
-- `eba7211` fix: verify patient refresh rebuilds builder output
-- `6260575` feat: add preview for fhir history entries
-
-### 4. delivery hardening
-
-主要變化：
-
-1. 送出流程不再只求能送，而是開始處理 HAPI status、validator 對齊與 submission 穩定性。
-2. 病人資料、FHIR draft、bundle 狀態開始更一致。
-
-代表 commits：
-
-- `baf56f1` fix: harden fhir submission delivery
-- `e7a092f` Fix HAPI ClinicalImpression delivery status
+- `1487655`
 
 ---
 
-## 和早期版本相比，這一版真正進步在哪裡
+### 3. ClinicalImpression 從「有摘要」再往前收斂成「更克制的專業草稿」
 
-### 早期版本比較像
+這次 `ClinicalImpression` 最明顯的收斂有三個：
 
-1. 有 draft，但內容偏像對話拼貼。
-2. 有 resource，但醫師不一定看得懂重點。
-3. 有交付流程，但 readiness、refresh、validator 還不夠穩。
-4. 有治理資源，但語言還偏工程、偏技術。
+1. `status` 維持在 `preliminary`
+2. `note` 改成專業聲明，不再留逐字稿式輸出
+3. 安全風險說明統一成較正式、較保守的專業敘述
 
-### 現在的版本比較像
+原本比較像：
 
-1. `QuestionnaireResponse -> Observation -> ClinicalImpression -> Composition -> DocumentReference -> Provenance` 這條鏈開始有各自的分工。
-2. FHIR 資源不只結構合法，內容也開始有臨床可讀性。
-3. 病人 profile、PHQ-9、自評摘要已能接進交付鏈。
-4. delivery gating、quick check、refresh flow、validator 對齊後，整條交付比較穩。
-5. 資料不再只是「會上傳」，而是比較接近「可以展示、可以解釋、可以答辯」。
+- 把風險句子一條一條列出
+- 或把病人原話殘留在 note 裡
+
+現在則改成：
+
+- `AI-generated pre-visit draft. Not a diagnosis. Requires clinician review.`
+- 若有風險訊號，也用較完整、較克制的臨床語氣寫成統一說明
+
+這代表 `ClinicalImpression` 已不只是「AI 看見了什麼」，而是開始有意識地處理：
+
+- 非診斷聲明
+- 風險表述口徑
+- 臨床責任邊界
+
+代表 commits：
+
+- `e197c47` fix(ClinicalImpression): status 改 preliminary、description 保守化
+- `1487655` ClinicalImpression note 改為專業聲明，移除逐字稿
+
+---
+
+### 4. Composition 正式加入 AI Disclaimer section
+
+這次 `Composition` 最關鍵的更新之一，是新增固定的 `AI Disclaimer` section，而且放在前面。
+
+內容明確寫出：
+
+- 這是 AI-generated pre-visit draft
+- 不是 diagnosis
+- 臨床使用前需要 clinician review
+
+同時這次也把：
+
+- `draft_summary` 截斷到 600 字
+
+這代表系統開始從兩個面向修正 `Composition`：
+
+1. 法律與臨床責任面：先把「這不是診斷」講清楚
+2. 文件閱讀面：不要讓摘要無限制膨脹，避免變成長段 AI 草稿傾倒
+
+這個改動其實非常有決賽價值，因為它讓評審一看就知道你有在意：
+
+- AI 身份
+- 醫師覆核
+- 文件治理
+
+代表 commits：
+
+- `f8091ea` fix(Composition): section 收斂、安全語氣保守化
+- `1487655` Composition 加 AI disclaimer section，draft_summary 截斷至 600 字
+
+---
+
+### 5. Provenance 語言正式改成治理語言
+
+這次 `Provenance.agent.type` 不再只是一般性的 `author` 或模糊角色，而是直接改成：
+
+- `AI generation engine`
+- `Patient authorization`
+
+這件事很漂亮，因為它等於把 `Provenance` 從「有 trace」進一步升級成「有治理角色命名」。
+
+這會讓整個交付流程更容易被答辯成：
+
+- 這份資料是誰生成的
+- 這份資料和病人授權的關係是什麼
+- AI 與病人的角色如何分開
+
+代表 commits：
+
+- `811826b` fix(Provenance): 補強 location / patient reviewer / reason
+- `1487655` Provenance agent type 改為 `AI generation engine` / `Patient authorization`
+
+---
+
+## 這一版最像產品升級的地方：FHIR 欄位調整表格
+
+如果說前面幾輪都在修內容品質，那 `1487655` 真正最像「產品功能升級」的地方，是：
+
+### 新增醫師端 `FHIR 欄位調整表格`
+
+這不是單純多一個設定頁，而是讓醫師端或展示端可以直接看到：
+
+- 哪一筆 AI 摘要資料來自哪個來源
+- 它預設會被分配到哪個 FHIR resource
+- 使用者可不可以手動改分配位置
+
+目前可調的目標包含例如：
+
+- `Observation`
+- `QuestionnaireResponse`
+- `ClinicalImpression`
+- `Composition`
+- `DocumentReference`
+- `exclude`
+
+而且它不是只顯示，是真的能：
+
+1. 逐筆修改欄位目標 resource
+2. 儲存 override
+3. 在下次 FHIR 交付時套用
+4. 重設回預設值
+
+這個功能的價值很大，因為它把系統從：
+
+- AI 自己決定 mapping
+
+推進成：
+
+- AI 先給預設 mapping
+- 醫療端 / 展示端可再介入調整
+
+這完全符合你和導師之前反覆收斂出的那條線：
+
+`AI 負責整理，人類保留最終配置權。`
+
+代表 commit：
+
+- `1487655` 醫師指派頁新增 FHIR 欄位調整表格，可逐筆重新分配至目標 Resource
+
+---
+
+## 這一版最像展示升級的地方：TW IG Core 轉換按鈕
+
+另一個很關鍵的新功能，是新增：
+
+### `轉換 TW IG Core` 按鈕
+
+這顆按鈕會做的事是：
+
+- 自動對 bundle 中各 resource 注入對應的 `meta.profile`
+
+目前對應的類型包含：
+
+- `Patient`
+- `Encounter`
+- `Observation`
+- `QuestionnaireResponse`
+- `Composition`
+- `DocumentReference`
+- `Provenance`
+
+這個功能的價值不在於它立刻把整個系統變成正式上線等級，而在於：
+
+1. 你可以快速展示「我們知道 TW IG Core 應該怎麼接」
+2. 不必把整個系統從頭綁死在最嚴格 profile 上
+3. 同時保留 PoC 靈活度與標準化展示能力
+
+它很像一個非常聰明的決賽策略：
+
+- 平常保持原型可跑
+- 需要展示標準化時，一鍵轉成帶 profile 的版本
+
+代表 commit：
+
+- `1487655` 新增「轉換 TW IG Core」按鈕，自動注入 `meta.profile` 至每個 resource
+
+---
+
+## 這一版最像內容清理的地方：移除病人原文輸出
+
+這次 commit 很有感的一點，是你明確把：
+
+- FHIR 交付頁
+- 報表
+
+中的病人對話原文輸出拿掉。
+
+這代表系統在這一版正式選擇：
+
+- 不再用逐字稿證明自己有內容
+- 改用整理後欄位、臨床摘要、mapping 結果與治理結構來證明價值
+
+這其實是成熟化很關鍵的一步，因為逐字稿雖然真實，但會帶來：
+
+1. 隱私風險
+2. 髒訊息風險
+3. 醫療語氣失控
+4. 評審閱讀負擔
+
+拿掉原文之後，整份 FHIR 交付會更像正式草稿，而不是聊天紀錄 dump。
+
+代表 commit：
+
+- `1487655` 移除 FHIR 交付頁與報表中所有病人對話原文輸出
+
+---
+
+## 這一版和前幾版相比，真正跨過了哪條線
+
+### 前幾版比較像
+
+1. 把 resource 一個一個修合法
+2. 把內容一段一段修乾淨
+3. 把 delivery gating、validator、history preview 補起來
+
+### 這一版開始變成
+
+1. `AI 身份` 有正式 `Device` resource
+2. `PHQ-9 路徑` 被重新整理
+3. `ClinicalImpression / Composition / Provenance` 的語言更像專業草稿
+4. `FHIR mapping` 不再完全寫死，而可由前端介入調整
+5. `TW IG Core` 展示能力被一鍵化
+6. `病人原文` 正式退出交付主畫面，讓成品更乾淨
+
+也就是說，這一版不只是「內容更好」，而是整個 FHIR 交付開始有：
+
+- 標準化意識
+- 治理意識
+- 人工介入配置能力
+- 展示層級可控性
 
 ---
 
 ## 這一版可以明確說已完成的收斂
 
-1. `FHIR Draft` 從 placeholder 式草稿，進步到有內容品質意識的交付中介層。
-2. `ClinicalImpression`、`Composition`、`DocumentReference`、`Provenance` 不再只是為了湊資源，而是各自長出臨床、文件與治理角色。
-3. `Patient / Encounter / QuestionnaireResponse / Observation` 已不再只是底層骨架，而能支撐上層摘要與交付。
-4. `FHIR delivery` 已不只追求能送，而是開始講一致性、穩定性與可檢查性。
-5. 整個系統從「AI 對話輸出」真正往「病人可確認、醫師可閱讀、FHIR 可交付」的方向走完一大段。
+1. AI 在 FHIR 裡的身份，從文字描述提升成正式 `Device` resource。
+2. author / assessor / agent 等角色引用方式更一致，不再四散。
+3. PHQ-9 與 QuestionnaireResponse 的責任邊界被重新整理。
+4. ClinicalImpression note、Composition 首段、Provenance agent 語言都更像正式治理文件。
+5. FHIR 欄位對映不再完全寫死，已能由醫師端調整。
+6. TW IG Core profile 展示能力被顯性做出來。
+7. 病人原話退出正式交付主畫面，整份輸出更乾淨、更能展示。
 
 ---
 
 ## 目前版本的合理定位
 
-這份最終版不代表：
+這份最終版仍然不是：
 
-- 已完全達到正式醫院上線等級
-- 已完整處理所有 TW Core / production compliance 細節
-- 已完全消除所有內容品質風險
+- 正式醫院上線版
+- 完整 TW Core compliance 最終版
+- 完全不需人工檢查的 clinical-grade final output
 
-這份最終版代表的是：
+但它已經不是單純的工程 prototype。
 
-**在決賽 / PoC / 展示層級下，FHIR Draft 已經從工程原型，收斂成一套有資料流邏輯、有資源分工、有交付治理概念的可展示版本。**
+這份最終版比較合理的定位是：
+
+**一套可以清楚展示 AI 如何產生資料、病人如何授權、醫療端如何介入 mapping、系統如何轉向 TW IG Core 的 FHIR 交付原型。**
 
 ---
 
 ## 一句話總結
 
-這一輪 `FHIR Draft` 最終版最大的意義，不是又多了幾個資源，而是：  
-**你把原本只是「AI 能吐 FHIR」的系統，收斂成「AI、病人、醫師三方都比較站得住位置的 FHIR 交付流程」。**
+這次 `1487655` 的意義，在於它讓 `FHIR Draft` 從「已經可交付的草稿」再往前走成：
+
+**一套有 AI 主體、有治理語言、有 mapping 配置層、有 TW IG Core 展示切換，而且更像正式醫療摘要的 FHIR 交付系統。**
 
