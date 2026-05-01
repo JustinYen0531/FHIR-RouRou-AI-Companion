@@ -16,6 +16,7 @@ const LOCAL_SESSION_ARCHIVE_KEY = 'rourou.singleSessionArchive.v2';
 const MAX_LOCAL_SESSION_ARCHIVE_RECORDS = 20;
 const REPORT_OUTPUT_CACHE_KEY = 'rourou.reportOutputsCache.v1'; // legacy（用於遷移舊資料）
 const REPORT_OUTPUT_CACHE_PREFIX = 'rourou.reportOutputs.';     // per-conversation key prefix
+const SESSION_REPORT_BUNDLE_CACHE_KEY = 'ui_report_bundle.v1';
 
 function getReportCacheKey(conversationId) {
   const id = String(conversationId || '').trim();
@@ -1648,6 +1649,7 @@ const APP_STATE = {
   chatHistory: [],
   pendingFreshSession: false,
   lastChatMetadata: null,
+  activeSessionOutputCache: {},
   customShortcuts: loadCustomShortcuts(),
   reportOutputs: createEmptyReportOutputs(),
   fhirReportHistory: loadFhirReportHistory(),
@@ -2707,6 +2709,9 @@ function saveReportOutputsToCache(options = {}) {
       conversationId,
       savedAt: new Date().toISOString()
     }));
+    if (options.skipServerSync !== true) {
+      scheduleSessionReportBundleSync();
+    }
   } catch (error) {
     console.warn('Unable to cache report outputs:', error);
   }
@@ -2715,6 +2720,10 @@ function saveReportOutputsToCache(options = {}) {
 // 為指定的 conversationId 還原報表（per-conversation）
 function restoreReportOutputsForSession(conversationId) {
   try {
+    const serverBundleApplied = applySessionReportBundleCache(APP_STATE.activeSessionOutputCache || {});
+    if (serverBundleApplied) {
+      return;
+    }
     const key = getReportCacheKey(conversationId);
     let parsed = JSON.parse(localStorage.getItem(key) || 'null');
 
@@ -3583,18 +3592,102 @@ function loadFhirReportHistory(conversationId = '') {
   }
 }
 
+function buildSessionReportBundleCachePayload() {
+  return {
+    [SESSION_REPORT_BUNDLE_CACHE_KEY]: {
+      reportOutputs: deepCloneSerializable(APP_STATE.reportOutputs || createEmptyReportOutputs(), createEmptyReportOutputs()),
+      fhirReportHistory: deepCloneSerializable(APP_STATE.fhirReportHistory || [], []),
+      savedAt: new Date().toISOString(),
+      conversationId: String(APP_STATE.conversationId || '').trim()
+    }
+  };
+}
+
+function applySessionReportBundleCache(cache = {}) {
+  const bundle = cache && typeof cache === 'object'
+    ? cache[SESSION_REPORT_BUNDLE_CACHE_KEY]
+    : null;
+  if (!bundle || typeof bundle !== 'object') return false;
+
+  APP_STATE.reportOutputs = normalizeCachedReportOutputs(bundle.reportOutputs || {});
+  APP_STATE.fhirReportHistory = Array.isArray(bundle.fhirReportHistory)
+    ? deepCloneSerializable(bundle.fhirReportHistory, [])
+    : [];
+
+  if (APP_STATE.reportOutputs.session_export && typeof APP_STATE.reportOutputs.session_export === 'object') {
+    APP_STATE.reportOutputs.session_export = PatientProfile.applyToSessionExport(APP_STATE.reportOutputs.session_export);
+    syncReportOutputsFromSessionExport(APP_STATE.reportOutputs.session_export);
+    syncTherapeuticMemoryFromSessionExport(APP_STATE.reportOutputs.session_export);
+    syncPhq9SessionState();
+  }
+
+  if (isValidFhirDraftOutput(APP_STATE.reportOutputs.fhir_delivery)) {
+    APP_STATE.reportFhirDraft = { isLoading: false, error: '', emptyReason: '' };
+  }
+
+  return true;
+}
+
+let sessionReportBundleSyncTimer = null;
+let sessionReportBundleSyncInFlight = false;
+
+async function persistSessionReportBundleToServer() {
+  if (!isAuthenticated() || !APP_STATE.conversationId) return;
+  if (sessionReportBundleSyncInFlight) return;
+  sessionReportBundleSyncInFlight = true;
+  try {
+    const reportBundlePayload = buildSessionReportBundleCachePayload();
+    await fetch(`/api/chat/session?id=${encodeURIComponent(APP_STATE.conversationId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        output_cache_merge: reportBundlePayload
+      })
+    });
+    APP_STATE.activeSessionOutputCache = Object.assign(
+      {},
+      APP_STATE.activeSessionOutputCache && typeof APP_STATE.activeSessionOutputCache === 'object'
+        ? deepCloneSerializable(APP_STATE.activeSessionOutputCache, {})
+        : {},
+      reportBundlePayload
+    );
+  } catch (error) {
+    console.warn('Unable to sync session report bundle to server:', error);
+  } finally {
+    sessionReportBundleSyncInFlight = false;
+  }
+}
+
+function scheduleSessionReportBundleSync() {
+  if (!isAuthenticated() || !APP_STATE.conversationId) return;
+  if (sessionReportBundleSyncTimer) {
+    clearTimeout(sessionReportBundleSyncTimer);
+  }
+  sessionReportBundleSyncTimer = setTimeout(() => {
+    sessionReportBundleSyncTimer = null;
+    persistSessionReportBundleToServer().catch((error) => {
+      console.warn('Deferred session report bundle sync failed:', error);
+    });
+  }, 180);
+}
+
 function saveFhirReportHistory(conversationId = '') {
   const resolvedConversationId = String(
     conversationId || (typeof APP_STATE !== 'undefined' ? APP_STATE.conversationId : '') || ''
   ).trim();
   const key = getFhirHistoryCacheKey(resolvedConversationId);
   localStorage.setItem(key, JSON.stringify(APP_STATE.fhirReportHistory || []));
+  scheduleSessionReportBundleSync();
 }
 
 function syncFhirHistoryForConversation(conversationId = '') {
   const resolvedConversationId = String(
     conversationId || (typeof APP_STATE !== 'undefined' ? APP_STATE.conversationId : '') || ''
   ).trim();
+  if (applySessionReportBundleCache(APP_STATE.activeSessionOutputCache || {})) {
+    APP_STATE.reportViewingConversationId = resolvedConversationId;
+    return;
+  }
   APP_STATE.fhirReportHistory = loadFhirReportHistory(resolvedConversationId);
   APP_STATE.reportViewingConversationId = resolvedConversationId;
 }
@@ -8888,6 +8981,13 @@ function buildCurrentSessionRecord() {
     history,
     state,
     revision: history.length,
+    output_cache: Object.assign(
+      {},
+      APP_STATE.activeSessionOutputCache && typeof APP_STATE.activeSessionOutputCache === 'object'
+        ? deepCloneSerializable(APP_STATE.activeSessionOutputCache, {})
+        : {},
+      buildSessionReportBundleCachePayload()
+    ),
     memory_snapshot: {
       note_history: [],
       last_user_message: lastUserMessage,
@@ -8998,8 +9098,10 @@ function applySessionRecord(session = {}, fallbackSessionId = '', options = {}) 
     latest_tag_payload: normalizedSession.state?.latest_tag_payload || {},
     burden_level_state: normalizedSession.state?.burden_level_state || {}
   };
+  APP_STATE.activeSessionOutputCache = normalizedSession.output_cache && typeof normalizedSession.output_cache === 'object'
+    ? deepCloneSerializable(normalizedSession.output_cache, {})
+    : {};
   APP_STATE.chatHistory = normalizeChatHistoryEntries(normalizedSession.history).filter((e) => !isEphemeralShortcutMessage(e)).slice(-24);
-  APP_STATE.reportOutputs.session_export = buildSessionExportFromRecord(normalizedSession);
   restoreReportOutputsForSession(APP_STATE.conversationId);
   if (!APP_STATE.reportOutputs.session_export || !Object.keys(APP_STATE.reportOutputs.session_export).length) {
     APP_STATE.reportOutputs.session_export = buildSessionExportFromRecord(normalizedSession);
@@ -9034,6 +9136,7 @@ function resetConversationState(options = {}) {
   APP_STATE.syncedMode = '';
   APP_STATE.runtimeMode = '';
   APP_STATE.lastChatMetadata = null;
+  APP_STATE.activeSessionOutputCache = {};
   APP_STATE.chatHistory = [];
   APP_STATE.reportOutputs = preservedReportOutputs;
   APP_STATE.pendingConsent = {

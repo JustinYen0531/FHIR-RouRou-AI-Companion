@@ -72,6 +72,20 @@ module.exports = async function handler(req, res) {
       session.updatedAt = new Date().toISOString();
     }
 
+    if (payload.output_cache && typeof payload.output_cache === 'object') {
+      session.output_cache = payload.output_cache;
+      session.updatedAt = new Date().toISOString();
+    }
+
+    if (payload.output_cache_merge && typeof payload.output_cache_merge === 'object') {
+      session.output_cache = Object.assign(
+        {},
+        session.output_cache && typeof session.output_cache === 'object' ? session.output_cache : {},
+        payload.output_cache_merge
+      );
+      session.updatedAt = new Date().toISOString();
+    }
+
     if (Number.isFinite(Number(payload.revision))) {
       session.revision = Number(payload.revision);
     }
