@@ -562,7 +562,7 @@ async function testSessionPatchCreatesMissingSession() {
       user: 'demo-user',
       startedAt: '2026-04-04T00:00:00.000Z',
       history: [
-        { role: 'user', content: '我想打開之前的對話' },
+        { role: 'user', content: '我想打開之前的對話', id: 'msg-old-user-1', recalled: true, recalledAt: '2026-04-04T00:01:00.000Z', recalled_placeholder: '此訊息已收回' },
         { role: 'assistant', content: '我在，這段可以繼續。' }
       ],
       state: {
@@ -586,6 +586,8 @@ async function testSessionPatchCreatesMissingSession() {
   assert.strictEqual(detail.statusCode, 200);
   assert.strictEqual(detail.body.session.id, 'conv-local-backup');
   assert.strictEqual(detail.body.session.history.length, 2);
+  assert.strictEqual(detail.body.session.history[0].recalled, true);
+  assert.strictEqual(detail.body.session.history[0].id, 'msg-old-user-1');
   assert.strictEqual(detail.body.session.state.active_mode, 'mode_5_natural');
   assert.strictEqual(detail.body.session.revision, 2);
 }

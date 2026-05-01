@@ -867,6 +867,25 @@ async function testSmartHunterPrefersCompressedMemoryOnLongDialogue() {
   assert.ok(capture.systemPrompt.includes('請優先依據上方長期記憶／壓縮記憶理解背景'));
 }
 
+function testRecalledHistoryIsExcludedFromTranscriptWindow() {
+  const engine = new AICompanionEngine({
+    modelClient: async () => 'ok',
+    apiKey: 'fake'
+  });
+  const session = engine.getOrCreateSession('conv-recall-filter', 'demo');
+  session.history = [
+    { role: 'user', content: '我最近睡不好。', kind: 'chat' },
+    { role: 'assistant', content: '我在這裡陪你。', kind: 'chat' },
+    { role: 'user', content: '這句要收回。', kind: 'chat', recalled: true }
+  ];
+
+  const transcript = engine.buildTranscriptWindow(session);
+
+  assert.strictEqual(transcript.total_relevant_turns, 2);
+  assert.ok(!transcript.recent_chat_history_text.includes('這句要收回'));
+  assert.ok(transcript.excluded_messages.some((item) => item.reason === 'recalled_message'));
+}
+
 async function run() {
   await testCommandRouting();
   await testHighRiskRouting();
@@ -896,6 +915,7 @@ async function run() {
   await testAiTraceIncludesConversationModeAndHamdDimension();
   await testProbingModeKeepsSameHamdItem();
   await testSmartHunterPrefersCompressedMemoryOnLongDialogue();
+  testRecalledHistoryIsExcludedFromTranscriptWindow();
   console.log('AI companion engine tests passed.');
 }
 

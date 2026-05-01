@@ -119,6 +119,7 @@ function isUnreadableText(value) {
 
 function hasCorruptedHistory(history = []) {
   return (Array.isArray(history) ? history : []).some((item) => {
+    if (item?.recalled === true || item?.is_recalled === true) return false;
     const content = String(item?.content || '').trim();
     return Boolean(content) && isUnreadableText(content);
   });
@@ -129,6 +130,7 @@ function findReadableHistoryMessage(history = [], role = '') {
   for (let index = items.length - 1; index >= 0; index -= 1) {
     const item = items[index];
     if (!item || !item.content) continue;
+    if (item.recalled === true || item.is_recalled === true) continue;
     if (role && item.role !== role) continue;
     const content = String(item.content || '').trim();
     if (content && !isUnreadableText(content)) {
@@ -140,14 +142,15 @@ function findReadableHistoryMessage(history = [], role = '') {
 
 function summarizeSession(session) {
   const history = Array.isArray(session.history) ? session.history : [];
+  const activeHistory = history.filter((item) => item && item.recalled !== true && item.is_recalled !== true);
   const lastUserMessage = !isUnreadableText(session.memory_snapshot?.last_user_message)
     ? String(session.memory_snapshot?.last_user_message || '').trim()
-    : findReadableHistoryMessage(history, 'user') ||
+    : findReadableHistoryMessage(activeHistory, 'user') ||
       String(session.memory_snapshot?.last_user_message || '').trim() ||
       '';
   const lastAssistantMessage = !isUnreadableText(session.memory_snapshot?.last_assistant_message)
     ? String(session.memory_snapshot?.last_assistant_message || '').trim()
-    : findReadableHistoryMessage(history, 'assistant') ||
+    : findReadableHistoryMessage(activeHistory, 'assistant') ||
       String(session.memory_snapshot?.last_assistant_message || '').trim() ||
       '';
   const latestTags = session.state?.latest_tag_payload && typeof session.state.latest_tag_payload === 'object'
@@ -161,7 +164,7 @@ function summarizeSession(session) {
     : !isUnreadableText(latestTags.summary)
       ? String(latestTags.summary || '').trim()
       : '';
-  const fallbackSummary = findReadableHistoryMessage(history, 'assistant') || findReadableHistoryMessage(history, 'user') || '';
+  const fallbackSummary = findReadableHistoryMessage(activeHistory, 'assistant') || findReadableHistoryMessage(activeHistory, 'user') || '';
 
   return {
     id: session.id,
@@ -176,8 +179,8 @@ function summarizeSession(session) {
     note_history_count: Array.isArray(session.memory_snapshot?.note_history) ? session.memory_snapshot.note_history.length : 0,
     has_clinician_summary: Boolean(clinicianSummary && Object.keys(clinicianSummary).length),
     has_fhir_draft: Boolean(session.state?.fhir_delivery_draft && typeof session.state.fhir_delivery_draft === 'object' && Object.keys(session.state.fhir_delivery_draft).length),
-    has_corrupted_history: hasCorruptedHistory(history),
-    message_count: history.length
+    has_corrupted_history: hasCorruptedHistory(activeHistory),
+    message_count: activeHistory.length
   };
 }
 

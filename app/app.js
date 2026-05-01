@@ -7623,6 +7623,28 @@ function createMessageBubble(role) {
   return { container, group, bubble };
 }
 
+function canRecallChatHistoryEntry(item = null) {
+  if (!item || isEphemeralShortcutMessage(item) || isRecalledHistoryEntry(item)) return false;
+  return item.role === 'user' || item.role === 'ai';
+}
+
+function renderMessageRecallButton(group, item) {
+  if (!group || !canRecallChatHistoryEntry(item)) return;
+  const actionRow = document.createElement('div');
+  actionRow.className = 'message-action-row';
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'message-recall-btn';
+  button.textContent = '收回';
+  button.addEventListener('click', () => {
+    recallChatHistoryMessage(item.id);
+  });
+
+  actionRow.appendChild(button);
+  group.appendChild(actionRow);
+}
+
 function getTypingDelay(character) {
   if (character === '\n') return 70;
   if (/[，、；：]/.test(character)) return 35;
@@ -8327,14 +8349,16 @@ async function appendMessage(role, text, options = {}) {
   const { bubble, group } = createMessageBubble(role);
   if (!bubble) return;
 
-  APP_STATE.chatHistory.push({
+  const entry = {
     role,
     content: text,
     createdAt: new Date().toISOString(),
     ...(options.ephemeral ? { ephemeral: true } : {}),
     ...(options.traceData ? { traceData: options.traceData } : {}),
     ...(options.aiTraceData ? { aiTraceData: options.aiTraceData } : {})
-  });
+  };
+  entry.id = buildChatHistoryMessageId(entry, APP_STATE.chatHistory.length);
+  APP_STATE.chatHistory.push(entry);
   APP_STATE.chatHistory = APP_STATE.chatHistory.slice(-24);
 
   if (role === 'ai' && options.animate) {
@@ -8345,6 +8369,7 @@ async function appendMessage(role, text, options = {}) {
     renderClinicalTraceButton(group, btnRow, options.traceData || null);
     renderAiTraceButton(group, btnRow, options.aiTraceData || null);
     renderHamdSlider(group, options.probeMeta || null);
+    renderMessageRecallButton(group, entry);
     return;
   }
 
@@ -8359,6 +8384,7 @@ async function appendMessage(role, text, options = {}) {
   } else {
     bubble.textContent = text;
   }
+  renderMessageRecallButton(group, entry);
 
   scrollChatToBottom();
   TherapeuticMemory.renderProfileUI();
@@ -8652,16 +8678,51 @@ function deepCloneSerializable(value, fallback) {
   }
 }
 
+const RECALL_PLACEHOLDER_TEXT = '此訊息已收回';
+
+function hashChatHistoryContent(value = '') {
+  const text = String(value || '');
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = (hash * 31 + text.charCodeAt(index)) >>> 0;
+  }
+  return hash.toString(36);
+}
+
+function buildChatHistoryMessageId(item = {}, index = 0) {
+  const explicitId = String(item.id || item.messageId || '').trim();
+  if (explicitId) return explicitId;
+  const createdAtSeed = String(item.createdAt || item.created_at || '').trim().replace(/[^0-9a-z]/gi, '').slice(-18);
+  const roleSeed = String(item.role || '').trim().toLowerCase() || 'msg';
+  const contentSeed = hashChatHistoryContent(item.content || item.recalled_placeholder || '');
+  return `msg_${createdAtSeed || 'legacy'}_${roleSeed}_${index}_${contentSeed}`;
+}
+
+function isRecalledHistoryEntry(item = null) {
+  return Boolean(item && (item.recalled === true || item.is_recalled === true));
+}
+
+function normalizeChatHistoryContent(item = {}) {
+  if (isRecalledHistoryEntry(item)) {
+    return String(item.recalled_placeholder || RECALL_PLACEHOLDER_TEXT).trim() || RECALL_PLACEHOLDER_TEXT;
+  }
+  return String(item.content || '').trim();
+}
+
 function normalizeChatHistoryEntries(history = []) {
   return (Array.isArray(history) ? history : [])
-    .map((item) => {
+    .map((item, index) => {
       if (!item || typeof item !== 'object') return null;
       const role = item.role === 'assistant' ? 'ai' : item.role;
-      const content = String(item.content || '').trim();
+      const content = normalizeChatHistoryContent(item);
       if (!role || !content) return null;
       return {
         ...item,
         role,
+        id: buildChatHistoryMessageId(item, index),
+        recalled: isRecalledHistoryEntry(item),
+        recalledAt: item.recalledAt || item.recalled_at || '',
+        recalled_placeholder: String(item.recalled_placeholder || '').trim() || undefined,
         content
       };
     })
@@ -8673,6 +8734,7 @@ function findLatestHistoryContent(history = [], roles = []) {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const item = history[index];
     if (!item || !item.content) continue;
+    if (isRecalledHistoryEntry(item)) continue;
     if (roleList.length && !roleList.includes(item.role)) continue;
     const content = String(item.content || '').trim();
     if (content && !isUnreadableSessionText(content)) {
@@ -8684,6 +8746,7 @@ function findLatestHistoryContent(history = [], roles = []) {
 
 function summarizeSessionRecord(session = {}) {
   const history = normalizeChatHistoryEntries(session.history);
+  const activeHistory = history.filter((item) => !isRecalledHistoryEntry(item));
   const state = session.state && typeof session.state === 'object' ? session.state : {};
   const memorySnapshot = session.memory_snapshot && typeof session.memory_snapshot === 'object'
     ? session.memory_snapshot
@@ -8696,11 +8759,11 @@ function summarizeSessionRecord(session = {}) {
     : {};
   const lastUserMessage = pickReadableSessionText([
     memorySnapshot.last_user_message,
-    findLatestHistoryContent(history, 'user')
+    findLatestHistoryContent(activeHistory, 'user')
   ], '');
   const lastAssistantMessage = pickReadableSessionText([
     memorySnapshot.last_assistant_message,
-    findLatestHistoryContent(history, ['ai', 'assistant'])
+    findLatestHistoryContent(activeHistory, ['ai', 'assistant'])
   ], '');
   const latestTagSummary = pickReadableSessionText([
     memorySnapshot.latest_tag_summary,
@@ -8722,8 +8785,8 @@ function summarizeSessionRecord(session = {}) {
     note_history_count: Array.isArray(memorySnapshot.note_history) ? memorySnapshot.note_history.length : 0,
     has_clinician_summary: Boolean(Object.keys(clinicianSummary).length),
     has_fhir_draft: Boolean(state.fhir_delivery_draft && typeof state.fhir_delivery_draft === 'object' && Object.keys(state.fhir_delivery_draft).length),
-    has_corrupted_history: history.some((item) => isUnreadableSessionText(item.content)),
-    message_count: history.length
+    has_corrupted_history: activeHistory.some((item) => isUnreadableSessionText(item.content)),
+    message_count: activeHistory.length
   };
 }
 
@@ -9062,7 +9125,7 @@ function buildCurrentSessionRecord() {
     updatedAt: new Date().toISOString(),
     history,
     state,
-    revision: history.length,
+    revision: history.filter((item) => !isRecalledHistoryEntry(item)).length,
     output_cache: Object.assign(
       {},
       APP_STATE.activeSessionOutputCache && typeof APP_STATE.activeSessionOutputCache === 'object'
@@ -9092,7 +9155,8 @@ function buildSessionArchiveFingerprint(record = {}) {
     user: normalized.user,
     history: normalized.history.map((item) => ({
       role: item.role,
-      content: item.content
+      content: item.content,
+      recalled: Boolean(item.recalled)
     })),
     state: normalized.state,
     memory_snapshot: normalized.memory_snapshot
@@ -9102,7 +9166,7 @@ function buildSessionArchiveFingerprint(record = {}) {
 function hasMeaningfulSessionContent(record = null) {
   const target = record && typeof record === 'object' ? record : buildCurrentSessionRecord();
   if (!target) return false;
-  const history = Array.isArray(target.history) ? target.history : [];
+  const history = normalizeChatHistoryEntries(target.history).filter((item) => !isRecalledHistoryEntry(item));
   if (history.length > 0) return true;
   const summary = summarizeSessionRecord(target);
   return Boolean(summary.last_user_message || summary.last_assistant_message || summary.latest_tag_summary);
@@ -9257,6 +9321,7 @@ function buildClientHistorySnapshot(limit = 48) {
       const role = item?.role === 'ai' ? 'assistant' : String(item?.role || '').trim().toLowerCase();
       const content = String(item?.content || '').trim();
       if (!content) return null;
+      if (isRecalledHistoryEntry(item)) return null;
       if (role !== 'user' && role !== 'assistant') return null;
       if (
         role === 'user'
@@ -9583,16 +9648,25 @@ function renderChatHistory(history = []) {
     if (!item || !item.role || !item.content) return;
     const { group, bubble } = createMessageBubble(item.role);
     if (!bubble) return;
+    if (isRecalledHistoryEntry(item)) {
+      group.classList.add('is-recalled');
+      bubble.classList.add('is-recalled');
+    }
     if (item.role === 'ai') {
-      bubble.innerHTML = renderMessageMarkdown(item.content);
+      if (isRecalledHistoryEntry(item)) {
+        bubble.textContent = item.content;
+      } else {
+        bubble.innerHTML = renderMessageMarkdown(item.content);
+      }
       // 還原兩顆決策紀錄按鈕（含 trace 資料時才掛上）
-      if (group) {
+      if (group && !isRecalledHistoryEntry(item)) {
         renderClinicalTraceButton(group, item.traceData || null);
         renderAiTraceButton(group, item.aiTraceData || null);
       }
     } else {
       bubble.textContent = item.content;
     }
+    renderMessageRecallButton(group, item);
   });
 
   if (typingIndicator) {
@@ -9606,6 +9680,75 @@ function renderChatHistory(history = []) {
   }
 
   scrollChatToBottom();
+}
+
+function invalidateSessionDerivedOutputs(message = '這段對話有訊息被收回，請重新生成摘要。') {
+  APP_STATE.activeSessionOutputCache = {};
+  APP_STATE.reportOutputs = createEmptyReportOutputs();
+  APP_STATE.reportFhirDraft = {
+    isLoading: false,
+    error: '',
+    emptyReason: message
+  };
+  APP_STATE.fhirReportHistory = [];
+  const conversationId = String(APP_STATE.conversationId || '').trim();
+  if (conversationId) {
+    localStorage.removeItem(getReportCacheKey(conversationId));
+    localStorage.removeItem(getFhirHistoryCacheKey(conversationId));
+  }
+  renderReportOutputs();
+}
+
+async function recallChatHistoryMessage(messageId = '') {
+  const normalizedId = String(messageId || '').trim();
+  if (!normalizedId) return;
+  const targetIndex = APP_STATE.chatHistory.findIndex((item) => String(item?.id || '').trim() === normalizedId);
+  if (targetIndex < 0) return;
+  const target = APP_STATE.chatHistory[targetIndex];
+  if (!canRecallChatHistoryEntry(target)) return;
+  const confirmed = window.confirm('收回後，這則訊息會從後續 AI 摘要與 FHIR 草稿中排除，是否繼續？');
+  if (!confirmed) return;
+
+  const previousHistory = deepCloneSerializable(APP_STATE.chatHistory, []);
+  const previousOutputs = deepCloneSerializable(APP_STATE.reportOutputs, createEmptyReportOutputs());
+  const previousFhirDraft = deepCloneSerializable(APP_STATE.reportFhirDraft, {
+    isLoading: false,
+    error: '',
+    emptyReason: ''
+  });
+  const previousOutputCache = deepCloneSerializable(APP_STATE.activeSessionOutputCache, {});
+  const recalledAt = new Date().toISOString();
+  const updatedHistory = normalizeChatHistoryEntries(APP_STATE.chatHistory).map((item, index) => {
+    if (index !== targetIndex) return item;
+    return {
+      ...item,
+      recalled: true,
+      recalledAt,
+      recalled_placeholder: RECALL_PLACEHOLDER_TEXT,
+      content: RECALL_PLACEHOLDER_TEXT
+    };
+  });
+
+  APP_STATE.chatHistory = updatedHistory.slice(-24);
+  renderChatHistory(APP_STATE.chatHistory);
+  invalidateSessionDerivedOutputs();
+
+  try {
+    const record = buildCurrentSessionRecord();
+    if (record) {
+      saveSessionRecordToLocalArchive(record);
+      await syncLocalSessionRecordToServer(record);
+    }
+    appendSystemNotice('訊息已收回，後續摘要需要重新生成。', { replaceKey: 'message-recall' });
+  } catch (error) {
+    APP_STATE.chatHistory = previousHistory;
+    APP_STATE.reportOutputs = previousOutputs;
+    APP_STATE.reportFhirDraft = previousFhirDraft;
+    APP_STATE.activeSessionOutputCache = previousOutputCache;
+    renderChatHistory(APP_STATE.chatHistory);
+    renderReportOutputs();
+    appendSystemNotice(`訊息收回失敗：${error.message || '未知錯誤'}`, { replaceKey: 'message-recall' });
+  }
 }
 
 function buildSessionExportFromRecord(session = {}) {
@@ -9652,7 +9795,10 @@ function shouldRefreshRestoredSessionOutputs(sessionExport = {}) {
     isValidPatientAnalysisOutput(sessionExport.patient_analysis) ||
     isValidFhirDraftOutput(sessionExport.fhir_delivery_draft)
   );
-  return !hasMeaningfulOutputs && Boolean(APP_STATE.conversationId && APP_STATE.chatHistory.length);
+  return !hasMeaningfulOutputs && Boolean(
+    APP_STATE.conversationId &&
+    normalizeChatHistoryEntries(APP_STATE.chatHistory).some((item) => !isRecalledHistoryEntry(item))
+  );
 }
 
 async function refreshRestoredSessionOutputsIfNeeded(sessionExport = {}) {

@@ -7487,6 +7487,39 @@ body.micro-detail-open {
   margin-top: 6px;
 }
 
+.message-action-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.message-recall-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #7a4d4d;
+  background: rgba(244, 226, 226, 0.95);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  box-shadow: 0 6px 16px rgba(122, 77, 77, 0.12);
+}
+
+.message-recall-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(239, 212, 212, 0.98);
+  box-shadow: 0 10px 22px rgba(122, 77, 77, 0.16);
+}
+
+.bubble.is-recalled {
+  background: rgba(240, 239, 237, 0.96);
+  color: #7b7f84;
+  border: 1px dashed rgba(123, 127, 132, 0.35);
+  box-shadow: none;
+  font-style: italic;
+}
+
 .clinical-trace-toggle {
   display: inline-flex;
   align-items: center;

@@ -2903,6 +2903,10 @@ function classifyDraftHistoryItem(item) {
   const kind = String(item.kind || 'chat').trim();
   const role = String(item.role || '').trim();
   const content = String(item.content || '').trim();
+  const recalled = item.recalled === true || item.is_recalled === true;
+  if (recalled) {
+    return { include: false, reason: 'recalled_message', role, content };
+  }
   if (!content) {
     return { include: false, reason: 'empty_content', role, content };
   }
