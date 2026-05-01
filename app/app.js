@@ -3586,11 +3586,23 @@ function normalizeFhirBaseUrl(baseUrl) {
   return normalized ? normalized.replace(/\/+$/, '') : '';
 }
 
+function resolveFhirDeliveryBaseUrl(deliveryResult) {
+  return normalizeFhirBaseUrl(
+    deliveryResult?.fhir_base_url ||
+    deliveryResult?.transaction_response?.attempted_url ||
+    deliveryResult?.transaction_response?.primary_response?.attempted_url ||
+    ''
+  );
+}
+
 function buildFhirResourceLinks(deliveryResult) {
-  const baseUrl = normalizeFhirBaseUrl(deliveryResult?.fhir_base_url);
+  const baseUrl = resolveFhirDeliveryBaseUrl(deliveryResult);
   const explicitLinks = Array.isArray(deliveryResult?.fhir_resource_links)
     ? deliveryResult.fhir_resource_links
     : [];
+  const createdResources = deliveryResult?.created_resources && typeof deliveryResult.created_resources === 'object'
+    ? deliveryResult.created_resources
+    : {};
   const preferredOrder = ['Patient', 'Encounter', 'QuestionnaireResponse', 'Observation', 'ClinicalImpression', 'Composition', 'DocumentReference', 'Provenance'];
   const sortLinks = (links) => links.sort((a, b) => {
     const aIndex = preferredOrder.indexOf(a.resourceType);
@@ -3614,6 +3626,22 @@ function buildFhirResourceLinks(deliveryResult) {
         url: String(item.url || (baseUrl ? `${baseUrl}/${path}` : path)).trim()
       };
     }).filter(Boolean));
+  }
+
+  const createdResourceLinks = Object.entries(createdResources)
+    .map(([resourceType, path]) => {
+      const normalizedPath = String(path || '').trim().replace(/^https?:\/\/[^/]+/i, '').replace(/^\/+/, '').replace(/\/_history\/[^/]+$/i, '');
+      if (!normalizedPath || !/^[A-Za-z]+\/[^/]+$/.test(normalizedPath)) return null;
+      return {
+        resourceType: String(resourceType || normalizedPath.split('/')[0] || 'Resource').trim() || 'Resource',
+        label: normalizedPath,
+        path: normalizedPath,
+        url: baseUrl ? `${baseUrl}/${normalizedPath}` : normalizedPath
+      };
+    })
+    .filter(Boolean);
+  if (createdResourceLinks.length) {
+    return sortLinks(createdResourceLinks);
   }
 
   const entries = Array.isArray(deliveryResult?.transaction_response?.body?.entry)
@@ -4167,9 +4195,7 @@ function renderFhirHistorySection() {
 }
 
 function getFixedPatientValues(fhirDeliveryResult, fallbackSessionExport) {
-  const targetUrl = normalizeFhirBaseUrl(
-    fhirDeliveryResult?.fhir_base_url || fallbackSessionExport?.__deliveryTargetUrl || ''
-  );
+  const targetUrl = resolveFhirDeliveryBaseUrl(fhirDeliveryResult) || normalizeFhirBaseUrl(fallbackSessionExport?.__deliveryTargetUrl || '');
   const previewIdentifier = getPreviewPatientIdentifier(
     fallbackSessionExport || {},
     targetUrl
@@ -4327,7 +4353,7 @@ function renderReportOutputs() {
   const patientAnalysis = APP_STATE.reportOutputs.patient_analysis || {};
   const patientReview = APP_STATE.reportOutputs.patient_review || {};
   const fhirDelivery = APP_STATE.reportOutputs.fhir_delivery || {};
-  const fhirDeliveryResult = APP_STATE.reportOutputs.fhir_delivery_result || APP_STATE.pendingConsent.deliveryResult || null;
+  let fhirDeliveryResult = APP_STATE.reportOutputs.fhir_delivery_result || APP_STATE.pendingConsent.deliveryResult || null;
   const sessionExport = PatientProfile.applyToSessionExport(APP_STATE.pendingConsent.sessionExport || APP_STATE.reportOutputs.session_export || {});
   const hamdProgress = sessionExport?.hamd_progress_state || {};
   const hamdFormalAssessment = sessionExport?.hamd_formal_assessment || {};
@@ -4367,6 +4393,10 @@ function renderReportOutputs() {
   const authNote = document.getElementById('report-auth-note');
   const deleteDraftButton = document.getElementById('report-delete-fhir-draft');
   const latestFhirHistory = APP_STATE.fhirReportHistory?.[0] || null;
+  const latestDeliveryHistory = (APP_STATE.fhirReportHistory || []).find((item) => item?.type === 'delivery' && item.deliveryResultPayload) || null;
+  if (!fhirDeliveryResult && latestDeliveryHistory?.deliveryResultPayload) {
+    fhirDeliveryResult = latestDeliveryHistory.deliveryResultPayload;
+  }
   renderPhq9ReportSummary();
 
   if (intro) {
@@ -4554,7 +4584,7 @@ function renderReportOutputs() {
   }
 
   if (fhirLinks) {
-    const targetUrl = normalizeFhirBaseUrl(fhirDeliveryResult?.fhir_base_url);
+    const targetUrl = resolveFhirDeliveryBaseUrl(fhirDeliveryResult);
     const linkItems = buildFhirResourceLinks(fhirDeliveryResult);
     const currentPatientRefreshPayload = buildCurrentPatientRefreshPayload();
     const fixedPatientValues = getFixedPatientValues(
@@ -4562,14 +4592,15 @@ function renderReportOutputs() {
       APP_STATE.pendingConsent.sessionExport || APP_STATE.reportOutputs.session_export || null
     );
     const historyMarkup = renderFhirHistorySection();
-    if (fixedPatientValues.identifier !== '尚未準備' || fixedPatientValues.resourceId !== '尚未建立' || latestFhirHistory || (fhirDeliveryResult?.delivery_status === 'delivered' && targetUrl && linkItems.length)) {
+    if (fixedPatientValues.identifier !== '尚未準備' || fixedPatientValues.resourceId !== '尚未建立' || latestFhirHistory || (fhirDeliveryResult?.delivery_status === 'delivered' && linkItems.length)) {
       const summaryLabel = linkItems.length
         ? `已建立 ${linkItems.length} 個 FHIR 資源`
         : '查看 FHIR 交付資訊';
-      const currentTimestamp = fhirDeliveryResult?.recorded_at || latestFhirHistory?.createdAt || '';
+      const currentTimestamp = fhirDeliveryResult?.recorded_at || latestDeliveryHistory?.createdAt || latestFhirHistory?.createdAt || '';
+      const shouldExpandLinks = linkItems.length > 0;
       fhirLinks.innerHTML = `
-        <div class="fhir-link-section">
-          <button class="fhir-link-toggle" type="button" onclick="toggleFhirResourceLinks(this)" aria-expanded="false">
+        <div class="fhir-link-section ${shouldExpandLinks ? 'expanded' : ''}">
+          <button class="fhir-link-toggle" type="button" onclick="toggleFhirResourceLinks(this)" aria-expanded="${shouldExpandLinks ? 'true' : 'false'}">
             <span class="fhir-link-toggle-copy">
               <span class="fhir-link-title">
                 <span class="mat-icon">link</span>
@@ -4592,7 +4623,7 @@ function renderReportOutputs() {
           </div>
           <div class="fhir-link-panel">
             ${targetUrl ? `<div class="fhir-link-target">FHIR Server：<a href="${escapeHtml(targetUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(targetUrl)}</a></div>` : ''}
-            ${fhirDeliveryResult?.delivery_status === 'delivered' && targetUrl && linkItems.length ? `
+            ${fhirDeliveryResult?.delivery_status === 'delivered' && linkItems.length ? `
             <div class="fhir-link-list">
               ${linkItems.map((item) => `
                 ${(() => {
