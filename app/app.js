@@ -35,6 +35,40 @@ const AUTH_USER_STORAGE_KEY = 'rourou.authUser.v1';
 const DOCTOR_WORKSPACE_STORAGE_KEY = 'rourou.doctorWorkspace.v1';
 const DOCTOR_ASSIGNMENT_STORAGE_KEY = 'rourou.doctorAssignments.v1';
 const DOCTOR_VISIBLE_PATIENT_SUMMARY_KEY = 'rourou.doctorVisiblePatientSummary.v1';
+
+function createMemoryStorageFallback() {
+  const store = new Map();
+  return {
+    getItem(key) {
+      return store.has(key) ? store.get(key) : null;
+    },
+    setItem(key, value) {
+      store.set(String(key), String(value));
+    },
+    removeItem(key) {
+      store.delete(String(key));
+    },
+    clear() {
+      store.clear();
+    }
+  };
+}
+
+function resolveSafeLocalStorage() {
+  try {
+    const storage = window.localStorage;
+    const probeKey = '__rourou_storage_probe__';
+    storage.setItem(probeKey, '1');
+    storage.removeItem(probeKey);
+    return storage;
+  } catch (error) {
+    console.warn('localStorage unavailable, using in-memory fallback:', error);
+    return createMemoryStorageFallback();
+  }
+}
+
+const localStorage = resolveSafeLocalStorage();
+
 const PINNED_SESSION_EXAMPLE_PROMPTS = [
   '我現在很亂，先用樹洞模式接住我，不要急著給建議。',
   '幫我把這段對話整理成「可給醫師看的重點」條列版。',
@@ -11531,51 +11565,60 @@ function injectRuntimeSettings() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  initializeRuntimeConfig();
-  updateAuthUI();
-  PatientProfile.wireForm();
-  restoreReportOutputsFromCache();
-  syncPhq9SessionState();
-  showScreen('screen-home');
-  wireHomeGuide();
-  wireHomeSessionControls();
-  updateModeLabels();
-  injectRuntimeSettings();
-  await loadServerRuntimeConfig();
-  await restoreAuthenticatedSession();
-  renderShortcutPager();
-  wireShortcutInteractions();
-  renderReportOutputs();
-  renderPhq9ReportSummary();
-  switchAutoAudience(APP_STATE.currentWeeklyAudience);
-  TherapeuticMemory.renderProfileUI();
-  PatientProfile.renderUI();
-  clearMicroInterventionCard();
-  closeMicroInterventionDetail();
-  wirePrivacyControls();
-  syncRealTimeLabels();
-  updateShortcutPagerState();
-  const userPromptArea = document.getElementById('settings-user-prompt');
-  if (userPromptArea) {
-    userPromptArea.value = APP_STATE.aiSettings.userPrompt;
+  try {
+    initializeRuntimeConfig();
+    updateAuthUI();
+    PatientProfile.wireForm();
+    restoreReportOutputsFromCache();
+    syncPhq9SessionState();
+    showScreen('screen-home');
+    wireHomeGuide();
+    wireHomeSessionControls();
+    updateModeLabels();
+    injectRuntimeSettings();
+    await loadServerRuntimeConfig();
+    await restoreAuthenticatedSession();
+    renderShortcutPager();
+    wireShortcutInteractions();
+    renderReportOutputs();
+    renderPhq9ReportSummary();
+    switchAutoAudience(APP_STATE.currentWeeklyAudience);
+    TherapeuticMemory.renderProfileUI();
+    PatientProfile.renderUI();
+    clearMicroInterventionCard();
+    closeMicroInterventionDetail();
+    wirePrivacyControls();
+    syncRealTimeLabels();
+    updateShortcutPagerState();
+    const userPromptArea = document.getElementById('settings-user-prompt');
+    if (userPromptArea) {
+      userPromptArea.value = APP_STATE.aiSettings.userPrompt;
+    }
+
+    // Keep time updated
+    setInterval(syncRealTimeLabels, 30000);
+    updateScrollSafeArea();
+
+    if (window.ResizeObserver) {
+      const resizeObserver = new ResizeObserver(() => updateScrollSafeArea());
+      document.querySelectorAll('.input-section, .bottom-nav, .top-bar').forEach((node) => {
+        resizeObserver.observe(node);
+      });
+    }
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateScrollSafeArea);
+    }
+
+    window.addEventListener('resize', updateScrollSafeArea);
+  } catch (error) {
+    console.error('App bootstrap failed:', error);
+    showScreen('screen-home');
+    const authStatus = document.getElementById('home-auth-status');
+    if (authStatus) {
+      authStatus.textContent = '系統初始化時發生錯誤，已切回可操作首頁。請重新整理一次，如果還是不行再登入。';
+    }
   }
-
-  // Keep time updated
-  setInterval(syncRealTimeLabels, 30000);
-  updateScrollSafeArea();
-
-  if (window.ResizeObserver) {
-    const resizeObserver = new ResizeObserver(() => updateScrollSafeArea());
-    document.querySelectorAll('.input-section, .bottom-nav, .top-bar').forEach((node) => {
-      resizeObserver.observe(node);
-    });
-  }
-
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', updateScrollSafeArea);
-  }
-
-  window.addEventListener('resize', updateScrollSafeArea);
 });
 
 window.showScreen = showScreen;
