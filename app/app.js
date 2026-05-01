@@ -21,6 +21,13 @@ function getReportCacheKey(conversationId) {
   const id = String(conversationId || '').trim();
   return id ? `${REPORT_OUTPUT_CACHE_PREFIX}${id}` : REPORT_OUTPUT_CACHE_KEY;
 }
+const FHIR_REPORT_HISTORY_KEY = 'rourou.fhirReportHistory'; // legacy
+const FHIR_REPORT_HISTORY_PREFIX = 'rourou.fhirReportHistory.';
+
+function getFhirHistoryCacheKey(conversationId) {
+  const id = String(conversationId || '').trim();
+  return id ? `${FHIR_REPORT_HISTORY_PREFIX}${id}` : FHIR_REPORT_HISTORY_KEY;
+}
 const PINNED_SESSION_STORAGE_KEY = 'rourou.pinnedSession.v1';
 const AUTH_TOKEN_STORAGE_KEY = 'rourou.authToken.v1';
 const AUTH_USER_STORAGE_KEY = 'rourou.authUser.v1';
@@ -43,7 +50,6 @@ const KNOW_YOU_MEMORY = window.KnowYouMemory || null;
 const KNOW_YOU_TOKEN_LIMIT = KNOW_YOU_MEMORY?.DEFAULT_CONTEXT_TOKEN_LIMIT || 3200;
 const KNOW_YOU_RECENT_HISTORY_ITEMS = KNOW_YOU_MEMORY?.DEFAULT_RECENT_HISTORY_ITEMS || 12;
 const KNOW_YOU_MEMORY_CHUNK_LIMIT = KNOW_YOU_MEMORY?.DEFAULT_MEMORY_CHUNK_LIMIT || 8;
-const FHIR_REPORT_HISTORY_KEY = 'rourou.fhirReportHistory';
 const PATIENT_PROFILE_STORAGE_KEY = 'rourou.patientProfile.v1';
 
 function loadStoredAuthState() {
@@ -1632,6 +1638,7 @@ const APP_STATE = {
   pendingSliderRating: null,
   currentReportTab: 'auto',
   currentWeeklyAudience: 'patient',
+  reportViewingConversationId: '',
   turnCount: 0,
   moodPoints: [100, 100, 100, 100, 100, 100, 100], 
   selectedMoodTags: [],
@@ -3556,17 +3563,40 @@ function findFhirResourceLink(deliveryResult, resourceType) {
   return buildFhirResourceLinks(deliveryResult).find((item) => item.label.startsWith(`${resourceType}/`)) || null;
 }
 
-function loadFhirReportHistory() {
+function loadFhirReportHistory(conversationId = '') {
+  const resolvedConversationId = String(
+    conversationId || (typeof APP_STATE !== 'undefined' ? APP_STATE.conversationId : '') || ''
+  ).trim();
   try {
-    const parsed = JSON.parse(localStorage.getItem(FHIR_REPORT_HISTORY_KEY) || '[]');
+    const key = getFhirHistoryCacheKey(resolvedConversationId);
+    let parsed = JSON.parse(localStorage.getItem(key) || 'null');
+    if (!parsed && resolvedConversationId) {
+      const legacy = JSON.parse(localStorage.getItem(FHIR_REPORT_HISTORY_KEY) || 'null');
+      if (Array.isArray(legacy)) {
+        parsed = legacy;
+        localStorage.setItem(key, JSON.stringify(parsed));
+      }
+    }
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
-function saveFhirReportHistory() {
-  localStorage.setItem(FHIR_REPORT_HISTORY_KEY, JSON.stringify(APP_STATE.fhirReportHistory || []));
+function saveFhirReportHistory(conversationId = '') {
+  const resolvedConversationId = String(
+    conversationId || (typeof APP_STATE !== 'undefined' ? APP_STATE.conversationId : '') || ''
+  ).trim();
+  const key = getFhirHistoryCacheKey(resolvedConversationId);
+  localStorage.setItem(key, JSON.stringify(APP_STATE.fhirReportHistory || []));
+}
+
+function syncFhirHistoryForConversation(conversationId = '') {
+  const resolvedConversationId = String(
+    conversationId || (typeof APP_STATE !== 'undefined' ? APP_STATE.conversationId : '') || ''
+  ).trim();
+  APP_STATE.fhirReportHistory = loadFhirReportHistory(resolvedConversationId);
+  APP_STATE.reportViewingConversationId = resolvedConversationId;
 }
 
 function buildFhirHistoryEntry({ type, draft = null, deliveryResult = null, sessionExport = null }) {
@@ -3589,6 +3619,7 @@ function buildFhirHistoryEntry({ type, draft = null, deliveryResult = null, sess
 
   return {
     id: `fhir-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    conversationId: String(sessionExport?.session?.encounterKey || sessionExport?.session?.id || APP_STATE.conversationId || '').trim(),
     type: entryType,
     createdAt: new Date().toISOString(),
     summary,
@@ -3825,7 +3856,7 @@ function renderFhirHistorySection() {
     <div class="fhir-history-section">
       <div class="fhir-history-title-row">
         <div class="fhir-history-title"><span class="mat-icon">history</span>FHIR 歷史記錄</div>
-        <div class="fhir-history-subtitle">草稿與交付結果都會保留時間，並可單筆刪除</div>
+        <div class="fhir-history-subtitle">只顯示目前這段對話的草稿與交付結果，並可單筆刪除</div>
       </div>
       <div class="fhir-history-list">
         ${history.map((item) => `
@@ -4048,6 +4079,7 @@ function getTherapeuticProfileItemCount(profile = {}) {
 }
 
 function renderReportOutputs() {
+  renderReportSessionPicker();
   const clinician = APP_STATE.reportOutputs.clinician_summary || {};
   const patientAnalysis = APP_STATE.reportOutputs.patient_analysis || {};
   const patientReview = APP_STATE.reportOutputs.patient_review || {};
@@ -5829,6 +5861,97 @@ function focusDoctorPendingTasks() {
   appendSystemNotice(pendingPatient ? '已切到第一位待處理病人。' : '目前沒有待處理病人。');
 }
 
+function buildReportSessionOptions() {
+  const options = [];
+  const seen = new Set();
+  const currentConversationId = String(APP_STATE.conversationId || '').trim();
+  const currentSessionExport = APP_STATE.reportOutputs?.session_export || {};
+  const recentSessions = Array.isArray(APP_STATE.recentSessions) ? APP_STATE.recentSessions : [];
+
+  const pushOption = (sessionId, label, meta = '') => {
+    const id = String(sessionId || '').trim();
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    options.push({ id, label, meta });
+  };
+
+  if (currentConversationId) {
+    const currentSummary = truncatePreview(pickReadableSessionText([
+      currentSessionExport?.latest_tag_payload?.summary,
+      currentSessionExport?.clinician_summary_draft?.draft_summary,
+      APP_STATE.chatHistory?.find?.((item) => item?.role === 'user')?.content
+    ], '目前對話'), 24);
+    pushOption(
+      currentConversationId,
+      '目前對話',
+      currentSummary
+    );
+  }
+
+  recentSessions.forEach((session) => {
+    pushOption(
+      session.id,
+      formatSessionTimestamp(session.updatedAt),
+      truncatePreview(pickReadableSessionText([
+        session.latest_tag_summary,
+        session.last_user_message,
+        session.last_assistant_message
+      ], '已保存的對話'), 28)
+    );
+  });
+
+  return options;
+}
+
+function renderReportSessionPicker() {
+  const select = document.getElementById('report-session-select');
+  const meta = document.getElementById('report-session-meta');
+  if (!select) return;
+
+  const options = buildReportSessionOptions();
+  const selectedId = String(APP_STATE.reportViewingConversationId || APP_STATE.conversationId || '').trim();
+
+  if (!options.length) {
+    select.innerHTML = '<option value="">目前還沒有可切換的對話報表</option>';
+    select.disabled = true;
+    if (meta) meta.textContent = '開始或儲存對話後，這裡就能切換不同對話的報表。';
+    return;
+  }
+
+  select.disabled = false;
+  select.innerHTML = options.map((item) => `
+    <option value="${escapeHtml(item.id)}" ${item.id === selectedId ? 'selected' : ''}>
+      ${escapeHtml(item.label)}
+    </option>
+  `).join('');
+
+  const active = options.find((item) => item.id === selectedId) || options[0];
+  if (active && select.value !== active.id) {
+    select.value = active.id;
+  }
+  if (meta) {
+    meta.textContent = active?.meta || '這個報表目前沒有額外摘要。';
+  }
+}
+
+async function switchReportConversation(conversationId = '') {
+  const targetId = String(conversationId || '').trim();
+  if (!targetId || targetId === String(APP_STATE.conversationId || '').trim()) {
+    APP_STATE.reportViewingConversationId = String(APP_STATE.conversationId || '').trim();
+    renderReportSessionPicker();
+    return;
+  }
+
+  try {
+    await restoreSession(targetId, { screenId: 'screen-report' });
+    APP_STATE.reportViewingConversationId = String(APP_STATE.conversationId || '').trim();
+    renderReportSessionPicker();
+  } catch (error) {
+    appendSystemNotice(error.message || '切換報表對話失敗。');
+    renderReportSessionPicker();
+  }
+}
+
 function showScreen(screenId) {
   if (isDoctorUser() && ['screen-chat', 'screen-phq9', 'screen-report', 'screen-energy'].includes(screenId)) {
     screenId = 'screen-doctor-dashboard';
@@ -5854,12 +5977,20 @@ function showScreen(screenId) {
   }
   
   if (screenId === 'screen-report') {
+    APP_STATE.reportViewingConversationId = String(APP_STATE.conversationId || '').trim();
     syncReportOutputsFromSessionExport(APP_STATE.reportOutputs.session_export);
     syncTherapeuticMemoryFromSessionExport(APP_STATE.reportOutputs.session_export);
+    syncFhirHistoryForConversation(APP_STATE.conversationId);
+    renderReportSessionPicker();
     renderReportOutputs();
     renderMoodChart();
     ensureReportFhirDraft();
     fetchCurrentPatientAssignment({ silent: true }).catch(() => {});
+    loadRecentSessions().then(() => {
+      renderReportSessionPicker();
+    }).catch(() => {
+      renderReportSessionPicker();
+    });
   }
 
   if (screenId === 'screen-phq9') {
@@ -8850,12 +8981,13 @@ async function navigateHome() {
   showScreen('screen-home');
 }
 
-function applySessionRecord(session = {}, fallbackSessionId = '') {
+function applySessionRecord(session = {}, fallbackSessionId = '', options = {}) {
   const normalizedSession = normalizeLocalSessionRecord({
     ...session,
     id: session.id || fallbackSessionId
   });
   APP_STATE.conversationId = normalizedSession.id || fallbackSessionId;
+  APP_STATE.reportViewingConversationId = APP_STATE.conversationId;
   APP_STATE.userId = normalizedSession.user || APP_STATE.userId;
   localStorage.setItem('rourou.userId', APP_STATE.userId);
   APP_STATE.runtimeMode = normalizedSession.state?.active_mode || '';
@@ -8868,11 +9000,16 @@ function applySessionRecord(session = {}, fallbackSessionId = '') {
   };
   APP_STATE.chatHistory = normalizeChatHistoryEntries(normalizedSession.history).filter((e) => !isEphemeralShortcutMessage(e)).slice(-24);
   APP_STATE.reportOutputs.session_export = buildSessionExportFromRecord(normalizedSession);
+  restoreReportOutputsForSession(APP_STATE.conversationId);
+  if (!APP_STATE.reportOutputs.session_export || !Object.keys(APP_STATE.reportOutputs.session_export).length) {
+    APP_STATE.reportOutputs.session_export = buildSessionExportFromRecord(normalizedSession);
+  }
   APP_STATE.reportFhirDraft = {
     isLoading: false,
     error: '',
     emptyReason: '正在依據這段對話重新整理 FHIR 草稿...'
   };
+  syncFhirHistoryForConversation(APP_STATE.conversationId);
   syncReportOutputsFromSessionExport(APP_STATE.reportOutputs.session_export);
   syncTherapeuticMemoryFromSessionExport(APP_STATE.reportOutputs.session_export);
   PHQ9Tracker.importFromSessionExport(APP_STATE.reportOutputs.session_export);
@@ -8881,7 +9018,7 @@ function applySessionRecord(session = {}, fallbackSessionId = '') {
   updateModeLabels();
   renderReportOutputs();
   saveReportOutputsToCache();
-  showScreen('screen-chat');
+  showScreen(options.screenId || 'screen-chat');
   refreshRestoredSessionOutputsIfNeeded(APP_STATE.reportOutputs.session_export).catch((error) => {
     console.warn('Unable to refresh restored session outputs:', error);
   });
@@ -8910,6 +9047,8 @@ function resetConversationState(options = {}) {
     error: '',
     emptyReason: ''
   };
+  APP_STATE.fhirReportHistory = [];
+  APP_STATE.reportViewingConversationId = '';
   APP_STATE.restoredSessionRefresh = {
     conversationId: '',
     inFlight: false
@@ -8952,6 +9091,8 @@ function finalizeConversationRequest(payload = {}) {
   APP_STATE.conversationId = payload.conversation_id || APP_STATE.conversationId;
   if (APP_STATE.conversationId) {
     APP_STATE.pendingFreshSession = false;
+    APP_STATE.reportViewingConversationId = APP_STATE.conversationId;
+    syncFhirHistoryForConversation(APP_STATE.conversationId);
   }
 }
 
@@ -9236,6 +9377,7 @@ async function loadRecentSessions() {
       : `<div class="home-session-empty">目前這台裝置還沒有已保存的對話。登入後可把之後的對話同步到你的帳號。</div>`;
   }
   syncPinnedSessionButtonState();
+  renderReportSessionPicker();
 }
 
 function renderChatHistory(history = []) {
@@ -9413,7 +9555,7 @@ async function syncLocalSessionRecordToServer(session = {}) {
   }
 }
 
-async function restoreSession(sessionId) {
+async function restoreSession(sessionId, options = {}) {
   const localSession = findLocalSessionArchiveById(sessionId);
   try {
     const response = await fetch(`/api/chat/session?id=${encodeURIComponent(sessionId)}`);
@@ -9429,16 +9571,16 @@ async function restoreSession(sessionId) {
       scoreSessionRecordForRestore(localSession) > scoreSessionRecordForRestore(serverSession)
     );
     if (shouldPreferLocal) {
-      applySessionRecord({ ...localSession, __restoreSource: 'local' }, sessionId);
+      applySessionRecord({ ...localSession, __restoreSource: 'local' }, sessionId, options);
       await syncLocalSessionRecordToServer(localSession);
       appendSystemNotice('已優先使用這台裝置上較完整的上一段對話。');
       return;
     }
-    applySessionRecord({ ...serverSession, __restoreSource: 'server' }, sessionId);
+    applySessionRecord({ ...serverSession, __restoreSource: 'server' }, sessionId, options);
     return;
   } catch (error) {
     if (localSession) {
-      applySessionRecord({ ...localSession, __restoreSource: 'local' }, sessionId);
+      applySessionRecord({ ...localSession, __restoreSource: 'local' }, sessionId, options);
       await syncLocalSessionRecordToServer(localSession);
       appendSystemNotice('目前改用這台裝置上的本機備份開啟這段對話。');
       return;
@@ -11356,6 +11498,7 @@ window.openDoctorAddPatientModal = openDoctorAddPatientModal;
 window.closeDoctorAddPatientModal = closeDoctorAddPatientModal;
 window.submitDoctorAddPatient = submitDoctorAddPatient;
 window.switchReportTab = switchReportTab;
+window.switchReportConversation = switchReportConversation;
 window.toggleMoodTag = toggleMoodTag;
 window.setPHQ = setPHQ;
 window.handleInput = handleInput;

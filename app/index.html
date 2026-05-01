@@ -502,6 +502,22 @@
     <main class="page-scroll" style="padding-top:80px">
       <section class="section">
         <h2 class="display-greeting">你好，曉明</h2>
+        <div class="report-session-switcher">
+          <div class="report-session-switcher-top">
+            <div>
+              <div class="section-label">REPORT SESSION</div>
+              <h3 class="section-heading">選擇要看的對話報表</h3>
+            </div>
+            <span class="report-session-badge">依對話分開</span>
+          </div>
+          <div class="report-session-select-wrap">
+            <span class="mat-icon">forum</span>
+            <select id="report-session-select" class="report-session-select" onchange="switchReportConversation(this.value)">
+              <option value="">目前還沒有可切換的對話報表</option>
+            </select>
+          </div>
+          <p id="report-session-meta" class="greeting-sub report-session-meta">開始或儲存對話後，這裡就能切換不同對話的報表。</p>
+        </div>
         
         <!-- Tab Switcher -->
         <div class="report-tabs glass">

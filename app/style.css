@@ -4293,6 +4293,64 @@ body {
   margin: 16px 0 24px;
 }
 
+.report-session-switcher {
+  margin-top: 16px;
+  padding: 18px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.96), rgba(230, 240, 236, 0.9));
+  box-shadow: var(--shadow-card);
+  border: 1px solid rgba(68, 102, 85, 0.12);
+}
+
+.report-session-switcher-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.report-session-badge {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(68, 102, 85, 0.12);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.report-session-select-wrap {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid rgba(113, 124, 131, 0.18);
+}
+
+.report-session-select-wrap .mat-icon {
+  color: var(--primary);
+}
+
+.report-session-select {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--on-surface);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.report-session-select:disabled {
+  color: var(--outline);
+}
+
+.report-session-meta {
+  margin-top: 12px;
+}
+
 .report-tab {
   flex: 1;
   display: flex;
