@@ -1426,43 +1426,6 @@ input, textarea {
   color: var(--primary);
 }
 
-/* Wave chart */
-.wave-chart {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 8px;
-  background: var(--surface-container-lowest);
-  border-radius: 24px;
-  padding: 24px;
-  box-shadow: var(--shadow-soft);
-  height: 160px;
-  margin-bottom: 32px;
-}
-
-.wave-bar {
-  flex: 1;
-  background: var(--secondary-container);
-  border-radius: 999px;
-  min-height: 20%;
-  transition: height 0.8s var(--ease-natural);
-  animation: wave-grow 1s var(--ease-natural) forwards;
-  opacity: 0;
-}
-
-@keyframes wave-grow {
-  from { opacity: 0; transform: scaleY(0); }
-  to { opacity: 1; transform: scaleY(1); }
-}
-
-.wave-bar:nth-child(1) { animation-delay: 0.1s; }
-.wave-bar:nth-child(2) { animation-delay: 0.2s; }
-.wave-bar:nth-child(3) { animation-delay: 0.3s; }
-.wave-bar:nth-child(4) { animation-delay: 0.4s; }
-.wave-bar:nth-child(5) { animation-delay: 0.5s; }
-.wave-bar:nth-child(6) { animation-delay: 0.6s; }
-.wave-bar:nth-child(7) { animation-delay: 0.7s; }
-
 /* Insight list */
 .insight-list {
   display: flex;
@@ -2376,7 +2339,6 @@ input, textarea {
 .page.active .mode-grid-2col { animation: fadeInUp 0.5s var(--ease-natural) 0.5s both; }
 
 .page.active .hamd-card { animation: fadeInUp 0.6s var(--ease-natural) 0.15s both; }
-.page.active .wave-chart { animation: fadeInUp 0.6s var(--ease-natural) 0.25s both; }
 .page.active .insight-list { animation: fadeInUp 0.6s var(--ease-natural) 0.35s both; }
 
 .page.active .alert-card { animation: fadeInUp 0.5s var(--ease-natural) 0.1s both; }

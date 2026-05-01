@@ -4066,7 +4066,6 @@ function renderReportOutputs() {
   const heading = document.getElementById('report-hamd-heading');
   const score = document.getElementById('report-hamd-score');
   const desc = document.getElementById('report-hamd-desc');
-  const trend = document.getElementById('report-trend-label');
   const ring = document.getElementById('report-hamd-progress-ring');
   const hamdDetailPanel = document.getElementById('report-hamd-detail-panel');
   const hamdDetailToggle = document.getElementById('report-hamd-detail-toggle');
@@ -4108,7 +4107,6 @@ function renderReportOutputs() {
       : `${hamd.progressPercent}%`;
   }
   if (desc) desc.textContent = hamd.progressLabel;
-  if (trend) trend.textContent = hamd.trend;
   if (ring) {
     const circumference = 440;
     const progress = Math.max(0, Math.min(100, hamd.progressPercent));
