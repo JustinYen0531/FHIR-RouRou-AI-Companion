@@ -3455,6 +3455,14 @@ body {
   border: 1px solid rgba(168, 180, 187, 0.12);
 }
 
+.doctor-fhir-delivery-block {
+  background: rgba(238, 244, 249, 0.86);
+}
+
+.doctor-fhir-link-list {
+  margin-top: 10px;
+}
+
 .doctor-self-report-title {
   color: var(--on-surface-variant);
   font-size: 12px;
@@ -3556,6 +3564,10 @@ body {
 @media (min-width: 720px) {
   .doctor-self-report-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .doctor-fhir-delivery-block {
+    grid-column: 1 / -1;
   }
 }
 

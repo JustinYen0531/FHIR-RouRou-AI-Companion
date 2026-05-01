@@ -51,6 +51,45 @@ function normalizeOrderDraft(order = {}) {
   };
 }
 
+function normalizeFhirDeliveryResult(delivery = null) {
+  if (!delivery || typeof delivery !== 'object') return null;
+  const createdResources = delivery.created_resources && typeof delivery.created_resources === 'object'
+    ? Object.fromEntries(Object.entries(delivery.created_resources)
+        .map(([key, value]) => [String(key || '').trim(), String(value || '').trim()])
+        .filter(([key, value]) => key && value))
+    : {};
+  const links = Array.isArray(delivery.fhir_resource_links)
+    ? delivery.fhir_resource_links.map((item) => ({
+        resourceType: String(item?.resourceType || item?.resource_type || '').trim(),
+        label: String(item?.label || '').trim(),
+        path: String(item?.path || '').trim(),
+        url: String(item?.url || '').trim()
+      })).filter((item) => item.path || item.url)
+    : [];
+  const validation = delivery.validation_report && typeof delivery.validation_report === 'object'
+    ? {
+        valid: Boolean(delivery.validation_report.valid),
+        issue_count: Number(delivery.validation_report.issue_count || 0),
+        errors: Number(delivery.validation_report.errors || 0),
+        warnings: Number(delivery.validation_report.warnings || 0)
+      }
+    : null;
+
+  if (!Object.keys(createdResources).length && !links.length && !delivery.delivery_status && !delivery.fhir_base_url) {
+    return null;
+  }
+
+  return {
+    delivery_status: String(delivery.delivery_status || delivery.status || 'delivered').trim() || 'delivered',
+    fhir_base_url: String(delivery.fhir_base_url || delivery.baseUrl || delivery.base_url || '').trim().replace(/\/+$/, ''),
+    recorded_at: String(delivery.recorded_at || delivery.recordedAt || delivery.createdAt || '').trim(),
+    source_label: String(delivery.source_label || delivery.sourceLabel || '由病人端生成並授權送出').trim(),
+    created_resources: createdResources,
+    fhir_resource_links: links,
+    validation_report: validation
+  };
+}
+
 function normalizeAssignmentRecord(record = {}) {
   const patientId = String(record.patientId || '').trim();
   if (!patientId) return null;
@@ -64,6 +103,7 @@ function normalizeAssignmentRecord(record = {}) {
     orderStatus: String(record.orderStatus || '未填寫').trim() || '未填寫',
     medicalRecord: normalizeMedicalRecord(record.medicalRecord),
     orderDraft: normalizeOrderDraft(record.orderDraft),
+    patientGeneratedFhirDelivery: normalizeFhirDeliveryResult(record.patientGeneratedFhirDelivery || record.fhirDeliveryResult || record.fhir_delivery_result),
     syncedAt: String(record.syncedAt || '').trim() || new Date().toISOString()
   };
 }
@@ -139,5 +179,6 @@ module.exports = {
   createAssignmentPersistence,
   loadAssignmentsFromFile,
   saveAssignmentsToFile,
+  normalizeFhirDeliveryResult,
   normalizeAssignmentRecord
 };

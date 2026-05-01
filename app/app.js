@@ -47,6 +47,7 @@ const DEMO_AUTH_PRESETS = {
 const DOCTOR_WORKSPACE_STORAGE_KEY = 'rourou.doctorWorkspace.v1';
 const DOCTOR_ASSIGNMENT_STORAGE_KEY = 'rourou.doctorAssignments.v1';
 const DOCTOR_VISIBLE_PATIENT_SUMMARY_KEY = 'rourou.doctorVisiblePatientSummary.v1';
+const COMPETITION_SHOWCASE_PATIENT_ID = 'competition-showcase-user';
 
 function createMemoryStorageFallback() {
   const store = new Map();
@@ -1005,8 +1006,102 @@ ${recentAssessments.length ? `近期趨勢：${recentAssessments.join(' → ')}`
   }
 };
 
+function createCompetitionShowcaseFhirDeliveryResult() {
+  return {
+    delivery_status: 'delivered',
+    fhir_base_url: 'https://hapi.fhir.org/baseR4',
+    recorded_at: '2026-05-01T15:20:00+08:00',
+    source_label: '由病人端生成並授權送出',
+    created_resources: {
+      Patient: 'Patient/131998314',
+      Encounter: 'Encounter/131998315',
+      QuestionnaireResponse: 'QuestionnaireResponse/131998316',
+      Observation: 'Observation/131998317',
+      ClinicalImpression: 'ClinicalImpression/131998321',
+      Composition: 'Composition/131998322',
+      DocumentReference: 'DocumentReference/131998323',
+      Provenance: 'Provenance/131998324'
+    },
+    validation_report: {
+      valid: true,
+      issue_count: 0,
+      errors: 0,
+      warnings: 0
+    }
+  };
+}
+
+function createCompetitionShowcaseDoctorPatient() {
+  return {
+    id: COMPETITION_SHOWCASE_PATIENT_ID,
+    patientNumber: 'FHIR-DEMO-2320',
+    name: '閻星澄',
+    loginIdentifier: 'competition-showcase-user',
+    source: 'patient_generated_showcase',
+    latestAiRecordAt: '2026-05-01 23:20',
+    aiSummaryStatus: '已整理',
+    medicalRecordStatus: '已送入',
+    orderStatus: '未填寫',
+    riskLevel: '高',
+    aiSummary: '病人端已完成對話整理、病人自我分析、PHQ-9 / HAM-D 線索、FHIR 草稿與正式交付。重點包含急性壓力、安全風險、求助意願與回診前可用的臨床摘要。',
+    lastVisitNote: '這筆是病人端生成並授權交付的 FHIR 成果，醫師端可直接查看 HAPI FHIR 伺服器上的資源連結。',
+    orderDraft: createEmptyDoctorOrder(),
+    patientGeneratedFhirDelivery: createCompetitionShowcaseFhirDeliveryResult(),
+    medicalRecord: {
+      patient: {
+        name: '閻星澄',
+        identifier: 'competition-showcase-user',
+        gender: 'unknown',
+        birthDate: ''
+      },
+      encounter: {
+        type: 'AI companion pre-visit summary',
+        periodStart: '2026-05-01 23:20',
+        status: 'finished'
+      },
+      observations: [
+        { code: 'PHQ-9', display: 'PHQ-9 憂鬱量表', value: '病人端已完成', interpretation: '需醫師複核' },
+        { code: 'HAM-D', display: 'HAM-D 線索整理', value: '高風險訊號已標記', interpretation: '需安全評估' }
+      ],
+      questionnaire: {
+        title: '病人端自評與對話摘要',
+        status: 'completed',
+        items: []
+      },
+      composition: {
+        title: '病人生成 FHIR 交付摘要',
+        chiefComplaint: '急性情緒困擾與安全風險表達',
+        symptomSummary: '對話中整理出低落、焦慮、睡眠與安全風險線索，並產生可供醫師回診前閱讀的摘要。',
+        riskAlert: '曾出現明確安全風險語句，需優先確認目前安全狀態。',
+        followupSuggestion: '醫師端先檢視病人生成的 FHIR 資源，再進行風險評估與照護計畫。'
+      },
+      documents: [
+        { type: 'FHIR DocumentReference', filename: 'Patient generated FHIR delivery bundle' }
+      ],
+      conditions: [],
+      medications: [],
+      provenance: {
+        sourceType: 'patient_confirmed',
+        recorded: '2026-05-01 23:20',
+        activity: '病人端生成並授權送出 FHIR 交付',
+        agent: 'AI Companion'
+      },
+      updatedAt: '2026-05-01 23:20'
+    },
+    aiSessionData: {
+      chief_concerns: ['急性情緒困擾', '安全風險表達', '希望醫師能先看到完整交付資料'],
+      symptom_observations: ['情緒低落', '焦慮升高', '睡眠與功能受影響'],
+      followup_needs: ['優先安全評估', '確認目前位置與支持系統', '回診前檢視 FHIR 交付內容'],
+      safety_flags: ['曾表達自傷風險', '需要醫師端快速接手'],
+      hamd_signals: ['depressed_mood', 'suicide', 'insomnia', 'anxiety_psychic'],
+      red_flag_signals: ['急性安全風險語句', '需即時照護銜接']
+    }
+  };
+}
+
 function createDefaultDoctorPatients() {
   return [
+    createCompetitionShowcaseDoctorPatient(),
     {
       id: 'patient-demo-001',
       patientNumber: 'P-2026-001',
@@ -1251,16 +1346,29 @@ function normalizeDoctorPatient(patient = {}) {
     orderDraft: normalizedOrder,
     medicalRecord: normalizeMedicalRecord(patient.medicalRecord),
     aiSessionData: (patient.aiSessionData && typeof patient.aiSessionData === 'object') ? patient.aiSessionData : null,
-    fhirFieldOverrides: (patient.fhirFieldOverrides && typeof patient.fhirFieldOverrides === 'object') ? patient.fhirFieldOverrides : {}
+    fhirFieldOverrides: (patient.fhirFieldOverrides && typeof patient.fhirFieldOverrides === 'object') ? patient.fhirFieldOverrides : {},
+    patientGeneratedFhirDelivery: normalizePatientGeneratedFhirDelivery(patient.patientGeneratedFhirDelivery || patient.fhirDeliveryResult || patient.fhir_delivery_result)
   };
 }
 
 function normalizeDoctorWorkspace(workspace = {}) {
   const fallbackPatients = createDefaultDoctorPatients();
-  const patients = Array.isArray(workspace.patients) && workspace.patients.length
+  const hadPersistedPatients = Array.isArray(workspace.patients) && workspace.patients.length;
+  const patients = hadPersistedPatients
     ? workspace.patients.map(normalizeDoctorPatient)
     : fallbackPatients.map(normalizeDoctorPatient);
-  const selectedPatientId = patients.some((patient) => patient.id === workspace.selectedPatientId)
+  const showcasePatient = normalizeDoctorPatient(createCompetitionShowcaseDoctorPatient());
+  const showcaseIndex = patients.findIndex((patient) => patient.id === showcasePatient.id);
+  if (showcaseIndex === -1) {
+    patients.unshift(showcasePatient);
+  } else {
+    patients[showcaseIndex] = Object.assign({}, showcasePatient, patients[showcaseIndex], {
+      patientGeneratedFhirDelivery: patients[showcaseIndex].patientGeneratedFhirDelivery || showcasePatient.patientGeneratedFhirDelivery
+    });
+  }
+  const selectedPatientId = patients.some((patient) => patient.id === COMPETITION_SHOWCASE_PATIENT_ID)
+    ? COMPETITION_SHOWCASE_PATIENT_ID
+    : patients.some((patient) => patient.id === workspace.selectedPatientId)
     ? workspace.selectedPatientId
     : patients[0]?.id || '';
   return {
@@ -1305,6 +1413,7 @@ function buildDoctorAssignmentPayload(patient = null) {
     orderStatus: deriveDoctorOrderStatus(normalizedOrder),
     medicalRecord: normalizeMedicalRecord(patient.medicalRecord),
     orderDraft: normalizedOrder,
+    patientGeneratedFhirDelivery: normalizePatientGeneratedFhirDelivery(patient.patientGeneratedFhirDelivery),
     syncedAt: new Date().toISOString()
   };
 }
@@ -1528,9 +1637,76 @@ function formatDoctorSummaryTime(value = '') {
   return new Date(value).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+function normalizePatientGeneratedFhirDelivery(delivery = null) {
+  if (!delivery || typeof delivery !== 'object') return null;
+  const createdResources = delivery.created_resources && typeof delivery.created_resources === 'object'
+    ? Object.fromEntries(Object.entries(delivery.created_resources)
+        .map(([key, value]) => [String(key || '').trim(), String(value || '').trim()])
+        .filter(([key, value]) => key && value))
+    : {};
+  const explicitLinks = Array.isArray(delivery.fhir_resource_links)
+    ? delivery.fhir_resource_links.map((item) => ({
+        resourceType: String(item?.resourceType || item?.resource_type || '').trim(),
+        label: String(item?.label || '').trim(),
+        path: String(item?.path || '').trim(),
+        url: String(item?.url || '').trim()
+      })).filter((item) => item.path || item.url)
+    : [];
+  const validation = delivery.validation_report && typeof delivery.validation_report === 'object'
+    ? {
+        valid: Boolean(delivery.validation_report.valid),
+        issue_count: Number(delivery.validation_report.issue_count || 0),
+        errors: Number(delivery.validation_report.errors || 0),
+        warnings: Number(delivery.validation_report.warnings || 0)
+      }
+    : null;
+
+  return {
+    delivery_status: String(delivery.delivery_status || delivery.status || 'delivered').trim() || 'delivered',
+    fhir_base_url: normalizeFhirBaseUrl(delivery.fhir_base_url || delivery.baseUrl || delivery.base_url || ''),
+    recorded_at: String(delivery.recorded_at || delivery.recordedAt || delivery.createdAt || '').trim(),
+    source_label: String(delivery.source_label || delivery.sourceLabel || '由病人端生成並授權送出').trim(),
+    created_resources: createdResources,
+    fhir_resource_links: explicitLinks,
+    validation_report: validation
+  };
+}
+
+function renderPatientGeneratedFhirDelivery(delivery = null) {
+  const normalized = normalizePatientGeneratedFhirDelivery(delivery);
+  if (!normalized) return '';
+  const links = buildFhirResourceLinks(normalized);
+  const targetUrl = resolveFhirDeliveryBaseUrl(normalized);
+  const validation = normalized.validation_report;
+  const recordedLabel = normalized.recorded_at ? formatDoctorSummaryTime(normalized.recorded_at) : '尚未標記時間';
+  return `
+    <section class="doctor-self-report-block doctor-fhir-delivery-block">
+      <div class="doctor-self-report-title">病人生成的 FHIR 交付</div>
+      <div class="doctor-self-report-main">${escapeHtml(links.length ? String(links.length) : '已送出')}<span>${links.length ? ' resources' : ''}</span></div>
+      <div class="doctor-self-report-meta">${escapeHtml(normalized.source_label)} ・ ${escapeHtml(recordedLabel)}</div>
+      ${targetUrl ? `<div class="doctor-self-report-preview">FHIR Server：<a href="${escapeHtml(targetUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(targetUrl)}</a></div>` : ''}
+      ${validation ? `<div class="doctor-self-report-preview">驗證：${validation.valid ? '通過' : '需檢查'}，錯誤 ${escapeHtml(String(validation.errors))}，警告 ${escapeHtml(String(validation.warnings))}</div>` : ''}
+      ${links.length ? `
+        <div class="fhir-link-list doctor-fhir-link-list">
+          ${links.map((item) => `
+            <div class="fhir-link-item">
+              <span class="mat-icon" style="font-size:16px;color:var(--primary)">open_in_new</span>
+              <div class="fhir-link-copy">
+                <div class="fhir-link-label">${escapeHtml(item.label)}</div>
+                <div class="fhir-link-path"><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.path)}</a></div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : '<div class="doctor-self-report-empty">已記錄交付狀態，但目前沒有可開啟的資源連結。</div>'}
+    </section>
+  `;
+}
+
 function renderDoctorVisiblePatientSummary(patient = {}) {
   const summary = getDoctorVisiblePatientSummary(patient.id);
-  if (!summary) {
+  const patientGeneratedFhirDelivery = patient.patientGeneratedFhirDelivery || summary?.fhirDelivery || summary?.patientGeneratedFhirDelivery || null;
+  if (!summary && !patientGeneratedFhirDelivery) {
     return `
       <div class="doctor-self-report-card">
         <div class="doctor-summary-label">病人自評與安全摘要</div>
@@ -1538,10 +1714,10 @@ function renderDoctorVisiblePatientSummary(patient = {}) {
       </div>
     `;
   }
-  const mood = summary.mood || null;
-  const phq9 = summary.phq9 || null;
-  const hamd = summary.hamd || null;
-  const safetyEvents = Array.isArray(summary.safetyEvents) ? summary.safetyEvents : [];
+  const mood = summary?.mood || null;
+  const phq9 = summary?.phq9 || null;
+  const hamd = summary?.hamd || null;
+  const safetyEvents = Array.isArray(summary?.safetyEvents) ? summary.safetyEvents : [];
   return `
     <div class="doctor-self-report-card">
       <div class="doctor-summary-label">病人自評與安全摘要</div>
@@ -1611,8 +1787,9 @@ function renderDoctorVisiblePatientSummary(patient = {}) {
             </div>
           `).join('') : '<div class="doctor-self-report-empty">尚未進入安全模式。</div>'}
         </section>
+        ${renderPatientGeneratedFhirDelivery(patientGeneratedFhirDelivery)}
       </div>
-      <div class="doctor-self-report-note">僅顯示病人自評、PHQ-9 與安全模式時間；聊天內容不會在醫師端顯示。</div>
+      <div class="doctor-self-report-note">僅顯示病人自評、PHQ-9、安全模式與病人授權生成的 FHIR 交付；聊天原文不會在醫師端顯示。</div>
     </div>
   `;
 }
@@ -11383,6 +11560,9 @@ async function authorizeAndSendReport() {
     APP_STATE.pendingConsent.deliveryResult = payload;
     APP_STATE.reportOutputs.fhir_delivery_result = payload;
     APP_STATE.reportOutputs.updatedAt = formatTimeLabel(new Date());
+    publishDoctorVisiblePatientSummary({
+      fhirDelivery: normalizePatientGeneratedFhirDelivery(payload)
+    });
     saveReportOutputsToCache();
     recordFhirDeliveryHistory(
       payload,
