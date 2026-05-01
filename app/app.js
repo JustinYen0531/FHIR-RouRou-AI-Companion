@@ -32,6 +32,18 @@ function getFhirHistoryCacheKey(conversationId) {
 const PINNED_SESSION_STORAGE_KEY = 'rourou.pinnedSession.v1';
 const AUTH_TOKEN_STORAGE_KEY = 'rourou.authToken.v1';
 const AUTH_USER_STORAGE_KEY = 'rourou.authUser.v1';
+const DEMO_AUTH_PRESETS = {
+  patient: {
+    displayName: '星澄',
+    loginIdentifier: 'Justin',
+    password: '3553'
+  },
+  doctor: {
+    displayName: '星澄',
+    loginIdentifier: 'Dr. Justin',
+    password: '3553'
+  }
+};
 const DOCTOR_WORKSPACE_STORAGE_KEY = 'rourou.doctorWorkspace.v1';
 const DOCTOR_ASSIGNMENT_STORAGE_KEY = 'rourou.doctorAssignments.v1';
 const DOCTOR_VISIBLE_PATIENT_SUMMARY_KEY = 'rourou.doctorVisiblePatientSummary.v1';
@@ -1751,6 +1763,32 @@ function getAuthRoleLabel(role = '') {
   return role === 'doctor' ? '醫師' : '病人';
 }
 
+function getDemoAuthPreset(role = 'patient') {
+  return role === 'doctor' ? DEMO_AUTH_PRESETS.doctor : DEMO_AUTH_PRESETS.patient;
+}
+
+function syncDemoAuthHints() {
+  const role = APP_STATE.authForm.role === 'doctor' ? 'doctor' : 'patient';
+  const preset = getDemoAuthPreset(role);
+  const displayNameInput = document.getElementById('auth-display-name');
+  const loginInput = document.getElementById('auth-login-identifier');
+  const passwordInput = document.getElementById('auth-password');
+  const status = document.getElementById('home-auth-status');
+
+  if (displayNameInput) {
+    displayNameInput.placeholder = `顯示名稱：${preset.displayName}`;
+  }
+  if (loginInput) {
+    loginInput.placeholder = `帳號：${preset.loginIdentifier}`;
+  }
+  if (passwordInput) {
+    passwordInput.placeholder = `密碼：${preset.password}`;
+  }
+  if (status && !isAuthenticated()) {
+    status.textContent = `${getAuthRoleLabel(role)} Demo：顯示名稱 ${preset.displayName} ｜ 帳號 ${preset.loginIdentifier} ｜ 密碼 ${preset.password}`;
+  }
+}
+
 function getCurrentAuthUser() {
   return APP_STATE.auth?.user || null;
 }
@@ -1821,6 +1859,7 @@ function updateAuthUI() {
   authRoleButtons.forEach((button) => {
     button.classList.toggle('active', button.dataset.authRole === APP_STATE.authForm.role);
   });
+  syncDemoAuthHints();
 
   if (homeHeadline) {
     homeHeadline.textContent = isLoggedIn
@@ -1906,6 +1945,7 @@ function openAuthModal(force = false) {
   const overlay = document.getElementById('auth-modal-overlay');
   if (!overlay) return;
   if (isAuthenticated() && !force) return;
+  syncDemoAuthHints();
   overlay.classList.add('active');
   overlay.setAttribute('aria-hidden', 'false');
 }
@@ -2032,7 +2072,7 @@ async function restoreAuthenticatedSession() {
   const token = String(APP_STATE.auth?.token || '').trim();
   if (!token) {
     updateAuthUI();
-    hideAuthModal();
+    openAuthModal(true);
     return;
   }
 
