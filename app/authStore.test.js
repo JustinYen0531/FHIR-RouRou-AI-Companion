@@ -58,13 +58,13 @@ function testStableUserIdSurvivesRecreatedStore() {
   const first = firstStore.registerUser({
     role: 'patient',
     display_name: '星澄',
-    login_identifier: 'Justin',
+    login_identifier: 'patient_demo_seed',
     password: 'pass1234'
   });
   const second = secondStore.registerUser({
     role: 'patient',
     display_name: '星澄',
-    login_identifier: 'justin',
+    login_identifier: 'PATIENT_DEMO_SEED',
     password: 'pass1234'
   });
 
@@ -114,12 +114,12 @@ function testLoginSeesUsersRegisteredByAnotherStoreInstance() {
   const user = registerStore.registerUser({
     role: 'patient',
     display_name: '星澄',
-    login_identifier: 'Justin',
+    login_identifier: 'patient_sync_demo',
     password: 'pass1234'
   });
 
   const login = loginStore.login({
-    login_identifier: 'justin',
+    login_identifier: 'PATIENT_SYNC_DEMO',
     password: 'pass1234'
   });
 
@@ -147,6 +147,23 @@ function testPortableTokenRestoresUserAcrossStoreInstances() {
   assert.strictEqual(restored.user.login_identifier, 'doctor_wang');
 }
 
+function testBuiltInDemoAccountsAreAvailable() {
+  const store = createAuthStore({ filePath: createTempStorePath() });
+  const patientLogin = store.login({
+    login_identifier: 'Justin',
+    password: '3553'
+  });
+  const doctorLogin = store.login({
+    login_identifier: 'Dr. Justin',
+    password: '3553'
+  });
+
+  assert.strictEqual(patientLogin.user.role, 'patient');
+  assert.strictEqual(patientLogin.user.display_name, '星澄');
+  assert.strictEqual(doctorLogin.user.role, 'doctor');
+  assert.strictEqual(doctorLogin.user.display_name, '星澄');
+}
+
 function run() {
   testRegisterAndLogin();
   testRejectDuplicateLoginIdentifier();
@@ -155,6 +172,7 @@ function run() {
   testFindUserByIdReturnsSafeUser();
   testLoginSeesUsersRegisteredByAnotherStoreInstance();
   testPortableTokenRestoresUserAcrossStoreInstances();
+  testBuiltInDemoAccountsAreAvailable();
   console.log('Auth store tests passed.');
 }
 

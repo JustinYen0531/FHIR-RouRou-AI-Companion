@@ -696,8 +696,8 @@ async function testAuthLoginCreatesUnknownAccount() {
     headers: { 'Content-Type': 'application/json' },
     body: {
       role: 'doctor',
-      display_name: 'Justin',
-      login_identifier: 'Justin',
+      display_name: 'New Demo Doctor',
+      login_identifier: 'doctor_new_demo',
       password: '1234'
     }
   });
@@ -706,7 +706,7 @@ async function testAuthLoginCreatesUnknownAccount() {
   assert.strictEqual(login.statusCode, 201);
   assert.strictEqual(login.body.created, true);
   assert.ok(login.body.token);
-  assert.strictEqual(login.body.user.login_identifier, 'justin');
+  assert.strictEqual(login.body.user.login_identifier, 'doctor_new_demo');
 }
 
 async function testDoctorCanAddPatientIdWithoutSharedUserCache() {
@@ -746,8 +746,8 @@ async function testDoctorAssignmentVisibleToPatient() {
     headers: { 'Content-Type': 'application/json' },
     body: {
       role: 'patient',
-      display_name: 'Justin',
-      login_identifier: 'justin',
+      display_name: 'Demo Patient',
+      login_identifier: 'patient_assignment_demo',
       password: 'pass1234'
     }
   });

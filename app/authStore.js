@@ -13,6 +13,20 @@ const PASSWORD_ITERATIONS = 120000;
 const PASSWORD_KEYLEN = 64;
 const PASSWORD_DIGEST = 'sha512';
 const AUTH_TOKEN_SECRET = process.env.AI_COMPANION_AUTH_TOKEN_SECRET || 'rourou-demo-auth-token-secret-v1';
+const DEFAULT_DEMO_USERS = [
+  {
+    role: 'patient',
+    display_name: '星澄',
+    login_identifier: 'Justin',
+    password: '3553'
+  },
+  {
+    role: 'doctor',
+    display_name: '星澄',
+    login_identifier: 'Dr. Justin',
+    password: '3553'
+  }
+];
 
 function createAuthError(message, code) {
   const error = new Error(message);
@@ -211,11 +225,39 @@ function createAuthStore(options = {}) {
   const revokedTokenHashes = new Set();
   let persistenceAvailable = true;
 
+  function ensureDefaultDemoUsers() {
+    let changed = false;
+
+    for (const demoUser of DEFAULT_DEMO_USERS) {
+      const loginIdentifier = normalizeLoginIdentifier(demoUser.login_identifier);
+      const exists = state.users.some((item) => item.login_identifier === loginIdentifier);
+      if (exists) continue;
+
+      const timestamp = new Date().toISOString();
+      state.users.push({
+        id: generateStableUserId(demoUser.role, loginIdentifier),
+        role: demoUser.role,
+        display_name: normalizeDisplayName(demoUser.display_name, loginIdentifier),
+        login_identifier: loginIdentifier,
+        password_hash: createPasswordHash(demoUser.password),
+        status: 'active',
+        created_at: timestamp,
+        updated_at: timestamp
+      });
+      changed = true;
+    }
+
+    if (changed) {
+      persist();
+    }
+  }
+
   function refreshFromDisk() {
     if (!persistenceAvailable) return;
     const latest = loadAuthData(filePath);
     state.users = latest.users;
     state.sessions = latest.sessions;
+    ensureDefaultDemoUsers();
   }
 
   function persist() {
