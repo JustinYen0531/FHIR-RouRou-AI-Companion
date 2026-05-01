@@ -289,14 +289,21 @@ async function readFetchResponse(fetchResponse) {
 
 async function sendFhirTransactionAttempt(fetchImpl, fhirBaseUrl, bundleJson) {
   const normalizedBaseUrl = normalizeFhirTarget(fhirBaseUrl);
+  // 45s timeout：讓 Vercel function 在 60s 限制內能優雅超時走 fallback，不被強制 kill 回 502
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeoutId = controller
+    ? setTimeout(() => controller.abort(), 45000)
+    : null;
   try {
     const transactionResponse = await fetchImpl(normalizedBaseUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/fhir+json'
       },
-      body: JSON.stringify(bundleJson)
+      body: JSON.stringify(bundleJson),
+      signal: controller ? controller.signal : undefined
     });
+    if (timeoutId) clearTimeout(timeoutId);
     const parsed = await readFetchResponse(transactionResponse);
     return {
       fhirBaseUrl: normalizedBaseUrl,
@@ -306,12 +313,16 @@ async function sendFhirTransactionAttempt(fetchImpl, fhirBaseUrl, bundleJson) {
       error: ''
     };
   } catch (error) {
+    if (timeoutId) clearTimeout(timeoutId);
+    const isTimeout = error.name === 'AbortError';
     return {
       fhirBaseUrl: normalizedBaseUrl,
-      status: 0,
+      status: isTimeout ? 504 : 0,
       ok: false,
       body: null,
-      error: error.message || 'FHIR transaction request failed.'
+      error: isTimeout
+        ? `FHIR server timeout (45s): ${normalizedBaseUrl} did not respond in time. Trying fallback...`
+        : (error.message || 'FHIR transaction request failed.')
     };
   }
 }
