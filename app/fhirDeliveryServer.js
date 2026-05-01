@@ -464,7 +464,10 @@ async function processExportPayload(payload, options = {}) {
     const fallbackUsed = shouldUseFallback && finalAttempt.ok;
 
     const result = {
-      statusCode: finalAttempt.ok ? 200 : 502,
+      // Always return 200 so the browser surfaces the real HAPI error from the
+      // response body instead of a generic "Failed to load resource: 502".
+      // Frontend reads delivery_status to decide success/failure.
+      statusCode: 200,
       body: Object.assign(response, {
         delivery_status: finalAttempt.ok ? 'delivered' : 'transaction_failed',
         fhir_base_url: finalAttempt.fhirBaseUrl,
