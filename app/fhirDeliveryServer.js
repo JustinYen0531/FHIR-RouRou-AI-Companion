@@ -1312,6 +1312,20 @@ function createServer(options = {}) {
           updated = true;
         }
 
+        if (payload.output_cache_merge && typeof payload.output_cache_merge === 'object') {
+          session.output_cache = Object.assign(
+            {},
+            session.output_cache && typeof session.output_cache === 'object' ? session.output_cache : {},
+            payload.output_cache_merge
+          );
+          updated = true;
+        }
+
+        if (payload.output_cache && typeof payload.output_cache === 'object') {
+          session.output_cache = payload.output_cache;
+          updated = true;
+        }
+
         if (updated) {
           session.updatedAt = new Date().toISOString();
         }

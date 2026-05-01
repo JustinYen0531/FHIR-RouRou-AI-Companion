@@ -2793,6 +2793,15 @@ function saveReportOutputsToCache(options = {}) {
       conversationId,
       savedAt: new Date().toISOString()
     }));
+    if (conversationId) {
+      APP_STATE.activeSessionOutputCache = Object.assign(
+        {},
+        APP_STATE.activeSessionOutputCache && typeof APP_STATE.activeSessionOutputCache === 'object'
+          ? deepCloneSerializable(APP_STATE.activeSessionOutputCache, {})
+          : {},
+        buildSessionReportBundleCachePayload()
+      );
+    }
     if (options.skipServerSync !== true) {
       scheduleSessionReportBundleSync();
     }
@@ -3770,6 +3779,46 @@ function scheduleSessionReportBundleSync() {
       console.warn('Deferred session report bundle sync failed:', error);
     });
   }, 180);
+}
+
+function flushPendingSessionReportBundleSync() {
+  if (!isAuthenticated() || !APP_STATE.conversationId) return;
+  if (sessionReportBundleSyncTimer) {
+    clearTimeout(sessionReportBundleSyncTimer);
+    sessionReportBundleSyncTimer = null;
+  }
+
+  try {
+    const reportBundlePayload = buildSessionReportBundleCachePayload();
+    APP_STATE.activeSessionOutputCache = Object.assign(
+      {},
+      APP_STATE.activeSessionOutputCache && typeof APP_STATE.activeSessionOutputCache === 'object'
+        ? deepCloneSerializable(APP_STATE.activeSessionOutputCache, {})
+        : {},
+      reportBundlePayload
+    );
+    fetch(`/api/chat/session?id=${encodeURIComponent(APP_STATE.conversationId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        output_cache_merge: reportBundlePayload
+      }),
+      keepalive: true
+    }).catch((error) => {
+      console.warn('Unable to flush session report bundle before page exit:', error);
+    });
+  } catch (error) {
+    console.warn('Unable to prepare session report bundle flush:', error);
+  }
+}
+
+function wireReportPersistenceFlush() {
+  window.addEventListener('pagehide', flushPendingSessionReportBundleSync);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      flushPendingSessionReportBundleSync();
+    }
+  });
 }
 
 function saveFhirReportHistory(conversationId = '') {
@@ -9908,7 +9957,9 @@ async function syncLocalSessionRecordToServer(session = {}) {
         state: session.state && typeof session.state === 'object' ? session.state : {},
         memory_snapshot: session.memory_snapshot && typeof session.memory_snapshot === 'object' ? session.memory_snapshot : {},
         revision: Number.isFinite(Number(session.revision)) ? Number(session.revision) : 0,
-        clear_output_cache: true
+        output_cache_merge: session.output_cache && typeof session.output_cache === 'object'
+          ? deepCloneSerializable(session.output_cache, {})
+          : buildSessionReportBundleCachePayload()
       })
     });
   } catch (error) {
@@ -11750,6 +11801,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeRuntimeConfig();
     updateAuthUI();
     PatientProfile.wireForm();
+    wireReportPersistenceFlush();
     restoreReportOutputsFromCache();
     syncPhq9SessionState();
     showScreen('screen-home');

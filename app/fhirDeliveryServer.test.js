@@ -657,6 +657,69 @@ async function testSessionPatchEndpoint() {
   assert.strictEqual(sessions.get('conv-a').state.patient_profile.profileKey, 'pt-lin-xiao');
 }
 
+async function testSessionPatchMergesReportOutputCache() {
+  const sessions = new Map();
+  sessions.set('conv-a', {
+    id: 'conv-a',
+    user: 'demo-user',
+    startedAt: '2026-04-04T00:00:00.000Z',
+    updatedAt: '2026-04-04T00:05:00.000Z',
+    history: [{ role: 'user', content: '最近很累' }],
+    state: {},
+    revision: 1,
+    memory_snapshot: {},
+    output_cache: {
+      existing_key: { keep: true }
+    }
+  });
+
+  const server = createServer({ sessions });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const patch = await requestJson(port, '/api/chat/session?id=conv-a', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: {
+      output_cache_merge: {
+        'rourou.sessionReportBundle.v1': {
+          reportOutputs: {
+            clinician_summary: { draft_summary: '醫師摘要會保留' },
+            patient_analysis: { key_points: ['分析也會保留'] },
+            patient_review: { confirm_items: ['確認項目'] },
+            fhir_delivery: { delivery_status: 'pre_review_ready', resources: [{ resource_type: 'Patient' }] },
+            fhir_delivery_result: { delivery_status: 'delivered' },
+            session_export: { session: { encounterKey: 'conv-a' } },
+            updatedAt: '剛剛'
+          },
+          fhirReportHistory: [
+            { id: 'history-1', type: 'delivery', resourceCount: 1 }
+          ],
+          conversationId: 'conv-a'
+        }
+      }
+    }
+  });
+  const detail = await requestJson(port, '/api/chat/session?id=conv-a');
+
+  server.close();
+  assert.strictEqual(patch.statusCode, 200);
+  assert.strictEqual(patch.body.updated, true);
+  assert.strictEqual(detail.body.session.output_cache.existing_key.keep, true);
+  assert.strictEqual(
+    detail.body.session.output_cache['rourou.sessionReportBundle.v1'].reportOutputs.clinician_summary.draft_summary,
+    '醫師摘要會保留'
+  );
+  assert.strictEqual(
+    detail.body.session.output_cache['rourou.sessionReportBundle.v1'].reportOutputs.patient_analysis.key_points[0],
+    '分析也會保留'
+  );
+  assert.strictEqual(
+    detail.body.session.output_cache['rourou.sessionReportBundle.v1'].fhirReportHistory[0].id,
+    'history-1'
+  );
+}
+
 async function testSessionPatchCreatesMissingSession() {
   const sessions = new Map();
   const server = createServer({ sessions });
@@ -977,6 +1040,7 @@ async function run() {
   await testSessionDetailEndpoint();
   await testSessionDeleteEndpoint();
   await testSessionPatchEndpoint();
+  await testSessionPatchMergesReportOutputCache();
   await testSessionPatchCreatesMissingSession();
   await testQuickCheckEndpoint();
   await testPatientRefreshEndpoint();
