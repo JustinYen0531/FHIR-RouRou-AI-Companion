@@ -364,6 +364,14 @@ function createEmptyHamdScoringModelClient() {
   };
 }
 
+function createSmartHunterCaptureModelClient(store) {
+  return async ({ systemPrompt, history }) => {
+    store.systemPrompt = String(systemPrompt || '');
+    store.historyLength = Array.isArray(history) ? history.length : 0;
+    return { text: 'stub response' };
+  };
+}
+
 async function testCommandRouting() {
   const engine = new AICompanionEngine({ modelClient: createStubModelClient(), apiKey: 'fake' });
   const result = await engine.handleMessage({ message: 'auto', user: 'demo', conversation_id: 'conv-1' });
@@ -826,6 +834,39 @@ async function testProbingModeKeepsSameHamdItem() {
   assert.strictEqual(result.metadata.clinical_trace?.target_item, 'guilt');
 }
 
+async function testSmartHunterPrefersCompressedMemoryOnLongDialogue() {
+  const capture = {};
+  const engine = new AICompanionEngine({
+    modelClient: createSmartHunterCaptureModelClient(capture),
+    apiKey: 'fake'
+  });
+  const session = engine.getOrCreateSession('conv-smart-hunter-long', 'demo');
+  session.state.therapeutic_profile = {
+    memoryChunks: [
+      {
+        title: '長對話摘要',
+        category: 'context',
+        summary: '最近的長對話集中在工作壓力、睡眠不穩與白天功能受影響。'
+      }
+    ],
+    memoryStats: {
+      tokenLimit: 80
+    }
+  };
+  for (let i = 0; i < 30; i += 1) {
+    session.history.push({
+      role: i % 2 === 0 ? 'user' : 'assistant',
+      content: `第 ${i + 1} 輪對話：最近一直在講工作壓力、睡不好、白天也被拖住。`
+    });
+  }
+
+  await engine.runTextTask('smartHunter', session, '我最近真的快撐不住了。');
+
+  assert.strictEqual(capture.historyLength, 8);
+  assert.ok(capture.systemPrompt.includes('【長對話策略】'));
+  assert.ok(capture.systemPrompt.includes('請優先依據上方長期記憶／壓縮記憶理解背景'));
+}
+
 async function run() {
   await testCommandRouting();
   await testHighRiskRouting();
@@ -854,6 +895,7 @@ async function run() {
   await testClarifyingTurnClearsStaleSliderProbeMeta();
   await testAiTraceIncludesConversationModeAndHamdDimension();
   await testProbingModeKeepsSameHamdItem();
+  await testSmartHunterPrefersCompressedMemoryOnLongDialogue();
   console.log('AI companion engine tests passed.');
 }
 

@@ -13,6 +13,7 @@ const DEFAULT_AUTHOR = 'AI Companion Node Engine';
 const MAX_CHAT_HISTORY_FOR_MODEL = 24;
 const MAX_TRANSCRIPT_TURNS_FOR_RETRIEVAL = 40;
 const MAX_RECENT_TRANSCRIPT_TURNS = 12;
+const SMART_HUNTER_COMPRESSED_HISTORY_TURNS = 8;
 const KNOW_YOU_TOKEN_LIMIT = KnowYouMemory.DEFAULT_CONTEXT_TOKEN_LIMIT;
 const KNOW_YOU_RECENT_ITEMS = KnowYouMemory.DEFAULT_RECENT_HISTORY_ITEMS;
 
@@ -4514,7 +4515,10 @@ class AICompanionEngine {
       recentItems: KNOW_YOU_RECENT_ITEMS
     });
     const meterLine = `【即時上下文條】${meter.estimatedTokens}/${meter.tokenLimit} tokens，${meter.shouldCompress ? '快滿了，準備壓縮' : '尚未滿載'}`;
-    return `${memoryBlock}\n${meterLine}`;
+    const longDialogueLine = meter.shouldCompress
+      ? '【長對話策略】這段對話已偏長，請優先依據上方長期記憶／壓縮記憶理解背景，最近幾輪對話只當作即時語境。'
+      : '';
+    return [memoryBlock, meterLine, longDialogueLine].filter(Boolean).join('\n');
   }
 
   buildKnowYouMemoryMeter(session, pendingMessage = '') {
@@ -6181,8 +6185,16 @@ class AICompanionEngine {
     };
   }
 
-  buildHistory(session) {
-    return this.buildDraftRelevantHistory(session).slice(-MAX_CHAT_HISTORY_FOR_MODEL);
+  buildHistory(session, options = {}) {
+    const relevantHistory = this.buildDraftRelevantHistory(session);
+    const promptKey = String(options.promptKey || '').trim();
+    if (promptKey === 'smartHunter') {
+      const memoryMeter = this.buildKnowYouMemoryMeter(session, options.pendingMessage || '');
+      if (memoryMeter.shouldCompress || relevantHistory.length > MAX_CHAT_HISTORY_FOR_MODEL) {
+        return relevantHistory.slice(-SMART_HUNTER_COMPRESSED_HISTORY_TURNS);
+      }
+    }
+    return relevantHistory.slice(-MAX_CHAT_HISTORY_FOR_MODEL);
   }
 
   async runTextTask(promptKey, session, message, options = {}) {
@@ -6197,7 +6209,9 @@ class AICompanionEngine {
       {
         systemPrompt: finalSystemPrompt,
         userPrompt: options.userPromptOverride || message,
-        history: Array.isArray(options.historyOverride) ? options.historyOverride : this.buildHistory(session),
+        history: Array.isArray(options.historyOverride)
+          ? options.historyOverride
+          : this.buildHistory(session, { promptKey, pendingMessage: message }),
         temperature: 0.2
       },
       {
