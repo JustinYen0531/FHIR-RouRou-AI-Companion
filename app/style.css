@@ -5912,6 +5912,64 @@ body.micro-detail-open {
  line-height: 1.65;
 }
 
+.home-showcase-chat-preview {
+ margin-top: 12px;
+ display: grid;
+ gap: 8px;
+ padding: 12px;
+ border-radius: 16px;
+ background: rgba(255, 255, 255, 0.72);
+ border: 1px solid rgba(76, 121, 95, 0.14);
+}
+
+.home-showcase-bubble {
+ max-width: 88%;
+ padding: 9px 11px;
+ border-radius: 14px;
+ font-size: 12px;
+ line-height: 1.55;
+ color: #344650;
+}
+
+.home-showcase-bubble.user {
+ justify-self: end;
+ background: #4d6b5b;
+ color: #fff;
+ border-bottom-right-radius: 5px;
+}
+
+.home-showcase-bubble.ai {
+ justify-self: start;
+ background: rgba(241, 247, 244, 0.96);
+ border: 1px solid rgba(76, 121, 95, 0.12);
+ border-bottom-left-radius: 5px;
+}
+
+.home-showcase-fhir-links {
+ display: flex;
+ flex-wrap: wrap;
+ gap: 6px;
+ align-items: center;
+ margin-top: 2px;
+}
+
+.home-showcase-fhir-title {
+ width: 100%;
+ font-size: 11px;
+ font-weight: 900;
+ color: #395d4a;
+}
+
+.home-showcase-fhir-links span {
+ display: inline-flex;
+ padding: 5px 8px;
+ border-radius: 999px;
+ background: rgba(226, 241, 232, 0.95);
+ color: #365a47;
+ font-size: 11px;
+ font-weight: 800;
+}
+
 .home-session-demo-list {
  margin: 7px 0 0;
  padding-left: 18px;

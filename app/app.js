@@ -48,6 +48,7 @@ const DOCTOR_WORKSPACE_STORAGE_KEY = 'rourou.doctorWorkspace.v1';
 const DOCTOR_ASSIGNMENT_STORAGE_KEY = 'rourou.doctorAssignments.v1';
 const DOCTOR_VISIBLE_PATIENT_SUMMARY_KEY = 'rourou.doctorVisiblePatientSummary.v1';
 const COMPETITION_SHOWCASE_PATIENT_ID = 'competition-showcase-user';
+const COMPETITION_SHOWCASE_SESSION_ID = 'competition-showcase-fhir-session-2026-05-01';
 
 function createMemoryStorageFallback() {
   const store = new Map();
@@ -1010,23 +1011,269 @@ function createCompetitionShowcaseFhirDeliveryResult() {
   return {
     delivery_status: 'delivered',
     fhir_base_url: 'https://hapi.fhir.org/baseR4',
-    recorded_at: '2026-05-01T15:20:00+08:00',
+    recorded_at: '2026-05-01T23:23:55+08:00',
     source_label: '由病人端生成並授權送出',
     created_resources: {
-      Patient: 'Patient/131998314',
-      Encounter: 'Encounter/131998315',
-      QuestionnaireResponse: 'QuestionnaireResponse/131998316',
-      Observation: 'Observation/131998317',
-      ClinicalImpression: 'ClinicalImpression/131998321',
-      Composition: 'Composition/131998322',
-      DocumentReference: 'DocumentReference/131998323',
-      Provenance: 'Provenance/131998324'
+      Patient: 'Patient/3688986',
+      Encounter: 'Encounter/3688987',
+      QuestionnaireResponse: 'QuestionnaireResponse/3688988',
+      Observation: 'Observation/3688989',
+      ClinicalImpression: 'ClinicalImpression/3688992',
+      Composition: 'Composition/3688993',
+      DocumentReference: 'DocumentReference/3688994',
+      Provenance: 'Provenance/3688995'
     },
     validation_report: {
       valid: true,
       issue_count: 0,
       errors: 0,
       warnings: 0
+    }
+  };
+}
+
+function createCompetitionShowcaseSessionExport() {
+  return {
+    patient: {
+      key: 'patient-mobqdjl4-y30j5c-mon2bkwh-hbaz70',
+      name: '閻星澄',
+      gender: 'male',
+      birthDate: '2005-05-31',
+      telecom: {
+        phone: '0930775566',
+        email: '114307052@g.nccu.edu.tw'
+      }
+    },
+    session: {
+      encounterKey: 'conv-1777639535471-6d5241-mon2bkwh-hbaz70',
+      startedAt: '2026-05-01T15:22:48.485Z',
+      endedAt: '2026-05-01T15:22:52.386Z'
+    },
+    author: 'AI Companion Node Engine',
+    active_mode: 'safety',
+    risk_flag: 'true',
+    latest_tag_payload: {
+      summary: '反覆描述生活失去意義或樂趣感下降，伴隨動力不足與明顯的情緒沉重感。',
+      hamd_signals: ['depressed_mood', 'work_activities', 'insomnia_early', 'insomnia_middle', 'suicide']
+    },
+    clinician_summary_draft: {
+      draft_summary: 'AI 已根據原句證據整理出：反覆描述生活失去意義或樂趣感下降，伴隨動力不足與明顯的情緒沉重感。PHQ-9 最新總分 14/27，中度；對話中曾出現明確安全風險語句，建議醫師優先確認目前安全狀態。',
+      chief_concerns: [
+        '持續低落、空虛或失去意義感',
+        '一兩週內疲倦、拖延、專注困難與睡眠困擾',
+        '曾表達天台與跳下衝動，需優先安全評估'
+      ],
+      symptom_observations: [
+        '做事情容易拖，開始後也難以專心，效率比以前下降。',
+        '晚上不太好睡，躺著會一直想事情，中間會醒來。',
+        '一週約 4 天提不起勁，一週約 6 天感到反應變慢或做事卡住。'
+      ],
+      followup_needs: [
+        '確認目前是否仍有自傷衝動、位置與身邊支持者。',
+        '釐清低落頻率、持續時間，以及是否影響工作、課業或日常活動。',
+        '確認 PHQ-9 第 9 題與安全計畫。'
+      ],
+      safety_flags: ['明確自傷衝動', '天台場景', '需要立即安全確認'],
+      hamd_signals: ['depressed_mood', 'guilt', 'suicide', 'insomnia_early', 'insomnia_middle', 'work_activities', 'retardation']
+    },
+    patient_analysis: {
+      plain_summary: '你現在還撐得住對話，但可能已經有點疲累，需要比較溫和的整理節奏。目前反覆出現的主題包含情緒低落、效率下降、自我懷疑，以及對日常生活意義感下降。',
+      key_points: [
+        '情緒低落、空虛或失去意義感持續出現。',
+        '拖延與專注困難已影響課業或日常功能。',
+        '曾出現安全風險語句，下一步需要優先確認安全。'
+      ],
+      reminder: '這份內容是依據目前對話整理的陪伴式理解，不是醫療診斷。'
+    },
+    patient_review_packet: {
+      status: 'draft_review',
+      patient_facing_summary: 'AI 已根據原句證據整理出：反覆描述生活失去意義或樂趣感下降，伴隨動力不足與明顯的情緒沉重感。',
+      confirm_items: [
+        '主要困擾是否包含：持續低落、空虛或失去意義感',
+        '主要困擾是否包含：一兩週內疲倦、拖延、專注困難與睡眠困擾',
+        '後續需補充：低落頻率、持續時間，以及安全狀態'
+      ],
+      authorization_needed: 'yes',
+      authorization_prompt: '請先確認整理內容是否正確，再決定是否提供給醫師。'
+    },
+    fhir_delivery_draft: {
+      draft_version: 'p5_fhir_delivery_v3',
+      delivery_status: 'patient_authorized_manual_submit',
+      consent_gate: 'patient_authorized_manual_submit',
+      narrative_summary: 'AI 已根據原句證據整理出：伴隨動力不足與明顯的情緒沉重感；使用者在最近一兩週感到身體疲倦、拖延與專注困難，並伴隨睡眠困難、空虛感與安全風險訊號。',
+      resources: [
+        { resourceType: 'Patient', display: 'Patient / Subject Of Care', status: 'delivered' },
+        { resourceType: 'Encounter', display: 'Encounter / Conversation Session', status: 'delivered' },
+        { resourceType: 'QuestionnaireResponse', display: 'QuestionnaireResponse / Dialogue Mapping', status: 'delivered' },
+        { resourceType: 'Observation', display: 'Observation / Symptom Tracking', status: 'delivered' },
+        { resourceType: 'ClinicalImpression', display: 'ClinicalImpression / Risk And Context', status: 'delivered' },
+        { resourceType: 'Composition', display: 'Composition / Clinical Summary', status: 'delivered' },
+        { resourceType: 'DocumentReference', display: 'DocumentReference / Summary Export', status: 'delivered' },
+        { resourceType: 'Provenance', display: 'Provenance / Draft Traceability', status: 'delivered' }
+      ],
+      questionnaire_targets: [
+        'depressed_mood：伴隨動力不足與明顯的情緒沉重感',
+        'suicide：曾表達天台與跳下衝動，需優先安全評估'
+      ],
+      observation_candidates: [
+        { focus: '伴隨動力不足與明顯的情緒沉重感', category: 'mood', signal: 'depressed_mood', status: 'preliminary' },
+        { focus: '曾表達明確自傷衝動', category: 'risk', signal: 'suicide', status: 'requires_review' }
+      ],
+      composition_sections: [
+        { section: 'chief_concerns', focus: '持續低落、空虛或失去意義感；安全風險表達' },
+        { section: 'symptom_timeline', focus: '最近一兩週疲倦、拖延、專注困難、睡眠困擾與效率下降' },
+        { section: 'care_goal', focus: '優先確認目前安全狀態，再補齊低落頻率與功能影響' }
+      ]
+    },
+    phq9_assessment: {
+      version: 'PHQ-9',
+      totalScore: 14,
+      severityBand: 'moderate',
+      completedAt: '2026-05-01T13:14:22.228Z',
+      updatedAt: '2026-05-01T13:14:22.228Z',
+      note: '最新完成版本，總分 14 分，中度。',
+      answers: [
+        { item: 1, score: 0, label: '做事缺乏興趣或樂趣', narrative: '我覺得還好' },
+        { item: 2, score: 1, label: '情緒低落、沮喪或絕望', narrative: '我有時心情會很振奮也許這會抵銷一點' },
+        { item: 3, score: 1, label: '睡眠困擾', narrative: '一直睡覺很困擾' },
+        { item: 4, score: 3, label: '疲倦或沒精神', narrative: '我好疲倦上課都閉著眼睛' },
+        { item: 5, score: 2, label: '食慾改變', narrative: '我現在吃好多東西而且不怎麼想要運動' },
+        { item: 6, score: 3, label: '自責或覺得自己很糟', narrative: '我很自責覺得自己需要花很多錢去醫療自己的憂鬱讓們家的家境變得更困難' },
+        { item: 7, score: 2, label: '注意力不集中', narrative: '這是真的我好像考試成績越來越差' },
+        { item: 8, score: 0, label: '動作或說話變慢，或坐立不安', narrative: '我的語速很慢但是我覺得這是天生的應該還好' },
+        { item: 9, score: 2, label: '不如死掉的念頭', narrative: '真的是常這樣可是大家都會攔著我所以我很安全' }
+      ]
+    },
+    hamd_formal_assessment: {
+      scale_version: 'HAM-D17',
+      status: 'draft',
+      assessment_mode: 'mixed',
+      recall_window: 'past_7_days',
+      items: [
+        { item_code: 'depressed_mood', item_label: '憂鬱情緒', scale_range: '0_to_4', evidence_type: 'direct_answer', direct_answer_value: 4, confidence: 'high', evidence_summary: ['反覆描述生活失去意義或樂趣感下降。'] },
+        { item_code: 'suicide', item_label: '自殺意念', scale_range: '0_to_4', evidence_type: 'direct_answer', direct_answer_value: 4, confidence: 'high', evidence_summary: ['每次都在天台想東西，有種想跳下的衝動。'] },
+        { item_code: 'work_activities', item_label: '工作與活動', scale_range: '0_to_4', evidence_type: 'direct_answer', direct_answer_value: 4, confidence: 'high', evidence_summary: ['一週約 4 天提不起勁、拖延與分心。'] },
+        { item_code: 'retardation', item_label: '精神運動遲滯', scale_range: '0_to_4', evidence_type: 'direct_answer', direct_answer_value: 4, confidence: 'high', evidence_summary: ['一週約 6 天覺得反應變慢、腦袋鈍鈍的。'] }
+      ],
+      ai_total_score: 16,
+      severity_band: 'requires_clinician_review'
+    }
+  };
+}
+
+function createCompetitionShowcaseReportOutputs() {
+  const sessionExport = createCompetitionShowcaseSessionExport();
+  return {
+    clinician_summary: sessionExport.clinician_summary_draft,
+    patient_analysis: sessionExport.patient_analysis,
+    patient_review: sessionExport.patient_review_packet,
+    fhir_delivery: sessionExport.fhir_delivery_draft,
+    fhir_delivery_result: createCompetitionShowcaseFhirDeliveryResult(),
+    session_export: sessionExport,
+    updatedAt: '2026-05-01T15:23:55.741Z'
+  };
+}
+
+function createCompetitionShowcaseSessionRecord() {
+  const fhirLinks = buildFhirResourceLinks(createCompetitionShowcaseFhirDeliveryResult());
+  const fhirMarkdown = fhirLinks
+    .map((item) => `- [${item.label}](${item.url})`)
+    .join('\n');
+  const reportOutputs = createCompetitionShowcaseReportOutputs();
+
+  return {
+    id: COMPETITION_SHOWCASE_SESSION_ID,
+    user: DEFAULT_USER_ID,
+    startedAt: '2026-05-01T13:14:22.228Z',
+    updatedAt: '2026-05-01T15:23:55.741Z',
+    history: [
+      {
+        role: 'user',
+        content: '嗯…我其實有點猶豫要不要講，但最近整個狀態有點怪怪的。這一兩週開始，我常常覺得整個人很累，就算沒有做很多事情，也會沒什麼力氣。做事情的時候很容易拖，常常要過很久才開始，開始之後也很難專心，效率比以前差滿多的。晚上也不太好睡，躺著會一直想事情，有時候要很久才睡著，中間也會醒來幾次。白天還是可以撐著把事情做完，但會覺得有點空空的，好像沒有什麼特別的感覺或動力。有時候甚至會想，這樣每天一直重複過，好像有點沒什麼意義…'
+      },
+      {
+        role: 'ai',
+        content: '聽起來你最近真的很累，這樣的感覺一定很不容易。你提到疲倦、拖延、專注困難、睡眠不穩，還有那種空空的感覺，這些都值得被好好整理。\n\n這一週做事的動力跟以前比起來，是差不多、明顯下降，還是幾乎提不起來？'
+      },
+      {
+        role: 'user',
+        content: '大概一週有 4 天左右。那幾天真的會拖很久才開始，有時候明明事情不難，但就是提不起勁。而且開始之後也很容易分心，效率比以前差很多。'
+      },
+      {
+        role: 'ai',
+        content: '我先幫你把這段整理起來：目前看起來「動力下降、拖延、分心、效率下降」已經不只是心情描述，而是開始影響日常功能。\n\n這一週有沒有覺得自己反應或做事比以前慢，大概幾天會有這種感覺？'
+      },
+      {
+        role: 'user',
+        content: '應該有，大概一週有 6 天左右。有時候會覺得整個人反應變慢，做事情會卡卡的，好像沒有以前那麼順。也不是完全做不了，就是會變得比較遲鈍一點，要花比較多時間才能進入狀態。有時候甚至會覺得腦袋有點鈍鈍的，不太靈光。'
+      },
+      {
+        role: 'ai',
+        content: '這次描述很清楚，我會把它整理成「反應變慢、進入狀態困難、工作與活動受影響」的線索。接下來我會用比較低負擔的方式，把它轉成醫師能看懂的摘要。'
+      },
+      {
+        role: 'user',
+        content: '我覺得自己快崩潰了。我每次都在天台想東西，有種想跳下的衝動。'
+      },
+      {
+        role: 'ai',
+        content: '聽到你這樣說，我真的很擔心你。這種衝動出現時，最重要的是先讓你不要一個人待在危險位置。請立刻離開天台或靠近邊緣的地方，聯絡身邊可信任的人，或直接尋求當地緊急服務與危機協助。你不需要自己撐過這一刻。'
+      },
+      {
+        role: 'user',
+        content: '請幫我看看我現在的狀態。'
+      },
+      {
+        role: 'ai',
+        content: '給你的分析：你現在還撐得住對話，但可能已經有點疲累，需要比較溫和的整理節奏。目前反覆出現的主題包含情緒低落、效率下降、自我懷疑，以及對日常生活意義感下降。\n\nPHQ-9 最新總分：14/27，中度。尤其疲倦、自責、注意力不集中與不如死掉的念頭需要被醫師優先看到。\n\n這份內容是陪伴式整理，不是醫療診斷。'
+      },
+      {
+        role: 'ai',
+        content: `FHIR 交付已由病人端生成並授權送出。醫師可直接查看以下資源：\n\n${fhirMarkdown}\n\n交付摘要：Patient、Encounter、QuestionnaireResponse、Observation、ClinicalImpression、Composition、DocumentReference、Provenance 已建立；其中安全風險與 PHQ-9/HAM-D 線索需要醫師複核。`
+      }
+    ],
+    state: {
+      active_mode: 'safety',
+      risk_flag: 'true',
+      latest_tag_payload: reportOutputs.session_export.latest_tag_payload,
+      clinician_summary_draft: reportOutputs.clinician_summary,
+      patient_analysis: reportOutputs.patient_analysis,
+      patient_review_packet: reportOutputs.patient_review,
+      fhir_delivery_draft: reportOutputs.fhir_delivery,
+      hamd_formal_assessment: reportOutputs.session_export.hamd_formal_assessment,
+      phq9_assessment: reportOutputs.session_export.phq9_assessment,
+      patient_authorization_state: {
+        status: 'patient_authorized_manual_submit',
+        review_source: 'ai_draft_with_patient_share_allowed'
+      }
+    },
+    memory_snapshot: {
+      note_history: [],
+      last_user_message: '請幫我看看我現在的狀態。',
+      last_assistant_message: 'FHIR 交付已由病人端生成並授權送出。醫師可直接查看 Patient、Encounter、QuestionnaireResponse、Observation、ClinicalImpression、Composition、DocumentReference、Provenance。',
+      active_mode: 'safety',
+      risk_flag: 'true',
+      latest_tag_summary: 'PHQ-9 14/27（中度）；對話包含低落、疲倦、拖延、睡眠困擾與明確安全風險，已生成 FHIR 交付。'
+    },
+    output_cache: {
+      [SESSION_REPORT_BUNDLE_CACHE_KEY]: {
+        reportOutputs,
+        fhirReportHistory: [
+          {
+            id: 'competition-showcase-delivery-2026-05-01',
+            type: 'delivery',
+            createdAt: '2026-05-01T15:23:55.741Z',
+            deliveryStatus: 'delivered',
+            targetUrl: 'https://hapi.fhir.org/baseR4',
+            summary: reportOutputs.fhir_delivery.narrative_summary,
+            draftPayload: reportOutputs.fhir_delivery,
+            sessionExportPayload: reportOutputs.session_export,
+            deliveryResult: reportOutputs.fhir_delivery_result
+          }
+        ],
+        savedAt: '2026-05-01T15:23:55.741Z',
+        conversationId: COMPETITION_SHOWCASE_SESSION_ID
+      }
     }
   };
 }
@@ -2374,9 +2621,39 @@ function loadPinnedSession() {
   try {
     const parsed = JSON.parse(localStorage.getItem(PINNED_SESSION_STORAGE_KEY) || 'null');
     // 不依 userId 過濾，避免帳號切換或登出後釘選對話消失
-    return normalizePinnedSessionRecord(parsed);
+    return normalizePinnedSessionRecord(parsed) || normalizePinnedSessionRecord({
+      id: COMPETITION_SHOWCASE_SESSION_ID,
+      user: DEFAULT_USER_ID,
+      updatedAt: '2026-05-01T15:23:55.741Z',
+      active_mode: 'safety',
+      risk_flag: 'true',
+      latest_tag_summary: 'PHQ-9 14/27（中度）；低落、疲倦、拖延、睡眠困擾與安全風險已整理成 FHIR 交付。',
+      last_user_message: '請幫我看看我現在的狀態。',
+      last_assistant_message: 'FHIR 交付已由病人端生成並授權送出，醫師可查看 Patient、Encounter、QuestionnaireResponse、Observation、ClinicalImpression、Composition、DocumentReference、Provenance。',
+      has_clinician_summary: true,
+      has_fhir_draft: true,
+      message_count: 11,
+      pinned_summary: '決賽展示對話：原始心理困擾、PHQ-9、安全模式與 FHIR 交付',
+      pinned_sub: '點進去會像一般聊天一樣看到預先印好的測試對話與 FHIR 資源連結。',
+      pinnedAt: '2026-05-01T15:23:55.741Z'
+    });
   } catch {
-    return null;
+    return normalizePinnedSessionRecord({
+      id: COMPETITION_SHOWCASE_SESSION_ID,
+      user: DEFAULT_USER_ID,
+      updatedAt: '2026-05-01T15:23:55.741Z',
+      active_mode: 'safety',
+      risk_flag: 'true',
+      latest_tag_summary: 'PHQ-9 14/27（中度）；低落、疲倦、拖延、睡眠困擾與安全風險已整理成 FHIR 交付。',
+      last_user_message: '請幫我看看我現在的狀態。',
+      last_assistant_message: 'FHIR 交付已由病人端生成並授權送出。',
+      has_clinician_summary: true,
+      has_fhir_draft: true,
+      message_count: 11,
+      pinned_summary: '決賽展示對話：原始心理困擾、PHQ-9、安全模式與 FHIR 交付',
+      pinned_sub: '點進去會像一般聊天一樣看到預先印好的測試對話與 FHIR 資源連結。',
+      pinnedAt: '2026-05-01T15:23:55.741Z'
+    });
   }
 }
 
@@ -9297,11 +9574,15 @@ function normalizeLocalSessionRecord(record = {}) {
 function loadLocalSessionArchiveRecords() {
   try {
     const parsed = JSON.parse(localStorage.getItem(LOCAL_SESSION_ARCHIVE_KEY));
-    return (Array.isArray(parsed) ? parsed : [])
+    const records = (Array.isArray(parsed) ? parsed : [])
       .map((item) => normalizeLocalSessionRecord(item))
       .filter((item) => item.id);
+    if (!records.some((item) => item.id === COMPETITION_SHOWCASE_SESSION_ID)) {
+      records.unshift(normalizeLocalSessionRecord(createCompetitionShowcaseSessionRecord()));
+    }
+    return records;
   } catch {
-    return [];
+    return [normalizeLocalSessionRecord(createCompetitionShowcaseSessionRecord())].filter((item) => item.id);
   }
 }
 
@@ -9736,6 +10017,7 @@ function renderRecentSessions() {
     const promptList = PINNED_SESSION_EXAMPLE_PROMPTS
       .map((prompt) => `<li class="home-session-demo-item">${escapeHtml(prompt)}</li>`)
       .join('');
+    const showcasePreview = pinned.id === COMPETITION_SHOWCASE_SESSION_ID ? renderCompetitionShowcaseHomePreview() : '';
 
     return `
       <div class="home-session-item is-pinned">
@@ -9749,6 +10031,7 @@ function renderRecentSessions() {
           <div class="home-session-summary">${escapeHtml(summary)}</div>
           <div class="home-session-sub">${escapeHtml(sub)}</div>
           ${flags ? `<div class="home-session-flags">${flags}</div>` : ''}
+          ${showcasePreview}
           <div class="home-session-note">
             推薦展示問法（直接貼到聊天框就能看出功能差異）：
             <ul class="home-session-demo-list">${promptList}</ul>
@@ -9811,6 +10094,22 @@ function renderRecentSessions() {
     : (pinned ? '<div class="home-session-empty">目前沒有其他已保存對話，先展示上面的釘選對話即可。</div>' : '');
 
   container.innerHTML = `${pinnedHtml}${historySection}`;
+}
+
+function renderCompetitionShowcaseHomePreview() {
+  const delivery = createCompetitionShowcaseFhirDeliveryResult();
+  const links = buildFhirResourceLinks(delivery).slice(0, 4);
+  return `
+    <div class="home-showcase-chat-preview" aria-label="決賽展示對話預覽">
+      <div class="home-showcase-bubble user">最近整個狀態有點怪怪的，很累、拖延、晚上也不太好睡。</div>
+      <div class="home-showcase-bubble ai">這一週做事的動力跟以前比起來，是差不多、明顯下降，還是幾乎提不起來？</div>
+      <div class="home-showcase-bubble user">大概一週有 4 天左右，而且開始後也很容易分心。</div>
+      <div class="home-showcase-fhir-links">
+        <div class="home-showcase-fhir-title">FHIR 交付已生成</div>
+        ${links.map((item) => `<span>${escapeHtml(item.label)}</span>`).join('')}
+      </div>
+    </div>
+  `;
 }
 
 function setHomeHistoryFeedback(text = '', options = {}) {
