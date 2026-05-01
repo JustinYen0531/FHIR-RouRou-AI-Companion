@@ -1147,7 +1147,7 @@
           value: input.session.encounterKey
         }
       ],
-      status: 'preliminary',
+      status: 'completed',
       code: {
         text: 'AI Companion risk and context impression'
       },
@@ -1155,7 +1155,6 @@
       encounter: { reference: encounterFullUrl },
       effectiveDateTime: input.session.endedAt || input.session.startedAt || new Date().toISOString(),
       date: input.session.endedAt || input.session.startedAt || new Date().toISOString(),
-      assessor: AI_DEVICE_REFERENCE,
       description: description,
       finding: finalFindings,
       supportingInfo: supportingRefs.length ? supportingRefs : undefined,
