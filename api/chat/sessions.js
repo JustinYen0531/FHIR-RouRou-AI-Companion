@@ -1,4 +1,4 @@
-const { buildServerOptions, getAuthUserFromRequest, getSharedPersistence, listSessionSummaries } = require('../_options');
+const { buildServerOptions, getAuthUserFromRequest, getAuthorizedSessionUserIds, getSharedPersistence, listSessionSummaries } = require('../_options');
 const { handleCors, sendJson } = require('../_shared');
 
 module.exports = function handler(req, res) {
@@ -19,12 +19,13 @@ module.exports = function handler(req, res) {
     return;
   }
   const user = authUser ? authUser.id : requestedUser;
+  const users = authUser ? getAuthorizedSessionUserIds(authUser) : [];
   const limit = Number(url.searchParams.get('limit') || 5);
   const persistence = getSharedPersistence();
   buildServerOptions();
 
   sendJson(res, 200, {
     ok: true,
-    sessions: listSessionSummaries(persistence.sessions, { user, limit })
+    sessions: listSessionSummaries(persistence.sessions, { user, users, limit })
   });
 };

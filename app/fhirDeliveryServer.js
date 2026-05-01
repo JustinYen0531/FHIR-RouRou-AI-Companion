@@ -4,7 +4,13 @@ const path = require('path');
 const { buildSessionExportBundle, buildPatientResourceOnly } = require('./fhirBundleBuilder');
 const { AICompanionEngine } = require('./aiCompanionEngine');
 const { createAuthStore, DEFAULT_AUTH_STORE_PATH } = require('./authStore');
-const { createSessionPersistence, DEFAULT_SESSION_STORE_PATH, listSessionSummaries } = require('./sessionPersistence');
+const {
+  createSessionPersistence,
+  DEFAULT_SESSION_STORE_PATH,
+  getAuthorizedSessionUserIds,
+  listSessionSummaries,
+  sessionBelongsToAuthorizedUser
+} = require('./sessionPersistence');
 const { createAssignmentPersistence, DEFAULT_ASSIGNMENT_STORE_PATH, normalizeAssignmentRecord } = require('./assignmentPersistence');
 const {
   DEFAULT_GROQ_BASE_URL,
@@ -118,8 +124,7 @@ function buildLoginResponsePayload(loginResult, created = false) {
 }
 
 function sessionBelongsToUser(session, authUser) {
-  if (!authUser) return true;
-  return String(session?.user || '').trim() === String(authUser.id || '').trim();
+  return sessionBelongsToAuthorizedUser(session, authUser);
 }
 
 function sendStaticFile(res, pathname) {
@@ -1044,6 +1049,7 @@ function createServer(options = {}) {
     if (req.method === 'GET' && parsedUrl.pathname === '/api/chat/sessions') {
       const requestedUser = String(parsedUrl.searchParams.get('user') || '').trim();
       const user = authUser ? authUser.id : requestedUser;
+      const users = authUser ? getAuthorizedSessionUserIds(authUser) : [];
       if (authUser && requestedUser && requestedUser !== authUser.id) {
         sendJson(res, 403, { error: 'Forbidden' });
         return;
@@ -1051,7 +1057,7 @@ function createServer(options = {}) {
       const limit = Number(parsedUrl.searchParams.get('limit') || 5);
       sendJson(res, 200, {
         ok: true,
-        sessions: listSessionSummaries(sharedSessions, { user, limit })
+        sessions: listSessionSummaries(sharedSessions, { user, users, limit })
       });
       return;
     }

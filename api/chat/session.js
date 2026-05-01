@@ -1,4 +1,4 @@
-const { buildServerOptions, getAuthUserFromRequest, getSharedPersistence } = require('../_options');
+const { buildServerOptions, getAuthUserFromRequest, getSharedPersistence, sessionBelongsToAuthorizedUser } = require('../_options');
 const { handleCors, readJsonBody, sendJson } = require('../_shared');
 
 module.exports = async function handler(req, res) {
@@ -32,7 +32,7 @@ module.exports = async function handler(req, res) {
     }
 
     let session = persistence.sessions.get(sessionId);
-    if (session && authUser && String(session.user || '').trim() !== authUser.id) {
+    if (session && !sessionBelongsToAuthorizedUser(session, authUser)) {
       sendJson(res, 403, { error: 'Forbidden' });
       return;
     }
@@ -114,7 +114,7 @@ module.exports = async function handler(req, res) {
       sendJson(res, 404, { error: 'Session not found.' });
       return;
     }
-    if (authUser && String(existing.user || '').trim() !== authUser.id) {
+    if (!sessionBelongsToAuthorizedUser(existing, authUser)) {
       sendJson(res, 403, { error: 'Forbidden' });
       return;
     }
@@ -130,7 +130,7 @@ module.exports = async function handler(req, res) {
     sendJson(res, 404, { error: 'Session not found.' });
     return;
   }
-  if (authUser && String(session.user || '').trim() !== authUser.id) {
+  if (!sessionBelongsToAuthorizedUser(session, authUser)) {
     sendJson(res, 403, { error: 'Forbidden' });
     return;
   }

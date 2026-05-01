@@ -11,7 +11,9 @@ const {
 const {
   DEFAULT_SESSION_STORE_PATH,
   createSessionPersistence,
-  listSessionSummaries
+  getAuthorizedSessionUserIds,
+  listSessionSummaries,
+  sessionBelongsToAuthorizedUser
 } = require('../app/sessionPersistence');
 const {
   DEFAULT_ASSIGNMENT_STORE_PATH,
@@ -114,6 +116,8 @@ module.exports = {
   getSharedAssignmentStore,
   getAuthUserFromRequest,
   getSharedPersistence,
+  getAuthorizedSessionUserIds,
+  sessionBelongsToAuthorizedUser,
   listSessionSummaries,
   processChatPayload,
   processOutputPayload,

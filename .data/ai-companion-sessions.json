@@ -1,7 +1,493 @@
 {
   "version": 1,
-  "savedAt": "2026-04-05T10:29:34.816Z",
+  "savedAt": "2026-05-01T15:24:42.537Z",
   "sessions": [
+    {
+      "id": "demo-session-ready-report",
+      "user": "patient_1ed3aee1b6f1",
+      "startedAt": "2026-03-29T09:00:00+08:00",
+      "updatedAt": "2026-03-29T09:30:00+08:00",
+      "history": [
+        {
+          "role": "user",
+          "content": "最近兩三週都很累，睡著後很容易醒，工作效率也掉很多。"
+        },
+        {
+          "role": "assistant",
+          "content": "我有聽到，這不是你不夠努力，而是身心都在提醒你需要被照顧。我先幫你整理成可以給醫師看的重點。"
+        },
+        {
+          "role": "user",
+          "content": "有時候會想如果消失就好了，但我沒有要傷害自己。"
+        },
+        {
+          "role": "assistant",
+          "content": "謝謝你說出來。這句很重要，我會把它整理成安全旗標：有被動消失想法，但目前否認立即自傷計畫。"
+        }
+      ],
+      "state": {
+        "active_mode": "mode_5_natural",
+        "risk_flag": "false",
+        "latest_tag_payload": {
+          "summary": "近兩三週情緒低落、睡眠中斷與工作效率下降。",
+          "sentiment_tags": [
+            "低落",
+            "疲憊",
+            "睡眠"
+          ]
+        },
+        "clinician_summary_draft": {
+          "draft_summary": "近兩三週情緒低落、睡眠中斷，並提到工作效率下降；曾出現被動消失想法，但目前否認立即自傷計畫。",
+          "chief_concerns": [
+            "近兩三週情緒低落",
+            "睡著後容易醒",
+            "工作效率下降"
+          ],
+          "symptom_observations": [
+            "情緒低落",
+            "興趣下降",
+            "睡眠中斷"
+          ],
+          "followup_needs": [
+            "追蹤身體焦慮",
+            "確認被動消失念頭頻率"
+          ],
+          "safety_flags": [
+            "被動消失想法",
+            "目前否認立即自傷計畫"
+          ],
+          "hamd_signals": [
+            "depressed_mood",
+            "work_interest",
+            "insomnia"
+          ]
+        },
+        "patient_analysis": {
+          "plain_summary": "這段對話顯示最近壓力偏高、睡眠被打斷，情緒低落和工作效率下降彼此影響。",
+          "key_points": [
+            "情緒低落已持續兩三週",
+            "睡眠中斷",
+            "工作效率下降",
+            "可與醫師討論身體焦慮與安全感"
+          ]
+        },
+        "patient_review_packet": {
+          "review_summary": "可提供醫師作為回診前摘要，送出前仍需要病人確認。",
+          "confirm_items": [
+            "近兩三週情緒低落",
+            "睡著後容易醒",
+            "工作效率下降"
+          ],
+          "optional_edits": [
+            "是否補充最近一週睡眠時數",
+            "是否補充焦慮的身體症狀"
+          ]
+        },
+        "fhir_delivery_draft": {
+          "narrative_summary": "AI Companion pre-visit draft: depressed mood, reduced work interest, insomnia, and passive disappearance ideation without current plan.",
+          "questionnaire_targets": [
+            "HAM-D depressed_mood",
+            "HAM-D work_interest",
+            "HAM-D insomnia"
+          ],
+          "observation_candidates": [
+            {
+              "code": "depressed_mood",
+              "display": "Depressed mood",
+              "evidence": "近兩三週情緒低落"
+            },
+            {
+              "code": "work_interest",
+              "display": "Work and interest decline",
+              "evidence": "工作效率下降"
+            },
+            {
+              "code": "insomnia",
+              "display": "Insomnia",
+              "evidence": "睡著後容易醒"
+            }
+          ],
+          "composition_sections": [
+            {
+              "title": "Chief Concerns",
+              "focus": "近兩三週情緒低落；睡著後容易醒；工作效率下降"
+            },
+            {
+              "title": "Safety",
+              "focus": "被動消失想法；目前否認立即自傷計畫"
+            }
+          ],
+          "resources": [
+            {
+              "resource_type": "Patient",
+              "purpose": "病人基本資料"
+            },
+            {
+              "resource_type": "Encounter",
+              "purpose": "本次對話情境"
+            },
+            {
+              "resource_type": "QuestionnaireResponse",
+              "purpose": "HAM-D 草稿線索"
+            },
+            {
+              "resource_type": "Observation",
+              "purpose": "症狀候選項目"
+            },
+            {
+              "resource_type": "Composition",
+              "purpose": "回診前摘要文件"
+            }
+          ]
+        },
+        "hamd_progress_state": {
+          "covered_dimensions": [
+            "depressed_mood",
+            "work_interest",
+            "insomnia"
+          ],
+          "supported_dimensions": [
+            "depressed_mood",
+            "work_interest",
+            "insomnia"
+          ],
+          "recent_evidence": [
+            "近兩三週情緒低落",
+            "睡著後容易醒",
+            "工作效率下降"
+          ],
+          "next_recommended_dimension": "somatic_anxiety"
+        },
+        "red_flag_payload": {
+          "warning_tags": [
+            "passive_disappearance_ideation"
+          ],
+          "signals": [
+            "曾表達如果消失就好了",
+            "否認立即自傷計畫"
+          ]
+        },
+        "patient_authorization_state": {
+          "authorization_status": "ready_for_consent",
+          "share_with_clinician": "yes"
+        },
+        "delivery_readiness_state": {
+          "readiness_status": "ready_for_backend_mapping"
+        },
+        "therapeutic_profile": {
+          "version": "1.0",
+          "userId": "patient_1ed3aee1b6f1",
+          "stressors": [
+            {
+              "label": "工作壓力",
+              "confidence": 0.7
+            }
+          ],
+          "triggers": [
+            {
+              "keyword": "睡不著",
+              "reaction": "疲憊與焦慮",
+              "severity": "medium"
+            }
+          ],
+          "keyThemes": [
+            "睡眠中斷",
+            "工作效率下降"
+          ],
+          "positiveAnchors": [],
+          "memoryChunks": []
+        }
+      },
+      "revision": 4,
+      "memory_snapshot": {
+        "note_history": [
+          "近兩三週情緒低落",
+          "睡著後容易醒",
+          "工作效率下降"
+        ],
+        "last_user_message": "有時候會想如果消失就好了，但我沒有要傷害自己。",
+        "last_assistant_message": "我會把它整理成安全旗標：有被動消失想法，但目前否認立即自傷計畫。",
+        "active_mode": "mode_5_natural",
+        "risk_flag": "false",
+        "latest_tag_summary": "近兩三週情緒低落、睡眠中斷與工作效率下降。",
+        "hamd_focus": "depressed_mood"
+      },
+      "output_cache": {
+        "ui_report_bundle.v1": {
+          "conversationId": "demo-session-ready-report",
+          "savedAt": "2026-03-29T09:30:00+08:00",
+          "reportOutputs": {
+            "clinician_summary": {
+              "draft_summary": "近兩三週情緒低落、睡眠中斷，並提到工作效率下降；曾出現被動消失想法，但目前否認立即自傷計畫。",
+              "chief_concerns": [
+                "近兩三週情緒低落",
+                "睡著後容易醒",
+                "工作效率下降"
+              ],
+              "symptom_observations": [
+                "情緒低落",
+                "興趣下降",
+                "睡眠中斷"
+              ],
+              "followup_needs": [
+                "追蹤身體焦慮",
+                "確認被動消失念頭頻率"
+              ],
+              "safety_flags": [
+                "被動消失想法",
+                "目前否認立即自傷計畫"
+              ],
+              "hamd_signals": [
+                "depressed_mood",
+                "work_interest",
+                "insomnia"
+              ]
+            },
+            "patient_analysis": {
+              "plain_summary": "這段對話顯示最近壓力偏高、睡眠被打斷，情緒低落和工作效率下降彼此影響。",
+              "key_points": [
+                "情緒低落已持續兩三週",
+                "睡眠中斷",
+                "工作效率下降",
+                "可與醫師討論身體焦慮與安全感"
+              ]
+            },
+            "patient_review": {
+              "review_summary": "可提供醫師作為回診前摘要，送出前仍需要病人確認。",
+              "confirm_items": [
+                "近兩三週情緒低落",
+                "睡著後容易醒",
+                "工作效率下降"
+              ],
+              "optional_edits": [
+                "是否補充最近一週睡眠時數",
+                "是否補充焦慮的身體症狀"
+              ]
+            },
+            "fhir_delivery": {
+              "narrative_summary": "AI Companion pre-visit draft: depressed mood, reduced work interest, insomnia, and passive disappearance ideation without current plan.",
+              "questionnaire_targets": [
+                "HAM-D depressed_mood",
+                "HAM-D work_interest",
+                "HAM-D insomnia"
+              ],
+              "observation_candidates": [
+                {
+                  "code": "depressed_mood",
+                  "display": "Depressed mood",
+                  "evidence": "近兩三週情緒低落"
+                },
+                {
+                  "code": "work_interest",
+                  "display": "Work and interest decline",
+                  "evidence": "工作效率下降"
+                },
+                {
+                  "code": "insomnia",
+                  "display": "Insomnia",
+                  "evidence": "睡著後容易醒"
+                }
+              ],
+              "composition_sections": [
+                {
+                  "title": "Chief Concerns",
+                  "focus": "近兩三週情緒低落；睡著後容易醒；工作效率下降"
+                },
+                {
+                  "title": "Safety",
+                  "focus": "被動消失想法；目前否認立即自傷計畫"
+                }
+              ],
+              "resources": [
+                {
+                  "resource_type": "Patient",
+                  "purpose": "病人基本資料"
+                },
+                {
+                  "resource_type": "Encounter",
+                  "purpose": "本次對話情境"
+                },
+                {
+                  "resource_type": "QuestionnaireResponse",
+                  "purpose": "HAM-D 草稿線索"
+                },
+                {
+                  "resource_type": "Observation",
+                  "purpose": "症狀候選項目"
+                },
+                {
+                  "resource_type": "Composition",
+                  "purpose": "回診前摘要文件"
+                }
+              ]
+            },
+            "session_export": {
+              "patient": {
+                "key": "patient_1ed3aee1b6f1",
+                "name": "星澄",
+                "gender": "unknown"
+              },
+              "session": {
+                "encounterKey": "demo-session-ready-report",
+                "startedAt": "2026-03-29T09:00:00+08:00",
+                "endedAt": "2026-03-29T09:30:00+08:00"
+              },
+              "author": "AI Companion Node Engine",
+              "active_mode": "mode_5_natural",
+              "risk_flag": "false",
+              "latest_tag_payload": {
+                "summary": "近兩三週情緒低落、睡眠中斷與工作效率下降。",
+                "sentiment_tags": [
+                  "低落",
+                  "疲憊",
+                  "睡眠"
+                ]
+              },
+              "clinician_summary_draft": {
+                "draft_summary": "近兩三週情緒低落、睡眠中斷，並提到工作效率下降；曾出現被動消失想法，但目前否認立即自傷計畫。",
+                "chief_concerns": [
+                  "近兩三週情緒低落",
+                  "睡著後容易醒",
+                  "工作效率下降"
+                ],
+                "symptom_observations": [
+                  "情緒低落",
+                  "興趣下降",
+                  "睡眠中斷"
+                ],
+                "followup_needs": [
+                  "追蹤身體焦慮",
+                  "確認被動消失念頭頻率"
+                ],
+                "safety_flags": [
+                  "被動消失想法",
+                  "目前否認立即自傷計畫"
+                ],
+                "hamd_signals": [
+                  "depressed_mood",
+                  "work_interest",
+                  "insomnia"
+                ]
+              },
+              "patient_analysis": {
+                "plain_summary": "這段對話顯示最近壓力偏高、睡眠被打斷，情緒低落和工作效率下降彼此影響。",
+                "key_points": [
+                  "情緒低落已持續兩三週",
+                  "睡眠中斷",
+                  "工作效率下降",
+                  "可與醫師討論身體焦慮與安全感"
+                ]
+              },
+              "patient_review_packet": {
+                "review_summary": "可提供醫師作為回診前摘要，送出前仍需要病人確認。",
+                "confirm_items": [
+                  "近兩三週情緒低落",
+                  "睡著後容易醒",
+                  "工作效率下降"
+                ],
+                "optional_edits": [
+                  "是否補充最近一週睡眠時數",
+                  "是否補充焦慮的身體症狀"
+                ]
+              },
+              "fhir_delivery_draft": {
+                "narrative_summary": "AI Companion pre-visit draft: depressed mood, reduced work interest, insomnia, and passive disappearance ideation without current plan.",
+                "questionnaire_targets": [
+                  "HAM-D depressed_mood",
+                  "HAM-D work_interest",
+                  "HAM-D insomnia"
+                ],
+                "observation_candidates": [
+                  {
+                    "code": "depressed_mood",
+                    "display": "Depressed mood",
+                    "evidence": "近兩三週情緒低落"
+                  },
+                  {
+                    "code": "work_interest",
+                    "display": "Work and interest decline",
+                    "evidence": "工作效率下降"
+                  },
+                  {
+                    "code": "insomnia",
+                    "display": "Insomnia",
+                    "evidence": "睡著後容易醒"
+                  }
+                ],
+                "composition_sections": [
+                  {
+                    "title": "Chief Concerns",
+                    "focus": "近兩三週情緒低落；睡著後容易醒；工作效率下降"
+                  },
+                  {
+                    "title": "Safety",
+                    "focus": "被動消失想法；目前否認立即自傷計畫"
+                  }
+                ],
+                "resources": [
+                  {
+                    "resource_type": "Patient",
+                    "purpose": "病人基本資料"
+                  },
+                  {
+                    "resource_type": "Encounter",
+                    "purpose": "本次對話情境"
+                  },
+                  {
+                    "resource_type": "QuestionnaireResponse",
+                    "purpose": "HAM-D 草稿線索"
+                  },
+                  {
+                    "resource_type": "Observation",
+                    "purpose": "症狀候選項目"
+                  },
+                  {
+                    "resource_type": "Composition",
+                    "purpose": "回診前摘要文件"
+                  }
+                ]
+              },
+              "hamd_progress_state": {
+                "covered_dimensions": [
+                  "depressed_mood",
+                  "work_interest",
+                  "insomnia"
+                ],
+                "supported_dimensions": [
+                  "depressed_mood",
+                  "work_interest",
+                  "insomnia"
+                ],
+                "recent_evidence": [
+                  "近兩三週情緒低落",
+                  "睡著後容易醒",
+                  "工作效率下降"
+                ],
+                "next_recommended_dimension": "somatic_anxiety"
+              },
+              "red_flag_payload": {
+                "warning_tags": [
+                  "passive_disappearance_ideation"
+                ],
+                "signals": [
+                  "曾表達如果消失就好了",
+                  "否認立即自傷計畫"
+                ]
+              },
+              "patient_authorization_state": {
+                "authorization_status": "ready_for_consent",
+                "share_with_clinician": "yes"
+              },
+              "delivery_readiness_state": {
+                "readiness_status": "ready_for_backend_mapping"
+              }
+            },
+            "updatedAt": "2026-03-29T09:30:00+08:00"
+          },
+          "fhirReportHistory": []
+        }
+      }
+    },
     {
       "id": "conv-a",
       "user": "demo-user",

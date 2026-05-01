@@ -1017,6 +1017,51 @@ async function testAuthProtectsForeignSession() {
   assert.strictEqual(own.body.session.id, 'conv-own');
 }
 
+async function testDefaultDemoPatientCanSeeLegacyDemoSessions() {
+  const authStore = createTempAuthStore();
+  const login = authStore.login({
+    login_identifier: 'Justin',
+    password: '3553'
+  });
+  const sessions = new Map();
+  sessions.set('conv-legacy-demo', {
+    id: 'conv-legacy-demo',
+    user: 'demo-user',
+    startedAt: '2026-04-04T00:00:00.000Z',
+    updatedAt: '2026-04-04T00:05:00.000Z',
+    history: [{ role: 'user', content: '這是舊 demo 對話' }],
+    state: {
+      clinician_summary_draft: { draft_summary: '舊 demo 醫師摘要' },
+      fhir_delivery_draft: { resources: [{ resource_type: 'Patient' }] }
+    },
+    revision: 1,
+    memory_snapshot: {
+      last_user_message: '這是舊 demo 對話',
+      latest_tag_summary: '舊 demo 對話摘要'
+    },
+    output_cache: {}
+  });
+
+  const server = createServer({ sessions, authStore });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const list = await requestJson(port, '/api/chat/sessions?limit=5', {
+    headers: { Authorization: `Bearer ${login.token}` }
+  });
+  const detail = await requestJson(port, '/api/chat/session?id=conv-legacy-demo', {
+    headers: { Authorization: `Bearer ${login.token}` }
+  });
+
+  server.close();
+  assert.strictEqual(list.statusCode, 200);
+  assert.strictEqual(list.body.sessions.length, 1);
+  assert.strictEqual(list.body.sessions[0].id, 'conv-legacy-demo');
+  assert.strictEqual(list.body.sessions[0].has_fhir_draft, true);
+  assert.strictEqual(detail.statusCode, 200);
+  assert.strictEqual(detail.body.session.id, 'conv-legacy-demo');
+}
+
 async function run() {
   await testDryRunDelivery();
   await testBlockedDelivery();
@@ -1049,6 +1094,7 @@ async function run() {
   await testDoctorCanAddPatientIdWithoutSharedUserCache();
   await testDoctorAssignmentVisibleToPatient();
   await testAuthProtectsForeignSession();
+  await testDefaultDemoPatientCanSeeLegacyDemoSessions();
   console.log('FHIR delivery server tests passed.');
 }
 
