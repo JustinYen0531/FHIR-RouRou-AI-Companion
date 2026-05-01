@@ -1904,12 +1904,16 @@ function openAuthModal(force = false) {
   overlay.setAttribute('aria-hidden', 'false');
 }
 
-function closeAuthModal() {
-  if (!isAuthenticated()) return;
+function hideAuthModal() {
   const overlay = document.getElementById('auth-modal-overlay');
   if (!overlay) return;
   overlay.classList.remove('active');
   overlay.setAttribute('aria-hidden', 'true');
+}
+
+function closeAuthModal() {
+  if (!isAuthenticated()) return;
+  hideAuthModal();
 }
 
 async function readJsonResponseSafe(response) {
@@ -2022,7 +2026,7 @@ async function restoreAuthenticatedSession() {
   const token = String(APP_STATE.auth?.token || '').trim();
   if (!token) {
     updateAuthUI();
-    openAuthModal(true);
+    hideAuthModal();
     return;
   }
 
