@@ -11309,7 +11309,8 @@ async function authorizeAndSendReport() {
       ].filter(Boolean).join('　|　');
       setConsentPreviewProgress(100, `送出${deliveryStatus === 'transaction_failed' ? '失敗' : '完成'}，目前狀態：${deliveryStatus}`, deliveryStatus === 'transaction_failed' ? '失敗' : '完成');
       appendSystemNotice(`FHIR 送出結果：${deliveryStatus}${detailMsg ? `\n詳細原因：${detailMsg}` : ''}`, { important: true });
-      console.error('[FHIR delivery]', deliveryStatus, payload?.transaction_response);
+      console.error('[FHIR delivery]', deliveryStatus, JSON.stringify(payload?.transaction_response, null, 2));
+      console.error('[FHIR delivery FULL PAYLOAD]', JSON.stringify(payload, null, 2));
     }
   } catch (error) {
     const deliveredStatus = deliveryPayload?.delivery_status;
