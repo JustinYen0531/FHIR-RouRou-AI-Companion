@@ -5,5 +5,12 @@
       "source": "/health",
       "destination": "/api/health"
     }
-  ]
+  ],
+  "functions": {
+    "api/fhir/bundle.js": { "maxDuration": 60 },
+    "api/fhir/check.js": { "maxDuration": 30 },
+    "api/fhir/resource-refresh.js": { "maxDuration": 30 },
+    "api/chat/message.js": { "maxDuration": 60 },
+    "api/chat/output.js": { "maxDuration": 60 }
+  }
 }
