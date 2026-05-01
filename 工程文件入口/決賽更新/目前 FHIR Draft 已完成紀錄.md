@@ -1,6 +1,6 @@
 # 目前 FHIR Draft 已完成紀錄
 
-更新日期：`2026-04-24`
+更新日期：`2026-05-01`
 
 ## 一句話結論
 目前這份 FHIR draft 已經不只是「可以成功送到 HAPI 測試伺服器」，而是開始進入「內容可信、結構完整、可拿來決賽展示」的階段。  
@@ -468,3 +468,56 @@
 | 層 | 狀態 |
 |----|------|
 | Patient 展示版去識別策略 | 待實作 |
+
+---
+
+## 2026-05-01 近期補充：已完成到哪個 commit 環節
+
+> 若只看「最近兩三天、而且直接跟 FHIR draft / FHIR 交付 / history 穩定性有關」的脈絡，這份已完成紀錄目前已經可以一路補到：`0e4ab4c Fix FHIR history bootstrap crash`。
+
+### 這一輪已經補進來的後段進展
+
+#### 1. `d48f469` feat: FHIR 欄位調整表格、TW IG Core 轉換按鈕、FHIR 優化全套
+
+這一筆很重要，因為它不是單點修補，而是把最近一輪 FHIR 優化做成比較完整的整包推進：
+
+1. 補上 FHIR 欄位調整表格，讓 mapping decision 不再只存在於口頭說明。
+2. 增加 `TW IG Core` 轉換按鈕，讓展示與對照流程更直觀。
+3. 同步調整 `app.js`、`fhirBundleBuilder.js`、`sampleBundleOutput.json` 與 `style.css`，代表這次不是只有文件整理，而是前端展示、builder 與示例輸出一起更新。
+
+#### 2. `415e8d8` Persist report bundle to session cache
+
+這筆對 FHIR draft 交付穩定性非常關鍵：
+
+1. report bundle 不再只是當下生成後短暫存在。
+2. 刷新頁面後，session cache 能幫忙保留 FHIR 交付結果。
+3. 這代表系統開始更像真正可回溯的診前整理流程，而不是一次性 demo。
+
+#### 3. `960a2fd` Fix HAPI FHIR ClinicalImpression compatibility
+
+這筆是典型的「不是功能變多，而是成功率變高」：
+
+1. `ClinicalImpression` 在 HAPI 測試伺服器上的相容性被補強。
+2. 代表你最近不是只有修語氣或可讀性，也補了最現實的交換端穩定性。
+3. 對決賽來說，這種 commit 雖然不花俏，但很能說明你知道醫療資料不是生出來就算完成，而是要能真的送進標準環境。
+
+#### 4. `0e4ab4c` Fix FHIR history bootstrap crash
+
+這是目前這條線上最新、也最值得記一筆的收尾：
+
+1. 修掉 FHIR history 在 bootstrap 階段的 crash。
+2. 這讓 history / preview / 過去 draft 回看流程更穩。
+3. 也代表你最近兩三天的工作重心，已經從「把 draft 內容修漂亮」進一步推到「把 draft 的保存、初始化與回看機制修穩」。
+
+### 如果要一句話描述最近兩三天的進展
+
+4/24 前後的完成紀錄，比較像是在把各個 FHIR resources 的內容品質與治理邏輯補齊；  
+5/1 這一輪的完成紀錄，則更像是在把 **mapping 可解釋性、交付穩定性、HAPI 相容性、history 可回溯性** 一起補到可展示水位。
+
+### 所以這份已完成紀錄目前能不能算跟到最後
+
+可以，但要講得精準一點：
+
+1. 如果你說的是「整個 repo 的最後一個 commit」，那當然不是，因為後面還有簡報文件、導師互動、PDF 整理等提交。
+2. 但如果你說的是「FHIR draft / FHIR 交付 / history 這條線目前最近的最後一個直接相關 commit」，那目前確實可以跟到 `0e4ab4c`。
+3. 也就是說，這份文件現在應該被理解成：**已完成紀錄已補到最近一輪 FHIR draft 穩定化收尾**，而不是只停在 4/24。
