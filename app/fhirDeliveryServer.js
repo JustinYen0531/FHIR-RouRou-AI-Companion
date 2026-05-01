@@ -332,7 +332,10 @@ function shouldRetryOnPublicDemoFallback(primaryAttempt, primaryFhirBaseUrl, fal
   const fallback = normalizeFhirTarget(fallbackFhirBaseUrl);
   if (!fallback || primary === fallback) return false;
   if (!shouldUseUniqueDemoKeys(primary) || !shouldUseUniqueDemoKeys(fallback)) return false;
-  return !primaryAttempt.ok && (primaryAttempt.status === 0 || primaryAttempt.status === 429 || primaryAttempt.status >= 500);
+  // Trigger fallback on ANY non-OK status (was: only 0/429/5xx). HAPI public
+  // test server frequently returns 4xx (412 duplicate, 422 validation) on
+  // shared resource conflicts — those should also fall back to SMART Health IT.
+  return !primaryAttempt.ok;
 }
 
 function buildTransactionResponsePayload(finalAttempt, primaryAttempt, fallbackUsed) {
