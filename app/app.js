@@ -8470,6 +8470,17 @@ function extractFhirDeliveryError(payload = {}) {
     return issueDiagnostics.join('；');
   }
 
+  const rawBody = payload?.transaction_response?.body;
+  if (typeof rawBody === 'string' && rawBody.trim()) {
+    return rawBody.slice(0, 400);
+  }
+  if (rawBody && typeof rawBody === 'object' && typeof rawBody.raw === 'string' && rawBody.raw.trim()) {
+    return rawBody.raw.slice(0, 400);
+  }
+  const hapiStatus = payload?.transaction_response?.status;
+  if (hapiStatus) {
+    return `HAPI HTTP ${hapiStatus}（無錯誤訊息）`;
+  }
   return payload?.transaction_response?.error || payload?.error || 'FHIR 上傳失敗';
 }
 
