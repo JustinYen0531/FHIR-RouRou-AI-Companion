@@ -126,6 +126,28 @@ async function testPublicHapiDeliveryUsesUniqueKeys() {
   assert.ok(encounterEntry.resource.identifier[0].value.startsWith(originalEncounterKey + '-'));
 }
 
+async function testSharedDeviceUsesIdempotentPutRequest() {
+  const payload = getSamplePayload();
+  let submittedBundle = null;
+  const fakeFetch = async (_url, options) => {
+    submittedBundle = JSON.parse(options.body);
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ resourceType: 'Bundle', type: 'transaction-response' })
+    };
+  };
+
+  const result = await processExportPayload(payload, {
+    fhirBaseUrl: 'https://hapi.fhir.org/baseR4',
+    fetchImpl: fakeFetch
+  });
+
+  const deviceEntry = submittedBundle.entry.find((entry) => entry.resource.resourceType === 'Device');
+  assert.strictEqual(result.statusCode, 200);
+  assert.strictEqual(deviceEntry, undefined);
+}
+
 async function testPublicHapiDeliveryFallsBackToSmartWhenHapiFails() {
   const payload = getSamplePayload();
   const attemptedUrls = [];
@@ -829,6 +851,7 @@ async function run() {
   await testQuickCheckBlocked();
   await testTransactionDelivery();
   await testPublicHapiDeliveryUsesUniqueKeys();
+  await testSharedDeviceUsesIdempotentPutRequest();
   await testPublicHapiDeliveryFallsBackToSmartWhenHapiFails();
   await testPatientRefreshDelivery();
   await testPatientRefreshRejectsInvalidPath();

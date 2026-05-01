@@ -17,9 +17,9 @@ const {
 
 const APP_DIR = __dirname;
 const PROJECT_ROOT = path.join(APP_DIR, '..');
-const DEFAULT_PUBLIC_FHIR_BASE_URL = 'https://r4.smarthealthit.org';
-const LEGACY_HAPI_FHIR_BASE_URL = 'https://hapi.fhir.org/baseR4';
-const PUBLIC_DEMO_FHIR_TARGETS = [DEFAULT_PUBLIC_FHIR_BASE_URL, LEGACY_HAPI_FHIR_BASE_URL];
+const DEFAULT_PUBLIC_FHIR_BASE_URL = 'https://hapi.fhir.org/baseR4';
+const DEFAULT_FHIR_FALLBACK_BASE_URL = 'https://r4.smarthealthit.org';
+const PUBLIC_DEMO_FHIR_TARGETS = [DEFAULT_PUBLIC_FHIR_BASE_URL, DEFAULT_FHIR_FALLBACK_BASE_URL];
 const DELIVERY_DEBUG_LOG_PATH = path.join(APP_DIR, '..', '.logs', 'fhir-delivery-debug.ndjson');
 const LOCAL_ENV_PATH = path.join(PROJECT_ROOT, '.env.local');
 const STATIC_FILES = {
@@ -190,6 +190,9 @@ function preparePayloadForDeliveryTarget(payload, fhirBaseUrl) {
   if (cloned.session && cloned.session.encounterKey) {
     cloned.session.encounterKey = cloned.session.encounterKey.endsWith(`-${suffix}`) ? cloned.session.encounterKey : `${cloned.session.encounterKey}-${suffix}`;
   }
+
+  const baseAiDeviceId = String(cloned.ai_device_id || 'ai-companion-node-engine').trim() || 'ai-companion-node-engine';
+  cloned.ai_device_id = baseAiDeviceId.endsWith(`-${suffix}`) ? baseAiDeviceId : `${baseAiDeviceId}-${suffix}`;
 
   return cloned;
 }
@@ -453,7 +456,7 @@ async function processExportPayload(payload, options = {}) {
 
   try {
     const primaryAttempt = await sendFhirTransactionAttempt(fetchImpl, options.fhirBaseUrl, bundleResult.bundle_json);
-    const fallbackFhirBaseUrl = String(options.fallbackFhirBaseUrl || DEFAULT_PUBLIC_FHIR_BASE_URL).trim();
+    const fallbackFhirBaseUrl = String(options.fallbackFhirBaseUrl || DEFAULT_FHIR_FALLBACK_BASE_URL).trim();
     const shouldUseFallback = shouldRetryOnPublicDemoFallback(primaryAttempt, options.fhirBaseUrl, fallbackFhirBaseUrl);
     const finalAttempt = shouldUseFallback
       ? await sendFhirTransactionAttempt(fetchImpl, fallbackFhirBaseUrl, bundleResult.bundle_json)

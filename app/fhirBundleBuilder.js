@@ -44,9 +44,21 @@
 
   const CLINICAL_IMPRESSION_PROFILE = 'http://hl7.org/fhir/StructureDefinition/ClinicalImpression';
 
-  const AI_DEVICE_FULL_URL = 'Device/ai-companion-node-engine';
-  const AI_DEVICE_DISPLAY = 'AI Companion Node Engine';
-  const AI_DEVICE_REFERENCE = { reference: AI_DEVICE_FULL_URL, display: AI_DEVICE_DISPLAY };
+const DEFAULT_AI_DEVICE_ID = 'ai-companion-node-engine';
+const AI_DEVICE_DISPLAY = 'AI Companion Node Engine';
+
+function getAiDeviceConfig(input) {
+  const deviceId = String(input?.ai_device_id || DEFAULT_AI_DEVICE_ID).trim() || DEFAULT_AI_DEVICE_ID;
+  const fullUrl = `urn:uuid:${deviceId}`;
+    return {
+      deviceId: deviceId,
+      fullUrl: fullUrl,
+      resourcePath: `Device/${deviceId}`,
+      reference: {
+        display: AI_DEVICE_DISPLAY
+      }
+    };
+  }
 
   const DIMENSION_LABELS = {
     depressed_mood: 'Depressed mood',
@@ -673,6 +685,7 @@
   }
 
   function buildQuestionnaireResponseResource(input, patientFullUrl, encounterFullUrl, hamdProgress, formalAssessment, phq9Assessment, clinicianSummary, patientReviewPacket, fhirDeliveryDraft) {
+    const aiDeviceReference = getAiDeviceConfig(input).reference;
     const items = collectQuestionnaireItems(input, hamdProgress, formalAssessment, phq9Assessment, clinicianSummary, patientReviewPacket, fhirDeliveryDraft);
 
     return {
@@ -690,7 +703,7 @@
       subject: { reference: patientFullUrl },
       encounter: { reference: encounterFullUrl },
       authored: input.session.endedAt || input.session.startedAt || new Date().toISOString(),
-      author: AI_DEVICE_REFERENCE,
+      author: aiDeviceReference,
       item: items
     };
   }
@@ -782,6 +795,7 @@
   }
 
   function buildCompositionResource(input, patientFullUrl, encounterFullUrl, questionnaireFullUrl, observationEntries, clinicianSummary, patientAnalysis, patientReviewPacket, fhirDeliveryDraft) {
+    const aiDeviceReference = getAiDeviceConfig(input).reference;
 
     // ── 1. 各來源資料：去重 + 上限 ────────────────────────────────────────────
     var chiefConcerns       = dedupeStrings(clinicianSummary.chief_concerns, 4);
@@ -1044,7 +1058,7 @@
       title: 'AI Companion Pre-Visit Summary',
       confidentiality: 'R',
       section: sections,
-      author: [AI_DEVICE_REFERENCE],
+      author: [aiDeviceReference],
       relatesTo: questionnaireFullUrl
         ? [{ code: 'appends', targetReference: { reference: questionnaireFullUrl } }]
         : undefined
@@ -1164,38 +1178,26 @@
   }
 
 
-  function buildDeviceResource() {
-    return {
-      resourceType: 'Device',
-      id: 'ai-companion-node-engine',
-      status: 'active',
-      deviceName: [
-        {
-          name: AI_DEVICE_DISPLAY,
-          type: 'user-friendly-name'
-        }
-      ]
-    };
-  }
-
   function buildBundle(entries) {
     return {
       resourceType: 'Bundle',
       type: 'transaction',
       entry: entries.map(function (entry) {
+        var request = entry.request || {
+          method: 'POST',
+          url: entry.resource.resourceType
+        };
         return {
           fullUrl: entry.fullUrl,
           resource: entry.resource,
-          request: {
-            method: 'POST',
-            url: entry.resource.resourceType
-          }
+          request: request
         };
       })
     };
   }
 
   function buildDocumentReferenceResource(input, patientFullUrl, encounterFullUrl, compositionFullUrl, clinicianSummary, patientAnalysis, patientReviewPacket, fhirDeliveryDraft, formalAssessment) {
+    const aiDeviceReference = getAiDeviceConfig(input).reference;
 
     // ── 1. 閱讀版 payload（只含高品質臨床欄位，給醫師看）─────────────────────
     var readablePayload = {
@@ -1234,7 +1236,7 @@
         text: 'AI Companion clinician summary document'
       },
       date: input.session.endedAt || input.session.startedAt || new Date().toISOString(),
-      author: [AI_DEVICE_REFERENCE],
+      author: [aiDeviceReference],
       description: 'Clinician-facing AI Companion pre-visit summary draft',
       content: [
         {
@@ -1257,6 +1259,7 @@
 
 
   function buildProvenanceResource(input, patientFullUrl, encounterFullUrl, targetRefs) {
+    const aiDeviceReference = getAiDeviceConfig(input).reference;
     var authState = input.patient_authorization_state || {};
     var shareWithClinician = normalizeShareWithClinician(
       authState.share_with_clinician,
@@ -1274,7 +1277,7 @@
     var agents = [
       {
         type: { text: 'AI generation engine' },
-        who: AI_DEVICE_REFERENCE
+        who: aiDeviceReference
       }
     ];
     if (patientFullUrl) {
@@ -1399,6 +1402,7 @@
       patient_authorization_state: toObject(rawInput && rawInput.patient_authorization_state, 'patient_authorization_state', validationErrors),
       delivery_readiness_state: toObject(rawInput && rawInput.delivery_readiness_state, 'delivery_readiness_state', validationErrors),
       active_mode: rawInput && rawInput.active_mode ? rawInput.active_mode : '',
+      ai_device_id: rawInput && rawInput.ai_device_id ? rawInput.ai_device_id : '',
       risk_flag: rawInput && rawInput.risk_flag ? rawInput.risk_flag : '',
       latest_tag_payload: toObject(rawInput && rawInput.latest_tag_payload, 'latest_tag_payload', validationErrors),
       burden_level_state: toObject(rawInput && rawInput.burden_level_state, 'burden_level_state', validationErrors)
@@ -1463,11 +1467,6 @@
         input.red_flag_payload
       ).concat(gatherFormalObservationCandidates(input.hamd_formal_assessment)).concat(gatherPhq9ObservationCandidates(input.phq9_assessment))
     );
-
-    const deviceEntry = {
-      fullUrl: AI_DEVICE_FULL_URL,
-      resource: buildDeviceResource()
-    };
 
     const patientEntry = {
       fullUrl: patientFullUrl,
@@ -1556,7 +1555,7 @@
       )
     };
 
-    const entries = [deviceEntry, patientEntry, encounterEntry, questionnaireEntry]
+    const entries = [patientEntry, encounterEntry, questionnaireEntry]
       .concat(observationEntries)
       .concat([clinicalImpressionEntry, compositionEntry, documentReferenceEntry, provenanceEntry]);
 

@@ -175,6 +175,7 @@ function testBuildsBundleForValidInput() {
   assert.deepStrictEqual(result.blocking_reasons, []);
   assert.ok(result.validation_report, 'validation_report should exist');
   assert.strictEqual(result.validation_report.valid, true);
+  assert.ok(!result.resource_index.Device, 'bundle should not emit a standalone Device resource');
 }
 
 function testBlocksWithoutClinicianSummary() {
