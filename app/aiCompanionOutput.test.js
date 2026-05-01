@@ -454,6 +454,10 @@ async function testStructuredObservationRewritingAndLeanFhirDraft() {
     'symptom observations should avoid raw first-person phrasing'
   );
   assert.ok(
+    clinician.output.chief_concerns.every((item) => !String(item).includes('我')),
+    'chief concerns should avoid raw first-person phrasing'
+  );
+  assert.ok(
     Array.isArray(fhir.output.composition_sections) && fhir.output.composition_sections.length > 0,
     'FHIR draft should keep only meaningful composition sections'
   );
@@ -464,6 +468,36 @@ async function testStructuredObservationRewritingAndLeanFhirDraft() {
   assert.ok(
     fhir.output.observation_candidates.every((item) => !String(item.focus || '').includes('我以前')),
     'FHIR draft observations should not keep raw transcript-style text'
+  );
+}
+
+async function testFormalAssessmentBackfillsScoredItemsFromClinicalEvidence() {
+  const modelClient = createStubModelClient();
+  const engine = new AICompanionEngine({ modelClient, apiKey: 'fake' });
+  await engine.handleMessage({
+    message: '我最近睡不好，白天很沒勁，心情也一直很低落。',
+    user: 'demo',
+    conversation_id: 'conv-output-formal-backfill'
+  });
+
+  const clinician = await engine.generateOutput({
+    conversation_id: 'conv-output-formal-backfill',
+    user: 'demo',
+    output_type: 'clinician_summary',
+    force_refresh: true
+  });
+
+  assert.ok(
+    Array.isArray(clinician.output.hamd_item_scores) && clinician.output.hamd_item_scores.length > 0,
+    'formal assessment should expose scored HAM-D items'
+  );
+  assert.ok(
+    clinician.output.hamd_item_scores.some((item) => Number.isFinite(Number(item.ai_suggested_score))),
+    'formal assessment should include at least one AI suggested score'
+  );
+  assert.ok(
+    Array.isArray(clinician.output.hamd_evidence_table) && clinician.output.hamd_evidence_table.length > 0,
+    'formal assessment should include evidence table rows'
   );
 }
 
@@ -595,6 +629,7 @@ async function run() {
   await testOutputCaching();
   await testForceRefreshBypassesOutputCache();
   await testStructuredObservationRewritingAndLeanFhirDraft();
+  await testFormalAssessmentBackfillsScoredItemsFromClinicalEvidence();
   await testPhq9OnlySessionsStillGenerateStructuredDrafts();
   await testPatientAnalysisUsesMeaningfulNarrative();
   await testPatientAnalysisFallsBackToRawModelTextWhenJsonInvalid();

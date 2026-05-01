@@ -9843,59 +9843,6 @@ function normalizeSessionExportForDelivery(sessionExport = {}) {
     ? normalized.clinician_summary_draft
     : {};
   const clinician = normalized.clinician_summary_draft;
-  const fallbackMessages = Array.isArray(APP_STATE?.chatHistory)
-    ? APP_STATE.chatHistory
-        .filter((item) => item && item.role === 'user' && item.content)
-        .map((item) => String(item.content).trim())
-        .filter((item) => item && isClinicalFallbackMessage(item))
-    : [];
-  const fallbackNarrative = fallbackMessages.length
-    ? fallbackMessages.slice(-3).join('；')
-    : '';
-  const extractedConcerns = [];
-  const extractedSignals = [];
-  const extractedObservations = [];
-
-  fallbackMessages.slice(-12).forEach((message) => {
-    const text = String(message || '').trim();
-    if (!text) return;
-    if (/(憂鬱|低落|沮喪|空虛|沒意義|提不起勁)/i.test(text)) {
-      if (!extractedConcerns.includes('持續低落與憂鬱感')) extractedConcerns.push('持續低落與憂鬱感');
-      if (!extractedSignals.includes('depressed_mood')) extractedSignals.push('depressed_mood');
-      if (!extractedObservations.includes('對話內容顯示持續低落與動機下降。')) extractedObservations.push('對話內容顯示持續低落與動機下降。');
-    }
-    if (/(工作|上班|打工|沒動力|摸魚|無意義|自我實踐)/i.test(text)) {
-      if (!extractedConcerns.includes('工作動力與意義感下降')) extractedConcerns.push('工作動力與意義感下降');
-      if (!extractedSignals.includes('work_interest')) extractedSignals.push('work_interest');
-      if (!extractedObservations.includes('近期工作或課業投入度下降，功能受影響。')) extractedObservations.push('近期工作或課業投入度下降，功能受影響。');
-    }
-    if (/(易怒|暴躁|煩躁|朋友|遠離|疏離|孤單)/i.test(text)) {
-      if (!extractedConcerns.includes('易怒與人際疏離')) extractedConcerns.push('易怒與人際疏離');
-      if (!extractedSignals.includes('agitation')) extractedSignals.push('agitation');
-      if (!extractedObservations.includes('人際互動耐受度下降，伴隨疏離傾向。')) extractedObservations.push('人際互動耐受度下降，伴隨疏離傾向。');
-    }
-    if (/(心不在焉|變慢|拖住|專心|注意力)/i.test(text)) {
-      if (!extractedConcerns.includes('注意力下降或思考拖慢')) extractedConcerns.push('注意力下降或思考拖慢');
-      if (!extractedSignals.includes('retardation')) extractedSignals.push('retardation');
-      if (!extractedObservations.includes('注意力維持困難，思考與反應速度下降。')) extractedObservations.push('注意力維持困難，思考與反應速度下降。');
-    }
-    if (/(睡不著|失眠|半夜醒|早醒|睡眠)/i.test(text)) {
-      if (!extractedConcerns.includes('睡眠困擾')) extractedConcerns.push('睡眠困擾');
-      if (!extractedSignals.includes('insomnia')) extractedSignals.push('insomnia');
-      if (!extractedObservations.includes('睡眠中斷或入睡困難持續出現。')) extractedObservations.push('睡眠中斷或入睡困難持續出現。');
-    }
-    if (/(焦慮|緊張|心悸|不安|胃痛|肚子痛|腹痛|發冷|手腳冰冷|胸悶)/i.test(text)) {
-      if (!extractedConcerns.includes('焦慮與身體緊繃')) extractedConcerns.push('焦慮與身體緊繃');
-      if (!extractedSignals.includes('somatic_anxiety')) extractedSignals.push('somatic_anxiety');
-      if (!extractedObservations.includes('對話內容顯示焦慮感與身體化反應（含腸胃不適或發冷）。')) extractedObservations.push('對話內容顯示焦慮感與身體化反應（含腸胃不適或發冷）。');
-    }
-    if (/(自責|怪自己|絕望|活著沒有意義|想消失|傷痕|自傷)/i.test(text)) {
-      if (!extractedConcerns.includes('自責、無望或自傷風險線索')) extractedConcerns.push('自責、無望或自傷風險線索');
-      if (!extractedSignals.includes('guilt')) extractedSignals.push('guilt');
-      if (!extractedObservations.includes('出現自責或無望相關敘述，需持續風險釐清。')) extractedObservations.push('出現自責或無望相關敘述，需持續風險釐清。');
-    }
-  });
-
   const symptomObservations = Array.isArray(clinician.symptom_observations)
     ? clinician.symptom_observations.filter(Boolean)
     : [];
@@ -9930,7 +9877,7 @@ function normalizeSessionExportForDelivery(sessionExport = {}) {
   const resolvedSignals = hamdSignals.length ? hamdSignals : inferredSignals;
 
   if (!Array.isArray(clinician.chief_concerns) || !clinician.chief_concerns.length) {
-    clinician.chief_concerns = extractedConcerns.length ? extractedConcerns : [];
+    clinician.chief_concerns = [];
   }
 
   if (!Array.isArray(clinician.symptom_observations) || !clinician.symptom_observations.length) {
@@ -9938,7 +9885,7 @@ function normalizeSessionExportForDelivery(sessionExport = {}) {
       ? inferredObservationSummaries
       : symptomObservations.length
         ? symptomObservations
-        : (extractedObservations.length ? extractedObservations : []);
+        : [];
   }
 
   if (!Array.isArray(clinician.followup_needs) || !clinician.followup_needs.length) {
@@ -9950,7 +9897,7 @@ function normalizeSessionExportForDelivery(sessionExport = {}) {
   }
 
   if (!Array.isArray(clinician.hamd_signals) || !clinician.hamd_signals.length) {
-    clinician.hamd_signals = resolvedSignals.length ? resolvedSignals : (extractedSignals.length ? extractedSignals : []);
+    clinician.hamd_signals = resolvedSignals.length ? resolvedSignals : [];
   }
 
   if (!String(clinician.draft_summary || '').trim()) {

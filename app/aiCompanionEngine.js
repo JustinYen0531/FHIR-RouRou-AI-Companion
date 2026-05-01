@@ -2732,6 +2732,101 @@ function buildFormalClinicianFields(formalAssessment) {
   };
 }
 
+function findDeterministicFormalEvidence(item, longitudinal = {}) {
+  const evidencePool = uniqueStrings([
+    ...normalizeArray(longitudinal.userMessages),
+    ...normalizeArray(longitudinal.symptomObservations),
+    ...normalizeArray(longitudinal.symptomEvidenceTrack).map((entry) => entry?.source_text),
+    ...normalizeArray(longitudinal.symptomInferenceTrack).map((entry) => entry?.summary),
+    ...normalizeArray(longitudinal.symptomInferenceTrack).map((entry) => entry?.functional_impact)
+  ], 24);
+  const matches = evidencePool
+    .map((text) => ({
+      raw: String(text || '').trim(),
+      summarized: summarizeHamdEvidenceText(item, text)
+    }))
+    .filter((entry) => entry.raw && entry.summarized);
+
+  if (!matches.length) return null;
+
+  const directValues = matches
+    .map((entry) => inferDirectAnswerValue(entry.raw, item.scale_range))
+    .filter((value) => Number.isFinite(Number(value)))
+    .map((value) => clampScore(value, item.scale_range))
+    .filter((value) => value != null);
+  const directValue = directValues.length ? Math.max(...directValues) : null;
+  const evidenceType = directValue != null
+    ? 'direct_answer'
+    : (item.preferred_evidence === 'indirect_observation' ? 'indirect_observation' : 'mixed');
+  const fallbackScore = directValue != null
+    ? directValue
+    : Math.min(1, scoreRangeMax(item.scale_range));
+
+  return {
+    evidence_type: evidenceType,
+    direct_answer_value: directValue,
+    evidence_summary: normalizeHamdEvidenceSummary(item, matches.map((entry) => entry.raw)),
+    ai_suggested_score: clampScore(fallbackScore, item.scale_range),
+    review_required: evidenceType !== 'direct_answer',
+    confidence: directValue != null ? 'high' : 'medium'
+  };
+}
+
+function backfillFormalAssessmentFromLongitudinal(formalAssessment, longitudinal = {}) {
+  if (!formalAssessment || !Array.isArray(formalAssessment.items)) return formalAssessment;
+
+  const nextItems = formalAssessment.items.map((item) => {
+    if (!item || typeof item !== 'object') return item;
+    const hasEvidence = normalizeArray(item.evidence_summary).length > 0;
+    const hasScore = Number.isFinite(Number(item.ai_suggested_score)) || Number.isFinite(Number(item.clinician_final_score));
+    if (hasEvidence && hasScore) return item;
+
+    const deterministic = findDeterministicFormalEvidence(item, longitudinal);
+    if (!deterministic || !normalizeArray(deterministic.evidence_summary).length) {
+      return item;
+    }
+
+    const nextItem = Object.assign({}, item, {
+      evidence_type: item.evidence_type && item.evidence_type !== 'none' ? item.evidence_type : deterministic.evidence_type,
+      direct_answer_value: item.direct_answer_value != null ? item.direct_answer_value : deterministic.direct_answer_value,
+      evidence_summary: hasEvidence ? normalizeHamdEvidenceSummary(item, item.evidence_summary) : deterministic.evidence_summary,
+      review_required: typeof item.review_required === 'boolean' && hasEvidence ? item.review_required : deterministic.review_required,
+      confidence: item.confidence && item.confidence !== 'low' ? item.confidence : deterministic.confidence
+    });
+
+    if (!hasScore && deterministic.ai_suggested_score != null) {
+      nextItem.ai_suggested_score = deterministic.ai_suggested_score;
+    }
+    if (!String(nextItem.rating_rationale || '').trim() && nextItem.ai_suggested_score != null) {
+      nextItem.rating_rationale = buildFormalRatingRationale(nextItem, deterministic, nextItem.ai_suggested_score);
+    }
+
+    return nextItem;
+  });
+
+  const nextAssessment = Object.assign({}, formalAssessment, { items: nextItems });
+  const aiScores = nextItems
+    .map((item) => item.ai_suggested_score)
+    .filter((value) => typeof value === 'number');
+  const clinicianScores = nextItems
+    .map((item) => item.clinician_final_score)
+    .filter((value) => typeof value === 'number');
+  const reviewFlags = nextItems
+    .filter((item) => item.review_required || item.evidence_type === 'indirect_observation')
+    .map((item) => item.item_code);
+
+  nextAssessment.ai_total_score = aiScores.reduce((sum, value) => sum + value, 0);
+  nextAssessment.clinician_total_score = clinicianScores.length
+    ? clinicianScores.reduce((sum, value) => sum + value, 0)
+    : nextAssessment.clinician_total_score;
+  nextAssessment.severity_band = calculateHamdSeverity(
+    nextAssessment.clinician_total_score != null ? nextAssessment.clinician_total_score : nextAssessment.ai_total_score
+  );
+  nextAssessment.review_flags = reviewFlags;
+  nextAssessment.status = reviewFlags.length ? 'review_required' : 'draft';
+  return nextAssessment;
+}
+
 function buildFormalFhirTargets(formalAssessment) {
   return formalAssessment.items
     .filter((item) => item.ai_suggested_score != null || item.clinician_final_score != null)
@@ -3246,7 +3341,10 @@ function rewriteObservationText(value = '') {
     .replace(/^(對話中提及)+/g, '')
     .trim();
   if (!normalized) return '';
-  return normalizeClinicalNarrativeText(`對話中提及${normalized}。`);
+  if (/[我你他她它妳我們他們]|覺得|不知道|好像|是不是|想要|希望|如果/.test(normalized)) {
+    return '';
+  }
+  return normalizeClinicalNarrativeText(normalized);
 }
 
 function rewriteConcernText(value = '') {
@@ -3257,7 +3355,11 @@ function rewriteConcernText(value = '') {
     return uniqueStrings(matchedRules.map((rule) => rule.concern), 2).join('、');
   }
   const normalized = normalizeClinicalNarrativeText(text).replace(/[。！？]+$/g, '').trim();
-  return normalized || '';
+  if (!normalized) return '';
+  if (/[我你他她它妳我們他們]|覺得|不知道|好像|是不是|想要|希望|如果/.test(normalized)) {
+    return '';
+  }
+  return normalized;
 }
 
 function buildStructuredObservationSet(observations = [], inferenceTrack = [], evidenceTrack = [], limit = 8) {
@@ -5834,7 +5936,11 @@ class AICompanionEngine {
       normalizeObjectState(state, 'hamd_progress_state', {}),
       longitudinal
     );
-    const formalAssessment = hydrateFormalAssessment(state.hamd_formal_assessment);
+    const formalAssessment = backfillFormalAssessmentFromLongitudinal(
+      hydrateFormalAssessment(state.hamd_formal_assessment),
+      longitudinal
+    );
+    state.hamd_formal_assessment = formalAssessment;
     const baseSummaryDraft = buildSummaryDraftState(state, longitudinal, message);
     const baseClinicianSummary = buildClinicianSummaryDraft(
       longitudinal,
