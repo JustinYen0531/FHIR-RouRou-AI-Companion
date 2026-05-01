@@ -3607,9 +3607,7 @@ function findFhirResourceLink(deliveryResult, resourceType) {
 }
 
 function loadFhirReportHistory(conversationId = '') {
-  const resolvedConversationId = String(
-    conversationId || (typeof APP_STATE !== 'undefined' ? APP_STATE.conversationId : '') || ''
-  ).trim();
+  const resolvedConversationId = String(conversationId || '').trim();
   try {
     const key = getFhirHistoryCacheKey(resolvedConversationId);
     let parsed = JSON.parse(localStorage.getItem(key) || 'null');
