@@ -1814,6 +1814,7 @@ function updateAuthUI() {
   const settingsAuthId = document.getElementById('settings-auth-id');
   const settingsAuthBadge = document.getElementById('settings-auth-badge');
   const settingsAuthActions = document.getElementById('settings-auth-actions');
+  const settingsLogin = document.getElementById('settings-auth-login');
   const settingsLogout = document.getElementById('settings-auth-logout');
   const authRoleButtons = document.querySelectorAll('[data-auth-role]');
 
@@ -1834,13 +1835,14 @@ function updateAuthUI() {
       : '這一版先支援病人與醫師雙角色登入';
   }
   if (homeEntryButton) {
-    homeEntryButton.disabled = !isLoggedIn;
+    homeEntryButton.disabled = false;
     homeEntryButton.classList.toggle('is-disabled', !isLoggedIn);
+    homeEntryButton.title = isLoggedIn ? '' : '點這裡登入病人或醫師帳號';
   }
   if (homeEntryPlaceholder) {
     homeEntryPlaceholder.textContent = isLoggedIn
       ? (user.role === 'doctor' ? '前往病人管理工作台' : '跟 Rou Rou 說說心事...')
-      : '請先登入病人或醫師帳號';
+      : '先登入病人或醫師帳號';
   }
   if (authGuest) {
     authGuest.style.display = isLoggedIn ? 'none' : 'block';
@@ -1876,10 +1878,14 @@ function updateAuthUI() {
     settingsAuthBadge.classList.toggle('incomplete', !isLoggedIn);
   }
   if (settingsAuthActions) {
-    settingsAuthActions.style.display = isLoggedIn ? 'flex' : 'none';
+    settingsAuthActions.style.display = 'flex';
+  }
+  if (settingsLogin) {
+    settingsLogin.textContent = isLoggedIn ? '切換帳號' : '登入帳號';
   }
   if (settingsLogout) {
     settingsLogout.disabled = !isLoggedIn;
+    settingsLogout.style.display = isLoggedIn ? 'inline-flex' : 'none';
   }
   if (authModalClose) {
     authModalClose.style.display = isLoggedIn ? 'inline-flex' : 'none';
@@ -11657,6 +11663,7 @@ window.selectAuthRole = selectAuthRole;
 window.loginAuth = () => submitAuth('login');
 window.registerAuth = () => submitAuth('register');
 window.logoutAuth = logoutAuth;
+window.openAuthModal = openAuthModal;
 window.closeAuthModal = closeAuthModal;
 window.sendQuickReply = sendQuickReply;
 window.activateShortcut = activateShortcut;
