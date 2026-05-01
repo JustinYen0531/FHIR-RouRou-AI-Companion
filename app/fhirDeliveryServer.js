@@ -1049,7 +1049,9 @@ function createServer(options = {}) {
     if (req.method === 'GET' && parsedUrl.pathname === '/api/chat/sessions') {
       const requestedUser = String(parsedUrl.searchParams.get('user') || '').trim();
       const user = authUser ? authUser.id : requestedUser;
-      const users = authUser ? getAuthorizedSessionUserIds(authUser) : [];
+      const users = authUser
+        ? getAuthorizedSessionUserIds(authUser)
+        : (requestedUser ? [] : ['competition-showcase-user']);
       if (authUser && requestedUser && requestedUser !== authUser.id) {
         sendJson(res, 403, { error: 'Forbidden' });
         return;

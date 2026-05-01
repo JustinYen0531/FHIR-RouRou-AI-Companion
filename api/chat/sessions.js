@@ -19,7 +19,9 @@ module.exports = function handler(req, res) {
     return;
   }
   const user = authUser ? authUser.id : requestedUser;
-  const users = authUser ? getAuthorizedSessionUserIds(authUser) : [];
+  const users = authUser
+    ? getAuthorizedSessionUserIds(authUser)
+    : (requestedUser ? [] : ['competition-showcase-user']);
   const limit = Number(url.searchParams.get('limit') || 5);
   const persistence = getSharedPersistence();
   buildServerOptions();

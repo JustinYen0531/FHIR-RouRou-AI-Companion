@@ -1017,27 +1017,28 @@ async function testAuthProtectsForeignSession() {
   assert.strictEqual(own.body.session.id, 'conv-own');
 }
 
-async function testDefaultDemoPatientCanSeeLegacyDemoSessions() {
+async function testAnyUserSeesCompetitionShowcaseSession() {
   const authStore = createTempAuthStore();
   const login = authStore.login({
     login_identifier: 'Justin',
     password: '3553'
   });
   const sessions = new Map();
-  sessions.set('conv-legacy-demo', {
-    id: 'conv-legacy-demo',
-    user: 'demo-user',
-    startedAt: '2026-04-04T00:00:00.000Z',
-    updatedAt: '2026-04-04T00:05:00.000Z',
-    history: [{ role: 'user', content: '這是舊 demo 對話' }],
+  sessions.set('competition-showcase-session', {
+    id: 'competition-showcase-session',
+    user: 'competition-showcase-user',
+    startedAt: '2026-05-01T14:33:27.990Z',
+    updatedAt: '2026-05-01T15:23:55.846Z',
+    history: [{ role: 'user', content: '我每次都在天台想東西，有種想跳下的衝動。' }],
     state: {
-      clinician_summary_draft: { draft_summary: '舊 demo 醫師摘要' },
+      risk_flag: 'true',
+      clinician_summary_draft: { draft_summary: '競賽展示醫師摘要' },
       fhir_delivery_draft: { resources: [{ resource_type: 'Patient' }] }
     },
     revision: 1,
     memory_snapshot: {
-      last_user_message: '這是舊 demo 對話',
-      latest_tag_summary: '舊 demo 對話摘要'
+      last_user_message: '我每次都在天台想東西，有種想跳下的衝動。',
+      latest_tag_summary: '競賽展示危機對話摘要'
     },
     output_cache: {}
   });
@@ -1049,17 +1050,17 @@ async function testDefaultDemoPatientCanSeeLegacyDemoSessions() {
   const list = await requestJson(port, '/api/chat/sessions?limit=5', {
     headers: { Authorization: `Bearer ${login.token}` }
   });
-  const detail = await requestJson(port, '/api/chat/session?id=conv-legacy-demo', {
+  const detail = await requestJson(port, '/api/chat/session?id=competition-showcase-session', {
     headers: { Authorization: `Bearer ${login.token}` }
   });
 
   server.close();
   assert.strictEqual(list.statusCode, 200);
   assert.strictEqual(list.body.sessions.length, 1);
-  assert.strictEqual(list.body.sessions[0].id, 'conv-legacy-demo');
+  assert.strictEqual(list.body.sessions[0].id, 'competition-showcase-session');
   assert.strictEqual(list.body.sessions[0].has_fhir_draft, true);
   assert.strictEqual(detail.statusCode, 200);
-  assert.strictEqual(detail.body.session.id, 'conv-legacy-demo');
+  assert.strictEqual(detail.body.session.id, 'competition-showcase-session');
 }
 
 async function run() {
@@ -1094,7 +1095,7 @@ async function run() {
   await testDoctorCanAddPatientIdWithoutSharedUserCache();
   await testDoctorAssignmentVisibleToPatient();
   await testAuthProtectsForeignSession();
-  await testDefaultDemoPatientCanSeeLegacyDemoSessions();
+  await testAnyUserSeesCompetitionShowcaseSession();
   console.log('FHIR delivery server tests passed.');
 }
 
