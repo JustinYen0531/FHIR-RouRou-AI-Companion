@@ -11288,8 +11288,17 @@ async function authorizeAndSendReport() {
         ? `已手動授權並成功送出 FHIR 報告。Patient ID：${patientLink.label}`
         : '已手動授權並成功送出 FHIR 報告。');
     } else {
-      setConsentPreviewProgress(100, `送出完成，目前狀態：${deliveryStatus}`, '完成');
-      appendSystemNotice(`手動授權流程已完成，目前狀態：${deliveryStatus}`);
+      const failReason = extractFhirDeliveryError(payload);
+      const hapiStatus = payload?.transaction_response?.status || '';
+      const hapiUrl = payload?.transaction_response?.attempted_url || payload?.fhir_base_url || '';
+      const detailMsg = [
+        failReason && failReason !== 'FHIR 上傳失敗' ? failReason : '',
+        hapiStatus ? `HAPI HTTP ${hapiStatus}` : '',
+        hapiUrl ? `目標：${hapiUrl}` : ''
+      ].filter(Boolean).join('　|　');
+      setConsentPreviewProgress(100, `送出${deliveryStatus === 'transaction_failed' ? '失敗' : '完成'}，目前狀態：${deliveryStatus}`, deliveryStatus === 'transaction_failed' ? '失敗' : '完成');
+      appendSystemNotice(`FHIR 送出結果：${deliveryStatus}${detailMsg ? `\n詳細原因：${detailMsg}` : ''}`, { important: true });
+      console.error('[FHIR delivery]', deliveryStatus, payload?.transaction_response);
     }
   } catch (error) {
     const deliveredStatus = deliveryPayload?.delivery_status;
