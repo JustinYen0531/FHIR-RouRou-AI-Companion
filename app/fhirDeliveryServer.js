@@ -20,6 +20,8 @@ const PROJECT_ROOT = path.join(APP_DIR, '..');
 const DEFAULT_PUBLIC_FHIR_BASE_URL = 'https://hapi.fhir.org/baseR4';
 const DEFAULT_FHIR_FALLBACK_BASE_URL = 'https://r4.smarthealthit.org';
 const PUBLIC_DEMO_FHIR_TARGETS = [DEFAULT_PUBLIC_FHIR_BASE_URL, DEFAULT_FHIR_FALLBACK_BASE_URL];
+const FHIR_TRANSACTION_MAX_ATTEMPTS = 2;
+const FHIR_TRANSACTION_RETRY_DELAY_MS = 350;
 const DELIVERY_DEBUG_LOG_PATH = path.join(APP_DIR, '..', '.logs', 'fhir-delivery-debug.ndjson');
 const LOCAL_ENV_PATH = path.join(PROJECT_ROOT, '.env.local');
 const STATIC_FILES = {
@@ -169,6 +171,10 @@ function createDemoDeliverySuffix() {
   return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
 }
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function resolveDeliverySuffix(payload) {
   const suffix = String(payload?.__deliverySuffix || '').trim();
   return suffix || createDemoDeliverySuffix();
@@ -310,6 +316,7 @@ async function sendFhirTransactionAttempt(fetchImpl, fhirBaseUrl, bundleJson) {
       status: transactionResponse.status,
       ok: transactionResponse.ok,
       body: parsed,
+      attempts: 1,
       error: ''
     };
   } catch (error) {
@@ -320,11 +327,40 @@ async function sendFhirTransactionAttempt(fetchImpl, fhirBaseUrl, bundleJson) {
       status: isTimeout ? 504 : 0,
       ok: false,
       body: null,
+      attempts: 1,
       error: isTimeout
         ? `FHIR server timeout (45s): ${normalizedBaseUrl} did not respond in time. Trying fallback...`
         : (error.message || 'FHIR transaction request failed.')
     };
   }
+}
+
+async function sendFhirTransactionWithRetry(fetchImpl, fhirBaseUrl, bundleJson) {
+  let finalAttempt = null;
+  const errors = [];
+
+  for (let attemptNumber = 1; attemptNumber <= FHIR_TRANSACTION_MAX_ATTEMPTS; attemptNumber += 1) {
+    const attempt = await sendFhirTransactionAttempt(fetchImpl, fhirBaseUrl, bundleJson);
+    attempt.attempts = attemptNumber;
+    finalAttempt = attempt;
+
+    if (attempt.ok || attempt.status > 0) {
+      return attempt;
+    }
+
+    if (attempt.error) {
+      errors.push(attempt.error);
+    }
+
+    if (attemptNumber < FHIR_TRANSACTION_MAX_ATTEMPTS) {
+      await wait(FHIR_TRANSACTION_RETRY_DELAY_MS);
+    }
+  }
+
+  if (finalAttempt && errors.length > 1) {
+    finalAttempt.error = errors.join(' | ');
+  }
+  return finalAttempt;
 }
 
 function shouldRetryOnPublicDemoFallback(primaryAttempt, primaryFhirBaseUrl, fallbackFhirBaseUrl) {
@@ -343,7 +379,8 @@ function buildTransactionResponsePayload(finalAttempt, primaryAttempt, fallbackU
     status: finalAttempt.status,
     ok: finalAttempt.ok,
     body: finalAttempt.body,
-    attempted_url: finalAttempt.fhirBaseUrl
+    attempted_url: finalAttempt.fhirBaseUrl,
+    attempts: finalAttempt.attempts || 1
   };
   if (finalAttempt.error) {
     payload.error = finalAttempt.error;
@@ -354,7 +391,8 @@ function buildTransactionResponsePayload(finalAttempt, primaryAttempt, fallbackU
       status: primaryAttempt.status,
       ok: primaryAttempt.ok,
       body: primaryAttempt.body,
-      attempted_url: primaryAttempt.fhirBaseUrl
+      attempted_url: primaryAttempt.fhirBaseUrl,
+      attempts: primaryAttempt.attempts || 1
     };
     if (primaryAttempt.error) {
       payload.primary_response.error = primaryAttempt.error;
@@ -469,11 +507,11 @@ async function processExportPayload(payload, options = {}) {
   }
 
   try {
-    const primaryAttempt = await sendFhirTransactionAttempt(fetchImpl, options.fhirBaseUrl, bundleResult.bundle_json);
+    const primaryAttempt = await sendFhirTransactionWithRetry(fetchImpl, options.fhirBaseUrl, bundleResult.bundle_json);
     const fallbackFhirBaseUrl = String(options.fallbackFhirBaseUrl || DEFAULT_FHIR_FALLBACK_BASE_URL).trim();
     const shouldUseFallback = shouldRetryOnPublicDemoFallback(primaryAttempt, options.fhirBaseUrl, fallbackFhirBaseUrl);
     const finalAttempt = shouldUseFallback
-      ? await sendFhirTransactionAttempt(fetchImpl, fallbackFhirBaseUrl, bundleResult.bundle_json)
+      ? await sendFhirTransactionWithRetry(fetchImpl, fallbackFhirBaseUrl, bundleResult.bundle_json)
       : primaryAttempt;
     const fallbackUsed = shouldUseFallback && finalAttempt.ok;
 

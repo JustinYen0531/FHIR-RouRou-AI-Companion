@@ -189,6 +189,81 @@ async function testPublicHapiDeliveryFallsBackToSmartWhenHapiFails() {
   assert.deepStrictEqual(attemptedUrls, ['https://hapi.fhir.org/baseR4', 'https://r4.smarthealthit.org']);
 }
 
+async function testTransactionDeliveryRetriesTransientFetchFailure() {
+  const payload = getSamplePayload();
+  let attempts = 0;
+  const fakeFetch = async () => {
+    attempts += 1;
+    if (attempts === 1) {
+      throw new Error('fetch failed');
+    }
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        resourceType: 'Bundle',
+        type: 'transaction-response',
+        entry: [
+          { response: { location: 'Patient/123/_history/1' } }
+        ]
+      })
+    };
+  };
+
+  const result = await processExportPayload(payload, {
+    fhirBaseUrl: 'https://hapi.fhir.org/baseR4',
+    fetchImpl: fakeFetch
+  });
+
+  assert.strictEqual(result.statusCode, 200);
+  assert.strictEqual(result.body.delivery_status, 'delivered');
+  assert.strictEqual(result.body.transaction_response.ok, true);
+  assert.strictEqual(result.body.transaction_response.attempts, 2);
+}
+
+async function testFallbackDeliveryRetriesTransientFetchFailure() {
+  const payload = getSamplePayload();
+  const attemptsByUrl = new Map();
+  const fakeFetch = async (url) => {
+    attemptsByUrl.set(url, (attemptsByUrl.get(url) || 0) + 1);
+    if (url === 'https://hapi.fhir.org/baseR4') {
+      return {
+        ok: false,
+        status: 503,
+        text: async () => JSON.stringify({
+          resourceType: 'OperationOutcome',
+          issue: [{ diagnostics: 'Public demo server is busy.' }]
+        })
+      };
+    }
+    if (attemptsByUrl.get(url) === 1) {
+      throw new Error('fetch failed');
+    }
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        resourceType: 'Bundle',
+        type: 'transaction-response',
+        entry: [
+          { response: { location: 'Patient/456/_history/1' } }
+        ]
+      })
+    };
+  };
+
+  const result = await processExportPayload(payload, {
+    fhirBaseUrl: 'https://hapi.fhir.org/baseR4',
+    fetchImpl: fakeFetch
+  });
+
+  assert.strictEqual(result.statusCode, 200);
+  assert.strictEqual(result.body.delivery_status, 'delivered');
+  assert.strictEqual(result.body.fhir_base_url, 'https://r4.smarthealthit.org');
+  assert.strictEqual(result.body.transaction_response.fallback_used, true);
+  assert.strictEqual(result.body.transaction_response.attempts, 2);
+}
+
 async function testPatientRefreshDelivery() {
   const payload = getSamplePayload();
   let requestUrl = '';
@@ -855,6 +930,8 @@ async function run() {
   await testPublicHapiDeliveryUsesUniqueKeys();
   await testSharedDeviceUsesIdempotentPutRequest();
   await testPublicHapiDeliveryFallsBackToSmartWhenHapiFails();
+  await testTransactionDeliveryRetriesTransientFetchFailure();
+  await testFallbackDeliveryRetriesTransientFetchFailure();
   await testPatientRefreshDelivery();
   await testPatientRefreshRejectsInvalidPath();
   await testPatientRefreshRejectsInvalidBuild();
