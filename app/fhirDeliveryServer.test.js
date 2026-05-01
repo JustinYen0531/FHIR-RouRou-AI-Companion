@@ -99,6 +99,39 @@ async function testTransactionDelivery() {
   assert.strictEqual(result.body.transaction_response.ok, true);
 }
 
+async function testTransactionDeliveryReturnsResourceLinks() {
+  const payload = getSamplePayload();
+  const fakeFetch = async () => ({
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify({
+      resourceType: 'Bundle',
+      type: 'transaction-response',
+      entry: [
+        { response: { location: 'Patient/123/_history/1' } },
+        { response: { location: 'Encounter/234/_history/1' } },
+        { response: { location: 'Composition/345/_history/1' } },
+        { response: { location: 'Provenance/456/_history/1' } }
+      ]
+    })
+  });
+
+  const result = await processExportPayload(payload, {
+    fhirBaseUrl: 'https://hapi.fhir.org/baseR4',
+    fetchImpl: fakeFetch
+  });
+
+  assert.strictEqual(result.statusCode, 200);
+  assert.strictEqual(result.body.delivery_status, 'delivered');
+  assert.deepStrictEqual(
+    result.body.fhir_resource_links.map((item) => item.label),
+    ['Patient/123', 'Encounter/234', 'Composition/345', 'Provenance/456']
+  );
+  assert.strictEqual(result.body.fhir_resource_links[0].url, 'https://hapi.fhir.org/baseR4/Patient/123');
+  assert.strictEqual(result.body.created_resources.Patient, 'Patient/123');
+  assert.strictEqual(result.body.created_resources.Composition, 'Composition/345');
+}
+
 async function testPublicHapiDeliveryUsesUniqueKeys() {
   const payload = getSamplePayload();
   const originalPatientKey = payload.patient.key;
@@ -927,6 +960,7 @@ async function run() {
   await testQuickCheckReady();
   await testQuickCheckBlocked();
   await testTransactionDelivery();
+  await testTransactionDeliveryReturnsResourceLinks();
   await testPublicHapiDeliveryUsesUniqueKeys();
   await testSharedDeviceUsesIdempotentPutRequest();
   await testPublicHapiDeliveryFallsBackToSmartWhenHapiFails();

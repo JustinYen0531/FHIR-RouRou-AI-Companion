@@ -232,6 +232,27 @@ function buildCreatedResourceMap(transactionBody) {
   }, {});
 }
 
+function buildCreatedResourceLinks(transactionBody, fhirBaseUrl) {
+  const baseUrl = normalizeFhirTarget(fhirBaseUrl);
+  const entries = Array.isArray(transactionBody?.entry) ? transactionBody.entry : [];
+  return entries.map((entry) => {
+    const location = String(entry?.response?.location || '').trim();
+    if (!location) return null;
+    const resourcePath = location
+      .replace(/^https?:\/\/[^/]+/i, '')
+      .replace(/^\/+/, '');
+    const canonicalPath = resourcePath.replace(/\/_history\/[^/]+$/i, '');
+    const [resourceType = 'Resource', resourceId = ''] = canonicalPath.split('/');
+    if (!resourceType || !resourceId) return null;
+    return {
+      resource_type: resourceType,
+      label: `${resourceType}/${resourceId}`,
+      path: canonicalPath,
+      url: baseUrl ? `${baseUrl}/${canonicalPath}` : canonicalPath
+    };
+  }).filter(Boolean);
+}
+
 function summarizeQuickCheck(bundleResult, options = {}) {
   const blockingReasons = Array.isArray(bundleResult?.blocking_reasons)
     ? bundleResult.blocking_reasons.filter(Boolean)
@@ -523,10 +544,12 @@ async function processExportPayload(payload, options = {}) {
       body: Object.assign(response, {
         delivery_status: finalAttempt.ok ? 'delivered' : 'transaction_failed',
         fhir_base_url: finalAttempt.fhirBaseUrl,
-        transaction_response: buildTransactionResponsePayload(finalAttempt, primaryAttempt, fallbackUsed)
+        transaction_response: buildTransactionResponsePayload(finalAttempt, primaryAttempt, fallbackUsed),
+        created_resources: buildCreatedResourceMap(finalAttempt.body),
+        fhir_resource_links: buildCreatedResourceLinks(finalAttempt.body, finalAttempt.fhirBaseUrl)
       })
     };
-    const createdResources = buildCreatedResourceMap(finalAttempt.body);
+    const createdResources = result.body.created_resources;
     appendDeliveryDebugLog({
       phase: 'transaction_response',
       deliveryStatus: result.body.delivery_status,

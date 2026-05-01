@@ -3579,14 +3579,41 @@ function normalizeFhirBaseUrl(baseUrl) {
 
 function buildFhirResourceLinks(deliveryResult) {
   const baseUrl = normalizeFhirBaseUrl(deliveryResult?.fhir_base_url);
+  const explicitLinks = Array.isArray(deliveryResult?.fhir_resource_links)
+    ? deliveryResult.fhir_resource_links
+    : [];
+  const preferredOrder = ['Patient', 'Encounter', 'QuestionnaireResponse', 'Observation', 'ClinicalImpression', 'Composition', 'DocumentReference', 'Provenance'];
+  const sortLinks = (links) => links.sort((a, b) => {
+    const aIndex = preferredOrder.indexOf(a.resourceType);
+    const bIndex = preferredOrder.indexOf(b.resourceType);
+    const safeA = aIndex === -1 ? preferredOrder.length : aIndex;
+    const safeB = bIndex === -1 ? preferredOrder.length : bIndex;
+    if (safeA !== safeB) return safeA - safeB;
+    return a.label.localeCompare(b.label, 'en');
+  });
+
+  if (explicitLinks.length) {
+    return sortLinks(explicitLinks.map((item) => {
+      const resourceType = String(item.resourceType || item.resource_type || 'Resource').trim() || 'Resource';
+      const path = String(item.path || '').trim();
+      const label = String(item.label || path || resourceType).trim();
+      if (!path) return null;
+      return {
+        resourceType,
+        label,
+        path,
+        url: String(item.url || (baseUrl ? `${baseUrl}/${path}` : path)).trim()
+      };
+    }).filter(Boolean));
+  }
+
   const entries = Array.isArray(deliveryResult?.transaction_response?.body?.entry)
     ? deliveryResult.transaction_response.body.entry
     : [];
-  const preferredOrder = ['Patient', 'Encounter', 'QuestionnaireResponse', 'Observation', 'ClinicalImpression', 'Composition', 'DocumentReference', 'Provenance'];
 
   if (!baseUrl || !entries.length) return [];
 
-  return entries
+  return sortLinks(entries
     .map((entry) => {
       const location = String(entry?.response?.location || '').trim();
       if (!location) return null;
@@ -3602,15 +3629,7 @@ function buildFhirResourceLinks(deliveryResult) {
         url: `${baseUrl}/${canonicalPath || resourcePath}`
       };
     })
-    .filter(Boolean)
-    .sort((a, b) => {
-      const aIndex = preferredOrder.indexOf(a.resourceType);
-      const bIndex = preferredOrder.indexOf(b.resourceType);
-      const safeA = aIndex === -1 ? preferredOrder.length : aIndex;
-      const safeB = bIndex === -1 ? preferredOrder.length : bIndex;
-      if (safeA !== safeB) return safeA - safeB;
-      return a.label.localeCompare(b.label, 'en');
-    });
+    .filter(Boolean));
 }
 
 function buildPatientRefreshSnapshot(sessionExport = null) {
