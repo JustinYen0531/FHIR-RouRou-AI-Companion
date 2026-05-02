@@ -390,14 +390,9 @@ async function sendFhirTransactionWithRetry(fetchImpl, fhirBaseUrl, bundleJson) 
 }
 
 function shouldRetryOnPublicDemoFallback(primaryAttempt, primaryFhirBaseUrl, fallbackFhirBaseUrl) {
-  const primary = normalizeFhirTarget(primaryFhirBaseUrl);
-  const fallback = normalizeFhirTarget(fallbackFhirBaseUrl);
-  if (!fallback || primary === fallback) return false;
-  if (!shouldUseUniqueDemoKeys(primary) || !shouldUseUniqueDemoKeys(fallback)) return false;
-  // Trigger fallback on ANY non-OK status (was: only 0/429/5xx). HAPI public
-  // test server frequently returns 4xx (412 duplicate, 422 validation) on
-  // shared resource conflicts — those should also fall back to SMART Health IT.
-  return !primaryAttempt.ok;
+  // Production should not silently redirect deliveries to another public demo
+  // server. Keep the original HAPI response and surface that result to the UI.
+  return false;
 }
 
 function buildTransactionResponsePayload(finalAttempt, primaryAttempt, fallbackUsed) {
