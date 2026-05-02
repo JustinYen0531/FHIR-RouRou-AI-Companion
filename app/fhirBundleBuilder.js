@@ -120,6 +120,13 @@ function getAiDeviceConfig(input) {
       .replace(/>/g, '&gt;');
   }
 
+  function truncateText(value, maxLength) {
+    var text = String(value == null ? '' : value).trim();
+    var max = typeof maxLength === 'number' && maxLength > 0 ? maxLength : 180;
+    if (text.length <= max) return text;
+    return text.slice(0, Math.max(0, max - 3)).trim() + '...';
+  }
+
   function addValidationErrorIfMissing(value, label, validationErrors) {
     if (!value) {
       validationErrors.push(label + ' is required.');
@@ -317,6 +324,12 @@ function getAiDeviceConfig(input) {
     }
     return result;
   }
+
+  function normalizeEvidenceSummary(values, maxCount, maxLength) {
+    return cleanEvidence(values, maxCount).map(function (item) {
+      return truncateText(item, maxLength);
+    });
+  }
   // ─────────────────────────────────────────────────────────────────────────────
 
   function collectQuestionnaireItems(input, hamdProgress, formalAssessment, phq9Assessment, clinicianSummary, patientReviewPacket, fhirDeliveryDraft) {
@@ -345,7 +358,7 @@ function getAiDeviceConfig(input) {
             ? [{
                 linkId: item.item_code + '_evidence',
                 text: 'Evidence summary',
-                answer: asArray(item.evidence_summary).map(function (value) {
+                answer: normalizeEvidenceSummary(item.evidence_summary, 2, 180).map(function (value) {
                   return { valueString: String(value) };
                 })
               }]
@@ -389,7 +402,7 @@ function getAiDeviceConfig(input) {
           linkId: 'recent_evidence',
           text: 'Recent evidence (high-signal)',
           answer: cleanedEvidence.map(function (value) {
-            return { valueString: value };
+            return { valueString: truncateText(value, 180) };
           })
         });
       }
@@ -786,7 +799,7 @@ function getAiDeviceConfig(input) {
             // 只保留清洗後最多 2 筆最有代表性的 evidence
             var cleaned = cleanEvidence(candidate.evidence, 2);
             return cleaned.length
-              ? cleaned.map(function (entry) { return { text: entry }; })
+              ? cleaned.map(function (entry) { return { text: truncateText(entry, 180) }; })
               : undefined;
           })()
         }
@@ -944,7 +957,7 @@ function getAiDeviceConfig(input) {
         text: {
           status: 'generated',
           div: '<div xmlns="http://www.w3.org/1999/xhtml"><table><thead><tr><th>Item</th><th>Evidence Type</th><th>Evidence</th><th>Rationale</th></tr></thead><tbody>' + hamdEvidenceTable.map(function (row) {
-            return '<tr><td>' + htmlEscape(row.item_label || '') + '</td><td>' + htmlEscape(row.evidence_type || '') + '</td><td>' + htmlEscape(asArray(row.evidence_summary).join(' | ')) + '</td><td>' + htmlEscape(row.rating_rationale || '') + '</td></tr>';
+            return '<tr><td>' + htmlEscape(row.item_label || '') + '</td><td>' + htmlEscape(row.evidence_type || '') + '</td><td>' + htmlEscape(normalizeEvidenceSummary(row.evidence_summary, 2, 140).join(' | ')) + '</td><td>' + htmlEscape(truncateText(row.rating_rationale || '', 140)) + '</td></tr>';
           }).join('') + '</tbody></table></div>'
         }
       });
@@ -1208,19 +1221,25 @@ function getAiDeviceConfig(input) {
       hamd_signals:         dedupeStrings(clinicianSummary.hamd_signals || asArray(clinicianSummary.hamd_evidence_table).map(function (r) { return r.signal || r.item || ''; }), 6)
     };
 
-    // ── 2. 全量追蹤 payload（internal trace，不是對外閱讀版）──────────────────
+    // ── 2. 精簡 trace payload（保留交付脈絡，避免 HAPI public size limit）─────
     var internalTracePayload = {
-      _note: 'Internal trace payload — not intended for clinical reading',
-      clinician_summary_draft: clinicianSummary,
-      patient_analysis:        patientAnalysis,
-      patient_review_packet:   patientReviewPacket,
-      fhir_delivery_draft:     fhirDeliveryDraft,
-      hamd_formal_assessment:  formalAssessment,
-      phq9_assessment:        input.phq9_assessment,
-      active_mode:             input.active_mode,
-      risk_flag:               input.risk_flag,
-      latest_tag_payload:      input.latest_tag_payload,
-      burden_level_state:      input.burden_level_state
+      _note: 'Internal trace payload trimmed for HAPI public server compatibility',
+      patient_key: input.patient && input.patient.key ? input.patient.key : '',
+      encounter_key: input.session && input.session.encounterKey ? input.session.encounterKey : '',
+      exported_at: input.session && (input.session.endedAt || input.session.startedAt) ? (input.session.endedAt || input.session.startedAt) : new Date().toISOString(),
+      active_mode: input.active_mode || '',
+      review_status: input.patient_authorization_state && input.patient_authorization_state.authorization_status ? input.patient_authorization_state.authorization_status : '',
+      share_with_clinician: input.patient_authorization_state && input.patient_authorization_state.share_with_clinician ? input.patient_authorization_state.share_with_clinician : '',
+      included_resources: [
+        'Patient',
+        'Encounter',
+        'QuestionnaireResponse',
+        'Observation',
+        'ClinicalImpression',
+        'Composition',
+        'DocumentReference',
+        'Provenance'
+      ]
     };
 
     return {
